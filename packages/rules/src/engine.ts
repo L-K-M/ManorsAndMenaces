@@ -7,7 +7,7 @@ import { BALANCE } from "./balance.js";
 import { isReactionOnly, resolveCardEffect, validateCardTarget } from "./cards.js";
 import type { DebugCommand, GameCommand } from "./commands.js";
 import { createContext, type RulesContext } from "./context.js";
-import { check, fail, OK, RuleViolation, type RuleError, type RuleValidation } from "./errors.js";
+import { check, OK, RuleViolation, type RuleError, type RuleValidation } from "./errors.js";
 import type { GameEvent } from "./events.js";
 import { getQuestProgress } from "./quests.js";
 import { emptyResources, isResourceType, totalResources } from "./resources.js";

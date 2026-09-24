@@ -1,7 +1,6 @@
 import { clone, type BoardTopology, type RulesContent } from "@manors-menaces/rules";
 import { CARDS } from "./cards.js";
 import { GREENVALE_MAP } from "./maps/greenvale.js";
-import { MENACES } from "./menaces.js";
 import { QUESTS } from "./quests.js";
 import type { MapDefinition } from "./types.js";
 

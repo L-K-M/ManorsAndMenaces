@@ -77,7 +77,13 @@ export function validateMap(map: MapDefinition, maxPlayers = 4): MapValidation {
   if (start) {
     const seen = new Set([start]);
     const stack = [start];
-    while (stack.length) for (const n of adj.get(stack.pop() as string) ?? []) if (!seen.has(n)) (seen.add(n), stack.push(n));
+    while (stack.length) {
+      for (const n of adj.get(stack.pop() as string) ?? []) {
+        if (seen.has(n)) continue;
+        seen.add(n);
+        stack.push(n);
+      }
+    }
     if (seen.size !== map.sites.length) errors.push("the Route network is not connected");
   }
 

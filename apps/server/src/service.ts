@@ -52,6 +52,8 @@ export function hashToken(token: string): string {
 }
 
 function cleanName(name: unknown): string {
+  // Strip control characters and angle brackets from display names.
+  // eslint-disable-next-line no-control-regex
   const s = typeof name === "string" ? name.replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 24) : "";
   return s || "Guest";
 }

@@ -18,7 +18,10 @@
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "server": "pnpm --filter @manors-menaces/server start",
     "map:generate": "node tools/generate-map.mjs",
-    "simulate": "tsx tools/simulate.ts"
+    "simulate": "tsx tools/simulate.ts",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -26,6 +29,7 @@
     "@manors-menaces/content": "workspace:*",
     "@manors-menaces/protocol": "workspace:*",
     "@manors-menaces/rules": "workspace:*",
+    "@tauri-apps/cli": "^2",
     "esbuild": "^0.28.2",
     "eslint": "^10.11.0",
     "eslint-plugin-svelte": "^3.23.0",

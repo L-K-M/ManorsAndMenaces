@@ -43,13 +43,11 @@ export function zoomTo(points: { x: number; y: number }[], padding = 140): void 
   if (points.length === 0) return resetView();
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
-  let w = Math.max(...xs) - Math.min(...xs) + padding * 2;
-  let h = Math.max(...ys) - Math.min(...ys) + padding * 2;
   const ratio = viewport.full.w / viewport.full.h;
-  if (w / h > ratio) h = w / ratio;
-  else w = h * ratio;
-  w = Math.max(MIN_W, w);
-  h = w / ratio;
+  const spanW = Math.max(...xs) - Math.min(...xs) + padding * 2;
+  const spanH = Math.max(...ys) - Math.min(...ys) + padding * 2;
+  const w = Math.max(MIN_W, spanW / spanH > ratio ? spanW : spanH * ratio);
+  const h = w / ratio;
   const cx = (Math.max(...xs) + Math.min(...xs)) / 2;
   const cy = (Math.max(...ys) + Math.min(...ys)) / 2;
   viewport.box = clamp({ x: cx - w / 2, y: cy - h / 2, w, h });

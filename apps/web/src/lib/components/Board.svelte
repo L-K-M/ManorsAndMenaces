@@ -7,7 +7,7 @@
   import type { GameSession } from "../game/session.svelte.js";
   import { computeHighlights, legalFor, onPick } from "../game/interaction.js";
   import { regionName } from "../game/log.js";
-  import { ui, locationKey, type Pick } from "../stores/ui.svelte.js";
+  import { ui, type Pick } from "../stores/ui.svelte.js";
   import { viewport, setFull, zoomAt, panBy } from "../stores/viewport.svelte.js";
   import { settings, animationScale } from "../stores/settings.svelte.js";
   import { MENACE_THEME, PLAYER_THEMES, RESOURCE_COLORS, RESOURCE_GLYPHS, emblemPath } from "../theme.js";

@@ -139,7 +139,7 @@ const siteIndex = new Map(siteList.map(([k], i) => [k, i]));
 // Routes: consecutive vertices along a cell border where both endpoints are
 // sites and the edge is shared by two cells (i.e. not coastline).
 const edgeMap = new Map();
-cells.forEach((cell, ci) => {
+cells.forEach((cell) => {
   for (let i = 0; i < cell.length; i++) {
     const ka = vkey(cell[i]);
     const kb = vkey(cell[(i + 1) % cell.length]);
@@ -290,7 +290,7 @@ const LANDMARK_NAMES = [
 ];
 // Trade posts: coastal sites far from landmarks and from each other.
 const posts = [];
-for (const res of ["stone", "iron"]) {
+for (let k = 0; k < 2; k++) {
   let bestPost = null;
   for (const s of alive.filter((x) => sites[x].coast && !landmarks.includes(x) && !posts.includes(x))) {
     const d = Math.min(...[...landmarks, ...posts].map((l) => bfs(l).get(s)));

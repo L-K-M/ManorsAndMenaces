@@ -1,5 +1,9 @@
+import { readFileSync } from "node:fs";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite";
+
+// The root package.json is the single version source (scripts/release.sh).
+const rootVersion = (JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { version: string }).version;
 
 // One Vite build serves the web deployment and the Tauri shell (spec §43.3).
 export default defineConfig({
@@ -10,6 +14,6 @@ export default defineConfig({
   server: { port: 5173, strictPort: true },
   build: { target: "es2022", sourcemap: true },
   define: {
-    __APP_VERSION__: JSON.stringify(process.env.npm_package_version ?? "0.1.0"),
+    __APP_VERSION__: JSON.stringify(rootVersion),
   },
 });

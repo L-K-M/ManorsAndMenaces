@@ -1,0 +1,6 @@
+pnpm-lock.yaml
+**/dist
+packages/content/src/maps
+src-tauri/icons
+src-tauri/gen
+manors_and_menaces_project_spec.md

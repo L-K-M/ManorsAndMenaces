@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "start": "tsx src/main.ts",
-    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/server.mjs --packages=external --alias:@manors-menaces/rules=../../packages/rules/src/index.ts --alias:@manors-menaces/content=../../packages/content/src/index.ts --alias:@manors-menaces/protocol=../../packages/protocol/src/index.ts --alias:@manors-menaces/ai=../../packages/ai/src/index.ts",
+    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/server.mjs --external:bufferutil --external:utf-8-validate --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

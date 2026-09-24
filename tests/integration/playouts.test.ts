@@ -86,7 +86,6 @@ describe("AI playouts", () => {
       expect(getRenown(ctx, final, winner)).toBeGreaterThanOrEqual(rs.targetRenown);
       // Determinism (§66.2): same seed + commands = same state.
       expect(hashState(engine.replay(initial, commands))).toBe(hashState(final));
-      // eslint-disable-next-line no-console
       console.log(name, "rounds", final.round, "commands", commands.length, "winner", winner, getRenown(ctx, final, winner));
     }, 120_000);
   }

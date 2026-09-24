@@ -1,0 +1,15 @@
+# Self-hosted online server. Every tunable is ${VAR:-default}.
+services:
+  manors:
+    build: .
+    image: ${IMAGE:-ghcr.io/l-k-m/manorsandmenaces:latest}
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8787}:8787" # host port for the web client + API
+    environment:
+      CORS_ORIGIN: ${CORS_ORIGIN:-*} # restrict to your web origin in production
+      AI_DELAY_MS: ${AI_DELAY_MS:-700} # pause between server-side AI moves
+    volumes:
+      - manors-data:/data # SQLite database
+volumes:
+  manors-data:
