@@ -14,7 +14,7 @@
 
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { extname, join, normalize, resolve } from "node:path";
+import { extname, join, normalize, resolve, sep } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
 import { isSubmitCommandsRequest, type ClientMessage, type ServerMessage } from "@manors-menaces/protocol";
 import { redactEvent } from "@manors-menaces/rules";
@@ -104,8 +104,15 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   const serveStatic = (req: IncomingMessage, res: ServerResponse): void => {
     if (!webDist) return send(res, 404, { error: "not found" });
     const url = new URL(req.url ?? "/", "http://x");
-    let path = normalize(join(webDist, decodeURIComponent(url.pathname)));
-    if (!path.startsWith(webDist)) return send(res, 403, { error: "forbidden" });
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(url.pathname);
+    } catch {
+      return send(res, 400, { error: "bad path" });
+    }
+    let path = normalize(join(webDist, decoded));
+    // Must stay inside webDist itself, not merely share its prefix (/app/web vs /app/webevil).
+    if (path !== webDist && !path.startsWith(webDist + sep)) return send(res, 403, { error: "forbidden" });
     if (!existsSync(path) || statSync(path).isDirectory()) path = join(webDist, "index.html");
     res.writeHead(200, {
       "content-type": MIME[extname(path)] ?? "application/octet-stream",
@@ -117,7 +124,14 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://x");
     if (req.method === "OPTIONS") return send(res, 204, {});
-    if (!url.pathname.startsWith("/api/")) return serveStatic(req, res);
+    if (!url.pathname.startsWith("/api/")) {
+      try {
+        return serveStatic(req, res);
+      } catch (e) {
+        console.error(e);
+        return send(res, 500, { error: "internal error" });
+      }
+    }
     const clientKey = bearer(req) ?? req.socket.remoteAddress ?? "?";
     if (!allow(clientKey)) return send(res, 429, { error: "slow down" });
     try {
@@ -162,8 +176,14 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   const subs = new Map<WebSocket, { userId: string; matches: Set<string> }>();
   service.isConnected = (userId) => [...subs.values()].some((s) => s.userId === userId);
   // Tell other members when someone connects or disconnects.
+  let closing = false;
   const presenceChanged = (userId: string): void => {
-    for (const m of service.listMatchIdsForUser(userId)) for (const [ws, sub] of subs) if (sub.matches.has(m)) pushTo(ws, sub.userId, m, []);
+    if (closing) return; // sockets close after the database during shutdown
+    try {
+      for (const m of service.listMatchIdsForUser(userId)) for (const [ws, sub] of subs) if (sub.matches.has(m)) pushTo(ws, sub.userId, m, []);
+    } catch (e) {
+      console.error(e);
+    }
   };
   server.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url ?? "/", "http://x");
@@ -223,6 +243,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     store,
     close: () =>
       new Promise((done) => {
+        closing = true;
         service.shutdown();
         for (const ws of subs.keys()) ws.terminate();
         wss.close();

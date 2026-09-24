@@ -49,6 +49,36 @@ async function setupTwoPlayerMatch() {
   return { alice, bob, matchId: created.data.matchId };
 }
 
+describe("static files", () => {
+  it("refuses traversal to sibling directories and survives malformed paths", async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const root = mkdtempSync(join(tmpdir(), "mm-static-"));
+    mkdirSync(join(root, "web"));
+    mkdirSync(join(root, "webevil"));
+    writeFileSync(join(root, "web", "index.html"), "<!doctype html>ok");
+    writeFileSync(join(root, "webevil", "secret.txt"), "secret");
+    const app2 = createApp({ dbPath: ":memory:", webDist: join(root, "web") });
+    await new Promise<void>((r) => app2.server.listen(0, "127.0.0.1", r));
+    const port = (app2.server.address() as AddressInfo).port;
+    const { request } = await import("node:http");
+    const get = (path: string) =>
+      new Promise<{ status: number; body: string }>((resolve) => {
+        request({ host: "127.0.0.1", port, path }, (res) => {
+          let body = "";
+          res.on("data", (c) => (body += c));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, body }));
+        }).end();
+      });
+    const evil = await get("/..%2fwebevil/secret.txt");
+    expect(evil.body).not.toContain("secret");
+    expect((await get("/%E0%A4%A")).status).toBe(400);
+    expect((await get("/")).body).toContain("ok");
+    await app2.close();
+  });
+});
+
 describe("server", () => {
   it("rejects unauthenticated and non-member requests", async () => {
     const { matchId } = await setupTwoPlayerMatch();
