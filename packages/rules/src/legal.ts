@@ -19,6 +19,7 @@ import {
   holdingAt,
 } from "./selectors.js";
 import type { CardId, CardTarget, GameState, PlayerId, QuestId, ResourceType, RouteId, SiteId } from "./types.js";
+import { HIDDEN_CARD } from "./views.js";
 
 export type ActionMode =
   | "none"
@@ -58,6 +59,10 @@ export interface LegalActionSummary {
   reactionCards: CardId[];
 }
 
+/**
+ * Works on redacted views too (§105): HIDDEN_CARD entries are never offered
+ * as playable or reaction cards.
+ */
 export function getLegalActions(ctx: RulesContext, state: GameState, playerId: PlayerId): LegalActionSummary {
   const p = state.players[playerId];
   const empty: LegalActionSummary = {
@@ -86,7 +91,7 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
 
   if (state.pending) {
     if (state.pending.kind === "reaction" && state.pending.eligiblePlayerIds[0] === playerId) {
-      return { ...empty, mode: "reaction", reactionCards: p.hand.filter((c) => ctx.cardOf(c).timing.includes("reaction")) };
+      return { ...empty, mode: "reaction", reactionCards: p.hand.filter((c) => c !== HIDDEN_CARD && ctx.cardOf(c).timing.includes("reaction")) };
     }
     if (state.pending.kind === "prophecy" && state.pending.playerId === playerId) return { ...empty, mode: "prophecy" };
     return empty;
@@ -147,7 +152,7 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
   const canBuyCard = r.enableCards && state.cardDeck.length + state.discardPile.length > 0 && canAfford(p.resources, BALANCE.costs.card);
   const playableCards =
     r.enableCards && p.nonReactionCardsPlayedThisTurn < r.maxNonReactionCardsPerTurn
-      ? p.hand.filter((c) => ctx.cardOf(c).timing.includes("main") && enumerateCardTargets(ctx, state, playerId, c).length > 0)
+      ? p.hand.filter((c) => c !== HIDDEN_CARD && ctx.cardOf(c).timing.includes("main") && enumerateCardTargets(ctx, state, playerId, c).length > 0)
       : [];
   const claimableQuests = r.enableQuests
     ? state.revealedQuestIds.filter((q) => !p.claimedQuestIds.includes(q) && getQuestProgress(ctx, state, playerId, q).complete)

@@ -352,7 +352,25 @@ export function menaceLocationKind(type: MenaceType): MenaceLocation["kind"] {
   }
 }
 
-export function isLegalMenaceDestination(ctx: RulesContext, state: GameState, menaceId: MenaceId, dest: MenaceLocation): boolean {
+/** Structural check for a Menace location from an untrusted command. */
+export function isMenaceLocation(x: unknown): x is MenaceLocation {
+  if (!x || typeof x !== "object") return false;
+  const loc = x as Record<string, unknown>;
+  switch (loc.kind) {
+    case "region":
+      return typeof loc.regionId === "string";
+    case "route":
+      return typeof loc.routeId === "string";
+    case "site":
+      return typeof loc.siteId === "string";
+    default:
+      return false;
+  }
+}
+
+/** Accepts `unknown` because destinations arrive in untrusted commands. */
+export function isLegalMenaceDestination(ctx: RulesContext, state: GameState, menaceId: MenaceId, dest: unknown): boolean {
+  if (!isMenaceLocation(dest)) return false;
   const m = own(state.menaces, menaceId);
   if (!m) return false;
   if (dest.kind !== menaceLocationKind(m.type)) return false;

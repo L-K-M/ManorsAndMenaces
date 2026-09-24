@@ -43,6 +43,7 @@ import {
   type RulesContent,
   type SiteId,
 } from "./types.js";
+import { HIDDEN_CARD } from "./views.js";
 
 export interface ApplyResult {
   accepted: boolean;
@@ -64,7 +65,9 @@ export interface RulesEngine {
 
 export function createRulesEngine(content: RulesContent): RulesEngine {
   const ctx = createContext(content);
-  const applyCommand = (state: GameState, command: GameCommand): ApplyResult => run(ctx, state, (tx) => execute(tx, command));
+  // Commands are cloned on entry so the new state never shares objects (such
+  // as Menace destinations) with the caller's command (§106).
+  const applyCommand = (state: GameState, command: GameCommand): ApplyResult => run(ctx, state, (tx) => execute(tx, clone(command)));
   return {
     ctx,
     createGame: (config) => createGame(ctx, config),
@@ -93,7 +96,7 @@ export function createRulesEngine(content: RulesContent): RulesEngine {
       }
       return cur;
     },
-    applyDebugCommand: (state, command) => run(ctx, state, (tx) => executeDebug(tx, command)),
+    applyDebugCommand: (state, command) => run(ctx, state, (tx) => executeDebug(tx, clone(command))),
   };
 }
 
@@ -708,7 +711,10 @@ function reactionHolders(tx: Tx, sourcePlayerId: PlayerId): PlayerId[] {
   const s = tx.s;
   const start = s.turnOrder.indexOf(sourcePlayerId);
   const ordered = s.turnOrder.map((_, i) => s.turnOrder[(start + 1 + i) % s.turnOrder.length] as PlayerId).filter((id) => id !== sourcePlayerId);
-  return ordered.filter((id) => (s.players[id]?.hand ?? []).some((c) => tx.ctx.cardOf(c).timing.includes("reaction")));
+  // On a redacted view (§105) opponents' cards are HIDDEN_CARD. They count as
+  // non-reactions there; the server, which sees every hand, decides whether a
+  // window really opens.
+  return ordered.filter((id) => (s.players[id]?.hand ?? []).some((c) => c !== HIDDEN_CARD && tx.ctx.cardOf(c).timing.includes("reaction")));
 }
 
 function resolveCard(tx: Tx, playerId: PlayerId, cardId: string, target: import("./types.js").CardTarget): void {
