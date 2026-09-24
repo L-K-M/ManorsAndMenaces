@@ -21,8 +21,8 @@
 </script>
 
 {#if gs.ruleset.enableQuests}
-  <section class="quests" aria-label="Royal Quests">
-    <h3>Royal Quests</h3>
+  <section class="quests" aria-label={t("ui.royal_quests")}>
+    <h3>{t("ui.royal_quests")}</h3>
     <ul>
       {#each gs.revealedQuestIds as q (q)}
         {@const def = session.ctx.quest(q)}
@@ -43,10 +43,10 @@
           {/if}
         </li>
       {/each}
-      {#if gs.revealedQuestIds.length === 0}<li class="none">All Quests have been claimed.</li>{/if}
+      {#if gs.revealedQuestIds.length === 0}<li class="none">{t("ui.all_quests_have_been_claimed")}</li>{/if}
     </ul>
     {#if claimed.length}
-      <h4>Completed</h4>
+      <h4>{t("ui.completed")}</h4>
       <ul class="done">
         {#each claimed as c}
           <li>{t(`quest.${c.q}.name`)} — {gs.players[c.pid]?.displayName}</li>
@@ -55,7 +55,7 @@
     {/if}
   </section>
 {:else}
-  <p class="off">Royal Quests are not used in this game mode.</p>
+  <p class="off">{t("ui.royal_quests_are_not_used")}</p>
 {/if}
 
 <style>

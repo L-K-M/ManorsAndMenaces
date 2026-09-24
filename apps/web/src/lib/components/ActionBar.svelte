@@ -38,7 +38,7 @@
   const waitingName = $derived(actor ? (gs.players[actor]?.displayName ?? "") : "");
 </script>
 
-<div class="actions" role="toolbar" aria-label="Actions">
+<div class="actions" role="toolbar" aria-label={t("ui.actions")}>
   {#if !legal || legal.mode === "none"}
     <p class="status">
       {#if gs.status === "finished"}

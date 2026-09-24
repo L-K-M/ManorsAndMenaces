@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../i18n.js";
   import { setMusic } from "../audio/sfx.js";
   import { saveSettings, settings } from "../stores/settings.svelte.js";
   import Modal from "./Modal.svelte";
@@ -15,27 +16,27 @@
   });
 </script>
 
-<Modal title="Settings" {onclose}>
+<Modal title={t("ui.settings")} {onclose}>
   <form class="settings" onsubmit={(e) => e.preventDefault()}>
     <label>
-      Animation speed
+      {t("ui.animation_speed")}
       <select bind:value={settings.animationSpeed}>
-        <option value="normal">Normal</option>
-        <option value="fast">Fast</option>
-        <option value="off">Off</option>
+        <option value="normal">{t("ui.normal")}</option>
+        <option value="fast">{t("ui.fast")}</option>
+        <option value="off">{t("ui.off")}</option>
       </select>
     </label>
-    <label><input type="checkbox" bind:checked={settings.reducedMotion} /> Reduced motion</label>
-    <label><input type="checkbox" bind:checked={settings.highContrast} /> High contrast</label>
+    <label><input type="checkbox" bind:checked={settings.reducedMotion} /> {t("ui.reduced_motion")}</label>
+    <label><input type="checkbox" bind:checked={settings.highContrast} /> {t("ui.high_contrast")}</label>
     <label>
-      Text size
+      {t("ui.text_size")}
       <input type="range" min="0.85" max="1.5" step="0.05" bind:value={settings.textScale} />
       <span>{Math.round(settings.textScale * 100)}%</span>
     </label>
-    <label><input type="checkbox" bind:checked={settings.sound} /> Sound effects</label>
-    <label><input type="checkbox" bind:checked={settings.music} /> Music</label>
-    <label><input type="checkbox" bind:checked={settings.privacyCurtain} /> Privacy curtain between hot-seat players</label>
-    <label><input type="checkbox" bind:checked={settings.showRegionNames} /> Show Region names on the map</label>
+    <label><input type="checkbox" bind:checked={settings.sound} /> {t("ui.sound_effects")}</label>
+    <label><input type="checkbox" bind:checked={settings.music} /> {t("ui.music")}</label>
+    <label><input type="checkbox" bind:checked={settings.privacyCurtain} /> {t("ui.privacy_curtain_between_hot_seat")}</label>
+    <label><input type="checkbox" bind:checked={settings.showRegionNames} /> {t("ui.show_region_names_on_the")}</label>
   </form>
 </Modal>
 

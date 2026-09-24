@@ -11,7 +11,7 @@
   const actor = $derived(currentActor(gs));
 </script>
 
-<section class="players" aria-label="Players">
+<section class="players" aria-label={t("ui.players")}>
   {#each gs.turnOrder as pid (pid)}
     {@const p = gs.players[pid]}
     {@const seat = session.seat(pid)}
@@ -22,11 +22,11 @@
           <svg width="22" height="22" viewBox="-11 -11 22 22" aria-hidden="true"><path d={emblemPath(theme.shape, 8)} fill={theme.color} stroke={theme.dark} stroke-width="1.5" /></svg>
           <strong>{p.displayName}</strong>
           {#if seat?.kind === "ai"}<span class="tag">AI · {seat.aiLevel}</span>{/if}
-          <span class="renown" title="Renown">
+          <span class="renown" title={t("ui.renown")}>
             <span class="crown" aria-hidden="true">♛</span>{getRenown(session.ctx, gs, pid)}<small>/{gs.ruleset.targetRenown}</small>
           </span>
         </header>
-        <div class="res" aria-label="Resources">
+        <div class="res" aria-label={t("ui.resources")}>
           {#each RESOURCE_TYPES as r}
             <span class="r"><ResourceIcon resource={r} size={18} /> {p.resources[r]}</span>
           {/each}

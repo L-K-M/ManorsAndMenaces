@@ -105,14 +105,14 @@
         <p class="tagline">{t("app.tagline")}</p>
         <nav class="menu">
           {#if saves.some((s) => s.id === "autosave")}
-            <button class="primary" onclick={() => loadSave("autosave")}>Continue</button>
+            <button class="primary" onclick={() => loadSave("autosave")}>{t("ui.continue")}</button>
           {/if}
-          <button class="primary" onclick={() => (screen = "new")}>New game</button>
-          <button onclick={startTutorial}>Tutorial</button>
-          <button onclick={() => (screen = "online")}>Play online</button>
-          <button onclick={() => ((showLoad = true), void refreshSaves())}>Load game</button>
-          <button onclick={() => (showRules = true)}>How to play</button>
-          <button onclick={() => (ui.dialog = "settings")}>Settings</button>
+          <button class="primary" onclick={() => (screen = "new")}>{t("ui.new_game")}</button>
+          <button onclick={startTutorial}>{t("ui.tutorial")}</button>
+          <button onclick={() => (screen = "online")}>{t("ui.play_online")}</button>
+          <button onclick={() => ((showLoad = true), void refreshSaves())}>{t("ui.load_game")}</button>
+          <button onclick={() => (showRules = true)}>{t("ui.how_to_play")}</button>
+          <button onclick={() => (ui.dialog = "settings")}>{t("ui.settings")}</button>
         </nav>
         <p class="version">v{__APP_VERSION__}</p>
       </section>
@@ -127,27 +127,27 @@
 {#if ui.dialog === "settings" && screen !== "game"}<SettingsDialog onclose={() => (ui.dialog = null)} />{/if}
 
 {#if showLoad}
-  <Modal title="Load game" onclose={() => ((showLoad = false), (loadError = null))}>
-    {#if saves.length === 0}<p>No saved games yet.</p>{/if}
+  <Modal title={t("ui.load_game")} onclose={() => ((showLoad = false), (loadError = null))}>
+    {#if saves.length === 0}<p>{t("ui.no_saved_games_yet")}</p>{/if}
     <ul class="saves">
       {#each saves as s (s.id)}
         <li>
           <button onclick={() => loadSave(s.id)}>{s.id === "autosave" ? "Autosave" : s.label}<small>{new Date(s.savedAt).toLocaleString()}</small></button>
-          {#if s.id !== "autosave"}<button class="ghost" aria-label="Delete save" onclick={() => platform.remove(s.id).then(refreshSaves)}>🗑</button>{/if}
+          {#if s.id !== "autosave"}<button class="ghost" aria-label={t("ui.delete_save")} onclick={() => platform.remove(s.id).then(refreshSaves)}>🗑</button>{/if}
         </li>
       {/each}
     </ul>
-    <label class="import">Import a save file <input type="file" accept="application/json,.json" onchange={importFile} /></label>
+    <label class="import">{t("ui.import_a_save_file")} <input type="file" accept="application/json,.json" onchange={importFile} /></label>
     {#if loadError}<p class="error">{loadError}</p>{/if}
   </Modal>
 {/if}
 
 {#if showRules}
-  <Modal title="How to play" onclose={() => (showRules = false)} wide>
+  <Modal title={t("ui.how_to_play")} onclose={() => (showRules = false)} wide>
     <ol class="rules">
       {#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as n}<li>{t(`tutorial.${n}`)}</li>{/each}
     </ol>
-    <h3>Costs</h3>
+    <h3>{t("ui.costs")}</h3>
     <ul>
       <li>{t("action.build_route")}: {t("cost.route")}</li>
       <li>{t("action.build_manor")}: {t("cost.manor")}</li>

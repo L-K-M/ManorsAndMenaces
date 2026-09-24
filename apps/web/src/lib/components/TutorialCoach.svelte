@@ -32,11 +32,11 @@
   let minimized = $state(false);
 </script>
 
-<aside class="coach" class:minimized aria-live="polite" aria-label="Tutorial">
+<aside class="coach" class:minimized aria-live="polite" aria-label={t("ui.tutorial")}>
   <header>
     <strong>Tutorial · {index + 1}/{steps.length}</strong>
     <button class="ghost" onclick={() => (minimized = !minimized)}>{minimized ? "Show" : "Hide"}</button>
-    <button class="ghost" onclick={onfinish}>End tutorial</button>
+    <button class="ghost" onclick={onfinish}>{t("ui.end_tutorial")}</button>
   </header>
   {#if !minimized}
     <p class="lesson">{steps[index]?.text}</p>

@@ -77,28 +77,28 @@
 
 <div class="game">
   <header class="topbar">
-    <button class="ghost" onclick={onexit} aria-label="Main menu">☰</button>
+    <button class="ghost" onclick={onexit} aria-label={t("ui.main_menu")}>☰</button>
     <h1>{t("app.title")}</h1>
     <span class="round">Round {Math.max(1, gs.round)}</span>
     {#if me}
-      <div class="mine" aria-label="Your resources">
+      <div class="mine" aria-label={t("ui.your_resources")}>
         {#each RESOURCE_TYPES as r}<span><ResourceIcon resource={r} size={18} />{me.resources[r]}</span>{/each}
       </div>
     {/if}
     <span class="spacer"></span>
     {#if session.transport.kind === "local"}<button class="ghost" onclick={save}>{savedNote ?? "Save"}</button>{/if}
-    <button class="ghost" onclick={() => (ui.dialog = "settings")} aria-label="Settings">⚙</button>
-    {#if import.meta.env.DEV}<button class="ghost" onclick={() => (ui.showDebug = true)}>Debug</button>{/if}
-    <button class="ghost panel-toggle" onclick={() => (panelOpen = !panelOpen)} aria-expanded={panelOpen}>Panels</button>
+    <button class="ghost" onclick={() => (ui.dialog = "settings")} aria-label={t("ui.settings")}>⚙</button>
+    {#if import.meta.env.DEV}<button class="ghost" onclick={() => (ui.showDebug = true)}>{t("ui.debug")}</button>{/if}
+    <button class="ghost panel-toggle" onclick={() => (panelOpen = !panelOpen)} aria-expanded={panelOpen}>{t("ui.panels")}</button>
   </header>
 
   <main class="board-wrap">
     <Board {session} />
-    <div class="camera" role="group" aria-label="Board camera">
-      <button onclick={() => zoomAt(1.25, viewport.box.x + viewport.box.w / 2, viewport.box.y + viewport.box.h / 2)} aria-label="Zoom in">+</button>
-      <button onclick={() => zoomAt(0.8, viewport.box.x + viewport.box.w / 2, viewport.box.y + viewport.box.h / 2)} aria-label="Zoom out">−</button>
-      <button onclick={resetView} aria-label="Reset view">⤢</button>
-      <button onclick={zoomToMine} aria-label="Zoom to my holdings">◎</button>
+    <div class="camera" role="group" aria-label={t("ui.board_camera")}>
+      <button onclick={() => zoomAt(1.25, viewport.box.x + viewport.box.w / 2, viewport.box.y + viewport.box.h / 2)} aria-label={t("ui.zoom_in")}>+</button>
+      <button onclick={() => zoomAt(0.8, viewport.box.x + viewport.box.w / 2, viewport.box.y + viewport.box.h / 2)} aria-label={t("ui.zoom_out")}>−</button>
+      <button onclick={resetView} aria-label={t("ui.reset_view")}>⤢</button>
+      <button onclick={zoomToMine} aria-label={t("ui.zoom_to_my_holdings")}>◎</button>
     </div>
     {#each session.floaters.filter((f) => f.playerId === viewer) as f (f.id)}
       <div class="floater" style="--i: {f.id % 5}"><ResourceIcon resource={f.resource as never} size={22} /> {f.text}</div>
@@ -109,9 +109,9 @@
 
   <aside class="side" class:open={panelOpen}>
     <div class="tabs" role="tablist">
-      <button role="tab" aria-selected={ui.panel === "players"} onclick={() => (ui.panel = "players")}>Players</button>
-      <button role="tab" aria-selected={ui.panel === "quests"} onclick={() => (ui.panel = "quests")}>Quests</button>
-      <button role="tab" aria-selected={ui.panel === "log"} onclick={() => (ui.panel = "log")}>Chronicle</button>
+      <button role="tab" aria-selected={ui.panel === "players"} onclick={() => (ui.panel = "players")}>{t("ui.players")}</button>
+      <button role="tab" aria-selected={ui.panel === "quests"} onclick={() => (ui.panel = "quests")}>{t("ui.quests")}</button>
+      <button role="tab" aria-selected={ui.panel === "log"} onclick={() => (ui.panel = "log")}>{t("ui.chronicle")}</button>
     </div>
     <div class="tabpanel">
       {#if ui.panel === "players"}

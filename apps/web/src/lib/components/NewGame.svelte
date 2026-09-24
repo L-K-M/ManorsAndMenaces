@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../i18n.js";
   import type { AiLevel, SeatConfig } from "@manors-menaces/protocol";
   import { mvpRuleset, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
   import { PLAYER_THEMES, emblemPath } from "../theme.js";
@@ -27,11 +28,11 @@
 </script>
 
 <section class="panel">
-  <h2>New game</h2>
+  <h2>{t("ui.new_game")}</h2>
   <form onsubmit={(e) => (e.preventDefault(), start())}>
     <fieldset>
-      <legend>Players</legend>
-      <div class="count" role="radiogroup" aria-label="Number of players">
+      <legend>{t("ui.players")}</legend>
+      <div class="count" role="radiogroup" aria-label={t("ui.number_of_players")}>
         {#each [2, 3, 4] as n}
           <label class:on={count === n}><input type="radio" name="count" value={n} bind:group={count} /> {n}</label>
         {/each}
@@ -42,31 +43,31 @@
           <svg width="26" height="26" viewBox="-13 -13 26 26" aria-hidden="true"><path d={emblemPath(theme.shape, 9)} fill={theme.color} stroke={theme.dark} stroke-width="2" /></svg>
           <input aria-label="Name of player {i + 1}" bind:value={seat.name} maxlength="20" />
           <select aria-label="Player {i + 1} type" bind:value={seat.kind}>
-            <option value="human">Human</option>
-            <option value="ai">Computer</option>
+            <option value="human">{t("ui.human")}</option>
+            <option value="ai">{t("ui.computer")}</option>
           </select>
           {#if seat.kind === "ai"}
             <select aria-label="Player {i + 1} difficulty" bind:value={seat.level}>
-              <option value="easy">Easy</option>
-              <option value="normal">Normal</option>
-              <option value="hard">Hard</option>
+              <option value="easy">{t("ui.easy")}</option>
+              <option value="normal">{t("ui.normal")}</option>
+              <option value="hard">{t("ui.hard")}</option>
             </select>
           {/if}
         </div>
       {/each}
     </fieldset>
     <fieldset>
-      <legend>Rules</legend>
-      <label class="rule"><input type="radio" name="mode" value="standard" bind:group={mode} /> <b>Standard</b> — cards, Royal Quests, 12 Renown</label>
-      <label class="rule"><input type="radio" name="mode" value="mvp" bind:group={mode} /> <b>Core</b> — Banners, building and the Toll Troll only, 10 Renown</label>
+      <legend>{t("ui.rules")}</legend>
+      <label class="rule"><input type="radio" name="mode" value="standard" bind:group={mode} /> <b>{t("ui.standard")}</b> {t("ui.cards_royal_quests_12_renown")}</label>
+      <label class="rule"><input type="radio" name="mode" value="mvp" bind:group={mode} /> <b>{t("ui.core")}</b> {t("ui.banners_building_and_the_toll")}</label>
     </fieldset>
     <details>
-      <summary>Advanced</summary>
-      <label>Seed (for reproducible games) <input bind:value={seed} placeholder="random" /></label>
+      <summary>{t("ui.advanced")}</summary>
+      <label>{t("ui.seed_for_reproducible_games")} <input bind:value={seed} placeholder={t("ui.random")} /></label>
     </details>
     <div class="row">
-      <button type="button" onclick={onback}>Back</button>
-      <button type="submit" class="primary">Begin</button>
+      <button type="button" onclick={onback}>{t("ui.back")}</button>
+      <button type="submit" class="primary">{t("ui.begin")}</button>
     </div>
   </form>
 </section>

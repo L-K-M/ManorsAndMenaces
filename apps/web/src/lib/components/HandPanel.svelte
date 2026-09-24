@@ -27,7 +27,7 @@
 </script>
 
 {#if session.draft.ruleset.enableCards}
-  <section class="hand" aria-label="Your hand">
+  <section class="hand" aria-label={t("ui.your_hand")}>
     <h3>{viewer ? `${session.draft.players[viewer]?.displayName}'s hand` : "Hand"} <small>({hand.length}/{session.draft.ruleset.handLimit})</small></h3>
     {#if hand.length === 0}
       <p class="empty">No cards. {t("action.buy_card")}: {t("cost.card")}</p>
@@ -35,7 +35,7 @@
     <ul>
       {#each hand as cardId (cardId)}
         {#if cardId === HIDDEN_CARD}
-          <li class="card back" aria-label="Hidden card"></li>
+          <li class="card back" aria-label={t("ui.hidden_card")}></li>
         {:else}
           {@const def = session.ctx.cardOf(cardId)}
           {@const id = cardDefIdOf(cardId)}

@@ -24,6 +24,7 @@ import { platform } from "../platform/adapter.js";
 import { aiDelayMs, settings } from "../stores/settings.svelte.js";
 import { engineFor, mapFor } from "./engine.js";
 import { formatEvents, type LogEntry } from "./log.js";
+import { recordGame } from "./telemetry.js";
 
 export interface Floater {
   id: number;
@@ -278,6 +279,9 @@ export class GameSession {
     const actor = currentActor(state);
     if (this.transport.kind === "local") {
       void this.autosave();
+      if (events.some((e) => e.type === "game_won")) {
+        recordGame(this.ctx, state, Object.fromEntries(this.seats.map((s) => [s.playerId, s.kind])));
+      }
       // Hot-seat privacy curtain between different humans (§56.1).
       const humans = this.seats.filter((s) => s.kind === "human").length;
       if (actor && this.isHuman(actor) && actor !== this.viewerId) {

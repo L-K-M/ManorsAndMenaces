@@ -73,17 +73,17 @@
 </script>
 
 {#if session.curtainFor}
-  <div class="curtain" role="dialog" aria-modal="true" aria-label="Pass the device">
+  <div class="curtain" role="dialog" aria-modal="true" aria-label={t("ui.pass_the_device")}>
     <div class="card">
-      <p class="pass">Pass to</p>
+      <p class="pass">{t("ui.pass_to")}</p>
       <h2>{gs.players[session.curtainFor]?.displayName}</h2>
-      <button class="primary big" onclick={() => session.revealForCurtain()}>Tap to begin turn</button>
+      <button class="primary big" onclick={() => session.revealForCurtain()}>{t("ui.tap_to_begin_turn")}</button>
     </div>
   </div>
 {/if}
 
 {#if gs.status === "finished"}
-  <Modal title="Victory!">
+  <Modal title={t("ui.victory")}>
     <p class="winner">
       <b>{gs.players[gs.winnerId ?? ""]?.displayName}</b> wins with {getRenown(session.ctx, gs, gs.winnerId ?? "")} Renown in round {gs.round}.
     </p>
@@ -96,8 +96,8 @@
       {/each}
     </ol>
     <div class="row">
-      <button class="primary" onclick={onrematch}>Play again</button>
-      <button onclick={onexit}>Main menu</button>
+      <button class="primary" onclick={onrematch}>{t("ui.play_again")}</button>
+      <button onclick={onexit}>{t("ui.main_menu")}</button>
     </div>
   </Modal>
 {/if}
@@ -106,7 +106,7 @@
   <aside class="inspect" aria-live="polite">
     <header>
       <strong>{inspectText.title}</strong>
-      <button class="close" aria-label="Close" onclick={() => (ui.inspect = null)}>✕</button>
+      <button class="close" aria-label={t("ui.close")} onclick={() => (ui.inspect = null)}>✕</button>
     </header>
     {#each inspectText.lines as line}<p>{line}</p>{/each}
   </aside>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../i18n.js";
   import type { Snippet } from "svelte";
 
   let { title, onclose, children, wide = false }: { title: string; onclose?: () => void; children: Snippet; wide?: boolean } = $props();
@@ -36,7 +37,7 @@
   <div class="modal" class:wide bind:this={el} role="dialog" aria-modal="true" aria-label={title} tabindex="-1" onkeydown={keydown}>
     <header>
       <h2>{title}</h2>
-      {#if onclose}<button class="close" aria-label="Close" onclick={onclose}>✕</button>{/if}
+      {#if onclose}<button class="close" aria-label={t("ui.close")} onclick={onclose}>✕</button>{/if}
     </header>
     {@render children()}
   </div>

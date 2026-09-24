@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../i18n.js";
   // Online lobby (spec §86): guest session, private invite links first,
   // your asynchronous matches, and joining by code.
   import type { AiLevel, MatchView, SeatConfig } from "@manors-menaces/protocol";
@@ -124,53 +125,53 @@
 </script>
 
 <section class="panel">
-  <h2>Play online</h2>
+  <h2>{t("ui.play_online")}</h2>
   {#if !signedIn}
     <form onsubmit={(e) => (e.preventDefault(), signIn())}>
-      <label>Your name <input bind:value={name} maxlength="24" required /></label>
+      <label>{t("ui.your_name")} <input bind:value={name} maxlength="24" required /></label>
       <details>
-        <summary>Server</summary>
-        <label>Server address <input bind:value={serverUrl} /></label>
+        <summary>{t("ui.server")}</summary>
+        <label>{t("ui.server_address")} <input bind:value={serverUrl} /></label>
       </details>
       <div class="row">
-        <button type="button" onclick={onback}>Back</button>
-        <button class="primary" disabled={busy}>Continue as guest</button>
+        <button type="button" onclick={onback}>{t("ui.back")}</button>
+        <button class="primary" disabled={busy}>{t("ui.continue_as_guest")}</button>
       </div>
     </form>
   {:else if lobbyMatch}
-    <p>Waiting for players… Share this invite:</p>
+    <p>{t("ui.waiting_for_players_share_this")}</p>
     <p class="code">{lobbyMatch.inviteCode}</p>
-    <input class="link" readonly value={inviteLink} onfocus={(e) => (e.target as HTMLInputElement).select()} aria-label="Invite link" />
+    <input class="link" readonly value={inviteLink} onfocus={(e) => (e.target as HTMLInputElement).select()} aria-label={t("ui.invite_link")} />
     <ul>
       {#each lobbyMatch.seats as s}<li>{s.displayName} — {s.kind === "open" ? "waiting" : s.kind}</li>{/each}
     </ul>
-    <button onclick={() => ((lobbyMatch = null), unsubscribeLobby?.())}>Back to lobby</button>
+    <button onclick={() => ((lobbyMatch = null), unsubscribeLobby?.())}>{t("ui.back_to_lobby")}</button>
   {:else}
     <div class="cols">
       <form onsubmit={(e) => (e.preventDefault(), create())}>
-        <h3>New match</h3>
-        <label>Seats <select bind:value={seatCount}><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option></select></label>
-        <label>Computer players <input type="number" min="0" max={seatCount - 1} bind:value={aiCount} /></label>
+        <h3>{t("ui.new_match")}</h3>
+        <label>{t("ui.seats")} <select bind:value={seatCount}><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option></select></label>
+        <label>{t("ui.computer_players")} <input type="number" min="0" max={seatCount - 1} bind:value={aiCount} /></label>
         {#if aiCount > 0}
-          <label>Difficulty <select bind:value={aiLevel}><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option></select></label>
+          <label>{t("ui.difficulty")} <select bind:value={aiLevel}><option value="easy">{t("ui.easy")}</option><option value="normal">{t("ui.normal")}</option><option value="hard">{t("ui.hard")}</option></select></label>
         {/if}
-        <label>Rules
+        <label>{t("ui.rules")}
           <select bind:value={rules}>
-            <option value="standard">Standard (live)</option>
-            <option value="async">Asynchronous (no reactions)</option>
-            <option value="mvp">Core</option>
+            <option value="standard">{t("ui.standard_live")}</option>
+            <option value="async">{t("ui.asynchronous_no_reactions")}</option>
+            <option value="mvp">{t("ui.core")}</option>
           </select>
         </label>
-        <button class="primary" disabled={busy}>Create &amp; get invite link</button>
+        <button class="primary" disabled={busy}>{t("ui.create_get_invite_link")}</button>
       </form>
       <form onsubmit={(e) => (e.preventDefault(), join())}>
-        <h3>Join with a code</h3>
-        <label>Invite code <input bind:value={joinCode} maxlength="12" required /></label>
-        <button class="primary" disabled={busy}>Join</button>
+        <h3>{t("ui.join_with_a_code")}</h3>
+        <label>{t("ui.invite_code")} <input bind:value={joinCode} maxlength="12" required /></label>
+        <button class="primary" disabled={busy}>{t("ui.join")}</button>
       </form>
     </div>
-    <h3>Your matches <button class="ghost" onclick={refresh}>↻</button></h3>
-    {#if matches.length === 0}<p class="muted">No matches yet.</p>{/if}
+    <h3>{t("ui.your_matches")} <button class="ghost" onclick={refresh}>↻</button></h3>
+    {#if matches.length === 0}<p class="muted">{t("ui.no_matches_yet")}</p>{/if}
     <ul class="matches">
       {#each matches as m (m.matchId)}
         {@const yourTurn = m.state && m.state.status === "playing" && m.state.activePlayerId === m.youAre}
@@ -182,7 +183,7 @@
         </li>
       {/each}
     </ul>
-    <button onclick={onback}>Back</button>
+    <button onclick={onback}>{t("ui.back")}</button>
   {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 </section>

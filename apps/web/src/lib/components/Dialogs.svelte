@@ -82,17 +82,17 @@
 {#if ui.dialog === "market" && legal?.mode === "main"}
   <Modal title={t("action.trade")} onclose={close}>
     <p class="help">{t("help.market")} {t("status.trades_left", { count: legal.marketTradesLeft })}.</p>
-    <h4>Give</h4>
+    <h4>{t("ui.give")}</h4>
     <div class="grid">
       {#each giveOptions as o}
         <button class:on={give === o.resource && via === o.via} onclick={() => ((give = o.resource), (via = o.via))}>
           {o.amount}× <ResourceIcon resource={o.resource} /> {t(`resource.${o.resource}`)}{o.via ? " (Trading Post)" : ""}
         </button>
       {/each}
-      {#if giveOptions.length === 0}<p>You need 3 of one resource (or 2 at your Trading Post).</p>{/if}
+      {#if giveOptions.length === 0}<p>{t("ui.you_need_3_of_one")}</p>{/if}
     </div>
     {#if give}
-      <h4>Receive 1</h4>
+      <h4>{t("ui.receive_1")}</h4>
       <div class="grid">
         {#each RESOURCE_TYPES.filter((r) => r !== give) as r}
           <button onclick={() => trade(r)}><ResourceIcon resource={r} /> {t(`resource.${r}`)}</button>
@@ -108,7 +108,7 @@
       Send {gs.players[writBanner.ownerId]?.displayName}'s Banner in <b>{regionName(session.map, writBanner.regionId)}</b> home.
       You pay 1 Essence to the Crown and a bribe of 1 resource to {gs.players[writBanner.ownerId]?.displayName}.
     </p>
-    <h4>Choose the bribe</h4>
+    <h4>{t("ui.choose_the_bribe")}</h4>
     <div class="grid">
       {#each RESOURCE_TYPES as r}
         <button disabled={!canBribe(r)} onclick={() => issueWrit(r)}><ResourceIcon resource={r} /> {t(`resource.${r}`)}</button>
@@ -120,14 +120,14 @@
 {#if ui.dialog === "arcane"}
   <Modal title={t("card.arcane_exchange.name")} onclose={() => ((ui.dialog = null), resetTool())}>
     <p class="help">{t("card.arcane_exchange.rules")}</p>
-    <h4>Give 1</h4>
+    <h4>{t("ui.give_1")}</h4>
     <div class="grid">
       {#each RESOURCE_TYPES as r}
         <button class:on={arcaneGive === r} disabled={(me?.resources[r] ?? 0) < 1} onclick={() => (arcaneGive = r)}><ResourceIcon resource={r} /> {t(`resource.${r}`)}</button>
       {/each}
     </div>
     {#if arcaneGive}
-      <h4>Receive 1</h4>
+      <h4>{t("ui.receive_1")}</h4>
       <div class="grid">
         {#each RESOURCE_TYPES.filter((r) => r !== arcaneGive && (r === "essence" || arcaneGive === "essence")) as r}
           <button onclick={() => finishCardWith(session, { give: arcaneGive, receive: r }).then(() => (arcaneGive = null))}><ResourceIcon resource={r} /> {t(`resource.${r}`)}</button>
@@ -149,7 +149,7 @@
 {/if}
 
 {#if legal?.mode === "reaction" && pendingReaction}
-  <Modal title="Counterspell?">
+  <Modal title={t("ui.counterspell")}>
     <p class="help">
       {gs.players[pendingReaction.sourcePlayerId]?.displayName} plays
       <b>{t(`card.${cardDefIdOf(pendingReaction.cardId)}.name`)}</b>{describeTarget() ? ` on ${describeTarget()}` : ""}.
@@ -165,13 +165,13 @@
 
 {#if legal?.mode === "prophecy"}
   <Modal title={t("card.very_minor_prophecy.name")}>
-    <p class="help">The top of the draw pile, first card on top. Reorder them.</p>
+    <p class="help">{t("ui.the_top_of_the_draw")}</p>
     <ol class="order">
       {#each order as c, i (c)}
         <li>
           <span>{t(`card.${cardDefIdOf(c)}.name`)}</span>
-          <button aria-label="Move up" disabled={i === 0} onclick={() => move(i, -1)}>↑</button>
-          <button aria-label="Move down" disabled={i === order.length - 1} onclick={() => move(i, 1)}>↓</button>
+          <button aria-label={t("ui.move_up")} disabled={i === 0} onclick={() => move(i, -1)}>↑</button>
+          <button aria-label={t("ui.move_down")} disabled={i === order.length - 1} onclick={() => move(i, 1)}>↓</button>
         </li>
       {/each}
     </ol>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../i18n.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { PLAYER_THEMES } from "../theme.js";
 
@@ -13,10 +14,10 @@
   });
 </script>
 
-<section class="log" aria-label="Game log">
+<section class="log" aria-label={t("ui.game_log")}>
   <header>
-    <h3>Chronicle</h3>
-    {#if dev}<label><input type="checkbox" bind:checked={showRaw} /> details</label>{/if}
+    <h3>{t("ui.chronicle")}</h3>
+    {#if dev}<label><input type="checkbox" bind:checked={showRaw} /> {t("ui.details")}</label>{/if}
   </header>
   <ol bind:this={listEl} aria-live="polite">
     {#each session.log as entry (entry.id)}
