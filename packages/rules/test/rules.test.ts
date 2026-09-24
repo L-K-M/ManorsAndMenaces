@@ -333,6 +333,25 @@ describe("quests (§27)", () => {
   });
 });
 
+describe("quest connectivity", () => {
+  it("King's Highway ignores the Highwayman but not Fog", async () => {
+    const { getQuestProgress } = await import("../src/index.js");
+    const rs = { ...standardRuleset(2), activeMenaces: ["highwayman" as const] };
+    const { state, p1 } = setupGame(rs);
+    // p1 owns s1 (+r12) and s9 (+r69). Connect s1→s9: r12 exists; build r23? s3 is p2's Manor.
+    // Route via s2-s5-s6: r25, r56 (Highwayman), r69 owned.
+    let s = grant(state, p1, { timber: 4, stone: 4, grain: 2 });
+    s = act(s, p1, { type: "build_route", routeId: "r25" }).state;
+    // Building the Highwayman's own Route from s6 does not pass through it: no toll.
+    s = act(s, p1, { type: "build_route", routeId: "r56" }).state;
+    expect(s.menaces["menace_highwayman"]?.location).toEqual({ kind: "route", routeId: "r56" });
+    expect(getQuestProgress(ctx, s, p1, "kings_highway").complete).toBe(true);
+    // Fog on r25 breaks the connection.
+    s = { ...s, activeEffects: [{ kind: "fog", routeId: "r25", sourcePlayerId: "X" }] };
+    expect(getQuestProgress(ctx, s, p1, "kings_highway").complete).toBe(false);
+  });
+});
+
 describe("victory (§7)", () => {
   it("ends the game at end of turn when the target is reached", () => {
     const { state, p1 } = setupGame();

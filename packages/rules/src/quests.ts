@@ -23,7 +23,8 @@ function connectedSites(ctx: RulesContext, state: GameState, playerId: PlayerId,
     const h = holdingAt(state, cur);
     if (cur !== from && h && h.ownerId !== playerId) continue;
     for (const r of ctx.board.routesAt(cur)) {
-      if (state.routeOwners[r.id] !== playerId || !isRouteUsable(state, r.id)) continue;
+      // The Highwayman only taxes expansion (§22); Quest connectivity ignores him.
+      if (state.routeOwners[r.id] !== playerId || !isRouteUsable(state, r.id, { allowHighwayman: true })) continue;
       const next = ctx.board.otherEnd(r, cur);
       if (!seen.has(next)) {
         seen.add(next);
@@ -38,7 +39,7 @@ function connectedSites(ctx: RulesContext, state: GameState, playerId: PlayerId,
 function reachedSites(ctx: RulesContext, state: GameState, playerId: PlayerId): Set<SiteId> {
   const out = new Set<SiteId>(getPlayerHoldings(state, playerId).map((h) => h.siteId));
   for (const routeId of state.players[playerId]?.routeIds ?? []) {
-    if (!isRouteUsable(state, routeId)) continue;
+    if (!isRouteUsable(state, routeId, { allowHighwayman: true })) continue;
     const r = ctx.board.route(routeId);
     out.add(r.siteA);
     out.add(r.siteB);
