@@ -75,7 +75,10 @@ jobs:
             args: "--target universal-apple-darwin"
           - name: Windows
             os: windows-2022
-            args: ""
+            # NSIS, not WiX/msi: the WiX 3 candle.exe bundled by Tauri fails
+            # on the current windows-2022 runner image (v0.1.0 release run);
+            # Tauri recommends NSIS installers on Windows.
+            args: "--bundles nsis"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
