@@ -104,7 +104,9 @@
     const unsubscribe = client.subscribe(
       view.matchId,
       (m, events) => {
-        if (m.state && session) session.receiveRemote(m.state, events);
+        if (!session) return;
+        session.presence = Object.fromEntries(m.seats.map((s) => [s.playerId, s.connected]));
+        if (m.state) session.receiveRemote(m.state, events);
       },
       (connected) => (session ? (session.error = connected ? null : "Reconnecting…") : undefined),
     );

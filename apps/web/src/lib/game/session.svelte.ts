@@ -81,6 +81,8 @@ export class GameSession {
   viewerId: PlayerId | null = $state(null);
   /** Hot-seat: waiting for this player to take the device. */
   curtainFor: PlayerId | null = $state(null);
+  /** Online: which seats currently have a live connection. */
+  presence: Record<PlayerId, boolean> = $state({});
   /** Online: this client's seat. */
   readonly onlinePlayerId: PlayerId | null;
 

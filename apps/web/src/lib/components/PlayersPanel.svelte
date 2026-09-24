@@ -22,6 +22,11 @@
           <svg width="22" height="22" viewBox="-11 -11 22 22" aria-hidden="true"><path d={emblemPath(theme.shape, 8)} fill={theme.color} stroke={theme.dark} stroke-width="1.5" /></svg>
           <strong>{p.displayName}</strong>
           {#if seat?.kind === "ai"}<span class="tag">AI · {seat.aiLevel}</span>{/if}
+          {#if session.transport.kind === "online" && seat?.kind === "human"}
+            <span class="presence" class:on={session.presence[pid]} title={session.presence[pid] ? t("ui.online") : t("ui.offline")}>
+              {session.presence[pid] ? t("ui.online") : t("ui.offline")}
+            </span>
+          {/if}
           <span class="renown" title={t("ui.renown")}>
             <span class="crown" aria-hidden="true">♛</span>{getRenown(session.ctx, gs, pid)}<small>/{gs.ruleset.targetRenown}</small>
           </span>
@@ -68,6 +73,17 @@
     background: #0001;
     border-radius: 4px;
     padding: 0 0.3rem;
+  }
+  .presence {
+    font-size: 0.7rem;
+    border-radius: 4px;
+    padding: 0 0.3rem;
+    background: #0001;
+    opacity: 0.7;
+  }
+  .presence.on {
+    background: #d8f0d2;
+    opacity: 1;
   }
   .renown {
     margin-left: auto;

@@ -265,6 +265,8 @@ export const EN: Record<string, string> = {
 
   // ---------------------------------------------------------------- ui (extracted)
   "ui.continue": "Continue",
+  "ui.online": "online",
+  "ui.offline": "offline",
   "ui.new_game": "New game",
   "ui.tutorial": "Tutorial",
   "ui.play_online": "Play online",

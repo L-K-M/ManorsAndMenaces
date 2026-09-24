@@ -160,6 +160,11 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   // ------------------------------------------------------------------ WebSocket push
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16_000 });
   const subs = new Map<WebSocket, { userId: string; matches: Set<string> }>();
+  service.isConnected = (userId) => [...subs.values()].some((s) => s.userId === userId);
+  // Tell other members when someone connects or disconnects.
+  const presenceChanged = (userId: string): void => {
+    for (const m of service.listMatchIdsForUser(userId)) for (const [ws, sub] of subs) if (sub.matches.has(m)) pushTo(ws, sub.userId, m, []);
+  };
   server.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url ?? "/", "http://x");
     if (url.pathname !== "/api/ws") return socket.destroy();
@@ -172,6 +177,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
       subs.set(ws, { userId: user.id, matches: new Set() });
+      presenceChanged(user.id);
       const hello: ServerMessage = { type: "hello", userId: user.id };
       ws.send(JSON.stringify(hello));
       ws.on("message", (raw) => {
@@ -189,7 +195,10 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         } else if (msg.type === "unsubscribe") sub.matches.delete(msg.matchId);
         else if (msg.type === "ping") ws.send(JSON.stringify({ type: "hello", userId: sub.userId } satisfies ServerMessage));
       });
-      ws.on("close", () => subs.delete(ws));
+      ws.on("close", () => {
+        subs.delete(ws);
+        presenceChanged(user.id);
+      });
     });
   });
 

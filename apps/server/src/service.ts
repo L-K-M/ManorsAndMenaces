@@ -62,6 +62,8 @@ export class MatchService {
   private readonly engine: RulesEngine;
   private readonly listeners = new Set<MatchListener>();
   private readonly aiTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Presence callback set by the transport layer (WebSocket connections). */
+  isConnected: (userId: string) => boolean = () => false;
 
   constructor(
     private readonly store: Store,
@@ -174,7 +176,7 @@ export class MatchService {
           playerId: s.player_id,
           displayName: s.display_name,
           kind: s.kind === "ai" ? "ai" : s.user_id ? "human" : "open",
-          connected: false,
+          connected: s.kind === "ai" || (!!s.user_id && this.isConnected(s.user_id)),
         }),
       ),
       youAre: mine.player_id,
@@ -185,6 +187,10 @@ export class MatchService {
 
   listMatches(user: UserRow): MatchView[] {
     return this.store.matchesForUser(user.id).map((m) => this.view(m.id, user));
+  }
+
+  listMatchIdsForUser(userId: string): string[] {
+    return this.store.matchesForUser(userId).map((m) => m.id);
   }
 
   memberPlayerId(matchId: string, userId: string): PlayerId | null {
