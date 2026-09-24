@@ -22,9 +22,12 @@
       ...(s.kind === "ai" ? { aiLevel: s.level } : {}),
       color: i,
     }));
+    if (!chosen.some((s) => s.kind === "human")) return;
     const ruleset = mode === "mvp" ? mvpRuleset() : standardRuleset(count);
     onstart({ seats: chosen, ruleset, ...(seed.trim() ? { seed: seed.trim() } : {}) });
   }
+
+  const humanCount = $derived(seats.slice(0, count).filter((s) => s.kind === "human").length);
 </script>
 
 <section class="panel">
@@ -67,8 +70,9 @@
     </details>
     <div class="row">
       <button type="button" onclick={onback}>{t("ui.back")}</button>
-      <button type="submit" class="primary">{t("ui.begin")}</button>
+      <button type="submit" class="primary" disabled={humanCount === 0}>{t("ui.begin")}</button>
     </div>
+    {#if humanCount === 0}<p class="hint">{t("ui.at_least_one_human_required")}</p>{/if}
   </form>
 </section>
 
@@ -127,5 +131,10 @@
     display: flex;
     justify-content: space-between;
     margin-top: 0.8rem;
+  }
+  .hint {
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
+    color: #7a1d10;
   }
 </style>

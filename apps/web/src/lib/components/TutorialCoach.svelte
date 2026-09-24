@@ -41,6 +41,9 @@
   {#if !minimized}
     <p class="lesson">{steps[index]?.text}</p>
     <p class="todo">→ {steps[index]?.todo}</p>
+    {#if index === steps.length - 1}
+      <button class="primary finish" onclick={onfinish}>{t("ui.finish_tutorial")}</button>
+    {/if}
     <div class="dots" aria-hidden="true">{#each steps as _, i}<span class:on={i <= index}></span>{/each}</div>
   {/if}
 </aside>
@@ -75,6 +78,10 @@
   }
   .todo {
     font-size: 0.9rem;
+  }
+  .finish {
+    margin: 0.3rem 0 0.5rem;
+    width: 100%;
   }
   .dots {
     display: flex;

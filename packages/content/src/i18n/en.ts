@@ -327,6 +327,8 @@ export const EN: Record<string, string> = {
   "ui.seed_for_reproducible_games": "Seed (for reproducible games)",
   "ui.back": "Back",
   "ui.begin": "Begin",
+  "ui.finish_tutorial": "Finish tutorial — keep playing",
+  "ui.at_least_one_human_required": "Add at least one human player to begin.",
   "ui.number_of_players": "Number of players",
   "ui.random": "random",
   "ui.pass_to": "Pass to",
