@@ -2,9 +2,9 @@
   // In-game layout (spec §53): board first, side panel for players/quests/log,
   // bottom bar for hand, actions and harvest preview. On phones the side panel
   // becomes a slide-over and the bottom bar an action sheet.
-  import { RESOURCE_TYPES } from "@manors-menaces/rules";
+  import { RESOURCE_TYPES, getHarvestPreview } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
-  import { legalFor } from "../game/interaction.js";
+  import { computeHighlights, legalFor } from "../game/interaction.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { platform } from "../platform/adapter.js";
   import { resetTool, ui } from "../stores/ui.svelte.js";
@@ -25,9 +25,14 @@
 
   let { session, tutorial = false, onexit, onrematch }: { session: GameSession; tutorial?: boolean; onexit: () => void; onrematch: () => void } = $props();
 
-  const legal = $derived(legalFor(session));
   const gs = $derived(session.draft);
   const viewer = $derived(session.viewerId);
+  // Derived once per change and shared with the board, action bar and
+  // preview, which used to recompute them each.
+  const legal = $derived(legalFor(session));
+  const hl = $derived(computeHighlights(session, legal));
+  const previewFor = $derived(session.localActor ?? viewer);
+  const preview = $derived(previewFor ? getHarvestPreview(session.ctx, gs, previewFor, ui.bannerDraft) : null);
   const me = $derived(viewer ? gs.players[viewer] : undefined);
   let panelOpen = $state(false);
   let savedNote: string | null = $state(null);
@@ -93,7 +98,7 @@
   </header>
 
   <main class="board-wrap">
-    <Board {session} />
+    <Board {session} {legal} {hl} preview={session.localActor ? preview : null} />
     <div class="camera" role="group" aria-label={t("ui.board_camera")}>
       <button onclick={() => zoomAt(1.25, viewport.box.x + viewport.box.w / 2, viewport.box.y + viewport.box.h / 2)} aria-label={t("ui.zoom_in")}>+</button>
       <button onclick={() => zoomAt(0.8, viewport.box.x + viewport.box.w / 2, viewport.box.y + viewport.box.h / 2)} aria-label={t("ui.zoom_out")}>−</button>
@@ -125,9 +130,9 @@
   </aside>
 
   <footer class="bottom">
-    <div class="actions"><ActionBar {session} {legal} /></div>
-    {#if session.localActor || viewer}
-      <div class="preview"><HarvestPreview {session} playerId={session.localActor ?? viewer ?? ""} /></div>
+    <div class="actions"><ActionBar {session} {legal} hints={hl} /></div>
+    {#if previewFor && preview}
+      <div class="preview"><HarvestPreview {session} playerId={previewFor} {preview} /></div>
     {/if}
     <div class="hand"><HandPanel {session} {legal} /></div>
   </footer>

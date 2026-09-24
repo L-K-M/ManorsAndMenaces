@@ -1,14 +1,13 @@
 <script lang="ts">
   // Next-harvest preview (spec §54): updates live as Banners move.
-  import { RESOURCE_TYPES, getHarvestPreview, getPlayerBanners } from "@manors-menaces/rules";
+  import { RESOURCE_TYPES, getPlayerBanners, type HarvestPreview } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { regionName } from "../game/log.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { ui } from "../stores/ui.svelte.js";
   import ResourceIcon from "./ResourceIcon.svelte";
 
-  let { session, playerId }: { session: GameSession; playerId: string } = $props();
-  const preview = $derived(getHarvestPreview(session.ctx, session.draft, playerId, ui.bannerDraft));
+  let { session, playerId, preview }: { session: GameSession; playerId: string; preview: HarvestPreview } = $props();
   const unassigned = $derived(
     getPlayerBanners(session.draft, playerId).filter((b) => (b.id in ui.bannerDraft ? ui.bannerDraft[b.id] : b.regionId) == null).length,
   );

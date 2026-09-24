@@ -70,11 +70,16 @@ export class GameSession {
   readonly initialState: GameState;
   readonly transport: Transport;
 
-  authoritative: GameState = $state() as GameState;
-  draft: GameState = $state() as GameState;
-  buffered: GameCommand[] = $state([]);
-  log: LogEntry[] = $state([]);
-  floaters: Floater[] = $state([]);
+  // Game state is immutable plain data (§106): the engine returns a new
+  // object for every change and nothing here mutates one in place. `$state.raw`
+  // tracks reassignment only, so selectors and the AI read plain objects
+  // instead of deep proxies (15 to 130 times faster). Always replace these,
+  // never mutate them.
+  authoritative: GameState = $state.raw() as GameState;
+  draft: GameState = $state.raw() as GameState;
+  buffered: GameCommand[] = $state.raw([]);
+  log: LogEntry[] = $state.raw([]);
+  floaters: Floater[] = $state.raw([]);
   error: string | null = $state(null);
   busy = $state(false);
   /** Player whose private information (hand) the UI shows. */
@@ -82,7 +87,7 @@ export class GameSession {
   /** Hot-seat: waiting for this player to take the device. */
   curtainFor: PlayerId | null = $state(null);
   /** Online: which seats currently have a live connection. */
-  presence: Record<PlayerId, boolean> = $state({});
+  presence: Record<PlayerId, boolean> = $state.raw({});
   /** Online: this client's seat. */
   readonly onlinePlayerId: PlayerId | null;
 

@@ -2,22 +2,26 @@
   // The SVG board (spec §47). Layers, bottom to top: sea, terrain/Regions,
   // Routes, Sites/Holdings, Banners, Menaces, highlights. Every interactive
   // entity is a focusable button with an accessible name (spec §52).
-  import { getHarvestPreview, getPlayerBanners, type Banner, type MenaceInstance } from "@manors-menaces/rules";
+  import { getPlayerBanners, type Banner, type HarvestPreview, type LegalActionSummary, type MenaceInstance } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import type { GameSession } from "../game/session.svelte.js";
-  import { computeHighlights, legalFor, onPick } from "../game/interaction.js";
+  import { onPick, type Highlights } from "../game/interaction.js";
   import { regionName } from "../game/log.js";
   import { ui, type Pick } from "../stores/ui.svelte.js";
   import { viewport, setFull, zoomAt, panBy } from "../stores/viewport.svelte.js";
   import { settings, animationScale } from "../stores/settings.svelte.js";
   import { MENACE_THEME, PLAYER_THEMES, RESOURCE_COLORS, RESOURCE_GLYPHS, emblemPath } from "../theme.js";
 
-  let { session }: { session: GameSession } = $props();
+  // `legal`, `hl` and `preview` are derived once in GameScreen and shared.
+  let {
+    session,
+    legal,
+    hl,
+    preview,
+  }: { session: GameSession; legal: LegalActionSummary | null; hl: Highlights; preview: HarvestPreview | null } = $props();
 
   const map = $derived(session.map);
   const gs = $derived(session.draft);
-  const legal = $derived(legalFor(session));
-  const hl = $derived(computeHighlights(session, legal));
   const sitesById = $derived(new Map(map.sites.map((s) => [s.id, s])));
   const regionsById = $derived(new Map(map.regions.map((r) => [r.id, r])));
 
@@ -58,7 +62,6 @@
     return out;
   });
 
-  const preview = $derived(session.localActor ? getHarvestPreview(session.ctx, gs, session.localActor, ui.bannerDraft) : null);
   const previewByRegion = $derived(new Map((preview?.banners ?? []).map((b) => [b.regionId, b])));
 
   function menacePos(m: MenaceInstance): { x: number; y: number } {
