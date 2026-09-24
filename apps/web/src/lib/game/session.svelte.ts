@@ -25,6 +25,7 @@ import { aiDelayMs, settings } from "../stores/settings.svelte.js";
 import { engineFor, mapFor } from "./engine.js";
 import { formatEvents, type LogEntry } from "./log.js";
 import { recordGame } from "./telemetry.js";
+import { devlog } from "../devlog.js";
 
 export interface Floater {
   id: number;
@@ -173,10 +174,12 @@ export class GameSession {
     if (!actor || this.busy) return false;
     const command = this.envelope(actor, intent);
     const r = this.engine.applyCommand(this.draft, command);
+    devlog("command", command.type, { command, accepted: r.accepted, error: r.error });
     if (!r.accepted || !r.newState) {
       this.showError(r.error?.code ?? "INVALID_COMMAND");
       return false;
     }
+    devlog("event", `${r.events.length} events`, r.events);
     this.error = null;
     this.appendLog(r.events, r.newState);
     playForEvents(r.events);
@@ -212,6 +215,7 @@ export class GameSession {
     this.busy = true;
     try {
       const res = await this.transport.submit(batch, this.authoritative.revision);
+      devlog("network", `submitted ${batch.length} command(s) via ${this.transport.kind}`, res.ok ? { revision: res.state.revision } : res);
       if (!res.ok) {
         this.showError(res.code);
         // Reconcile: drop the draft and return to the authoritative state (§60).
@@ -321,6 +325,7 @@ export class GameSession {
     const seat = this.seat(actor);
     let intent = chooseAction(this.engine, state, actor, { level: seat?.aiLevel ?? "normal", rng: this.aiRng });
     if (!intent) return;
+    devlog("ai", `${seat?.displayName ?? actor} (${seat?.aiLevel ?? "normal"}) chose ${intent.type}`, intent);
     let command = this.envelope(actor, intent);
     let r = this.engine.applyCommand(state, command);
     if (!r.accepted) {
