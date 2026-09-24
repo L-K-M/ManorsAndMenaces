@@ -252,6 +252,38 @@ export function optimizeBanners(ctx: RulesContext, state: GameState, playerId: P
   return out;
 }
 
+/**
+ * Progression moves to try, in order, when an AI choice fails or is
+ * rejected, so a seat never stalls the game. Together they cover every
+ * decision an actor can owe: a setup placement, a pending reaction or
+ * prophecy, the main phase, the Banner assignment, a discard down to the
+ * hand limit and the end of the turn. The server and the web client share
+ * this list.
+ */
+export function fallbackIntents(ctx: RulesContext, state: GameState, playerId: PlayerId): CommandIntent[] {
+  const hand = state.players[playerId]?.hand ?? [];
+  const excess = hand.length - state.ruleset.handLimit;
+  const pending = state.pending;
+  const setup: CommandIntent[] = [];
+  if (state.status === "setup") {
+    const legal = getLegalActions(ctx, state, playerId);
+    const site = legal.initialManorSites[0];
+    const route = legal.initialRoutes[0];
+    if (legal.mode === "setup_manor" && site) setup.push({ type: "place_initial_manor", siteId: site });
+    if (legal.mode === "setup_route" && route) setup.push({ type: "place_initial_route", routeId: route });
+    if (legal.mode === "setup_banners") setup.push({ type: "assign_initial_banners", assignments: {} });
+  }
+  return [
+    ...setup,
+    { type: "pass_reaction" },
+    ...(pending?.kind === "prophecy" ? [{ type: "resolve_prophecy" as const, order: [...pending.cardIds] }] : []),
+    { type: "end_main_phase" },
+    { type: "assign_banners", assignments: {} },
+    ...(excess > 0 ? [{ type: "discard_cards" as const, cardIds: hand.slice(0, excess) }] : []),
+    { type: "end_turn" },
+  ];
+}
+
 /** Plays AI turns until it is a human's turn or the game ends (for tests/simulation). */
 export function runAiUntilHuman(
   engine: RulesEngine,
@@ -270,13 +302,18 @@ export function runAiUntilHuman(
     const command = asCommand(s, actor, intent);
     const r = engine.applyCommand(s, command);
     if (!r.accepted || !r.newState) {
-      // Fall back to ending the phase rather than looping on an illegal choice.
-      const fallback = s.phase === "main" ? "end_main_phase" : s.phase === "banner_assignment" ? "assign_banners" : "end_turn";
-      const fb = asCommand(s, actor, fallback === "assign_banners" ? { type: "assign_banners", assignments: {} } : ({ type: fallback } as CommandIntent));
-      const r2 = engine.applyCommand(s, fb);
-      if (!r2.accepted || !r2.newState) throw new Error(`AI stuck: ${intent.type} → ${r.error?.code}; fallback ${r2.error?.code}`);
-      s = r2.newState;
-      commands.push(fb);
+      // Fall back to progressing rather than looping on an illegal choice.
+      let fallback: { command: GameCommand; state: GameState } | null = null;
+      for (const f of fallbackIntents(engine.ctx, s, actor)) {
+        const fc = asCommand(s, actor, f);
+        const fr = engine.applyCommand(s, fc);
+        if (!fr.accepted || !fr.newState) continue;
+        fallback = { command: fc, state: fr.newState };
+        break;
+      }
+      if (!fallback) throw new Error(`AI stuck: ${intent.type} → ${r.error?.code}; no fallback accepted`);
+      s = fallback.state;
+      commands.push(fallback.command);
       continue;
     }
     s = r.newState;

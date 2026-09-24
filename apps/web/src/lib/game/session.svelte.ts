@@ -2,28 +2,28 @@
 // of undoable actions (§32.1), UI-facing log/feedback, AI scheduling and the
 // hot-seat privacy curtain. Rules decisions are delegated to the engine.
 
-import { chooseAction } from "@manors-menaces/ai";
 import { SAVE_SCHEMA_VERSION, type SaveFile, type SeatConfig } from "@manors-menaces/protocol";
 import {
   RULESET_VERSION,
   UNDO_SAFE_COMMANDS,
-  createRng,
   seedRng,
   type CommandIntent,
   type GameCommand,
   type GameEvent,
-  type GameRng,
   type GameState,
   type PlayerId,
+  type RngState,
   type RulesEngine,
   type RulesetConfig,
 } from "@manors-menaces/rules";
 import { playForEvents, play } from "../audio/sfx.js";
 import { t } from "../i18n.js";
 import { platform } from "../platform/adapter.js";
-import { aiDelayMs, settings } from "../stores/settings.svelte.js";
+import { animationScale, settings } from "../stores/settings.svelte.js";
+import { AiClient } from "./aiClient.js";
+import { aiPaceDelayMs, aiStepPace, resolveAiStep, type AiStep } from "./aiStep.js";
 import { engineFor, mapFor } from "./engine.js";
-import { formatEvents, type LogEntry } from "./log.js";
+import { formatEvents, noticeEntry, type LogEntry } from "./log.js";
 import { recordGame } from "./telemetry.js";
 import { devlog } from "../devlog.js";
 
@@ -55,6 +55,9 @@ export interface NewGameOptions {
 let floaterId = 1;
 let commandSeq = 0;
 
+/** How long a stuck AI seat waits before trying again (as on the server). */
+const AI_STUCK_RETRY_MS = 5000;
+
 /** Who must act next: reaction/prophecy decisions come before the active player. */
 export function currentActor(state: GameState): PlayerId | null {
   if (state.status === "finished") return null;
@@ -73,8 +76,8 @@ export class GameSession {
   // Game state is immutable plain data (§106): the engine returns a new
   // object for every change and nothing here mutates one in place. `$state.raw`
   // tracks reassignment only, so selectors and the AI read plain objects
-  // instead of deep proxies (15 to 130 times faster). Always replace these,
-  // never mutate them.
+  // instead of deep proxies (15 to 130 times faster) and the state can be
+  // posted to the AI worker as is. Always replace these, never mutate them.
   authoritative: GameState = $state.raw() as GameState;
   draft: GameState = $state.raw() as GameState;
   buffered: GameCommand[] = $state.raw([]);
@@ -94,7 +97,14 @@ export class GameSession {
   private commandHistory: GameCommand[] = [];
   private undoStack: { state: GameState; logIds: number[] }[] = [];
   private aiTimer: ReturnType<typeof setTimeout> | null = null;
-  private aiRng: GameRng;
+  private readonly ai = new AiClient();
+  /** The AI RNG, carried from one decision to the next (§30). */
+  private aiRngState: RngState;
+  /** An AI decision is being made or paced; at most one runs at a time. */
+  private aiInFlight = false;
+  /** The last AI problem reported, so repeats in the same turn stay quiet. */
+  private aiProblemKey = "";
+  private aiStuckNotice: string | null = null;
   private destroyed = false;
   private listeners = new Set<(events: GameEvent[], state: GameState) => void>();
 
@@ -116,7 +126,7 @@ export class GameSession {
     this.transport = opts.transport ?? this.localTransport();
     this.authoritative = opts.state;
     this.draft = opts.state;
-    this.aiRng = createRng(seedRng(`${opts.state.matchId}:ai:${opts.state.revision}`));
+    this.aiRngState = seedRng(`${opts.state.matchId}:ai:${opts.state.revision}`);
     this.viewerId = this.onlinePlayerId ?? this.firstHuman();
     this.afterStateChange([]);
   }
@@ -342,34 +352,80 @@ export class GameSession {
     this.curtainFor = null;
   }
 
-  private scheduleAi(): void {
-    if (this.aiTimer) return;
+  private scheduleAi(delayMs = 0): void {
+    if (this.aiTimer || this.aiInFlight) return;
+    // Deferred so the batch that led here has fully settled (busy is clear).
     this.aiTimer = setTimeout(() => {
       this.aiTimer = null;
       void this.runAiStep();
-    }, aiDelayMs());
+    }, delayMs);
   }
 
   private async runAiStep(): Promise<void> {
-    if (this.destroyed || this.busy) return;
+    if (this.destroyed || this.busy || this.aiInFlight) return;
     const state = this.authoritative;
     const actor = currentActor(state);
     if (!actor || this.isHuman(actor)) return;
-    const seat = this.seat(actor);
-    let intent = chooseAction(this.engine, state, actor, { level: seat?.aiLevel ?? "normal", rng: this.aiRng });
-    if (!intent) return;
-    devlog("ai", `${seat?.displayName ?? actor} (${seat?.aiLevel ?? "normal"}) chose ${intent.type}`, intent);
-    let command = this.envelope(actor, intent);
-    let r = this.engine.applyCommand(state, command);
-    if (!r.accepted) {
-      // Never let a bad AI choice stall the game: fall back to advancing.
-      intent = state.phase === "main" ? { type: "end_main_phase" } : state.phase === "banner_assignment" ? { type: "assign_banners", assignments: {} } : { type: "end_turn" };
-      command = this.envelope(actor, intent);
-      r = this.engine.applyCommand(state, command);
-      if (!r.accepted) return;
+    this.aiInFlight = true;
+    let step: AiStep | null;
+    try {
+      step = await this.prepareAiStep(state, actor);
+    } finally {
+      this.aiInFlight = false;
     }
-    this.draft = r.newState as GameState;
-    await this.flush([command]);
+    if (this.destroyed) return;
+    // The game moved on while the AI was thinking (e.g. a debug command).
+    if (this.authoritative !== state || this.busy) return this.scheduleAi();
+    if (!step) return this.scheduleAi(AI_STUCK_RETRY_MS);
+    if (this.error !== null && this.error === this.aiStuckNotice) this.error = null;
+    this.draft = step.newState;
+    await this.flush([step.command]);
+  }
+
+  /**
+   * Decide off the UI thread, then hold the move for the beat it deserves:
+   * steps that change nothing visible go straight through, visible ones wait
+   * (counting the time spent thinking) so players can follow them. Null if
+   * the seat is stuck or the game moved on meanwhile.
+   */
+  private async prepareAiStep(state: GameState, actor: PlayerId): Promise<AiStep | null> {
+    const seat = this.seat(actor);
+    const level = seat?.aiLevel ?? "normal";
+    const started = performance.now();
+    let intent: CommandIntent | null = null;
+    let failure: unknown = null;
+    try {
+      const decision = await this.ai.choose({ mapId: this.mapId, state, playerId: actor, level, rngState: this.aiRngState });
+      this.aiRngState = decision.rngState;
+      intent = decision.intent;
+    } catch (err) {
+      failure = err;
+    }
+    if (this.destroyed || this.authoritative !== state) return null;
+
+    // Never let a failed or bad AI choice stall the game: fall back to the
+    // same progression moves as the server, and say so.
+    const step = resolveAiStep(this.engine, state, actor, intent, (i) => this.envelope(actor, i));
+    if (!step || step.fellBack) this.reportAiProblem(state, actor, step, failure ?? intent);
+    if (!step) return null;
+    devlog("ai", `${seat?.displayName ?? actor} (${level}) chose ${step.command.type}`, step.command);
+
+    const wait = aiPaceDelayMs(aiStepPace(step), animationScale()) - (performance.now() - started);
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    return step;
+  }
+
+  /** Show an AI failure as an error and in the Chronicle, once per seat and turn. */
+  private reportAiProblem(state: GameState, actor: PlayerId, step: AiStep | null, cause: unknown): void {
+    console.error(`AI seat ${actor} ${step ? `fell back to ${step.command.type}` : "has no legal move"} at revision ${state.revision}`, cause);
+    const key = `${state.turnNumber}:${actor}:${step ? "fallback" : "stuck"}`;
+    if (this.aiProblemKey === key) return;
+    this.aiProblemKey = key;
+    const name = state.players[actor]?.displayName ?? actor;
+    const text = t(step ? "error.AI_FALLBACK" : "error.AI_STUCK", { name });
+    this.aiStuckNotice = step ? null : text;
+    this.error = text;
+    this.log = [...this.log, noticeEntry(text, actor)].slice(-300);
   }
 
   // ------------------------------------------------------------------ persistence
@@ -403,6 +459,7 @@ export class GameSession {
   destroy(): void {
     this.destroyed = true;
     if (this.aiTimer) clearTimeout(this.aiTimer);
+    this.ai.dispose();
     this.transport.close?.();
   }
 

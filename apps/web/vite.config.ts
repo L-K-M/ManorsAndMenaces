@@ -13,6 +13,8 @@ export default defineConfig({
   base: "./",
   server: { port: 5173, strictPort: true },
   build: { target: "es2022", sourcemap: true },
+  // The AI runs in a module worker (lib/game/ai.worker.ts).
+  worker: { format: "es" },
   define: {
     __APP_VERSION__: JSON.stringify(rootVersion),
   },

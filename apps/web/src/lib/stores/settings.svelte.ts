@@ -51,9 +51,3 @@ export function animationScale(): number {
   if (settings.reducedMotion || settings.animationSpeed === "off") return 0;
   return settings.animationSpeed === "fast" ? 0.45 : 1;
 }
-
-/** Delay between AI actions, scaled with animation speed. */
-export function aiDelayMs(): number {
-  const s = animationScale();
-  return s === 0 ? 120 : Math.round(550 * s);
-}

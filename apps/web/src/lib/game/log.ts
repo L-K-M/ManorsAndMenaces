@@ -153,3 +153,8 @@ export function formatEvents(events: GameEvent[], state: GameState, map: MapDefi
   flushAssigned();
   return out;
 }
+
+/** An important Chronicle line that no engine event produced (a client notice). */
+export function noticeEntry(text: string, playerId: string | null): LogEntry {
+  return { id: nextId++, text, playerId, kind: "important" };
+}
