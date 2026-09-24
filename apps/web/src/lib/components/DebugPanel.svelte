@@ -27,6 +27,18 @@
     const d = dests[Math.floor(Math.random() * dests.length)];
     if (d) session.debug({ ...base(), type: "debug_move_menace", menaceId, destination: d });
   }
+  // §100 "advance turn": walk the current human player through the remaining phases.
+  async function advanceTurn() {
+    for (let i = 0; i < 4 && session.localActor; i++) {
+      const phase = session.draft.phase;
+      if (phase === "main") await session.perform({ type: "end_main_phase" });
+      else if (phase === "banner_assignment") await session.perform({ type: "assign_banners", assignments: {} });
+      else if (phase === "end") {
+        await session.perform({ type: "end_turn" });
+        break;
+      }
+    }
+  }
   async function exportTelemetry() {
     await platform.exportFile("manors-telemetry.json", JSON.stringify(loadTelemetry(), null, 2));
   }
@@ -48,6 +60,7 @@
     {#each Object.keys(gs.menaces) as m}
       <button onclick={() => moveMenace(m)}>Move {m.replace("menace_", "")} randomly</button>
     {/each}
+    <button onclick={advanceTurn}>Advance to next turn</button>
     <button onclick={exportTelemetry}>Export balance telemetry ({loadTelemetry().length} games)</button>
     <button onclick={exportLog}>{t("ui.export_command_log_save")}</button>
     <button onclick={() => (showState = !showState)}>{showState ? "Hide" : "Inspect"} GameState</button>
