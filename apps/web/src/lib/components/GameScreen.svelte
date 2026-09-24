@@ -8,7 +8,7 @@
   import type { GameSession } from "../game/session.svelte.js";
   import { platform } from "../platform/adapter.js";
   import { resetTool, ui } from "../stores/ui.svelte.js";
-  import { resetView, zoomAt, zoomTo, viewport } from "../stores/viewport.svelte.js";
+  import { nudge, resetView, zoomBy, zoomTo } from "../stores/viewport.svelte.js";
   import ActionBar from "./ActionBar.svelte";
   import Board from "./Board.svelte";
   import DebugPanel from "./DebugPanel.svelte";
@@ -59,16 +59,25 @@
     savedNote = "Saved.";
     setTimeout(() => (savedNote = null), 1800);
   }
+  // Arrow keys pan the board by a tenth of the view.
+  const PAN_KEYS: Record<string, [number, number]> = { ArrowLeft: [-0.1, 0], ArrowRight: [0.1, 0], ArrowUp: [0, -0.1], ArrowDown: [0, 0.1] };
   function keydown(e: KeyboardEvent) {
-    if ((e.target as HTMLElement)?.closest("input, select, textarea")) return;
+    if ((e.target as HTMLElement)?.closest("input, select, textarea, [contenteditable]")) return;
+    const pan = PAN_KEYS[e.key];
+    if (pan) {
+      if (e.altKey || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.closest("[role=dialog], [role=tablist]")) return;
+      e.preventDefault();
+      nudge(...pan);
+      return;
+    }
     if (e.key === "Escape") {
       resetTool();
       ui.inspect = null;
     } else if ((e.key === "z" || e.key === "Z") && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       session.undo();
-    } else if (e.key === "+" || e.key === "=") zoomAt(1.2, viewport.box.x + viewport.box.w / 2, viewport.box.y + viewport.box.h / 2);
-    else if (e.key === "-") zoomAt(1 / 1.2, viewport.box.x + viewport.box.w / 2, viewport.box.y + viewport.box.h / 2);
+    } else if (e.key === "+" || e.key === "=") zoomBy(1.2);
+    else if (e.key === "-") zoomBy(1 / 1.2);
     else if (e.key === "0") resetView();
   }
 </script>
@@ -95,9 +104,9 @@
   <main class="board-wrap">
     <Board {session} />
     <div class="camera" role="group" aria-label={t("ui.board_camera")}>
-      <button onclick={() => zoomAt(1.25, viewport.box.x + viewport.box.w / 2, viewport.box.y + viewport.box.h / 2)} aria-label={t("ui.zoom_in")}>+</button>
-      <button onclick={() => zoomAt(0.8, viewport.box.x + viewport.box.w / 2, viewport.box.y + viewport.box.h / 2)} aria-label={t("ui.zoom_out")}>−</button>
-      <button onclick={resetView} aria-label={t("ui.reset_view")}>⤢</button>
+      <button onclick={() => zoomBy(1.25)} aria-label={t("ui.zoom_in")}>+</button>
+      <button onclick={() => zoomBy(0.8)} aria-label={t("ui.zoom_out")}>−</button>
+      <button onclick={() => resetView()} aria-label={t("ui.reset_view")}>⤢</button>
       <button onclick={zoomToMine} aria-label={t("ui.zoom_to_my_holdings")}>◎</button>
     </div>
     {#each session.floaters.filter((f) => f.playerId === viewer) as f (f.id)}
