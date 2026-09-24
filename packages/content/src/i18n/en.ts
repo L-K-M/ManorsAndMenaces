@@ -261,7 +261,7 @@ export const EN: Record<string, string> = {
   "tutorial.6": "Menaces change the local rules: the Toll Troll stops a Region producing at all.",
   "tutorial.7": "Cards and Wardens move Menaces and Banners — ideally onto somebody else's problem.",
   "tutorial.8": "Royal Quests are public goals worth Renown. Claim them before anyone else does.",
-  "tutorial.9": "Manors are worth 1 Renown and Strongholds 2. Reach the target Renown to win!",
+  "tutorial.9": "Manors are worth 1 Renown and Strongholds 2. Reach the target Renown (shown next to each player) to win!",
 
   // ---------------------------------------------------------------- ui (extracted)
   "ui.continue": "Continue",
@@ -320,7 +320,7 @@ export const EN: Record<string, string> = {
   "ui.hard": "Hard",
   "ui.rules": "Rules",
   "ui.standard": "Standard",
-  "ui.cards_royal_quests_12_renown": "— cards, Royal Quests, 12 Renown",
+  "ui.cards_royal_quests_12_renown": "— cards, Royal Quests, {target} Renown",
   "ui.core": "Core",
   "ui.banners_building_and_the_toll": "— Banners, building and the Toll Troll only, 10 Renown",
   "ui.advanced": "Advanced",

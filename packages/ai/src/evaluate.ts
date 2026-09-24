@@ -152,9 +152,13 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
   let opponentHarvest = 0;
   for (const id of state.turnOrder) {
     if (id === playerId) continue;
-    opponents += menacePressure(ctx, state, id);
-    opponentRenown = Math.max(opponentRenown, getRenown(ctx, state, id));
-    opponentHarvest += getHarvestPreview(ctx, state, id).total;
+    // Interference is worth more against whoever is closest to winning, as
+    // human players aim trouble at the leader.
+    const theirRenown = getRenown(ctx, state, id);
+    const threat = 0.5 + theirRenown / state.ruleset.targetRenown;
+    opponents += threat * menacePressure(ctx, state, id);
+    opponentRenown = Math.max(opponentRenown, theirRenown);
+    opponentHarvest += threat * getHarvestPreview(ctx, state, id).total;
   }
 
   return (

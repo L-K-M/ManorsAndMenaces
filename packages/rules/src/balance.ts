@@ -2,7 +2,8 @@ import type { MenaceType, ResourceCost, RulesetConfig } from "./types.js";
 
 // All tunable numbers live here (spec §121). Do not scatter numbers in code.
 export const BALANCE = {
-  targetRenown: { standard: 12, mvp: 10 },
+  // 4 players race to 10 (spec §7.1; simulation §129.4: 12 made 4-player games ~21 turns long).
+  targetRenown: { standard: 12, standardFourPlayers: 10, mvp: 10 },
   costs: {
     route: { timber: 1, stone: 1 },
     manor: { grain: 1, timber: 1, stone: 1 },
@@ -69,7 +70,7 @@ export function standardRuleset(playerCount: number): RulesetConfig {
   return {
     ...common,
     name: "standard",
-    targetRenown: BALANCE.targetRenown.standard,
+    targetRenown: playerCount >= 4 ? BALANCE.targetRenown.standardFourPlayers : BALANCE.targetRenown.standard,
     activeMenaces: standardMenaces(playerCount),
     enableCards: true,
     enableReactionCards: true,

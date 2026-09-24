@@ -374,6 +374,19 @@ describe("review regressions", () => {
   });
 });
 
+describe("rulesets", () => {
+  it("targets 10 Renown with 4 players and 12 otherwise", () => {
+    expect(standardRuleset(4).targetRenown).toBe(10);
+    expect(standardRuleset(3).targetRenown).toBe(12);
+    expect(mvpRuleset().targetRenown).toBe(10);
+  });
+  it("grants seatBonus resources when play begins", () => {
+    const { state, p1, p2 } = setupGame({ ...mvpRuleset(), seatBonus: [{}, { essence: 2 }] });
+    expect(state.players[p2]?.resources.essence).toBe(2);
+    expect(state.players[p1]?.resources.essence).toBe(0);
+  });
+});
+
 describe("victory (§7)", () => {
   it("ends the game at end of turn when the target is reached", () => {
     const { state, p1 } = setupGame();

@@ -111,6 +111,46 @@ jobs:
             src-tauri/target/**/release/bundle/**/*.msi
             src-tauri/target/**/release/bundle/**/*.exe
 
+  android:
+    name: Android (unsigned APK)
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v4
+      - name: NDK
+        run: sdkmanager "ndk;29.0.14206865" "platforms;android-36" "build-tools;36.0.0"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+      - name: Build
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/29.0.14206865
+        run: pnpm tauri android build --apk --ci
+      - name: Package
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk "manors-menaces-$VERSION-android-unsigned.apk"
+      - uses: softprops/action-gh-release@v3
+        with:
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
+          files: manors-menaces-*-android-unsigned.apk
+
   image:
     name: Server container image
     needs: test

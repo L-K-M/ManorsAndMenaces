@@ -7,7 +7,8 @@
 #   target was named explicitly.
 #
 # Requirements: Node 22.13+ with corepack (pnpm); desktop also needs Rust and the
-# Tauri system libraries; android needs the Android SDK/NDK and `tauri android init`.
+# Tauri system libraries; android needs the Android SDK + NDK (ANDROID_HOME,
+# NDK_HOME), JDK 17 and `rustup target add aarch64-linux-android …`.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -84,13 +85,13 @@ for target in "${TARGETS[@]}"; do
       ;;
     android)
       echo "==> android (Tauri mobile)"
-      if [[ -z "${ANDROID_HOME:-}" || ! -d src-tauri/gen/android ]]; then
-        skip_or_fail android "needs ANDROID_HOME and a one-time 'pnpm tauri android init'"
+      if [[ -z "${ANDROID_HOME:-}" || -z "${NDK_HOME:-}" ]]; then
+        skip_or_fail android "needs ANDROID_HOME and NDK_HOME (Android SDK + NDK) and the Rust Android targets"
         continue
       fi
-      if $PNPM tauri android build; then
+      if $PNPM tauri android build --apk; then
         mkdir -p "$DIST/android"
-        find src-tauri/gen/android -name '*.apk' -o -name '*.aab' | xargs -I{} cp {} "$DIST/android/"
+        find src-tauri/gen/android/app/build/outputs -name '*.apk' -exec cp {} "$DIST/android/" \;
         OK+=("android → $DIST/android")
       else
         FAILED+=("android")

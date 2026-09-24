@@ -147,6 +147,11 @@ export interface RulesetConfig {
    * Off by default: §7 ends the game at the end of that player's turn.
    */
   equalTurns?: boolean;
+  /**
+   * Extra resources granted when play begins, by position in turn order
+   * (index 0 = first player). A first-player-advantage lever (spec §129.4).
+   */
+  seatBonus?: ResourceCost[];
 }
 
 export interface PlayerConfig {

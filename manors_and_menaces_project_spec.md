@@ -237,7 +237,7 @@ Resource visibility is intentionally public to reduce memory burden and make tac
 
 # 7. Victory
 
-The standard game ends when a player reaches **12 Renown** and completes their current turn.
+The standard game ends when a player reaches **12 Renown** (**10 Renown with 4 players**, see §129.4) and completes their current turn.
 
 The MVP ruleset (no cards, no Quests) uses a target of **10 Renown**, because Holdings are its only Renown source (see §7.1).
 
@@ -4163,18 +4163,19 @@ Recommendation: ship **A** in the MVP, and log the telemetry in §67 and the bal
 
 ## 129.4 Simulation findings (v0.2 implementation)
 
-`pnpm simulate` plays AI-vs-AI games on the Greenvale map (normal AI). 30 games per mode:
+`pnpm simulate` plays AI-vs-AI games on the Greenvale map (normal AI). The AI was improved during this work (it had treated buying cards as a standing goal and hoarded Iron/Essence), which alone moved 3-player standard games from ~17.5 to ~15.5 turns. Current results:
 
-| Mode | Turns per player (avg) | Winner Renown source | Writs / game | Wardens / game | Seat win rates |
-|---|---:|---|---:|---:|---|
-| MVP, 3 players | 14.3 | all from Holdings | 3.0 | 2.8 | 43 / 30 / 27 % |
-| Standard, 2 players | 16.8 | 10.0 Holdings + 2.9 Quests | 2.0 | 6.0 | 37 / 63 % |
-| Standard, 3 players | 17.5 | 9.6 Holdings + 3.0 Quests | 4.9 | 11.4 | 67 / 17 / 17 % |
-| Standard, 4 players | 21.4 | 9.4 Holdings + 2.9 Quests | 16.5 | 25.0 | 50 / 17 / 7 / 23 % |
+| Mode | Games | Turns per player (avg) | Seat win rates | Notes |
+|---|---:|---:|---|---|
+| MVP, 3 players | 80 | 14.6 | 41 / 26 / 33 % | on target |
+| Standard, 3 players | 80 | 15.5 | 65 / 25 / 10 % | length on target; first-seat bias (below) |
+| Standard, 3 players, no cards | 60 | 15.5 | 50 / 30 / 20 % | |
+| Standard, 4 players, target 12 | 40 | 21.1 | 25 / 5 / 33 / 38 % | too long |
+| Standard, 4 players, target 10 | 40 | 17.6 | 30 / 13 / 28 / 30 % | **adopted as the 4-player default** |
 
-The AI is a heuristic player and plans worse than people. Treat these numbers as warnings to check in human playtests, not as verdicts:
+Findings and open questions for human playtests:
 
-1. **Game length.** The MVP is inside the 12–16 target. Standard games run long, especially with 4 players. Levers: target 10 Renown for 4 players (`targetRenown`), reveal 4 Quests (`revealedQuestCount`), a slightly higher share of rich Regions.
-2. **First-seat advantage in standard games** (67% with 3 players, 50% with 4). The `equalTurns` ruleset option, which finishes the round once someone reaches the target, had no measurable effect in simulation. The leader is usually more than one turn ahead, so the edge builds over the whole game rather than at the end. Next levers to test: give later seats +1 starting resource, or let the last seat place both initial Manors before anyone assigns Banners.
-3. **Harvest per turn** is 2–4, below the §68 targets (3–5 mid-game, 4–7 late). Consider a third starting Banner or more capacity-2 Regions.
-4. **Hereditary Regions** (a contestable Region held by one player for more than 60% of the game) occur in 43% of standard games against a 25% target. The Royal Writ reduces this but the AI uses it cautiously. If humans behave the same way, try Writ variant B (§129.2, no Settled protection).
+1. **4-player length.** The target is now 10 Renown with 4 players (§7). 17.6 turns is still above the 12–16 target; revealing 4 Quests did not help.
+2. **First-seat advantage with cards, 3 players.** Seat 1 wins ~60–65% of AI games when the card deck is in play, versus ~41–50% without cards. No single card causes it: excluding any one card leaves 57–63%. Neither aiming interference at the leader nor a starting bonus for later seats (`seatBonus`, up to 4 resources) closes the gap (best: 59%). `equalTurns` has no effect. Suspected cause: cards reward tempo, and the first seat reaches spare resources first. Test with people before changing rules. Candidate levers: card cost +1 Essence, one card per player per round (not per turn), or deal each later seat one starting card.
+3. **Harvest per turn** is ~2.4 early and ~4.5 later, still slightly below the §68 targets (3–5 mid-game, 4–7 late).
+4. **Hereditary Regions** remain common in AI play. The AI uses the Royal Writ cautiously (3–5 per game in 3-player games). If humans also leave Regions uncontested, try Writ variant B (§129.2).

@@ -403,6 +403,9 @@ function assignInitialBanners(tx: Tx, playerId: PlayerId, assignments: Record<Ba
   s.turnNumber = 1;
   s.activePlayerId = s.turnOrder[0] as PlayerId;
   tx.emit({ type: "game_started", firstPlayerId: s.activePlayerId, turnOrder: [...s.turnOrder] });
+  s.turnOrder.forEach((id, i) => {
+    for (const [r, n] of Object.entries(s.ruleset.seatBonus?.[i] ?? {})) if (isResourceType(r) && n) tx.gain(id, r, n, "starting_resources");
+  });
   startTurn(tx, s.activePlayerId);
 }
 
