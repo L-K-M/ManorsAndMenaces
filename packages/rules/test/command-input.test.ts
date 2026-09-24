@@ -26,6 +26,9 @@ const JUNK: unknown[] = [
   { kind: "bogus" },
   { kind: "__proto__" },
   { kind: "region", regionId: {} },
+  // JSON.parse keeps "__proto__" as an own key; the fields under it must never
+  // be read as if they were the object's own.
+  JSON.parse('{"kind":"region","__proto__":{"regionId":"R1"}}'),
 ];
 
 function give(s: GameState, p: PlayerId, card: string): GameState {
@@ -88,6 +91,30 @@ describe("malformed card targets", () => {
         expect(r.error?.code).toMatch(/^(INVALID_CARD_TARGET|ILLEGAL_MENACE_TARGET|INSUFFICIENT_RESOURCES)$/);
       }
     }
+  });
+});
+
+describe("own __proto__ keys in payloads", () => {
+  function inReactionWindow() {
+    const { s, p1, p2, cardId } = holding("arcane_exchange");
+    return { s: give(s, p2, "counterspell"), p1, cardId };
+  }
+
+  it("never supply a card target's fields", () => {
+    const { s, p1, cardId } = inReactionWindow();
+    const target = JSON.parse('{"effect":"arcane_exchange","__proto__":{"give":"essence","receive":"iron"}}');
+    const r = apply(s, p1, { type: "play_card", cardId, target });
+    expect(r.accepted).toBe(false);
+    expect(r.error?.code).toBe("INVALID_CARD_TARGET");
+  });
+
+  it("stay plain data in an accepted payload", () => {
+    const { s, p1, cardId } = inReactionWindow();
+    const target = JSON.parse('{"effect":"arcane_exchange","give":"essence","receive":"iron","__proto__":{"receive":"grain"}}');
+    const pending = act(s, p1, { type: "play_card", cardId, target }).state.pending;
+    const held = pending?.kind === "reaction" ? (pending.target as unknown as Record<string, unknown>) : undefined;
+    expect(held && Object.getPrototypeOf(held)).toBe(Object.prototype);
+    expect(held?.receive).toBe("iron");
   });
 });
 

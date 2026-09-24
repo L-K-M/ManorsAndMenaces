@@ -1,6 +1,6 @@
 // Spells in online matches (spec §59, §105): the client only ever holds a
-// redacted view, computes legal actions and validates commands against it,
-// then submits them to the authoritative server. These tests drive that path
+// redacted view and computes legal actions and card targets from it, then
+// submits commands to the authoritative server. These tests drive that path
 // over real HTTP with two seats whose hands are hidden from each other.
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -124,7 +124,12 @@ function stage(matchId: string, deal: { playerId: PlayerId; cardDefId: string }[
   expect(app.store.commitBatch(matchId, row.revision, s, [])).toBe(true);
 }
 
-/** What the web client does: legal actions and local validation on its redacted view, then submit. */
+/**
+ * Offers the Spell from legal actions and target enumeration on the redacted
+ * view, checks the engine also accepts it there, then submits it. (The web
+ * client itself sends locking commands such as play_card straight to the
+ * server; the local apply here proves the rules work on a redacted view.)
+ */
 async function playSpellLikeTheClient(matchId: string, token: string, cardDefId = "arcane_exchange", target: CardTarget = ARCANE_TARGET) {
   const { me, state } = await view(matchId, token);
   const opponent = state.turnOrder.find((p) => p !== me) as PlayerId;
@@ -272,8 +277,13 @@ describe("malformed card targets online", () => {
     const { state } = await view(matchId, token);
     const knight = state.players[first]?.hand[0] as string;
     const menaceId = Object.keys(state.menaces)[0] as string;
+    // A legal target whose destination fields hide under an own "__proto__" key.
+    const legal = enumerateCardTargets(engine.ctx, state, first, knight)[0] as { destination: Record<string, unknown> };
+    const { kind, ...fields } = legal.destination;
+    const protoDestination = JSON.parse(`{"kind":${JSON.stringify(kind)},"__proto__":${JSON.stringify(fields)}}`);
 
     const targets: unknown[] = [
+      { ...legal, destination: protoDestination },
       { effect: "knight_errant", menaceId },
       { effect: "knight_errant", menaceId, destination: null },
       { effect: "knight_errant", menaceId, destination: { kind: "region" } },
