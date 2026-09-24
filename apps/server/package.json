@@ -1,0 +1,23 @@
+{
+  "name": "@manors-menaces/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/server.mjs --packages=external --alias:@manors-menaces/rules=../../packages/rules/src/index.ts --alias:@manors-menaces/content=../../packages/content/src/index.ts --alias:@manors-menaces/protocol=../../packages/protocol/src/index.ts --alias:@manors-menaces/ai=../../packages/ai/src/index.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@manors-menaces/ai": "workspace:*",
+    "@manors-menaces/content": "workspace:*",
+    "@manors-menaces/protocol": "workspace:*",
+    "@manors-menaces/rules": "workspace:*",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@types/ws": "^8.18.1"
+  }
+}

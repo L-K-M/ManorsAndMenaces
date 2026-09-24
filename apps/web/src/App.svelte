@@ -13,7 +13,8 @@
   import OnlineLobby from "./lib/online/OnlineLobby.svelte";
 
   type Screen = "title" | "new" | "game" | "online";
-  let screen: Screen = $state("title");
+  // Invite links (#/join/CODE) open the online lobby directly (spec §86).
+  let screen: Screen = $state(location.hash.startsWith("#/join/") ? "online" : "title");
   let session: GameSession | null = $state(null);
   let tutorial = $state(false);
   let saves: SaveSummary[] = $state([]);

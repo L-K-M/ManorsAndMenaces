@@ -153,6 +153,9 @@
     }
   }
 
+  // While targets are highlighted, everything else stops catching clicks so a
+  // short Route is not hidden behind the hit areas of its end Sites.
+  const targeting = $derived(hl.sites.size + hl.routes.size + hl.regions.size + hl.banners.size + hl.menaces.size + hl.locations.size > 0);
   const dur = $derived(animationScale());
   const bannerLabel = (b: Banner) => {
     const owner = gs.players[b.ownerId]?.displayName ?? "";
@@ -166,6 +169,7 @@
   bind:this={svgEl}
   class="board"
   class:hc={settings.highContrast}
+  class:targeting
   viewBox="{viewport.box.x} {viewport.box.y} {viewport.box.w} {viewport.box.h}"
   preserveAspectRatio="xMidYMid meet"
   role="application"
@@ -196,6 +200,7 @@
     <pattern id="hatch-essence" width="18" height="18" patternUnits="userSpaceOnUse">
       <path d="M9,3 L10.5,7.5 L15,9 L10.5,10.5 L9,15 L7.5,10.5 L3,9 L7.5,7.5 Z" fill="#7a5bb8" opacity="0.3" />
     </pattern>
+    <clipPath id="island-clip"><path d={map.coastline} /></clipPath>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="4" result="b" />
       <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
@@ -225,9 +230,11 @@
         onpointerenter={() => (ui.hoverRegionId = region.id)}
         onpointerleave={() => (ui.hoverRegionId = null)}
       >
-        <path d={region.path} fill={colors.fill} stroke="#6b5a3a" stroke-width="2" stroke-linejoin="round" />
-        <path d={region.path} fill="url(#hatch-{region.resource})" pointer-events="none" />
-        {#if isHl}<path d={region.path} class="hl-fill" pointer-events="none" />{/if}
+        <g clip-path="url(#island-clip)">
+          <path d={region.path} fill={colors.fill} stroke="#6b5a3a" stroke-width="2" stroke-linejoin="round" />
+          <path d={region.path} fill="url(#hatch-{region.resource})" pointer-events="none" />
+          {#if isHl}<path d={region.path} class="hl-fill" pointer-events="none" />{/if}
+        </g>
         <g transform="translate({region.labelX},{region.labelY})" pointer-events="none">
           <circle r="17" fill="#fffaf0" stroke={colors.dark} stroke-width="2" />
           <path d={RESOURCE_GLYPHS[region.resource]} fill={region.resource === "grain" ? "none" : colors.dark} stroke={colors.dark} stroke-width={region.resource === "grain" ? 2 : 1} />
@@ -478,6 +485,13 @@
     stroke-width: 4;
     animation: pulse 1.4s ease-in-out infinite;
   }
+  .targeting .region:not(.hl),
+  .targeting .route:not(.hl),
+  .targeting .site:not(.hl),
+  .targeting .banner:not(.hl):not(.mine),
+  .targeting .menace:not(.hl) {
+    pointer-events: none;
+  }
   .region.hl,
   .route.hl,
   .site.hl,
@@ -504,7 +518,7 @@
     stroke-width: 4;
     fill: rgba(27, 95, 209, 0.12);
   }
-  .hc .region path:first-child {
+  .hc .region > g > path:first-child {
     stroke: #000;
     stroke-width: 3;
   }

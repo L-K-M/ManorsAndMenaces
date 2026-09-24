@@ -206,6 +206,7 @@ export const EN: Record<string, string> = {
   "error.UNKNOWN_ENTITY": "Unknown target.",
   "error.INVALID_COMMAND": "Invalid action.",
   "error.REVISION_MISMATCH": "The game moved on — reloading.",
+  "error.NETWORK": "Could not reach the server. Check your connection.",
 
   // ---------------------------------------------------------------- log
   "log.harvest": "{name} harvested {items}.",

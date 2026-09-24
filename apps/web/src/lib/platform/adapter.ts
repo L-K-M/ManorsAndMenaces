@@ -62,7 +62,9 @@ export class BrowserPlatformAdapter implements PlatformAdapter {
     }
   }
   async save(id: string, label: string, data: SaveFile): Promise<void> {
-    await withStore("readwrite", (s) => s.put({ id, label, savedAt: data.savedAt, data } satisfies Row));
+    // Game state may be a reactive proxy; IndexedDB needs plain data (§106).
+    const plain = JSON.parse(JSON.stringify(data)) as SaveFile;
+    await withStore("readwrite", (s) => s.put({ id, label, savedAt: plain.savedAt, data: plain } satisfies Row));
   }
   async load(id: string): Promise<SaveFile | null> {
     const row = await withStore<Row | undefined>("readonly", (s) => s.get(id) as IDBRequest<Row | undefined>);

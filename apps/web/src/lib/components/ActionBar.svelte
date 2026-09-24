@@ -45,6 +45,8 @@
         {t("status.game_over")}
       {:else if session.curtainFor}
         {t("status.waiting_device", { name: gs.players[session.curtainFor]?.displayName ?? "" })}
+      {:else if session.isHuman(actor)}
+        <span class="spinner" aria-hidden="true"></span> {t("status.waiting_remote", { name: waitingName })}
       {:else}
         <span class="spinner" aria-hidden="true"></span> {t("status.thinking", { name: waitingName })}
       {/if}

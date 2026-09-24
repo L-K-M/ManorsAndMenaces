@@ -35,7 +35,10 @@ export interface Floater {
 /** Transport for submitting command batches (local engine or online server). */
 export interface Transport {
   readonly kind: "local" | "online";
-  submit(commands: GameCommand[], expectedRevision: number): Promise<{ ok: true; state: GameState; events: GameEvent[] } | { ok: false; code: string }>;
+  submit(
+    commands: GameCommand[],
+    expectedRevision: number,
+  ): Promise<{ ok: true; state: GameState; events: GameEvent[] } | { ok: false; code: string; state?: GameState }>;
   close?(): void;
 }
 
@@ -191,7 +194,8 @@ export class GameSession {
   }
 
   get canUndo(): boolean {
-    return this.undoStack.length > 0 && !this.busy;
+    // `buffered` is reactive and mirrors the undo stack one-to-one.
+    return this.buffered.length > 0 && !this.busy;
   }
 
   undo(): void {
@@ -210,6 +214,7 @@ export class GameSession {
       if (!res.ok) {
         this.showError(res.code);
         // Reconcile: drop the draft and return to the authoritative state (§60).
+        if (res.state && res.state.revision >= this.authoritative.revision) this.authoritative = res.state;
         this.draft = this.authoritative;
         this.buffered = [];
         this.undoStack = [];
