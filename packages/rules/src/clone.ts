@@ -1,0 +1,15 @@
+/**
+ * Deep clone for plain JSON-compatible data (spec §106: state contains only
+ * records, arrays and primitives). Faster than structuredClone for our shapes
+ * and available in every runtime without DOM typings.
+ */
+export function clone<T>(value: T): T {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(clone) as unknown as T;
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(value)) {
+    const v = (value as Record<string, unknown>)[key];
+    if (v !== undefined) out[key] = clone(v);
+  }
+  return out as T;
+}
