@@ -3,6 +3,8 @@
   import { mvpRuleset, type RulesetConfig } from "@manors-menaces/rules";
   import { t } from "./lib/i18n.js";
   import { GameSession } from "./lib/game/session.svelte.js";
+  import { TUTORIAL_SEED, exportFileName, isAutosave, isTutorialSave, latestAutosave, relativeTime, rulesetLabel } from "./lib/game/saves.js";
+  import { PLAYER_THEMES, emblemPath } from "./lib/theme.js";
   import { platform, type SaveSummary } from "./lib/platform/adapter.js";
   import { resetTool, ui } from "./lib/stores/ui.svelte.js";
   import { settings } from "./lib/stores/settings.svelte.js";
@@ -18,13 +20,26 @@
   let session: GameSession | null = $state(null);
   let tutorial = $state(false);
   let saves: SaveSummary[] = $state([]);
+  let savesListedAt = $state(Date.now());
+  let savesUnavailable = $state(false);
+  /** The Load list row awaiting "Delete this save?" confirmation. */
+  let confirmDelete: string | null = $state(null);
+  // Finished games are not continued (an older build's shared slot may hold one).
+  const continueSave = $derived(latestAutosave(saves.filter((s) => s.meta.status !== "finished")));
   let showLoad = $state(false);
   let showRules = $state(false);
   let lastConfig: { seats: SeatConfig[]; ruleset: RulesetConfig } | null = null;
   let loadError: string | null = $state(null);
 
   async function refreshSaves() {
-    saves = await platform.listSaves();
+    try {
+      saves = await platform.listSaves();
+      savesUnavailable = false;
+    } catch {
+      saves = [];
+      savesUnavailable = true;
+    }
+    savesListedAt = Date.now();
   }
   $effect(() => {
     if (screen === "title") void refreshSaves();
@@ -35,7 +50,8 @@
     resetTool();
     ui.bannerDraft = {};
     lastConfig = { seats: opts.seats, ruleset: opts.ruleset };
-    session = GameSession.create(opts);
+    // The tutorial is never autosaved, so it cannot displace a real game's Continue.
+    session = GameSession.create(isTutorial ? { ...opts, autosave: false } : opts);
     tutorial = isTutorial;
     screen = "game";
   }
@@ -47,26 +63,62 @@
           { playerId: "P2", displayName: "Lord Mumble", kind: "ai", aiLevel: "easy", color: 1 },
         ],
         ruleset: mvpRuleset(),
-        seed: "tutorial-1",
+        seed: TUTORIAL_SEED,
       },
       true,
     );
   }
-  function openSession(s: GameSession) {
+  function openSession(s: GameSession, isTutorial = false) {
     session?.destroy();
     resetTool();
     ui.bannerDraft = {};
     ui.inspect = null;
     session = s;
-    tutorial = false;
+    tutorial = isTutorial;
     screen = "game";
   }
+  /** Tutorial saves (e.g. an older build's shared autosave) reopen with the coach. */
+  function openSave(data: SaveFile) {
+    showLoad = false;
+    confirmDelete = null;
+    const isTutorial = isTutorialSave(data);
+    openSession(GameSession.fromSave(data, isTutorial ? { autosave: false } : {}), isTutorial);
+  }
+  async function readSave(id: string): Promise<SaveFile | null> {
+    try {
+      const data = await platform.load(id);
+      if (data && isSaveFile(data)) return data;
+    } catch {
+      // Reported below like an unreadable save.
+    }
+    loadError = t("ui.save_unreadable");
+    return null;
+  }
   async function loadSave(id: string) {
-    const data = await platform.load(id);
-    if (data && isSaveFile(data)) {
-      showLoad = false;
-      openSession(GameSession.fromSave(data));
-    } else loadError = "That save could not be read.";
+    const data = await readSave(id);
+    if (data) openSave(data);
+  }
+  async function exportSave(id: string) {
+    const data = await readSave(id);
+    if (!data) return;
+    try {
+      await platform.exportFile(exportFileName(data), JSON.stringify(data, null, 2));
+    } catch {
+      loadError = t("ui.export_failed");
+    }
+  }
+  /** The pressed ✕ is replaced by the confirmation: focus its safe choice. */
+  function focusNow(node: HTMLElement) {
+    node.focus();
+  }
+  async function deleteSave(id: string) {
+    confirmDelete = null;
+    try {
+      await platform.remove(id);
+    } catch {
+      loadError = t("ui.save_failed");
+    }
+    await refreshSaves();
   }
   async function importFile(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0];
@@ -74,14 +126,14 @@
     try {
       const data = JSON.parse(await file.text()) as SaveFile;
       if (!isSaveFile(data)) throw new Error("not a save");
-      showLoad = false;
-      openSession(GameSession.fromSave(data));
+      openSave(data);
     } catch {
-      loadError = "That file is not a Manors & Menaces save.";
+      loadError = t("ui.not_a_save_file");
     }
   }
   function exit() {
     session?.destroy();
+    ui.dialog = null;
     ui.bannerDraft = {};
     ui.inspect = null;
     session = null;
@@ -108,8 +160,11 @@
         <h1>{t("app.title")}</h1>
         <p class="tagline">{t("app.tagline")}</p>
         <nav class="menu">
-          {#if saves.some((s) => s.id === "autosave")}
-            <button class="primary" onclick={() => loadSave("autosave")}>{t("ui.continue")}</button>
+          {#if continueSave}
+            {@const c = continueSave}
+            <button class="primary continue" onclick={() => loadSave(c.id)}>
+              {t("ui.continue")}<small>{c.meta.players.map((p) => p.name).join(" vs ")} · {t("ui.round_n", { n: c.meta.round })}</small>
+            </button>
           {/if}
           <button class="primary" onclick={() => (screen = "new")}>{t("ui.new_game")}</button>
           <button onclick={startTutorial}>{t("ui.tutorial")}</button>
@@ -131,13 +186,41 @@
 {#if ui.dialog === "settings" && screen !== "game"}<SettingsDialog onclose={() => (ui.dialog = null)} />{/if}
 
 {#if showLoad}
-  <Modal title={t("ui.load_game")} onclose={() => ((showLoad = false), (loadError = null))}>
-    {#if saves.length === 0}<p>{t("ui.no_saved_games_yet")}</p>{/if}
+  <Modal title={t("ui.load_game")} onclose={() => ((showLoad = false), (loadError = null), (confirmDelete = null))} wide>
+    {#if savesUnavailable}<p class="error">{t("ui.saves_unavailable")}</p>
+    {:else if saves.length === 0}<p>{t("ui.no_saved_games_yet")}</p>{/if}
     <ul class="saves">
       {#each saves as s (s.id)}
-        <li>
-          <button onclick={() => loadSave(s.id)}>{s.id === "autosave" ? "Autosave" : s.label}<small>{new Date(s.savedAt).toLocaleString()}</small></button>
-          {#if s.id !== "autosave"}<button class="ghost" aria-label={t("ui.delete_save")} onclick={() => platform.remove(s.id).then(refreshSaves)}>✕</button>{/if}
+        {@const auto = isAutosave(s.id)}
+        <li class:confirming={confirmDelete === s.id}>
+          <button class="open" onclick={() => loadSave(s.id)} title={new Date(s.savedAt).toLocaleString()}>
+            <span class="who">
+              {#each s.meta.players as p}
+                {@const theme = PLAYER_THEMES[p.color] ?? PLAYER_THEMES[0]!}
+                <span class="player" class:winner={s.meta.winner === p.name}>
+                  <svg width="14" height="14" viewBox="-7 -7 14 14" aria-hidden="true"><path d={emblemPath(theme.shape, 5.5)} fill={theme.color} stroke={theme.dark} stroke-width="1.2" /></svg>{p.name}
+                </span>
+              {/each}
+            </span>
+            <span class="facts">
+              <span class="kind" class:auto>{auto ? t("ui.autosave") : t("ui.manual_save")}</span>
+              <span>{s.meta.winner ? t("ui.won_by", { name: s.meta.winner }) : t("ui.round_n", { n: s.meta.round })}</span>
+              <span>{rulesetLabel(s.meta.rulesetName)}</span>
+              <span class="when">{relativeTime(s.savedAt, savesListedAt)}</span>
+            </span>
+          </button>
+          {#if confirmDelete === s.id}
+            <div class="confirm" role="group" aria-label={t("ui.delete_save_confirm")}>
+              <span>{t("ui.delete_save_confirm")}</span>
+              <button class="danger" onclick={() => deleteSave(s.id)}>{t("ui.delete")}</button>
+              <button use:focusNow onclick={() => (confirmDelete = null)}>{t("ui.keep")}</button>
+            </div>
+          {:else}
+            <button class="ghost icon" aria-label={t("ui.export_save")} title={t("ui.export_save")} onclick={() => exportSave(s.id)}>
+              <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m-4-4 4 4 4-4M4 14v2.5h12V14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
+            <button class="ghost icon" aria-label={t("ui.delete_save")} title={t("ui.delete_save")} onclick={() => (confirmDelete = s.id)}>✕</button>
+          {/if}
         </li>
       {/each}
     </ul>
@@ -206,20 +289,121 @@
     display: grid;
     gap: 0.3rem;
   }
-  .saves li {
-    display: flex;
-    gap: 0.3rem;
-  }
-  .saves li button:first-child {
-    flex: 1;
+  .continue {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
+    line-height: 1.2;
+  }
+  .continue small {
+    font-size: 0.78rem;
+    font-weight: 400;
+    opacity: 0.9;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .saves li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 0.3rem;
+    align-items: stretch;
+  }
+  .saves .open {
+    display: grid;
+    gap: 0.25rem;
+    justify-items: start;
+    text-align: left;
+    padding: 0.45rem 0.7rem;
+  }
+  .who {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.7rem;
+    font-weight: 600;
+  }
+  .player {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .player.winner::after {
+    content: "♛";
+    color: #b08500;
+  }
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.2rem 0.8rem;
+    font-size: 0.85rem;
+    opacity: 0.85;
+  }
+  .kind {
+    padding: 0 0.45rem;
+    border-radius: 999px;
+    border: 1px solid #8a7650;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .kind.auto {
+    background: #e7efe2;
+    border-color: var(--accent);
+    color: var(--accent-dark);
+  }
+  .saves .icon {
+    min-width: 44px;
+    padding: 0;
+    font-size: 1.1rem;
+    display: grid;
+    place-items: center;
+  }
+  .confirm {
+    grid-column: 2 / -1;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 9px;
+    background: #fbe3dc;
+  }
+  .confirm span {
+    font-size: 0.9rem;
+  }
+  .danger {
+    background: #a3190c;
+    border-color: #6e1b16;
+    color: #fff;
+  }
+  .danger:hover:not(:disabled) {
+    background: #c02414;
+  }
+  @media (max-width: 560px) {
+    /* Stack the row's two icon buttons so the names keep the width. */
+    .saves li {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .saves .open {
+      grid-row: span 2;
+    }
+    .saves li.confirming {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .confirm {
+      grid-column: 1 / -1;
+      justify-content: flex-end;
+    }
   }
   .import {
     display: grid;
     gap: 0.3rem;
     margin-top: 0.6rem;
+  }
+  .import input {
+    min-width: 0;
+    max-width: 100%;
   }
   .error {
     color: #a3190c;

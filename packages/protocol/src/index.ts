@@ -29,6 +29,13 @@ export interface SaveFile {
   initialState: GameState;
   state: GameState;
   commandHistory: GameCommand[];
+  /**
+   * The current player's undoable actions this turn (§32.1), not yet part of
+   * `state`. A save restores exactly what was on screen: loading re-applies
+   * these on top of `state`, and they can still be undone. Optional, so
+   * schema version 1 files without it stay valid.
+   */
+  pendingCommands?: GameCommand[];
 }
 
 export function isSaveFile(x: unknown): x is SaveFile {
@@ -42,7 +49,8 @@ export function isSaveFile(x: unknown): x is SaveFile {
     Array.isArray(s.seats) &&
     !!s.state &&
     !!s.initialState &&
-    Array.isArray(s.commandHistory)
+    Array.isArray(s.commandHistory) &&
+    (s.pendingCommands === undefined || Array.isArray(s.pendingCommands))
   );
 }
 
