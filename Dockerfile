@@ -2,7 +2,7 @@
 # Build:  docker build -t manors-menaces .
 # Run:    docker run -p 8787:8787 -v manors-data:/data manors-menaces
 
-FROM node:22-slim AS build
+FROM node:25-slim AS build
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
@@ -11,7 +11,7 @@ COPY apps apps
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @manors-menaces/web build && pnpm --filter @manors-menaces/server build
 
-FROM node:22-slim
+FROM node:25-slim
 ENV NODE_ENV=production PORT=8787 DB_PATH=/data/manors.sqlite WEB_DIST=/app/web
 WORKDIR /app
 COPY --from=build /app/apps/server/dist/server.mjs ./server.mjs
