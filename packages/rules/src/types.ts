@@ -141,6 +141,12 @@ export interface RulesetConfig {
   handLimit: number;
   maxNonReactionCardsPerTurn: number;
   revealedQuestCount: number;
+  /**
+   * When someone reaches the target, finish the round so every player has had
+   * the same number of turns (a first-player-advantage lever, spec §129.4).
+   * Off by default: §7 ends the game at the end of that player's turn.
+   */
+  equalTurns?: boolean;
 }
 
 export interface PlayerConfig {
@@ -301,6 +307,8 @@ export interface GameState {
   pending?: PendingDecision;
   nextIds: { holding: number; banner: number };
   winnerId?: PlayerId;
+  /** equalTurns: the target has been reached; the game ends with this round. */
+  endTriggered?: boolean;
 }
 
 export type RngState = [number, number, number, number];

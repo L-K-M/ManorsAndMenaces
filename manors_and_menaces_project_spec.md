@@ -4163,18 +4163,18 @@ Recommendation: ship **A** in the MVP, and log the telemetry in §67 and the bal
 
 ## 129.4 Simulation findings (v0.2 implementation)
 
-`pnpm simulate` plays AI-vs-AI games on the Greenvale map (normal AI). Results for the current build:
+`pnpm simulate` plays AI-vs-AI games on the Greenvale map (normal AI). 30 games per mode:
 
-| Mode | Turns per player (avg) | Winner Renown source | Writs / game | Wardens / game | Notes |
+| Mode | Turns per player (avg) | Winner Renown source | Writs / game | Wardens / game | Seat win rates |
 |---|---:|---|---:|---:|---|
-| MVP, 3 players | ~14–16 | all from Holdings | ~4 | ~12 | Within the 12–16 target |
-| Standard, 3 players | ~19 | ~9.5 Holdings + ~3.3 Quests | ~6 | ~19 | Above target |
-| Standard, 4 players | ~23 | ~9.8 Holdings + ~2.7 Quests | ~22 | ~27 | Above target; first seat wins more often |
+| MVP, 3 players | 14.3 | all from Holdings | 3.0 | 2.8 | 43 / 30 / 27 % |
+| Standard, 2 players | 16.8 | 10.0 Holdings + 2.9 Quests | 2.0 | 6.0 | 37 / 63 % |
+| Standard, 3 players | 17.5 | 9.6 Holdings + 3.0 Quests | 4.9 | 11.4 | 67 / 17 / 17 % |
+| Standard, 4 players | 21.4 | 9.4 Holdings + 2.9 Quests | 16.5 | 25.0 | 50 / 17 / 7 / 23 % |
 
-The AI is a heuristic player and is weaker than people at planning. These numbers are therefore an upper bound on game length, not a verdict. Levers to try in human playtests if standard games run long:
+The AI is a heuristic player and plans worse than people. Treat these numbers as warnings to check in human playtests, not as verdicts:
 
-1. Target 10 Renown for 4 players (`targetRenown`).
-2. Start with 1 extra Grain, or add a third starting Banner (a Stronghold-lite starting Manor).
-3. Reveal 4 Quests instead of 3 (`revealedQuestCount`).
-4. Harvest averages 2–4 per turn, below the §68 targets (3–5 mid, 4–7 late). Consider a rich-Region share above 20%.
-
+1. **Game length.** The MVP is inside the 12–16 target. Standard games run long, especially with 4 players. Levers: target 10 Renown for 4 players (`targetRenown`), reveal 4 Quests (`revealedQuestCount`), a slightly higher share of rich Regions.
+2. **First-seat advantage in standard games** (67% with 3 players, 50% with 4). The `equalTurns` ruleset option, which finishes the round once someone reaches the target, had no measurable effect in simulation. The leader is usually more than one turn ahead, so the edge builds over the whole game rather than at the end. Next levers to test: give later seats +1 starting resource, or let the last seat place both initial Manors before anyone assigns Banners.
+3. **Harvest per turn** is 2–4, below the §68 targets (3–5 mid-game, 4–7 late). Consider a third starting Banner or more capacity-2 Regions.
+4. **Hereditary Regions** (a contestable Region held by one player for more than 60% of the game) occur in 43% of standard games against a 25% target. The Royal Writ reduces this but the AI uses it cautiously. If humans behave the same way, try Writ variant B (§129.2, no Settled protection).

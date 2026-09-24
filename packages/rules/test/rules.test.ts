@@ -385,6 +385,18 @@ describe("victory (§7)", () => {
     expect(s.winnerId).toBe(p1);
     reject(s, s.activePlayerId, { type: "end_turn" }, "GAME_NOT_ACTIVE");
   });
+  it("with equalTurns, finishes the round before declaring the winner", () => {
+    const { state, p1, p2 } = setupGame({ ...mvpRuleset(), equalTurns: true });
+    const r = engine.applyDebugCommand(state, { type: "debug_set_bonus_renown", commandId: "x", matchId: "m1", playerId: p1, targetPlayerId: p1, value: 8 });
+    let s = passTurn(r.newState as GameState);
+    expect(s.status).toBe("playing");
+    expect(s.endTriggered).toBe(true);
+    // p2 overtakes during the final turn of the round.
+    const r2 = engine.applyDebugCommand(s, { type: "debug_set_bonus_renown", commandId: "y", matchId: "m1", playerId: p2, targetPlayerId: p2, value: 9 });
+    s = passTurn(r2.newState as GameState);
+    expect(s.status).toBe("finished");
+    expect(s.winnerId).toBe(p2);
+  });
 });
 
 describe("engine properties", () => {

@@ -1,7 +1,7 @@
 // Balance simulator (spec §67–68): plays AI-vs-AI games and reports the
 // telemetry the spec asks for, checked against the §68 targets.
 //
-// Usage: pnpm simulate [--games N] [--players 2|3|4] [--rules mvp|standard] [--level easy|normal|hard] [--max-rounds N]
+// Usage: pnpm simulate [--games N] [--players 2|3|4] [--rules mvp|standard] [--level easy|normal|hard] [--max-rounds N] [--equal-turns]
 
 import { runAiUntilHuman, type AiLevel } from "@manors-menaces/ai";
 import { rulesContentFor } from "@manors-menaces/content";
@@ -29,6 +29,7 @@ const PLAYERS = Number(arg("players", "3"));
 const RULES = arg("rules", "standard");
 const LEVEL = arg("level", "normal") as AiLevel;
 const MAX_ROUNDS = Number(arg("max-rounds", "60"));
+const EQUAL_TURNS = args.includes("--equal-turns");
 
 const engine = createRulesEngine(rulesContentFor());
 const ctx = engine.ctx;
@@ -52,7 +53,7 @@ interface GameStats {
 }
 
 function playOne(i: number): GameStats {
-  const ruleset = RULES === "mvp" ? mvpRuleset() : standardRuleset(PLAYERS);
+  const ruleset = { ...(RULES === "mvp" ? mvpRuleset() : standardRuleset(PLAYERS)), equalTurns: EQUAL_TURNS };
   let s: GameState = engine.createGame({
     matchId: `sim-${i}`,
     seed: `sim-${RULES}-${PLAYERS}-${i}`,

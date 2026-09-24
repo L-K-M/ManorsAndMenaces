@@ -502,7 +502,13 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   p.wardensHiredThisTurn = 0;
   tx.emit({ type: "turn_ended", playerId });
 
-  const winner = checkVictory(tx);
+  let winner = checkVictory(tx);
+  if (winner && s.ruleset.equalTurns) {
+    s.endTriggered = true;
+    winner = null;
+  }
+  // equalTurns: the game ends after the last seat of the round, best Renown wins.
+  if (s.endTriggered && s.turnOrder.indexOf(playerId) === s.turnOrder.length - 1) winner = checkVictory(tx, true);
   if (winner) {
     s.status = "finished";
     s.winnerId = winner;
@@ -518,9 +524,9 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
 }
 
 /** §7 victory check with tie-breaks. */
-function checkVictory(tx: Tx): PlayerId | null {
+function checkVictory(tx: Tx, anyPlayer = false): PlayerId | null {
   const s = tx.s;
-  const eligible = s.turnOrder.filter((id) => getRenown(tx.ctx, s, id) >= s.ruleset.targetRenown);
+  const eligible = anyPlayer ? [...s.turnOrder] : s.turnOrder.filter((id) => getRenown(tx.ctx, s, id) >= s.ruleset.targetRenown);
   if (eligible.length === 0) return null;
   const strongholds = (id: PlayerId): number => getPlayerHoldings(s, id).filter((h) => h.type === "stronghold").length;
   const key = (id: PlayerId): number[] => {
