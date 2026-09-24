@@ -73,8 +73,8 @@ export class Tx {
       p.stats.menacesMoved += 1;
       if (locationAffectsPlayer(this.s, from, by)) p.stats.menacesMovedOffOwnAssets += 1;
     }
-    menace.location = to;
-    this.emit({ type: "menace_moved", byPlayerId: by, menaceId: menace.id, from, to });
+    menace.location = { ...to };
+    this.emit({ type: "menace_moved", byPlayerId: by, menaceId: menace.id, from, to: menace.location });
   }
 
   /** Draw the top card, reshuffling the discard pile if the deck is empty (§117). */

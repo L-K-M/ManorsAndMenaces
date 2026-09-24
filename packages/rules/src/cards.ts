@@ -28,7 +28,7 @@ export function validateCardTarget(ctx: RulesContext, state: GameState, playerId
       return;
     case "druids_blessing": {
       const b = own(state.banners, target.bannerId);
-      check(b && b.ownerId === playerId, "INVALID_CARD_TARGET", "needs one of your Banners");
+      check(b && b.ownerId === playerId && b.regionId, "INVALID_CARD_TARGET", "needs one of your assigned Banners");
       return;
     }
     case "teleportation_mishap": {
@@ -58,6 +58,11 @@ export function validateCardTarget(ctx: RulesContext, state: GameState, playerId
       return;
     case "fog_of_confusion":
       check(ctx.board.hasRoute(target.routeId), "INVALID_CARD_TARGET", "unknown Route");
+      check(
+        !state.activeEffects.some((e) => e.kind === "fog" && e.routeId === target.routeId),
+        "INVALID_CARD_TARGET",
+        "that Route is already fogged",
+      );
       return;
     case "dragon_whisperer": {
       const dragon = menaceOfType(state, "young_dragon");
