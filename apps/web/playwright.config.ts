@@ -7,12 +7,22 @@ export default defineConfig({
   timeout: 90_000,
   retries: process.env.CI ? 1 : 0,
   use: { baseURL: "http://localhost:5174", trace: "retain-on-failure", viewport: { width: 1400, height: 900 } },
-  webServer: {
-    command: "vite --port 5174 --strictPort",
-    url: "http://localhost:5174",
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
+  webServer: [
+    {
+      command: "vite --port 5174 --strictPort",
+      url: "http://localhost:5174",
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+    {
+      // Online server for e2e/online.spec.ts: in-memory DB, fast AI.
+      command: "tsx ../server/src/main.ts",
+      url: "http://localhost:8788/api/health",
+      env: { PORT: "8788", DB_PATH: ":memory:", AI_DELAY_MS: "50", WEB_DIST: "/nonexistent" },
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+  ],
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1400, height: 900 } } },
     { name: "phone", use: { ...devices["Pixel 7"] }, grep: /@mobile/ },
