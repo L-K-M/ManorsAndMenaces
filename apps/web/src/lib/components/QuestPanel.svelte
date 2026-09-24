@@ -80,7 +80,8 @@
     padding: 0.4rem 0.55rem;
   }
   li.ready {
-    border: 2px solid #2d8a3a;
+    border: 1px solid #2d8a3a;
+    box-shadow: 0 0 0 1px #2d8a3a;
     background: #eaf7e6;
   }
   .head {

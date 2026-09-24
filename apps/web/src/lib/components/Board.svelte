@@ -47,7 +47,7 @@
       const region = regionsById.get(regionId);
       if (!region) continue;
       list.sort((a, b) => a.id.localeCompare(b.id));
-      list.forEach((b, i) => out.set(b.id, { x: region.labelX - 14 + i * 28 - (list.length - 1) * 0, y: region.labelY + 26 }));
+      list.forEach((b, i) => out.set(b.id, { x: region.labelX + (i - (list.length - 1) / 2) * 28, y: region.labelY + 26 }));
     }
     for (const [holdingId, list] of byHolding) {
       const h = gs.holdings[holdingId];
@@ -242,7 +242,7 @@
           <path d={RESOURCE_GLYPHS[region.resource]} fill={region.resource === "grain" ? "none" : colors.dark} stroke={colors.dark} stroke-width={region.resource === "grain" ? 2 : 1} />
           <!-- capacity pips -->
           {#each Array.from({ length: region.capacity }) as _, i}
-            <circle cx={-6 + i * 12 - (region.capacity - 1) * 0} cy="24" r="4" fill={i < occupants ? colors.dark : "#fffaf0"} stroke={colors.dark} stroke-width="1.5" opacity="0.8" />
+            <circle cx={(i - (region.capacity - 1) / 2) * 12} cy="24" r="4" fill={i < occupants ? colors.dark : "#fffaf0"} stroke={colors.dark} stroke-width="1.5" opacity="0.8" />
           {/each}
           {#if settings.showRegionNames}
             <text y="-24" class="region-name" text-anchor="middle">{region.name}</text>
@@ -468,16 +468,17 @@
     stroke-width: 3px;
   }
   .hl-fill {
-    fill: #fff6a8;
-    opacity: 0.45;
+    fill: #1b5fd1;
+    opacity: 0.28;
+    stroke: #1b5fd1;
+    stroke-width: 3;
     animation: pulse 1.4s ease-in-out infinite;
   }
   .hl-line {
-    stroke: #ffe14d;
+    stroke: #1b5fd1;
     stroke-width: 10;
     stroke-linecap: round;
-    opacity: 0.8;
-    filter: url(#glow);
+    opacity: 0.85;
     animation: pulse 1.4s ease-in-out infinite;
   }
   .hl-ring,
