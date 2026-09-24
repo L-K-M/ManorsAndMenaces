@@ -16,22 +16,33 @@ describe("hot-seat view", () => {
 
   it("starts with no hand shown, so a reload does not reveal the first human", () => {
     expect(initialView(mode, "alice")).toEqual(NONE);
-    expect(nextView(mode, NONE, "alice", true)).toEqual({ viewerId: null, curtainFor: "alice" });
+    expect(nextView(mode, NONE, "alice", true, "alice")).toEqual({ viewerId: null, curtainFor: "alice" });
   });
 
   it("hides the previous hand while an AI acts", () => {
-    expect(nextView(mode, { viewerId: "bertram", curtainFor: null }, "cordelia", false)).toEqual(NONE);
+    expect(nextView(mode, { viewerId: "bertram", curtainFor: null }, "cordelia", false, "cordelia")).toEqual(NONE);
+  });
+
+  it("keeps the active human's view while an AI answers their Spell (§109)", () => {
+    const alice = { viewerId: "alice", curtainFor: null };
+    const reacting = nextView(mode, alice, "cordelia", false, "alice");
+    expect(reacting).toBe(alice);
+    expect(nextView(mode, reacting, "alice", true, "alice")).toBe(alice);
+  });
+
+  it("still hides a hand when an AI reacts during someone else's turn", () => {
+    expect(nextView(mode, { viewerId: "bertram", curtainFor: null }, "dora", false, "cordelia")).toEqual(NONE);
   });
 
   it("puts up the curtain between different humans and shows nobody behind it", () => {
-    expect(nextView(mode, { viewerId: "alice", curtainFor: null }, "bertram", true)).toEqual({ viewerId: null, curtainFor: "bertram" });
+    expect(nextView(mode, { viewerId: "alice", curtainFor: null }, "bertram", true, "bertram")).toEqual({ viewerId: null, curtainFor: "bertram" });
   });
 
   it("keeps the view while the same human keeps acting or is still being waited for", () => {
     const alice = { viewerId: "alice", curtainFor: null };
-    expect(nextView(mode, alice, "alice", true)).toBe(alice);
+    expect(nextView(mode, alice, "alice", true, "alice")).toBe(alice);
     const waiting = { viewerId: null, curtainFor: "bertram" };
-    expect(nextView(mode, waiting, "bertram", true)).toBe(waiting);
+    expect(nextView(mode, waiting, "bertram", true, "bertram")).toBe(waiting);
   });
 
   it("shows the hand only once the human takes the device", () => {
@@ -41,7 +52,7 @@ describe("hot-seat view", () => {
 
   it("keeps the view when nobody can act", () => {
     const alice = { viewerId: "alice", curtainFor: null };
-    expect(nextView(mode, alice, null, false)).toBe(alice);
+    expect(nextView(mode, alice, null, false, "alice")).toBe(alice);
   });
 });
 
@@ -51,7 +62,7 @@ describe("shared view", () => {
   it("follows the humans and keeps the last one through AI turns", () => {
     expect(initialView(mode, "alice")).toEqual({ viewerId: "alice", curtainFor: null });
     const alice = { viewerId: "alice", curtainFor: null };
-    expect(nextView(mode, alice, "cordelia", false)).toBe(alice);
-    expect(nextView(mode, alice, "bertram", true)).toEqual({ viewerId: "bertram", curtainFor: null });
+    expect(nextView(mode, alice, "cordelia", false, "cordelia")).toBe(alice);
+    expect(nextView(mode, alice, "bertram", true, "bertram")).toEqual({ viewerId: "bertram", curtainFor: null });
   });
 });

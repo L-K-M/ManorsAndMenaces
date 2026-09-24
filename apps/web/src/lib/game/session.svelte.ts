@@ -332,7 +332,7 @@ export class GameSession {
       }
       // Hot-seat privacy curtain between different humans (§56.1).
       const view = { viewerId: this.viewerId, curtainFor: this.curtainFor };
-      this.setView(nextView(this.privacyMode(), view, actor, this.isHuman(actor)));
+      this.setView(nextView(this.privacyMode(), view, actor, this.isHuman(actor), state.activePlayerId));
       if (actor && !this.isHuman(actor)) this.scheduleAi();
     } else if (events.some((e) => e.type === "turn_started" && e.playerId === this.onlinePlayerId)) {
       void platform.notify(t("app.title"), t("log.turn", { name: state.players[this.onlinePlayerId ?? ""]?.displayName ?? "" }));

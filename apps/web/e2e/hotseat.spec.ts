@@ -95,12 +95,13 @@ async function recordHandAfterClick(page: Page) {
     let clicked = false;
     document.addEventListener("click", () => (clicked = true), { capture: true, once: true });
     const snap = () => {
-      if (clicked) w.__snaps.push({
-        title: document.querySelector(".hand h3")?.textContent ?? "",
-        cards: document.querySelectorAll(".hand button.card").length,
-        curtain: !!document.querySelector(".curtain"),
-        status: document.querySelector(".actions .status")?.textContent ?? "",
-      });
+      if (clicked)
+        w.__snaps.push({
+          title: document.querySelector(".hand h3")?.textContent ?? "",
+          cards: document.querySelectorAll(".hand button.card").length,
+          curtain: !!document.querySelector(".curtain"),
+          status: document.querySelector(".actions .status")?.textContent ?? "",
+        });
       requestAnimationFrame(snap);
     };
     requestAnimationFrame(snap);
@@ -157,6 +158,15 @@ test("the privacy curtain holds keyboard focus and locks the board", async ({ pa
   await expect(button).toHaveCount(0);
   await expect(page.locator(".game")).not.toHaveAttribute("inert", "");
   await expect(page.locator(".hand h3")).toContainText(HUMAN_1);
+});
+
+test("revealing a setup turn, which has no enabled action button, keeps focus in the game", async ({ page }) => {
+  await startTwoHumansAndAi(page);
+  await expect(curtainButton(page)).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".actions .status")).toContainText("place a Manor");
+  const focusInGame = await page.evaluate(() => !!document.activeElement?.closest(".game"));
+  expect(focusInGame).toBe(true);
 });
 
 test("a live region announces AI actions and turn changes", async ({ page }) => {

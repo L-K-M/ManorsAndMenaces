@@ -3,7 +3,7 @@
   // root so it keeps speaking while the privacy curtain makes the game inert.
   import { untrack } from "svelte";
   import { t } from "../i18n.js";
-  import { announcementsFor, type Perspective } from "../game/announce.js";
+  import { announcementsFor, perspectiveFor } from "../game/announce.js";
   import type { GameSession } from "../game/session.svelte.js";
 
   /** Lines kept in the DOM; only additions are announced, so this is just history. */
@@ -15,14 +15,12 @@
   // Entries already in the Chronicle when the game screen opened are not news.
   let lastSeen = untrack(() => session.log.at(-1)?.id ?? 0);
 
-  const who = $derived.by((): Perspective => {
-    if (session.transport.kind === "online") {
-      const me = session.onlinePlayerId;
-      return { self: me, isOwn: (pid) => pid === me };
-    }
-    const humans = session.seats.filter((s) => s.kind === "human");
-    return { self: humans.length === 1 ? (humans[0]?.playerId ?? null) : null, isOwn: (pid) => session.isHuman(pid) };
-  });
+  const who = $derived(
+    perspectiveFor(
+      session.transport.kind === "online" ? session.onlinePlayerId : null,
+      session.seats.filter((s) => s.kind === "human").map((s) => s.playerId),
+    ),
+  );
 
   $effect(() => {
     const fresh = session.log.filter((e) => e.id > lastSeen);

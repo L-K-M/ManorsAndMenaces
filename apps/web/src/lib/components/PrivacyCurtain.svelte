@@ -31,7 +31,11 @@
     session.revealForCurtain();
     await tick();
     // Hand focus to the first available action rather than dropping it on <body>.
-    document.querySelector<HTMLElement>('.game [role="toolbar"] button:not(:disabled)')?.focus();
+    // Setup placements have no enabled button, only highlighted board targets.
+    const target =
+      document.querySelector<HTMLElement>('.game [role="toolbar"] button:not(:disabled)') ??
+      document.querySelector<HTMLElement>('.game [role="application"] [role="button"][tabindex="0"]');
+    target?.focus();
   }
 </script>
 
