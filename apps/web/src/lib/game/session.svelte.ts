@@ -222,8 +222,10 @@ export class GameSession {
         return;
       }
       if (this.transport.kind === "local") this.commandHistory.push(...batch);
-      this.authoritative = res.state;
-      this.draft = res.state;
+      // A WebSocket push may already have delivered a newer state (e.g. an AI
+      // seat acted right after our batch); never go backwards.
+      if (res.state.revision >= this.authoritative.revision) this.authoritative = res.state;
+      this.draft = this.authoritative;
       this.buffered = [];
       this.undoStack = [];
       this.notify(lastEvents, res.state);
@@ -236,11 +238,14 @@ export class GameSession {
   /** Online: a server push with new state from another player's action. */
   receiveRemote(state: GameState, events: GameEvent[]): void {
     if (state.revision <= this.authoritative.revision) return;
+    const inFlight = this.busy;
     this.authoritative = state;
     this.draft = state;
     this.buffered = [];
     this.undoStack = [];
-    this.appendLog(events, state);
+    // While our own batch is in flight, its events were already logged locally.
+    const fresh = inFlight ? events.filter((e) => !("playerId" in e) || e.playerId !== this.onlinePlayerId) : events;
+    this.appendLog(fresh, state);
     playForEvents(events);
     this.notify(events, state);
     this.afterStateChange(events);

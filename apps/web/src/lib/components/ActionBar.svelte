@@ -4,6 +4,7 @@
   import { confirmBanners, computeHighlights } from "../game/interaction.js";
   import { currentActor, type GameSession } from "../game/session.svelte.js";
   import { resetTool, ui, type Tool } from "../stores/ui.svelte.js";
+  import ToolIcon from "./ToolIcon.svelte";
 
   let { session, legal }: { session: GameSession; legal: LegalActionSummary | null } = $props();
 
@@ -67,30 +68,30 @@
   {:else if legal.mode === "main"}
     <div class="tools">
       <button class:on={ui.tool === "route"} disabled={legal.routes.length === 0} onclick={() => tool("route")} title={`${t("cost.route")} — ${t("help.route")}`}>
-        <span class="i">⟋</span>{t("action.build_route")}<small>{t("cost.route")}</small>
+        <span class="i"><ToolIcon name="route" /></span>{t("action.build_route")}<small>{t("cost.route")}</small>
       </button>
       <button class:on={ui.tool === "manor"} disabled={legal.manorSites.length === 0} onclick={() => tool("manor")} title={`${t("cost.manor")} — ${t("help.manor")}`}>
-        <span class="i">⌂</span>{t("action.build_manor")}<small>{t("cost.manor")}</small>
+        <span class="i"><ToolIcon name="manor" /></span>{t("action.build_manor")}<small>{t("cost.manor")}</small>
       </button>
       <button class:on={ui.tool === "upgrade"} disabled={legal.upgradeSites.length === 0} onclick={() => tool("upgrade")} title={`${t("cost.stronghold")} — ${t("help.stronghold")}`}>
-        <span class="i">♜</span>{t("action.upgrade")}<small>{t("cost.stronghold")}</small>
+        <span class="i"><ToolIcon name="stronghold" /></span>{t("action.upgrade")}<small>{t("cost.stronghold")}</small>
       </button>
       <button disabled={legal.marketTradesLeft === 0 || (legal.marketGive.length === 0 && legal.tradePosts.length === 0)} onclick={() => ((ui.dialog = "market"), resetTool())} title={t("help.market")}>
-        <span class="i">⚖</span>{t("action.trade")}<small>{t("status.trades_left", { count: legal.marketTradesLeft })}</small>
+        <span class="i"><ToolIcon name="market" /></span>{t("action.trade")}<small>{t("status.trades_left", { count: legal.marketTradesLeft })}</small>
       </button>
       {#if gs.ruleset.writ.enabled}
         <button class:on={ui.tool === "writ"} disabled={!legal.canIssueWrit} onclick={() => tool("writ")} title={`${t("cost.writ")} — ${t("help.writ")}`}>
-          <span class="i">📜</span>{t("action.royal_writ")}<small>{t("cost.writ")}</small>
+          <span class="i"><ToolIcon name="writ" /></span>{t("action.royal_writ")}<small>{t("cost.writ")}</small>
         </button>
       {/if}
       {#if gs.ruleset.warden.enabled}
         <button class:on={ui.tool === "warden"} disabled={!legal.canHireWarden} onclick={() => tool("warden")} title={`${t("cost.warden")} — ${t("help.warden")}`}>
-          <span class="i">⚔</span>{t("action.warden")}<small>{t("cost.warden")}</small>
+          <span class="i"><ToolIcon name="warden" /></span>{t("action.warden")}<small>{t("cost.warden")}</small>
         </button>
       {/if}
       {#if gs.ruleset.enableCards}
         <button disabled={!legal.canBuyCard} onclick={() => session.perform({ type: "buy_card" })} title={t("cost.card")}>
-          <span class="i">🂠</span>{t("action.buy_card")}<small>{t("cost.card")}</small>
+          <span class="i"><ToolIcon name="card" /></span>{t("action.buy_card")}<small>{t("cost.card")}</small>
         </button>
       {/if}
     </div>
@@ -137,7 +138,7 @@
   }
   .tools .i {
     grid-row: span 2;
-    font-size: 1.2rem;
+    display: grid;
     align-self: center;
   }
   .tools small {
