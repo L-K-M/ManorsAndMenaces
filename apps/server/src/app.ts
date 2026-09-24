@@ -50,6 +50,13 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   // Simple token-bucket rate limit per client (spec §72 hardening).
   const buckets = new Map<string, { tokens: number; at: number }>();
   const rate = opts.rateLimitPerSecond ?? 8;
+  // Keyed by client address (never by an unauthenticated header, which an
+  // attacker could rotate); idle buckets are swept so the map stays bounded.
+  const sweep = setInterval(() => {
+    const cutoff = Date.now() - 60_000;
+    for (const [k, b] of buckets) if (b.at < cutoff) buckets.delete(k);
+  }, 30_000);
+  sweep.unref();
   const allow = (key: string): boolean => {
     const now = Date.now();
     const b = buckets.get(key) ?? { tokens: rate * 5, at: now };
@@ -118,11 +125,18 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
       "content-type": MIME[extname(path)] ?? "application/octet-stream",
       "cache-control": path.includes("/assets/") ? "public, max-age=31536000, immutable" : "no-cache",
     });
-    createReadStream(path).pipe(res);
+    const stream = createReadStream(path);
+    stream.on("error", () => res.destroy());
+    stream.pipe(res);
   };
 
   const server = createServer(async (req, res) => {
-    const url = new URL(req.url ?? "/", "http://x");
+    let url: URL;
+    try {
+      url = new URL(req.url ?? "/", "http://x");
+    } catch {
+      return send(res, 400, { error: "bad url" });
+    }
     if (req.method === "OPTIONS") return send(res, 204, {});
     if (!url.pathname.startsWith("/api/")) {
       try {
@@ -132,8 +146,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         return send(res, 500, { error: "internal error" });
       }
     }
-    const clientKey = bearer(req) ?? req.socket.remoteAddress ?? "?";
-    if (!allow(clientKey)) return send(res, 429, { error: "slow down" });
+    if (!allow(req.socket.remoteAddress ?? "?")) return send(res, 429, { error: "slow down" });
     try {
       const parts = url.pathname.split("/").filter(Boolean); // ["api", ...]
       if (req.method === "GET" && url.pathname === "/api/health") return send(res, 200, { ok: true });
@@ -185,14 +198,24 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
       console.error(e);
     }
   };
+  const MAX_SOCKETS_PER_USER = 5;
   server.on("upgrade", (req, socket, head) => {
-    const url = new URL(req.url ?? "/", "http://x");
-    if (url.pathname !== "/api/ws") return socket.destroy();
+    let url: URL;
+    try {
+      url = new URL(req.url ?? "/", "http://x");
+    } catch {
+      return socket.destroy();
+    }
+    if (url.pathname !== "/api/ws" || !allow(req.socket.remoteAddress ?? "?")) return socket.destroy();
     let user;
     try {
       user = service.authenticate(url.searchParams.get("token"));
     } catch {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      return socket.destroy();
+    }
+    if ([...subs.values()].filter((s) => s.userId === user.id).length >= MAX_SOCKETS_PER_USER) {
+      socket.write("HTTP/1.1 429 Too Many Requests\r\n\r\n");
       return socket.destroy();
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
@@ -207,6 +230,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         } catch {
           return;
         }
+        if (!msg || typeof msg !== "object" || Array.isArray(msg)) return;
         const sub = subs.get(ws);
         if (!sub) return;
         if (msg.type === "subscribe" && typeof msg.matchId === "string" && service.memberPlayerId(msg.matchId, sub.userId)) {
@@ -244,6 +268,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     close: () =>
       new Promise((done) => {
         closing = true;
+        clearInterval(sweep);
         service.shutdown();
         for (const ws of subs.keys()) ws.terminate();
         wss.close();

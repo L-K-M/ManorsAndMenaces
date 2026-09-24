@@ -27,6 +27,9 @@ const port = Number(process.env.PORT ?? 8787);
 app.server.listen(port, process.env.HOST ?? "0.0.0.0", () => {
   console.log(`Manors & Menaces server listening on :${port} (db ${dbPath})`);
 });
+// Last resort: log instead of crashing the whole server for every match.
+process.on("unhandledRejection", (e) => console.error("unhandled rejection", e));
+process.on("uncaughtException", (e) => console.error("uncaught exception", e));
 const stop = () => void app.close().then(() => process.exit(0));
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);

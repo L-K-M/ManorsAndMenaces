@@ -31,8 +31,10 @@ export function redactState(state: GameState, viewerId: PlayerId | null): GameSt
     out.pending = { ...state.pending, cardIds: state.pending.cardIds.map(() => HIDDEN_CARD) };
   }
   if (state.pending?.kind === "reaction") {
-    // The played card is public once played.
-    out.pending = clone(state.pending);
+    // The played card is public once played. Only the player currently being
+    // asked is revealed; the rest of the list would expose who else holds a
+    // reaction card (§105).
+    out.pending = { ...clone(state.pending), eligiblePlayerIds: state.pending.eligiblePlayerIds.slice(0, 1) };
   }
   return out;
 }

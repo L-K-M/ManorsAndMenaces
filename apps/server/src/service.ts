@@ -255,19 +255,33 @@ export class MatchService {
     const match = this.store.match(matchId);
     if (!match?.state || this.actorOf(match.state) !== seat.player_id) return;
     const rng = createRng(seedRng(`${match.seed}:ai:${match.revision}`));
-    let intent = chooseAction(this.engine, match.state, seat.player_id, { level: seat.ai_level ?? "normal", rng });
+    const intent = chooseAction(this.engine, match.state, seat.player_id, { level: seat.ai_level ?? "normal", rng });
     if (!intent) return;
     const make = (i: typeof intent): GameCommand =>
       ({ ...i, commandId: `ai-${match.revision}-${randomUUID()}`, matchId, playerId: seat.player_id }) as GameCommand;
     let command = make(intent);
     let r = this.engine.applyCommand(match.state, command);
-    if (!r.accepted) {
-      const s = match.state;
-      intent = s.phase === "main" ? { type: "end_main_phase" } : s.phase === "banner_assignment" ? { type: "assign_banners", assignments: {} } : { type: "end_turn" };
-      command = make(intent);
+    // Never let a rejected AI move stall the match: try each progression move.
+    const s = match.state;
+    const hand = s.players[seat.player_id]?.hand ?? [];
+    const fallbacks: typeof intent[] = [
+      { type: "pass_reaction" },
+      ...(s.pending?.kind === "prophecy" ? [{ type: "resolve_prophecy" as const, order: [...s.pending.cardIds] }] : []),
+      { type: "end_main_phase" },
+      { type: "assign_banners", assignments: {} },
+      ...(hand.length > s.ruleset.handLimit ? [{ type: "discard_cards" as const, cardIds: hand.slice(0, hand.length - s.ruleset.handLimit) }] : []),
+      { type: "end_turn" },
+    ];
+    for (const f of fallbacks) {
+      if (r.accepted) break;
+      command = make(f);
       r = this.engine.applyCommand(s, command);
     }
-    if (!r.accepted || !r.newState) return;
+    if (!r.accepted || !r.newState) {
+      console.error(`AI seat ${seat.player_id} in ${matchId} has no legal move; retrying later`, r.error);
+      setTimeout(() => this.scheduleAi(matchId), 5000).unref();
+      return;
+    }
     if (this.store.commitBatch(matchId, match.revision, r.newState, [command])) this.emit(matchId, r.events);
     this.scheduleAi(matchId);
   }
@@ -279,7 +293,8 @@ export class MatchService {
   /** Full, unredacted history for replays/debugging (§62). */
   replayData(matchId: string): { initial: GameState | null; commands: GameCommand[] } {
     const m = this.store.match(matchId);
-    return { initial: m?.initial_state ?? null, commands: this.store.commandHistory(matchId) };
+    // rngState + commands are enough to replay; the seed itself stays private (§105).
+    return { initial: m?.initial_state ? { ...m.initial_state, seed: "hidden" } : null, commands: this.store.commandHistory(matchId) };
   }
 
   shutdown(): void {

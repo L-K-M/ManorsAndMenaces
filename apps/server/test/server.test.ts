@@ -177,6 +177,10 @@ describe("server", () => {
     expect(view.status).toBe("playing");
     expect(view.seats.find((s) => s.kind === "ai")?.displayName).toBe("Robo");
     expect(updates.length).toBeGreaterThan(0);
+    // Hostile messages must not take the server down.
+    for (const m of ["null", "[]", "42", '{"type":"subscribe","matchId":{}}']) ws.send(m);
+    await new Promise((r) => setTimeout(r, 100));
+    expect((await api("/api/health", null)).status).toBe(200);
     ws.close();
   });
 });

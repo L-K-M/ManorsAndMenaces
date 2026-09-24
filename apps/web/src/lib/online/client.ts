@@ -101,7 +101,11 @@ export class OnlineClient {
     return this.call(`/api/matches/${encodeURIComponent(matchId)}/commands`, { matchId, expectedRevision, commands });
   }
 
-  /** Subscribe to a match; reconnects with backoff until `close()`. */
+  /**
+   * Subscribe to a match; reconnects with backoff until `close()`.
+   * The session token travels in the query string because browsers cannot set
+   * WebSocket headers; deploy behind TLS and keep query strings out of access logs.
+   */
   subscribe(matchId: string, onUpdate: (match: MatchView, events: GameEvent[]) => void, onStatus: (connected: boolean) => void): () => void {
     let ws: WebSocket | null = null;
     let closed = false;

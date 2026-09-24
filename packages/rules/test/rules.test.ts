@@ -422,6 +422,12 @@ describe("engine properties", () => {
     expect(view.cardDeck.every((c) => c === HIDDEN_CARD)).toBe(true);
     expect(redactState(s, p1).players[p1]?.hand).toEqual(s.players[p1]?.hand);
   });
+  it("reveals only the player currently asked to react", () => {
+    const s = setupGame(standardRuleset(2)).state;
+    const pending = { kind: "reaction" as const, cardId: "wizard_interference#1", sourcePlayerId: "A", target: { effect: "very_minor_prophecy" as const }, eligiblePlayerIds: ["B", "C"] };
+    const view = redactState({ ...s, pending }, "A");
+    expect(view.pending?.kind === "reaction" && view.pending.eligiblePlayerIds).toEqual(["B"]);
+  });
   it("applies batches atomically", () => {
     const { state, p1 } = setupGame();
     const good = { type: "end_main_phase" as const, commandId: "1", matchId: "m1", playerId: p1 };
