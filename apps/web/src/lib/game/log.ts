@@ -11,6 +11,8 @@ export interface LogEntry {
   kind: "turn" | "info" | "important";
   /** Raw event for the expandable debug view. */
   raw?: GameEvent;
+  /** Logged locally for a buffered (not yet submitted) action. */
+  provisional?: boolean;
 }
 
 let nextId = 1;

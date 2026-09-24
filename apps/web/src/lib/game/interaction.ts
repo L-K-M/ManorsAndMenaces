@@ -316,7 +316,10 @@ function pickValue(kind: string, pick: Pick): unknown {
 /** Confirm the Banner draft (setup or Banner Assignment phase). */
 export async function confirmBanners(session: GameSession, legal: LegalActionSummary): Promise<void> {
   const changes: Record<string, string | null> = {};
-  for (const [b, r] of Object.entries(ui.bannerDraft)) if (session.draft.banners[b]?.regionId !== r) changes[b] = r;
+  for (const [b, r] of Object.entries(ui.bannerDraft)) {
+    const banner = session.draft.banners[b];
+    if (banner?.ownerId === legal.playerId && banner.regionId !== r) changes[b] = r;
+  }
   const ok = await session.perform(
     legal.mode === "setup_banners" ? { type: "assign_initial_banners", assignments: changes } : { type: "assign_banners", assignments: changes },
   );

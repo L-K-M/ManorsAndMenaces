@@ -87,7 +87,7 @@ export class GameSession {
   readonly onlinePlayerId: PlayerId | null;
 
   private commandHistory: GameCommand[] = [];
-  private undoStack: { state: GameState; logLength: number }[] = [];
+  private undoStack: { state: GameState; logIds: number[] }[] = [];
   private aiTimer: ReturnType<typeof setTimeout> | null = null;
   private aiRng: GameRng;
   private destroyed = false;
@@ -183,19 +183,21 @@ export class GameSession {
     }
     devlog("event", `${r.events.length} events`, r.events);
     this.error = null;
-    this.appendLog(r.events, r.newState);
-    playForEvents(r.events);
     const actorChanged = currentActor(r.newState) !== actor;
     if (UNDO_SAFE_COMMANDS.has(command.type) && !actorChanged) {
-      this.undoStack.push({ state: this.draft, logLength: this.log.length - formatEvents(r.events, r.newState, this.map).length });
+      // Buffered locally (§32.1): show it now, provisionally, so it can be undone.
+      const logIds = this.appendLog(r.events, r.newState, true);
+      playForEvents(r.events);
+      this.undoStack.push({ state: this.draft, logIds });
       this.buffered = [...this.buffered, command];
       this.draft = r.newState;
       this.notify(r.events, r.newState);
       return true;
     }
-    const batch = [...this.buffered, command];
+    // Locking commands are logged from the authoritative result, so an online
+    // draft built on redacted state (e.g. a card draw) is never shown.
     this.draft = r.newState;
-    await this.flush(batch, r.events);
+    await this.flush([...this.buffered, command]);
     return true;
   }
 
@@ -209,15 +211,27 @@ export class GameSession {
     if (!last) return;
     this.draft = last.state;
     this.buffered = this.buffered.slice(0, -1);
-    this.log = this.log.slice(0, last.logLength);
+    const drop = new Set(last.logIds);
+    this.log = this.log.filter((e) => !drop.has(e.id));
     this.error = null;
   }
 
-  private async flush(batch: GameCommand[], lastEvents: GameEvent[]): Promise<void> {
+  private inFlight = 0;
+
+  private async flush(batch: GameCommand[]): Promise<void> {
     this.busy = true;
+    this.inFlight = batch.length;
+    const base = this.authoritative.revision;
     try {
-      const res = await this.transport.submit(batch, this.authoritative.revision);
+      let res = await this.transport.submit(batch, base);
+      // A network failure may hide a committed batch: retry the same command
+      // ids, which the server treats idempotently (§60), before giving up.
+      for (let attempt = 1; !res.ok && res.code === "NETWORK" && attempt <= 3 && !this.destroyed; attempt++) {
+        await new Promise((r) => setTimeout(r, 800 * attempt));
+        res = await this.transport.submit(batch, base);
+      }
       devlog("network", `submitted ${batch.length} command(s) via ${this.transport.kind}`, res.ok ? { revision: res.state.revision } : res);
+      this.log = this.log.filter((e) => !e.provisional);
       if (!res.ok) {
         this.showError(res.code);
         // Reconcile: drop the draft and return to the authoritative state (§60).
@@ -228,31 +242,39 @@ export class GameSession {
         return;
       }
       if (this.transport.kind === "local") this.commandHistory.push(...batch);
+      this.appendLog(res.events, res.state);
+      playForEvents(res.events);
       // A WebSocket push may already have delivered a newer state (e.g. an AI
       // seat acted right after our batch); never go backwards.
       if (res.state.revision >= this.authoritative.revision) this.authoritative = res.state;
       this.draft = this.authoritative;
       this.buffered = [];
       this.undoStack = [];
-      this.notify(lastEvents, res.state);
-      this.afterStateChange(lastEvents);
+      this.notify(res.events, res.state);
+      this.afterStateChange(res.events);
     } finally {
       this.busy = false;
+      this.inFlight = 0;
     }
   }
 
   /** Online: a server push with new state from another player's action. */
   receiveRemote(state: GameState, events: GameEvent[]): void {
     if (state.revision <= this.authoritative.revision) return;
-    const inFlight = this.busy;
+    // The echo of our own in-flight batch: its events are logged when the
+    // HTTP response arrives, so only adopt the state here.
+    const ownEcho = this.inFlight > 0 && state.revision === this.authoritative.revision + this.inFlight;
     this.authoritative = state;
-    this.draft = state;
-    this.buffered = [];
-    this.undoStack = [];
-    // While our own batch is in flight, its events were already logged locally.
-    const fresh = inFlight ? events.filter((e) => !("playerId" in e) || e.playerId !== this.onlinePlayerId) : events;
-    this.appendLog(fresh, state);
-    playForEvents(events);
+    if (!this.busy) {
+      this.draft = state;
+      this.buffered = [];
+      this.undoStack = [];
+      this.log = this.log.filter((e) => !e.provisional);
+    }
+    if (!ownEcho) {
+      this.appendLog(events, state);
+      playForEvents(events);
+    }
     this.notify(events, state);
     this.afterStateChange(events);
   }
@@ -270,16 +292,20 @@ export class GameSession {
     for (const fn of this.listeners) fn(events, state);
   }
 
-  private appendLog(events: GameEvent[], state: GameState): void {
-    const entries = formatEvents(events, state, this.map);
+  /** Append formatted events; returns the ids of the new entries. */
+  private appendLog(events: GameEvent[], state: GameState, provisional = false): number[] {
+    const entries = formatEvents(events, state, this.map).map((e) => (provisional ? { ...e, provisional } : e));
     if (entries.length) this.log = [...this.log, ...entries].slice(-300);
     for (const e of events) {
       if (e.type === "resource_gained" && (e.reason === "harvest" || e.reason === "starting_resources")) {
         const f: Floater = { id: floaterId++, playerId: e.playerId, text: `+${e.amount}`, resource: e.resource };
         this.floaters = [...this.floaters, f];
-        setTimeout(() => (this.floaters = this.floaters.filter((x) => x.id !== f.id)), 1600);
+        setTimeout(() => {
+          if (!this.destroyed) this.floaters = this.floaters.filter((x) => x.id !== f.id);
+        }, 1600);
       }
     }
+    return entries.map((e) => e.id);
   }
 
   // ------------------------------------------------------------------ turn flow
@@ -337,10 +363,8 @@ export class GameSession {
       r = this.engine.applyCommand(state, command);
       if (!r.accepted) return;
     }
-    this.appendLog(r.events, r.newState as GameState);
-    playForEvents(r.events);
     this.draft = r.newState as GameState;
-    await this.flush([command], r.events);
+    await this.flush([command]);
   }
 
   // ------------------------------------------------------------------ persistence

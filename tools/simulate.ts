@@ -30,8 +30,13 @@ const RULES = arg("rules", "standard");
 const LEVEL = arg("level", "normal") as AiLevel;
 const MAX_ROUNDS = Number(arg("max-rounds", "60"));
 const EQUAL_TURNS = args.includes("--equal-turns");
+// Extra ruleset overrides as JSON, e.g. --override '{"enableQuests":false}'.
+const OVERRIDE = JSON.parse(arg("override", "{}")) as Record<string, unknown>;
 
-const engine = createRulesEngine(rulesContentFor());
+// --exclude-cards a,b removes card definitions from the deck (balance experiments).
+const EXCLUDE = new Set(arg("exclude-cards", "").split(",").filter(Boolean));
+const baseContent = rulesContentFor();
+const engine = createRulesEngine({ ...baseContent, cards: baseContent.cards.filter((c) => !EXCLUDE.has(c.id)) });
 const ctx = engine.ctx;
 
 interface GameStats {
@@ -44,6 +49,7 @@ interface GameStats {
   wardens: number;
   trades: number;
   cards: number;
+  bought: number;
   quests: number;
   produced: Record<string, number>;
   /** Longest run of consecutive rounds a Region was held by the same player, as a share of the game. */
@@ -53,7 +59,7 @@ interface GameStats {
 }
 
 function playOne(i: number): GameStats {
-  const ruleset = { ...(RULES === "mvp" ? mvpRuleset() : standardRuleset(PLAYERS)), equalTurns: EQUAL_TURNS };
+  const ruleset = { ...(RULES === "mvp" ? mvpRuleset() : standardRuleset(PLAYERS)), equalTurns: EQUAL_TURNS, ...OVERRIDE };
   let s: GameState = engine.createGame({
     matchId: `sim-${i}`,
     seed: `sim-${RULES}-${PLAYERS}-${i}`,
@@ -72,6 +78,7 @@ function playOne(i: number): GameStats {
     wardens: 0,
     trades: 0,
     cards: 0,
+    bought: 0,
     quests: 0,
     produced: Object.fromEntries(RESOURCE_TYPES.map((r) => [r, 0])),
     maxHoldShare: 0,
@@ -92,6 +99,7 @@ function playOne(i: number): GameStats {
       if (e.type === "warden_hired") stats.wardens++;
       if (e.type === "market_traded") stats.trades++;
       if (e.type === "card_played") stats.cards++;
+      if (e.type === "card_bought") stats.bought++;
       if (e.type === "quest_claimed") stats.quests++;
       if (e.type === "resource_gained" && e.reason === "harvest") stats.produced[e.resource] = (stats.produced[e.resource] ?? 0) + e.amount;
       if (e.type === "harvest_completed") (s.round <= 6 ? stats.harvestMid : stats.harvestLate).push(e.total);
@@ -139,6 +147,6 @@ console.log(`rounds (turns/player): avg ${avg(finished.map((r) => r.rounds)).toF
 console.log(`winner renown:       avg ${avg(finished.map((r) => r.winnerRenown)).toFixed(1)} (holdings ${avg(finished.map((r) => r.renownSources.holdings)).toFixed(1)}, quests ${avg(finished.map((r) => r.renownSources.quests)).toFixed(1)})`);
 console.log(`seat win rates:      ${seatWins.map((w, k) => `seat${k + 1} ${pct(w)}`).join("  ")}   target: none > ${PLAYERS === 4 ? "30" : "45"}%`);
 console.log(`harvest per turn:    early ${avg(results.flatMap((r) => r.harvestMid)).toFixed(2)}  later ${avg(results.flatMap((r) => r.harvestLate)).toFixed(2)}   target mid 3–5, late 4–7`);
-console.log(`per game:            writs ${avg(results.map((r) => r.writs)).toFixed(1)}  wardens ${avg(results.map((r) => r.wardens)).toFixed(1)}  trades ${avg(results.map((r) => r.trades)).toFixed(1)}  cards ${avg(results.map((r) => r.cards)).toFixed(1)}  quests ${avg(results.map((r) => r.quests)).toFixed(1)}`);
+console.log(`per game:            writs ${avg(results.map((r) => r.writs)).toFixed(1)}  wardens ${avg(results.map((r) => r.wardens)).toFixed(1)}  trades ${avg(results.map((r) => r.trades)).toFixed(1)}  cards bought ${avg(results.map((r) => r.bought)).toFixed(1)} played ${avg(results.map((r) => r.cards)).toFixed(1)}  quests ${avg(results.map((r) => r.quests)).toFixed(1)}`);
 console.log(`produced per game:   ${JSON.stringify(produced)}`);
 console.log(`hereditary regions:  games where a contestable Region was held by one player > 60% of the match: ${pct(results.filter((r) => r.maxHoldShare > 0.6).length)}   target ≤ 25%`);

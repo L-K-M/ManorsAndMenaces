@@ -225,7 +225,7 @@
         class="region"
         class:hl={isHl}
         role="button"
-        tabindex={isHl ? 0 : -1}
+        tabindex={isHl || !targeting ? 0 : -1}
         aria-label="{region.name}, {t(`resource.${region.resource}`)}, capacity {region.capacity}, {occupants} Banner(s)"
         onclick={() => pick(isHl && hl.locations.has(`region:${region.id}`) && !hl.regions.has(region.id) ? { kind: "location", location: { kind: "region", regionId: region.id } } : { kind: "region", id: region.id })}
         onkeydown={(e) => key(e, { kind: "region", id: region.id })}
@@ -267,7 +267,7 @@
           class="route"
           class:hl={isHl}
           role="button"
-          tabindex={isHl ? 0 : -1}
+          tabindex={isHl || !targeting ? 0 : -1}
           aria-label="{t(`route.${route.kind}`)} {owner ? `owned by ${gs.players[owner]?.displayName}` : 'unowned'}"
           onclick={() => pick(hl.locations.has(`route:${route.id}`) ? { kind: "location", location: { kind: "route", routeId: route.id } } : { kind: "route", id: route.id })}
           onkeydown={(e) => key(e, { kind: "route", id: route.id })}
@@ -304,7 +304,7 @@
         class:hl={isHl}
         transform="translate({site.x},{site.y})"
         role="button"
-        tabindex={isHl ? 0 : -1}
+        tabindex={isHl || !targeting ? 0 : -1}
         aria-label={holding
           ? `${t(`holding.${holding.type}`)} of ${gs.players[holding.ownerId]?.displayName}${site.landmarkId ? `, ${t(`landmark.${site.landmarkId}`)}` : ""}`
           : `Site${site.landmarkId ? `, ${t(`landmark.${site.landmarkId}`)}` : ""}${site.tradePost ? `, Trading Post (${t(`resource.${site.tradePost.resource}`)} 2:1)` : ""}`}
@@ -358,7 +358,7 @@
           class:mine={myBanners.has(banner.id)}
           style="transform: translate({pos.x}px, {pos.y}px)"
           role="button"
-          tabindex={isHl ? 0 : -1}
+          tabindex={isHl || !targeting ? 0 : -1}
           aria-label={bannerLabel(banner)}
           aria-pressed={selected}
           onclick={() => pick({ kind: "banner", id: banner.id })}
@@ -388,7 +388,7 @@
         class:selected={ui.selectedMenaceId === menace.id}
         style="transform: translate({pos.x}px, {pos.y}px)"
         role="button"
-        tabindex={isHl ? 0 : -1}
+        tabindex={isHl || !targeting ? 0 : -1}
         aria-label="{t(`menace.${menace.type}.name`)}: {t(`menace.${menace.type}.rules`)}"
         onclick={() => pick({ kind: "menace", id: menace.id })}
         onkeydown={(e) => key(e, { kind: "menace", id: menace.id })}

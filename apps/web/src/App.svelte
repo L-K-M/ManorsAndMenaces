@@ -55,6 +55,8 @@
   function openSession(s: GameSession) {
     session?.destroy();
     resetTool();
+    ui.bannerDraft = {};
+    ui.inspect = null;
     session = s;
     tutorial = false;
     screen = "game";
@@ -80,6 +82,8 @@
   }
   function exit() {
     session?.destroy();
+    ui.bannerDraft = {};
+    ui.inspect = null;
     session = null;
     screen = "title";
   }

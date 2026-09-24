@@ -45,14 +45,19 @@ export function resourceNeeds(ctx: RulesContext, state: GameState, playerId: Pla
   const holdings = getPlayerHoldings(state, playerId);
   const manors = holdings.filter((h) => h.type === "manor").length;
   const buildable = ctx.board.topology.sites.some((s) => checkBuildManor(ctx, state, playerId, s.id).legal);
-  const goals: Partial<Record<ResourceType, number>>[] = [];
-  if (manors > 0) goals.push(BALANCE.costs.stronghold);
-  goals.push(buildable ? BALANCE.costs.manor : { ...BALANCE.costs.route, ...BALANCE.costs.manor });
-  if (state.ruleset.enableCards) goals.push(BALANCE.costs.card);
+  // Building goals drive demand. Cards are a side goal: only when a card can
+  // actually be drawn and the hand is small, and at a lower weight (buying
+  // cards as a standing goal made the AI hoard Iron/Essence instead of building).
+  const goals: { cost: Partial<Record<ResourceType, number>>; weight: number }[] = [];
+  if (manors > 0) goals.push({ cost: BALANCE.costs.stronghold, weight: 0.45 });
+  goals.push({ cost: buildable ? BALANCE.costs.manor : { ...BALANCE.costs.route, ...BALANCE.costs.manor }, weight: 0.45 });
+  if (state.ruleset.enableCards && state.cardDeck.length + state.discardPile.length > 0 && p.hand.length < 2) {
+    goals.push({ cost: BALANCE.costs.card, weight: 0.15 });
+  }
   for (const goal of goals) {
     for (const r of RESOURCE_TYPES) {
-      const missing = Math.max(0, (goal[r] ?? 0) - p.resources[r]);
-      need[r] += 0.45 * missing;
+      const missing = Math.max(0, (goal.cost[r] ?? 0) - p.resources[r]);
+      need[r] += goal.weight * missing;
     }
   }
   if (state.ruleset.writ.enabled || state.ruleset.warden.enabled) need.essence += 0.3;
