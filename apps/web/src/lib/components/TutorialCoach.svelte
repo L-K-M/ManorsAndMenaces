@@ -89,4 +89,13 @@
   .dots span.on {
     background: #d19a12;
   }
+  @media (max-width: 900px) {
+    .coach {
+      top: auto;
+      bottom: 0.75rem;
+      left: 4.5rem;
+      right: 0.75rem;
+      width: auto;
+    }
+  }
 </style>

@@ -141,7 +141,7 @@
   .game {
     height: 100dvh;
     display: grid;
-    grid-template-columns: 1fr minmax(17rem, 22rem);
+    grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem);
     grid-template-rows: auto 1fr auto;
     grid-template-areas:
       "top top"
@@ -150,7 +150,9 @@
   }
   .topbar {
     grid-area: top;
+    min-width: 0;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.6rem;
     padding: 0.3rem 0.6rem;
@@ -164,6 +166,10 @@
   .topbar .ghost {
     color: #fffaf0;
     border-color: #fff5;
+  }
+  .topbar .ghost:hover:not(:disabled),
+  .topbar .ghost[aria-expanded="true"] {
+    background: #fff2;
   }
   .round {
     opacity: 0.85;
@@ -251,8 +257,9 @@
   }
   .bottom {
     grid-area: bottom;
+    min-width: 0;
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "actions preview"
       "hand hand";
@@ -277,7 +284,7 @@
 
   @media (max-width: 900px) {
     .game {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       grid-template-areas:
         "top"
         "board"
@@ -307,8 +314,24 @@
     .side.open {
       transform: none;
     }
+    .topbar {
+      gap: 0.35rem;
+      padding: 0.25rem 0.4rem;
+    }
+    .topbar button {
+      min-height: 40px;
+      padding: 0.2rem 0.5rem;
+    }
+    .mine {
+      order: 10;
+      width: 100%;
+      justify-content: space-around;
+    }
+    .preview {
+      min-width: 0;
+    }
     .bottom {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       grid-template-areas:
         "actions"
         "preview"

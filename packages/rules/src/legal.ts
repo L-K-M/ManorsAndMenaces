@@ -149,7 +149,9 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
     r.enableCards && p.nonReactionCardsPlayedThisTurn < r.maxNonReactionCardsPerTurn
       ? p.hand.filter((c) => ctx.cardOf(c).timing.includes("main") && enumerateCardTargets(ctx, state, playerId, c).length > 0)
       : [];
-  const claimableQuests = r.enableQuests ? state.revealedQuestIds.filter((q) => getQuestProgress(ctx, state, playerId, q).complete) : [];
+  const claimableQuests = r.enableQuests
+    ? state.revealedQuestIds.filter((q) => !p.claimedQuestIds.includes(q) && getQuestProgress(ctx, state, playerId, q).complete)
+    : [];
   return {
     ...empty,
     mode: "main",

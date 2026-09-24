@@ -2,7 +2,7 @@
 // input state is never mutated, and the same state + command always produces
 // the same result.
 
-import { clone } from "./clone.js";
+import { clone, own } from "./clone.js";
 import { BALANCE } from "./balance.js";
 import { isReactionOnly, resolveCardEffect, validateCardTarget } from "./cards.js";
 import type { DebugCommand, GameCommand } from "./commands.js";
@@ -155,6 +155,8 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
   if (ruleset.enableCards) {
     for (const def of ctx.content.cards) {
       if (!ruleset.enableReactionCards && isReactionOnly(def.effectId)) continue;
+      // Cards that need a Menace not in this game could never be played.
+      if (def.requiresMenace && !ruleset.activeMenaces.includes(def.requiresMenace)) continue;
       for (let i = 1; i <= def.copies; i++) cardDeck.push(`${def.id}#${i}`);
     }
     cardDeck = rng.shuffle(cardDeck);
@@ -229,7 +231,7 @@ function execute(tx: Tx, cmd: GameCommand): void {
   const s = tx.s;
   check(cmd && typeof cmd === "object" && typeof cmd.type === "string", "INVALID_COMMAND");
   check(cmd.matchId === s.matchId, "INVALID_COMMAND", "wrong match");
-  check(s.players[cmd.playerId], "UNKNOWN_ENTITY", "unknown player");
+  check(own(s.players, cmd.playerId), "UNKNOWN_ENTITY", "unknown player");
   check(s.status !== "finished", "GAME_NOT_ACTIVE");
 
   // Pending decisions take priority over everything else.
@@ -638,7 +640,7 @@ function hireWarden(tx: Tx, playerId: PlayerId, menaceId: string, destination: u
   check(s.ruleset.warden.enabled, "FEATURE_DISABLED", "warden");
   const p = tx.player(playerId);
   check(p.wardensHiredThisTurn < s.ruleset.warden.maxPerTurn, "WARDEN_LIMIT_REACHED");
-  const m = s.menaces[menaceId];
+  const m = own(s.menaces, menaceId);
   check(m, "UNKNOWN_ENTITY", "menace");
   check(!(s.ruleset.warden.guard && m.state.guardedBy && m.state.guardedBy !== playerId), "MENACE_GUARDED");
   check(destination && typeof destination === "object", "ILLEGAL_MENACE_TARGET");
@@ -761,6 +763,8 @@ function discardCards(tx: Tx, playerId: PlayerId, cardIds: unknown): void {
   const p = tx.player(playerId);
   const ids = cardIds as string[];
   check(new Set(ids).size === ids.length && ids.every((c) => p.hand.includes(c)), "CARD_NOT_IN_HAND");
+  // Discarding is only the remedy for being over the hand limit (§18.3).
+  check(p.hand.length - ids.length === tx.s.ruleset.handLimit, "INVALID_COMMAND", "discard exactly down to the hand limit");
   p.hand = p.hand.filter((c) => !ids.includes(c));
   for (const c of ids) {
     tx.discard(c);
@@ -774,8 +778,10 @@ function claimQuest(tx: Tx, playerId: PlayerId, questId: string): void {
   const s = tx.s;
   check(s.ruleset.enableQuests, "FEATURE_DISABLED", "quests");
   check(s.revealedQuestIds.includes(questId), "QUEST_NOT_AVAILABLE");
+  check(!tx.player(playerId).claimedQuestIds.includes(questId), "QUEST_NOT_AVAILABLE", "already claimed");
   check(getQuestProgress(tx.ctx, s, playerId, questId).complete, "QUEST_NOT_COMPLETE");
-  s.revealedQuestIds = s.revealedQuestIds.filter((q) => q !== questId);
+  // Exclusive Quests (the default, §27) leave the pool; others stay for everyone.
+  if (tx.ctx.quest(questId).exclusive) s.revealedQuestIds = s.revealedQuestIds.filter((q) => q !== questId);
   tx.player(playerId).claimedQuestIds.push(questId);
   tx.emit({ type: "quest_claimed", playerId, questId, renown: tx.ctx.quest(questId).renown });
 }
@@ -784,6 +790,7 @@ function claimQuest(tx: Tx, playerId: PlayerId, questId: string): void {
 
 function executeDebug(tx: Tx, cmd: DebugCommand): void {
   const s = tx.s;
+  check(own(s.players, "targetPlayerId" in cmd ? cmd.targetPlayerId : cmd.playerId), "UNKNOWN_ENTITY", "unknown player");
   switch (cmd.type) {
     case "debug_grant":
       for (const [r, n] of Object.entries(cmd.resources)) if (isResourceType(r) && n) tx.gain(cmd.targetPlayerId, r, n, "debug");
@@ -792,7 +799,7 @@ function executeDebug(tx: Tx, cmd: DebugCommand): void {
       tx.player(cmd.targetPlayerId).bonusRenown = cmd.value;
       return;
     case "debug_move_menace": {
-      const m = s.menaces[cmd.menaceId];
+      const m = own(s.menaces, cmd.menaceId);
       check(m && isLegalMenaceDestination(tx.ctx, s, cmd.menaceId, cmd.destination), "ILLEGAL_MENACE_TARGET");
       tx.moveMenace(null, m, cmd.destination);
       return;

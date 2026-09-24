@@ -81,24 +81,24 @@
 
   // ------------------------------------------------------------------ input
   let svgEl: SVGSVGElement | undefined = $state();
+  let boardW = $state(1);
+  let boardH = $state(1);
+  // On tall screens, pin the map to the top and leave room below for panels.
+  const portrait = $derived(boardH > boardW * 1.1);
   const pointers = new Map<number, { x: number; y: number }>();
   let dragMoved = false;
   let pinchDist = 0;
 
+  // Screen ↔ board coordinates via the SVG's own transform, so any
+  // preserveAspectRatio alignment works.
   function toBoard(clientX: number, clientY: number): { x: number; y: number } {
-    const rect = svgEl?.getBoundingClientRect();
-    if (!rect) return { x: 0, y: 0 };
-    const b = viewport.box;
-    // preserveAspectRatio="xMidYMid meet": compute the rendered scale.
-    const scale = Math.min(rect.width / b.w, rect.height / b.h);
-    const offX = (rect.width - b.w * scale) / 2;
-    const offY = (rect.height - b.h * scale) / 2;
-    return { x: b.x + (clientX - rect.left - offX) / scale, y: b.y + (clientY - rect.top - offY) / scale };
+    const m = svgEl?.getScreenCTM();
+    if (!m) return { x: 0, y: 0 };
+    const p = new DOMPoint(clientX, clientY).matrixTransform(m.inverse());
+    return { x: p.x, y: p.y };
   }
   function scaleFactor(): number {
-    const rect = svgEl?.getBoundingClientRect();
-    if (!rect) return 1;
-    return Math.min(rect.width / viewport.box.w, rect.height / viewport.box.h);
+    return svgEl?.getScreenCTM()?.a ?? 1;
   }
   function onWheel(e: WheelEvent) {
     e.preventDefault();
@@ -167,11 +167,13 @@
 
 <svg
   bind:this={svgEl}
+  bind:clientWidth={boardW}
+  bind:clientHeight={boardH}
   class="board"
   class:hc={settings.highContrast}
   class:targeting
   viewBox="{viewport.box.x} {viewport.box.y} {viewport.box.w} {viewport.box.h}"
-  preserveAspectRatio="xMidYMid meet"
+  preserveAspectRatio={portrait ? "xMidYMin meet" : "xMidYMid meet"}
   role="application"
   aria-label={t("app.title")}
   style="--dur: {dur}"

@@ -2,6 +2,7 @@
 // data never contains executable code.
 
 import { BALANCE } from "./balance.js";
+import { own } from "./clone.js";
 import type { RulesContext } from "./context.js";
 import { check, RuleViolation } from "./errors.js";
 import { isResourceType } from "./resources.js";
@@ -16,23 +17,23 @@ export function validateCardTarget(ctx: RulesContext, state: GameState, playerId
   if (def.requiresMenace) check(menaceOfType(state, def.requiresMenace), "INVALID_CARD_TARGET", `${def.requiresMenace} is not active`);
   switch (target.effect) {
     case "wizard_interference": {
-      const b = state.banners[target.bannerId];
+      const b = own(state.banners, target.bannerId);
       check(b && b.ownerId !== playerId && b.regionId, "INVALID_CARD_TARGET", "needs an opponent's assigned Banner");
       check(wizardDestinations(ctx, state, target.bannerId).includes(target.regionId), "INVALID_CARD_TARGET", "illegal destination");
       return;
     }
     case "knight_errant":
-      check(state.menaces[target.menaceId], "INVALID_CARD_TARGET", "unknown Menace");
+      check(own(state.menaces, target.menaceId), "INVALID_CARD_TARGET", "unknown Menace");
       check(isLegalMenaceDestination(ctx, state, target.menaceId, target.destination), "ILLEGAL_MENACE_TARGET");
       return;
     case "druids_blessing": {
-      const b = state.banners[target.bannerId];
+      const b = own(state.banners, target.bannerId);
       check(b && b.ownerId === playerId, "INVALID_CARD_TARGET", "needs one of your Banners");
       return;
     }
     case "teleportation_mishap": {
-      const a = state.menaces[target.menaceIdA];
-      const b = state.menaces[target.menaceIdB];
+      const a = own(state.menaces, target.menaceIdA);
+      const b = own(state.menaces, target.menaceIdB);
       check(a && b && a.id !== b.id, "INVALID_CARD_TARGET", "needs two different Menaces");
       check(a.location.kind === b.location.kind && !sameLocation(a.location, b.location), "ILLEGAL_MENACE_TARGET", "swap would be illegal");
       return;
@@ -53,6 +54,7 @@ export function validateCardTarget(ctx: RulesContext, state: GameState, playerId
       check(isResourceType(target.choice), "INVALID_CARD_TARGET");
       return;
     case "very_minor_prophecy":
+      check(state.cardDeck.length + state.discardPile.length > 0, "DECK_EMPTY");
       return;
     case "fog_of_confusion":
       check(ctx.board.hasRoute(target.routeId), "INVALID_CARD_TARGET", "unknown Route");

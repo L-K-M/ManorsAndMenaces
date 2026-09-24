@@ -2,6 +2,7 @@
 // mutates the clone through these helpers, so callers never see mutation
 // (spec §36 "controlled structural cloning").
 
+import { own } from "./clone.js";
 import type { RulesContext } from "./context.js";
 import { check } from "./errors.js";
 import type { GameEvent, ResourceReason } from "./events.js";
@@ -34,7 +35,7 @@ export class Tx {
   }
 
   player(id: PlayerId): PlayerState {
-    const p = this.s.players[id];
+    const p = own(this.s.players, id);
     check(p, "UNKNOWN_ENTITY", `player ${id}`);
     return p;
   }

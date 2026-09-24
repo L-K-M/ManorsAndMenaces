@@ -352,6 +352,28 @@ describe("quest connectivity", () => {
   });
 });
 
+describe("review regressions", () => {
+  it("rejects prototype-chain ids instead of crashing", () => {
+    const { state, p1 } = setupGame();
+    const r = engine.applyDebugCommand(state, { type: "debug_grant", commandId: "x", matchId: "m1", playerId: p1, targetPlayerId: "__proto__", resources: { grain: 1 } });
+    expect(r.accepted).toBe(false);
+    reject(state, "__proto__", { type: "end_main_phase" }, "UNKNOWN_ENTITY");
+    reject(state, p1, { type: "hire_warden", menaceId: "__proto__", destination: { kind: "region", regionId: "R1" } }, "UNKNOWN_ENTITY");
+  });
+  it("only allows discarding exactly down to the hand limit", () => {
+    const { state, p1 } = setupGame(standardRuleset(2));
+    let s = act(state, p1, { type: "end_main_phase" }).state;
+    s = act(s, p1, { type: "assign_banners", assignments: {} }).state;
+    s = { ...s, players: { ...s.players, [p1]: { ...(s.players[p1] as GameState["players"][string]), hand: ["festival_at_the_inn#1"] } } };
+    reject(s, p1, { type: "discard_cards", cardIds: ["festival_at_the_inn#1"] }, "INVALID_COMMAND");
+  });
+  it("leaves cards for inactive Menaces out of the deck", () => {
+    const s = newGame({ ...standardRuleset(2), activeMenaces: ["toll_troll"] });
+    expect(s.cardDeck.some((c) => c.startsWith("dragon_whisperer#"))).toBe(false);
+    expect(s.cardDeck.some((c) => c.startsWith("bribe_the_troll#"))).toBe(true);
+  });
+});
+
 describe("victory (§7)", () => {
   it("ends the game at end of turn when the target is reached", () => {
     const { state, p1 } = setupGame();

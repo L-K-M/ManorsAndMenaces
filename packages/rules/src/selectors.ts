@@ -5,6 +5,7 @@
 import { BALANCE } from "./balance.js";
 import type { RulesContext } from "./context.js";
 import type { HarvestNote } from "./events.js";
+import { own } from "./clone.js";
 import { addCost, canAfford } from "./resources.js";
 import {
   RESOURCE_TYPES,
@@ -213,7 +214,7 @@ export function getLegalBannerRegions(
   bannerId: BannerId,
   draft: Readonly<Record<BannerId, RegionId | null>> = {},
 ): RegionId[] {
-  const banner = state.banners[bannerId];
+  const banner = own(state.banners, bannerId);
   if (!banner) return [];
   const holding = state.holdings[banner.holdingId];
   if (!holding) return [];
@@ -236,7 +237,7 @@ export function validateBannerAssignment(
   assignments: Readonly<Record<BannerId, RegionId | null>>,
 ): import("./errors.js").RuleValidation {
   for (const [bannerId, regionId] of Object.entries(assignments)) {
-    const b = state.banners[bannerId];
+    const b = own(state.banners, bannerId);
     if (!b) return { ok: false, error: { code: "UNKNOWN_ENTITY", detail: bannerId } };
     if (b.ownerId !== playerId) return { ok: false, error: { code: "BANNER_NOT_OWNED", detail: bannerId } };
     if (regionId === null) continue;
@@ -352,7 +353,7 @@ export function menaceLocationKind(type: MenaceType): MenaceLocation["kind"] {
 }
 
 export function isLegalMenaceDestination(ctx: RulesContext, state: GameState, menaceId: MenaceId, dest: MenaceLocation): boolean {
-  const m = state.menaces[menaceId];
+  const m = own(state.menaces, menaceId);
   if (!m) return false;
   if (dest.kind !== menaceLocationKind(m.type)) return false;
   switch (dest.kind) {
@@ -372,7 +373,7 @@ export function isLegalMenaceDestination(ctx: RulesContext, state: GameState, me
 }
 
 export function getLegalMenaceDestinations(ctx: RulesContext, state: GameState, menaceId: MenaceId): MenaceLocation[] {
-  const m = state.menaces[menaceId];
+  const m = own(state.menaces, menaceId);
   if (!m) return [];
   const all: MenaceLocation[] = (() => {
     switch (menaceLocationKind(m.type)) {
@@ -402,7 +403,7 @@ export function locationAffectsPlayer(state: GameState, loc: MenaceLocation, pla
 // ------------------------------------------------------------------ Royal Writ (§14.7)
 
 export function checkWritTarget(ctx: RulesContext, state: GameState, playerId: PlayerId, bannerId: BannerId): import("./errors.js").RuleValidation {
-  const b = state.banners[bannerId];
+  const b = own(state.banners, bannerId);
   if (!b || !b.regionId) return { ok: false, error: { code: "UNKNOWN_ENTITY", detail: bannerId } };
   if (b.ownerId === playerId) return { ok: false, error: { code: "INVALID_CARD_TARGET", detail: "own banner" } };
   if (state.ruleset.writ.requireSettled && !b.settled) return { ok: false, error: { code: "BANNER_NOT_SETTLED" } };
@@ -420,7 +421,7 @@ export function getWritTargets(ctx: RulesContext, state: GameState, playerId: Pl
 
 /** Banners that Wizard's Interference could move, with their legal destinations. */
 export function wizardDestinations(ctx: RulesContext, state: GameState, bannerId: BannerId): RegionId[] {
-  const b = state.banners[bannerId];
+  const b = own(state.banners, bannerId);
   if (!b || !b.regionId) return [];
   const current = b.regionId;
   return getLegalBannerRegions(ctx, state, bannerId).filter((r) => r !== current);

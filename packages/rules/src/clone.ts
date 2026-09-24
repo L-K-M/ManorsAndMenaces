@@ -1,3 +1,8 @@
+/** Own-property lookup, so ids like "__proto__" never resolve through the prototype chain. */
+export function own<T>(record: Record<string, T>, key: unknown): T | undefined {
+  return typeof key === "string" && Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
 /**
  * Deep clone for plain JSON-compatible data (spec §106: state contains only
  * records, arrays and primitives). Faster than structuredClone for our shapes
