@@ -5,7 +5,7 @@
   import { GameSession } from "./lib/game/session.svelte.js";
   import { platform, type SaveSummary } from "./lib/platform/adapter.js";
   import { resetTool, ui } from "./lib/stores/ui.svelte.js";
-  import { settings } from "./lib/stores/settings.svelte.js";
+  import { animationScale, settings } from "./lib/stores/settings.svelte.js";
   import GameScreen from "./lib/components/GameScreen.svelte";
   import NewGame from "./lib/components/NewGame.svelte";
   import SettingsDialog from "./lib/components/SettingsDialog.svelte";
@@ -94,6 +94,9 @@
   $effect(() => {
     document.documentElement.style.setProperty("--text-scale", String(settings.textScale));
     document.documentElement.classList.toggle("high-contrast", settings.highContrast);
+    // The in-app Reduced motion / Animation: Off settings must stop CSS
+    // animations too, not only the OS preference (see app.css).
+    document.documentElement.classList.toggle("reduce-motion", animationScale() === 0);
   });
 </script>
 

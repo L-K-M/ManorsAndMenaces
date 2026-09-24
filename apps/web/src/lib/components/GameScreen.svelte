@@ -232,6 +232,16 @@
       translate: 0 -80px;
     }
   }
+  /* Without motion the float would end invisible; show floaters still until
+     the session removes them. */
+  :global(.reduce-motion) .floater {
+    animation: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .floater {
+      animation: none;
+    }
+  }
   .side {
     grid-area: side;
     background: var(--parchment);
