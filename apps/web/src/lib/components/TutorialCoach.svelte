@@ -67,7 +67,7 @@
     flex: 1;
   }
   header button {
-    min-height: 32px;
+    min-height: 44px;
     font-size: 0.75rem;
   }
   .lesson {
@@ -92,7 +92,7 @@
   @media (max-width: 900px) {
     .coach {
       top: auto;
-      bottom: 0.75rem;
+      bottom: calc(0.75rem + var(--overlay-bottom, 0px));
       left: 4.5rem;
       right: 0.75rem;
       width: auto;

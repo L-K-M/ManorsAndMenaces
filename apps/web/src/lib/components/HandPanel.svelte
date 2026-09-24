@@ -24,6 +24,21 @@
   async function discard() {
     if (await session.perform({ type: "discard_cards", cardIds: discardSel })) discardSel = [];
   }
+
+  // The dock shows compact cards with clamped rules text; hovering one with a
+  // mouse (or tabbing to it) shows the whole card above it. It is positioned
+  // against the viewport so the hand's scroll box cannot clip it.
+  let peek: { cardId: string; x: number; top: number; bottom: number } | null = $state(null);
+  function showPeek(e: PointerEvent | FocusEvent, cardId: string) {
+    if (e instanceof PointerEvent && (e.pointerType !== "mouse" || !matchMedia("(hover: hover)").matches)) return;
+    const el = e.currentTarget as HTMLElement;
+    if (e instanceof FocusEvent && !el.matches(":focus-visible")) return;
+    const r = el.getBoundingClientRect();
+    peek = { cardId, x: r.left + r.width / 2, top: r.top, bottom: r.bottom };
+  }
+  function hidePeek() {
+    peek = null;
+  }
 </script>
 
 {#if session.draft.ruleset.enableCards}
@@ -32,7 +47,7 @@
     {#if hand.length === 0}
       <p class="empty">No cards. {t("action.buy_card")}: {t("cost.card")}</p>
     {/if}
-    <ul>
+    <ul onscroll={hidePeek}>
       {#each hand as cardId (cardId)}
         {#if cardId === HIDDEN_CARD}
           <li class="card back" aria-label={t("ui.hidden_card")}></li>
@@ -48,6 +63,10 @@
               aria-pressed={ui.cardId === cardId || discardSel.includes(cardId)}
               aria-label="{t(`card.${id}.name`)} ({t(`card.type.${def.type}`)}): {t(`card.${id}.rules`)}"
               onclick={() => click(cardId)}
+              onpointerenter={(e) => showPeek(e, cardId)}
+              onpointerleave={hidePeek}
+              onfocus={(e) => showPeek(e, cardId)}
+              onblur={hidePeek}
             >
               <span class="type">{t(`card.type.${def.type}`)}{def.timing.includes("reaction") ? " · reaction" : ""}</span>
               <strong>{t(`card.${id}.name`)}</strong>
@@ -58,6 +77,22 @@
         {/if}
       {/each}
     </ul>
+    {#if peek && hand.includes(peek.cardId)}
+      {@const def = session.ctx.cardOf(peek.cardId)}
+      {@const id = cardDefIdOf(peek.cardId)}
+      {@const above = peek.top > window.innerHeight * 0.4}
+      <div
+        class="card peek {def.type}"
+        class:above
+        style="--x: {peek.x}px; --y: {above ? peek.top : peek.bottom}px"
+        aria-hidden="true"
+      >
+        <span class="type">{t(`card.type.${def.type}`)}{def.timing.includes("reaction") ? " · reaction" : ""}</span>
+        <strong>{t(`card.${id}.name`)}</strong>
+        <span class="rules">{t(`card.${id}.rules`)}</span>
+        <em class="flavor">{t(`card.${id}.flavor`)}</em>
+      </div>
+    {/if}
     {#if discarding}
       <button class="primary" disabled={discardSel.length !== (legal?.mustDiscard ?? 0)} onclick={discard}>
         {t("action.discard")} {discardSel.length}/{legal?.mustDiscard}
@@ -73,13 +108,31 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
+  /* GameScreen sizes the hand; it fills that box and scrolls sideways.
+     --rules-lines and --flavor-display let a roomier container show whole
+     cards. A fixed-height container sets --cards-container: size, and the
+     row of cards then trims its rules text to the height it gets. */
+  .hand {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
   ul {
     list-style: none;
     display: flex;
+    flex: 1;
+    min-height: 0;
     gap: 0.5rem;
     margin: 0;
     padding: 0.2rem 0 0.4rem;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
+    container-name: cards;
+    container-type: var(--cards-container, normal);
+  }
+  li {
+    display: flex;
   }
   .empty {
     margin: 0;
@@ -87,8 +140,10 @@
     opacity: 0.7;
   }
   .card {
-    width: 10.5rem;
-    min-height: 8.5rem;
+    flex: none;
+    width: 12.5rem;
+    min-height: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
@@ -135,12 +190,68 @@
     letter-spacing: 0.06em;
     opacity: 0.7;
   }
+  strong {
+    font-size: 0.9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .rules {
     font-size: 0.78rem;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: var(--rules-lines, 3);
+    line-clamp: var(--rules-lines, 3);
+    overflow: hidden;
   }
   .flavor {
+    display: var(--flavor-display, none);
     font-size: 0.7rem;
     opacity: 0.65;
     margin-top: auto;
+  }
+  /* Large text or the Discard button leave less height: show fewer lines
+     of rules (the hover preview has them all) instead of cutting them off. */
+  @container cards (max-height: 6.85rem) {
+    .rules {
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+    }
+  }
+  @container cards (max-height: 5.8rem) {
+    .rules {
+      -webkit-line-clamp: 1;
+      line-clamp: 1;
+    }
+  }
+  @container cards (max-height: 4.75rem) {
+    .rules {
+      display: none;
+    }
+  }
+  .peek {
+    position: fixed;
+    z-index: 40;
+    left: clamp(0.5rem, calc(var(--x) - 7.5rem), calc(100vw - 15.5rem));
+    top: calc(var(--y) + 0.5rem);
+    width: 15rem;
+    opacity: 1;
+    box-shadow: 0 12px 32px #0004;
+    pointer-events: none;
+  }
+  .peek.above {
+    top: calc(var(--y) - 0.5rem);
+    translate: 0 -100%;
+  }
+  .peek strong {
+    white-space: normal;
+  }
+  .peek .rules {
+    display: block;
+    font-size: 0.85rem;
+  }
+  .peek .flavor {
+    display: block;
+    margin-top: 0.3rem;
   }
 </style>

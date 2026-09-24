@@ -168,8 +168,10 @@
   .title-screen {
     min-height: 100dvh;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     place-items: center;
-    padding: 1rem;
+    padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+      max(1rem, env(safe-area-inset-left));
     background:
       radial-gradient(ellipse at 50% 35%, #f4ecd2 0%, #e2d2a4 55%, #b9a06a 100%);
   }

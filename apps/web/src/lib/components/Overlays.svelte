@@ -120,6 +120,7 @@
     display: grid;
     place-items: center;
     z-index: 60;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   .curtain .card {
     text-align: center;
@@ -170,8 +171,8 @@
     margin: 0.2rem 0;
   }
   .close {
-    min-height: 32px;
-    min-width: 32px;
+    min-height: 44px;
+    min-width: 44px;
     padding: 0;
   }
 </style>
