@@ -1,0 +1,105 @@
+name: Build
+
+# On-demand installer builds without cutting a release: macOS (.dmg/.app,
+# universal), Linux (.deb + .AppImage) and Android (unsigned APK). Results are
+# attached to the run as artifacts. Start it from the Actions tab or with
+# `gh workflow run build.yml`.
+
+on:
+  workflow_dispatch:
+
+# Least privilege: builds only read the repository.
+permissions:
+  contents: read
+
+# Never cancel an in-progress build of the same ref.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  desktop:
+    name: Desktop (${{ matrix.name }})
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-14
+            args: "--target universal-apple-darwin --bundles app,dmg"
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            artifact: manors-menaces-macos
+            files: |
+              src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          - name: Linux
+            os: ubuntu-22.04
+            args: "--bundles deb,appimage"
+            rust-targets: ""
+            artifact: manors-menaces-linux
+            files: |
+              src-tauri/target/release/bundle/deb/*.deb
+              src-tauri/target/release/bundle/appimage/*.AppImage
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Linux system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm tauri build ${{ matrix.args }} --ci
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+          retention-days: 14
+
+  android:
+    name: Android (unsigned APK)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v4
+      - name: NDK
+        run: sdkmanager "ndk;29.0.14206865" "platforms;android-36" "build-tools;36.0.0"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+      - name: Build
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/29.0.14206865
+        run: pnpm tauri android build --apk --ci
+      - uses: actions/upload-artifact@v7
+        with:
+          name: manors-menaces-android
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+          if-no-files-found: error
+          retention-days: 14

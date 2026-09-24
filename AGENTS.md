@@ -24,6 +24,7 @@
 | Regenerate the map | `pnpm map:generate` (deterministic; commit the result) |
 | Build all targets | `scripts/build.sh [web] [server] [desktop] [android]` → `dist/` |
 | Release | `scripts/release.sh X.Y.Z [--push]` |
+| Installers without a release | `gh workflow run build.yml` → macOS `.dmg`, Linux `.deb`/`.AppImage`, Android `.apk` as run artifacts |
 
 ## Architecture rules (from the spec)
 
