@@ -1,0 +1,87 @@
+:root {
+  --font-display: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --paper: #fffaf0;
+  --parchment: #f2e6c8;
+  --wood: #5a3e22;
+  --ink: #2b2115;
+  --accent: #2f6b3a;
+  --accent-dark: #1d4524;
+  --text-scale: 1;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: calc(16px * var(--text-scale));
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--parchment);
+  overscroll-behavior: none;
+}
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
+}
+button {
+  min-height: 44px;
+  padding: 0.35rem 0.8rem;
+  border-radius: 9px;
+  border: 2px solid #8a7650;
+  background: #fffdf6;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  background: #fff4d6;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent-dark);
+  color: #fff;
+  font-weight: 600;
+}
+button.primary:hover:not(:disabled) {
+  background: #3a8047;
+}
+button.ghost {
+  background: transparent;
+}
+:focus-visible {
+  outline: 3px solid #1b5fd1;
+  outline-offset: 2px;
+}
+input,
+select {
+  min-height: 40px;
+  padding: 0.2rem 0.4rem;
+  border: 2px solid #8a7650;
+  border-radius: 7px;
+  background: #fffdf6;
+}
+.high-contrast {
+  --paper: #ffffff;
+  --parchment: #ffffff;
+  --ink: #000000;
+  --accent: #0036a3;
+  --accent-dark: #001f5c;
+}
+.high-contrast button {
+  border-color: #000;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

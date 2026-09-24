@@ -19,7 +19,7 @@ export const BALANCE = {
   market: { give: 3, receive: 1, maxTradesPerTurn: 2 },
   tradePostGive: 2,
   writ: { maxPerTurn: 1, requireSettled: true, bribeToOwner: true },
-  warden: { maxPerTurn: 1 },
+  warden: { maxPerTurn: 1, guard: true },
   handLimit: 7,
   maxNonReactionCardsPerTurn: 1,
   revealedQuestCount: 3,

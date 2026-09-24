@@ -1,0 +1,9 @@
+{
+  "name": "Manors & Menaces",
+  "short_name": "Manors",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f2e6c8",
+  "theme_color": "#2f5d34",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

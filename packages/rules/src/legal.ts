@@ -51,6 +51,8 @@ export interface LegalActionSummary {
   writTargets: string[];
   canIssueWrit: boolean;
   canHireWarden: boolean;
+  /** Menaces a Warden may move (not guarded by another player's Warden). */
+  wardenMenaces: string[];
   claimableQuests: QuestId[];
   mustDiscard: number;
   reactionCards: CardId[];
@@ -74,6 +76,7 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
     writTargets: [],
     canIssueWrit: false,
     canHireWarden: false,
+    wardenMenaces: [],
     claimableQuests: [],
     mustDiscard: 0,
     reactionCards: [],
@@ -137,8 +140,10 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
     writTargets.length > 0 &&
     p.resources.essence >= 1 &&
     Object.values(p.resources).reduce((a, b) => a + b, 0) >= 2;
-  const canHireWarden =
-    r.warden.enabled && p.wardensHiredThisTurn < r.warden.maxPerTurn && Object.keys(state.menaces).length > 0 && canAfford(p.resources, BALANCE.costs.warden);
+  const wardenMenaces = Object.values(state.menaces)
+    .filter((m) => !(r.warden.guard && m.state.guardedBy && m.state.guardedBy !== playerId))
+    .map((m) => m.id);
+  const canHireWarden = r.warden.enabled && p.wardensHiredThisTurn < r.warden.maxPerTurn && wardenMenaces.length > 0 && canAfford(p.resources, BALANCE.costs.warden);
   const canBuyCard = r.enableCards && state.cardDeck.length + state.discardPile.length > 0 && canAfford(p.resources, BALANCE.costs.card);
   const playableCards =
     r.enableCards && p.nonReactionCardsPlayedThisTurn < r.maxNonReactionCardsPerTurn
@@ -159,6 +164,7 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
     writTargets,
     canIssueWrit,
     canHireWarden,
+    wardenMenaces,
     claimableQuests,
   };
 }

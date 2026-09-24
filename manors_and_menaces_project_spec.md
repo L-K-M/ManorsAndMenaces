@@ -399,7 +399,7 @@ For the first implementation, use one fixed board rather than procedural generat
 Recommended topology:
 
 - 36 Sites;
-- about 52 Routes;
+- about 44 Routes;
 - 24 Regions;
 - 5 resource types;
 - 5 landmark Sites;
@@ -1134,7 +1134,10 @@ Any player may move a Menace as a Main Action, without a card.
 
 **Cost:** 1 Essence + 1 Grain.  
 **Effect:** move one active Menace to another legal location for its type.  
-**Limit:** once per player per turn.
+**Limit:** once per player per turn.  
+**Guard:** the Warden stays with the Menace. Until the start of the hirer's next turn, no other player may move that Menace with a Warden. Cards can still move it. (`RulesetConfig.warden.guard`, default on.)
+
+Why the guard: in simulated 4-player games without it, each player hurt by a Menace paid 2 resources to push it onto someone else. That produced about 46 Warden hires per game and slowed every economy. The guard cut this to about 27, and turns interference into a choice about timing.
 
 This counts as moving a Menace for Quests such as Monster Problems and The Safer Road.
 
@@ -4117,6 +4120,7 @@ The first milestone is a complete, testable, local game loop that proves the Ban
 | A 24-Site map fits about 10–11 Holdings, too few to reach the Renown target from buildings | 36 Sites, about 52 Routes, 24 Regions, and a sizing check (§11.1, §102) | Catan's board-to-player ratio (54 intersections for 3–4 players) |
 | The MVP target of 12 Renown could not be reached without Quests | MVP target 10 (§7.1) | Catan and Kolonists both target 10, with 2–4 points in Catan coming from sources other than buildings |
 | The first player also chose initial Banners first | Initial Banners assigned in reverse turn order (§28.4) | Catan's snake setup |
+| Players kept moving Menaces back and forth with Wardens (simulation) | A Warden guards its Menace until the hirer's next turn (§26.1) | Catan's robber stays put until the next 7 or knight |
 
 ## 129.2 Open design question: displacement protection
 
@@ -4129,6 +4133,14 @@ The Royal Writ must stop Regions from being held forever without turning Banner 
 | C — no bribe | Settled only; 2 resources to the supply | Harsher; the defender gets nothing | Feels punitive, and against the "reversible disruption" pillar (§2.3) |
 | D — scaled cost | Cost +1 for each consecutive Harvest the occupant has had there | Long holds get cheaper to defend over time, which creates a sense of tenure | More to explain; the Harvest preview must show the Writ price |
 | E — defender response | Defender may pay the same cost to cancel the Writ (a reaction window) | A direct bidding contest | Needs reaction windows, so it does not work in async play (§109) |
+
+Warden variants, configurable through `RulesetConfig.warden`:
+
+| Variant | Rule | Notes |
+|---|---|---|
+| **Guard (default)** | The hirer's Warden guards the Menace until the hirer's next turn | Stops back-and-forth moves |
+| No guard | Any player may move it again at once | Simulations showed back-and-forth moves in 3–4 player games |
+| Costlier | 1 Essence + 1 Grain + 1 Iron | An alternative lever if the guard feels fiddly |
 
 Recommendation: ship **A** in the MVP, and log the telemetry in §67 and the balance targets in §68. If Regions still stay with one player for too long, try B. If players complain about harassment, try D. Do not use E until reaction windows exist.
 
@@ -4148,3 +4160,21 @@ Recommendation: ship **A** in the MVP, and log the telemetry in §67 and the bal
 - Content definitions use localization keys, not display text (§39–41, §71).
 - RNG: `nextFloat` is defined, and rules outcomes are integer-only (§65).
 - Route placement condition 3 was vague; it is replaced by the Network Site definition (§13.2).
+
+## 129.4 Simulation findings (v0.2 implementation)
+
+`pnpm simulate` plays AI-vs-AI games on the Greenvale map (normal AI). Results for the current build:
+
+| Mode | Turns per player (avg) | Winner Renown source | Writs / game | Wardens / game | Notes |
+|---|---:|---|---:|---:|---|
+| MVP, 3 players | ~14–16 | all from Holdings | ~4 | ~12 | Within the 12–16 target |
+| Standard, 3 players | ~19 | ~9.5 Holdings + ~3.3 Quests | ~6 | ~19 | Above target |
+| Standard, 4 players | ~23 | ~9.8 Holdings + ~2.7 Quests | ~22 | ~27 | Above target; first seat wins more often |
+
+The AI is a heuristic player and is weaker than people at planning. These numbers are therefore an upper bound on game length, not a verdict. Levers to try in human playtests if standard games run long:
+
+1. Target 10 Renown for 4 players (`targetRenown`).
+2. Start with 1 extra Grain, or add a third starting Banner (a Stronghold-lite starting Manor).
+3. Reveal 4 Quests instead of 3 (`revealedQuestCount`).
+4. Harvest averages 2–4 per turn, below the §68 targets (3–5 mid, 4–7 late). Consider a rich-Region share above 20%.
+

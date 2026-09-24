@@ -17,10 +17,16 @@
     "format": "prettier --write .",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "server": "pnpm --filter @manors-menaces/server start",
-    "map:generate": "node tools/generate-map.mjs"
+    "map:generate": "node tools/generate-map.mjs",
+    "simulate": "tsx tools/simulate.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@manors-menaces/ai": "workspace:*",
+    "@manors-menaces/content": "workspace:*",
+    "@manors-menaces/protocol": "workspace:*",
+    "@manors-menaces/rules": "workspace:*",
+    "esbuild": "^0.28.2",
     "eslint": "^10.11.0",
     "eslint-plugin-svelte": "^3.23.0",
     "fast-check": "^4.10.2",
@@ -28,6 +34,7 @@
     "prettier": "^3.9.9",
     "prettier-plugin-svelte": "^4.1.1",
     "svelte-eslint-parser": "^1.8.1",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.1",
     "vitest": "^5.0.1"

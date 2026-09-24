@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const args = process.argv.slice(2);
-const SEED = Number(args[args.indexOf("--seed") + 1]) || 20260924;
+const SEED = Number(args[args.indexOf("--seed") + 1]) || 14;
 const CHECK_ONLY = args.includes("--check");
 
 const W = 1600;
@@ -54,13 +54,22 @@ const shuffle = (arr) => {
 };
 
 // ------------------------------------------------------------ geometry utils
+// Irregular island outline: an ellipse with low-frequency bulges and bays so
+// the realm reads as an illustrated map rather than a geometric shape (§10).
+const PHASES = [rand() * 6.28, rand() * 6.28, rand() * 6.28];
+const coastRadius = (a) =>
+  1 + 0.075 * Math.sin(3 * a + PHASES[0]) + 0.045 * Math.sin(5 * a + PHASES[1]) + 0.025 * Math.sin(9 * a + PHASES[2]);
 const island = [];
-for (let i = 0; i < 72; i++) {
-  const a = (i / 72) * Math.PI * 2;
-  island.push([CX + RX * Math.cos(a), CY + RY * Math.sin(a)]);
+for (let i = 0; i < 180; i++) {
+  const a = (i / 180) * Math.PI * 2;
+  const k = coastRadius(a);
+  island.push([CX + RX * k * Math.cos(a), CY + RY * k * Math.sin(a)]);
 }
-const insideEllipse = ([x, y], shrink = 1) =>
-  ((x - CX) / (RX * shrink)) ** 2 + ((y - CY) / (RY * shrink)) ** 2 <= 1;
+const insideEllipse = ([x, y], shrink = 1) => {
+  const a = Math.atan2((y - CY) / RY, (x - CX) / RX);
+  const k = coastRadius(a) * shrink;
+  return ((x - CX) / (RX * k)) ** 2 + ((y - CY) / (RY * k)) ** 2 <= 1;
+};
 
 function clipHalfPlane(poly, p, q) {
   // Keep the side of the perpendicular bisector of p–q that contains p.

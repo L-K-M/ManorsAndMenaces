@@ -128,6 +128,16 @@ export const EN: Record<string, string> = {
   "action.play": "Play",
   "action.discard": "Discard",
   "action.confirm": "Confirm",
+  "action.send_home": "Send home",
+  "action.reset": "Reset",
+
+  "status.game_over": "The game is over.",
+  "status.waiting_device": "Waiting for {name} to take the device…",
+  "status.thinking": "{name} is thinking…",
+  "status.waiting_remote": "Waiting for {name}…",
+  "status.trades_left": "{count} left",
+  "status.decision": "A decision is needed…",
+  "status.no_banners": "You have no Banners.",
 
   "cost.route": "1 Timber + 1 Stone",
   "cost.manor": "1 Grain + 1 Timber + 1 Stone",
@@ -179,6 +189,7 @@ export const EN: Record<string, string> = {
   "error.BANNER_NOT_SETTLED": "That Banner hasn't harvested yet and is protected.",
   "error.WRIT_LIMIT_REACHED": "You've already issued a Royal Writ this turn.",
   "error.WARDEN_LIMIT_REACHED": "You've already hired a Warden this turn.",
+  "error.MENACE_GUARDED": "Another player's Warden is guarding that Menace until their next turn.",
   "error.MARKET_LIMIT_REACHED": "No trades left this turn.",
   "error.NO_TRADE_POST": "You don't hold that Trading Post.",
   "error.INVALID_TRADE": "That trade isn't allowed.",
@@ -221,6 +232,24 @@ export const EN: Record<string, string> = {
   "log.fog": "{name} shrouded a Route in fog.",
   "log.prophecy": "{name} consulted a very minor prophecy.",
   "log.discard": "{name} discarded a card.",
+
+
+  // ---------------------------------------------------------------- hints
+  "hint.setup_manor": "Choose a highlighted Site for your Manor.",
+  "hint.setup_route": "Choose a highlighted Route leading from your new Manor.",
+  "hint.banner_select": "Select one of your Banners (flags) to move it.",
+  "hint.banner_region": "Choose a highlighted Region for this Banner — or send it home.",
+  "hint.route": "Choose a highlighted Route to build.",
+  "hint.manor": "Choose a highlighted Site for your new Manor.",
+  "hint.upgrade": "Choose one of your Manors to upgrade.",
+  "hint.writ": "Choose an opponent's settled Banner next to your Holdings.",
+  "hint.warden_menace": "Choose a Menace to move.",
+  "hint.warden_destination": "Choose where the Menace goes.",
+  "hint.card_banner": "Choose a Banner.",
+  "hint.card_region": "Choose a Region.",
+  "hint.card_menace": "Choose a Menace.",
+  "hint.card_route": "Choose a Route.",
+  "hint.card_location": "Choose a destination.",
 
   // ---------------------------------------------------------------- tutorial (§55)
   "tutorial.1": "Holdings (Manors and Strongholds) each raise Banners — flags you plant in neighbouring Regions.",

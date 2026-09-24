@@ -430,6 +430,8 @@ function startTurn(tx: Tx, playerId: PlayerId): void {
     s.activeEffects = s.activeEffects.filter((e) => !(e.kind === "fog" && e.sourcePlayerId === playerId));
     tx.emit({ type: "effect_expired", effect: "fog", playerId });
   }
+  // A Warden's guard lasts until the start of its hirer's next turn (§26.1).
+  for (const m of Object.values(s.menaces)) if (m.state.guardedBy === playerId) delete m.state.guardedBy;
   tx.emit({ type: "turn_started", playerId, turnNumber: s.turnNumber, round: s.round });
   const p = tx.player(playerId);
   s.phase = "harvest";
@@ -638,6 +640,7 @@ function hireWarden(tx: Tx, playerId: PlayerId, menaceId: string, destination: u
   check(p.wardensHiredThisTurn < s.ruleset.warden.maxPerTurn, "WARDEN_LIMIT_REACHED");
   const m = s.menaces[menaceId];
   check(m, "UNKNOWN_ENTITY", "menace");
+  check(!(s.ruleset.warden.guard && m.state.guardedBy && m.state.guardedBy !== playerId), "MENACE_GUARDED");
   check(destination && typeof destination === "object", "ILLEGAL_MENACE_TARGET");
   const dest = destination as MenaceInstance["location"];
   check(isLegalMenaceDestination(tx.ctx, s, menaceId, dest), "ILLEGAL_MENACE_TARGET");
@@ -645,6 +648,7 @@ function hireWarden(tx: Tx, playerId: PlayerId, menaceId: string, destination: u
   p.wardensHiredThisTurn += 1;
   tx.emit({ type: "warden_hired", playerId, menaceId });
   tx.moveMenace(playerId, m, clone(dest));
+  if (s.ruleset.warden.guard) m.state.guardedBy = playerId;
 }
 
 // ------------------------------------------------------------------ cards (§18)

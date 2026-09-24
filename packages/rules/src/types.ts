@@ -137,7 +137,7 @@ export interface RulesetConfig {
   enableTradePosts: boolean;
   market: { give: number; receive: number; maxTradesPerTurn: number };
   writ: { enabled: boolean; requireSettled: boolean; bribeToOwner: boolean; maxPerTurn: number };
-  warden: { enabled: boolean; maxPerTurn: number };
+  warden: { enabled: boolean; maxPerTurn: number; guard: boolean };
   handLimit: number;
   maxNonReactionCardsPerTurn: number;
   revealedQuestCount: number;
@@ -183,7 +183,11 @@ export interface MenaceInstance {
   id: MenaceId;
   type: MenaceType;
   location: MenaceLocation;
-  state: { hoard?: Partial<Record<ResourceType, number>> };
+  state: {
+    hoard?: Partial<Record<ResourceType, number>>;
+    /** §26.1: moved by this player's Warden; other Wardens cannot move it until that player's next turn. */
+    guardedBy?: PlayerId;
+  };
 }
 
 export interface PlayerStats {
