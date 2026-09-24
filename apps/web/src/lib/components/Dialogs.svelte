@@ -1,7 +1,7 @@
 <script lang="ts">
   import { BALANCE, RESOURCE_TYPES, cardDefIdOf, type LegalActionSummary, type ResourceType } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
-  import { finishCardWith } from "../game/interaction.js";
+  import { ACTION_LABEL, availabilityFor, finishCardWith, legalFor, startAction } from "../game/interaction.js";
   import { regionName } from "../game/log.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { resetTool, ui } from "../stores/ui.svelte.js";
@@ -21,14 +21,33 @@
     for (const p of legal.tradePosts) out.push({ resource: p.resource, amount: p.give, via: p.siteId });
     return out;
   });
+  // "Trade to afford": the next trade that makes the goal action affordable.
+  const goal = $derived(ui.dialog === "market" && ui.marketGoal ? ui.marketGoal : null);
+  const goalAvailability = $derived(goal ? availabilityFor(session, legal)?.[goal] : undefined);
+  const suggestion = $derived(goalAvailability?.fixByTrade?.[0] ?? null);
+  function preselect() {
+    if (!suggestion) return;
+    give = suggestion.give;
+    via = suggestion.tradePostSiteId ?? null;
+  }
+  $effect(preselect);
   async function trade(receive: ResourceType) {
-    if (!give) return;
+    if (!give || !legal) return;
+    // Read before trading: `legal` is recomputed as soon as the trade applies.
+    const leftBefore = legal.marketTradesLeft;
+    const target = goal;
     const ok = await session.perform({ type: "trade", give, receive, ...(via ? { tradePostSiteId: via } : {}) });
-    if (ok) {
-      give = null;
-      via = null;
-      if ((legal?.marketTradesLeft ?? 1) <= 1) ui.dialog = null;
+    if (!ok) return;
+    give = null;
+    via = null;
+    if (target && availabilityFor(session, legalFor(session))?.[target].ok) {
+      // The goal is affordable now: close and get on with it (a card is not bought unasked).
+      close();
+      if (target !== "card" && target !== "market") await startAction(session, target);
+      return;
     }
+    if (leftBefore <= 1) close();
+    else preselect();
   }
 
   // ---------------------------------------------------------------- writ
@@ -74,6 +93,7 @@
   }
   const close = () => {
     ui.dialog = null;
+    ui.marketGoal = null;
     give = null;
     via = null;
   };
@@ -81,12 +101,22 @@
 
 {#if ui.dialog === "market" && legal?.mode === "main"}
   <Modal title={t("action.trade")} onclose={close}>
-    <p class="help">{t("help.market")} {t("status.trades_left", { count: legal.marketTradesLeft })}.</p>
+    <p class="help">{t("help.market")} <b class="left">{t("status.trades_left", { count: legal.marketTradesLeft })}</b></p>
+    {#if goal && suggestion}
+      <p class="goal">
+        {t("ui.market_goal", {
+          action: t(ACTION_LABEL[goal]),
+          give: `${giveOptions.find((o) => o.resource === suggestion.give && o.via === (suggestion.tradePostSiteId ?? null))?.amount ?? gs.ruleset.market.give} ${t(`resource.${suggestion.give}`)}`,
+          receive: t(`resource.${suggestion.receive}`),
+        })}
+      </p>
+    {/if}
     <h4>{t("ui.give")}</h4>
     <div class="grid">
       {#each giveOptions as o}
         <button class:on={give === o.resource && via === o.via} onclick={() => ((give = o.resource), (via = o.via))}>
-          {o.amount}× <ResourceIcon resource={o.resource} /> {t(`resource.${o.resource}`)}{o.via ? " (Trading Post)" : ""}
+          {o.amount}× <ResourceIcon resource={o.resource} /> {t(`resource.${o.resource}`)}{o.via ? ` (${t("ui.trading_post")})` : ""}
+          <small class="have">{t("ui.you_have", { count: me?.resources[o.resource] ?? 0 })}</small>
         </button>
       {/each}
       {#if giveOptions.length === 0}<p>{t("ui.you_need_3_of_one")}</p>{/if}
@@ -95,7 +125,10 @@
       <h4>{t("ui.receive_1")}</h4>
       <div class="grid">
         {#each RESOURCE_TYPES.filter((r) => r !== give) as r}
-          <button onclick={() => trade(r)}><ResourceIcon resource={r} /> {t(`resource.${r}`)}</button>
+          {@const suggested = suggestion?.give === give && suggestion.receive === r}
+          <button class:suggested onclick={() => trade(r)}>
+            <ResourceIcon resource={r} /> {t(`resource.${r}`)}{#if suggested}<small class="have">{t("ui.suggested")}</small>{/if}
+          </button>
         {/each}
       </div>
     {/if}
@@ -199,6 +232,29 @@
   .grid button.on {
     background: var(--accent);
     color: #fff;
+  }
+  .grid button.suggested {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  .have {
+    font-size: 0.72rem;
+    opacity: 0.8;
+  }
+  .grid button.on .have {
+    opacity: 0.9;
+  }
+  .left {
+    white-space: nowrap;
+  }
+  .goal {
+    margin: 0.2rem 0 0.4rem;
+    padding: 0.35rem 0.55rem;
+    border-left: 4px solid var(--accent);
+    background: #eaf3e6;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
   }
   .order {
     padding-left: 1.2rem;

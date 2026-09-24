@@ -54,7 +54,6 @@ async function completeSetup(page: Page) {
 
 async function endTurn(page: Page) {
   await page.getByRole("button", { name: /Assign Banners →/ }).click();
-  await page.getByRole("button", { name: /Confirm Banners/ }).click();
   await page.getByRole("button", { name: /End Turn/ }).click();
 }
 

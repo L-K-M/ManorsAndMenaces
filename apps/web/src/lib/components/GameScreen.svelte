@@ -110,7 +110,9 @@
   <aside class="side" class:open={panelOpen}>
     <div class="tabs" role="tablist">
       <button role="tab" aria-selected={ui.panel === "players"} onclick={() => (ui.panel = "players")}>{t("ui.players")}</button>
-      <button role="tab" aria-selected={ui.panel === "quests"} onclick={() => (ui.panel = "quests")}>{t("ui.quests")}</button>
+      <button role="tab" aria-selected={ui.panel === "quests"} onclick={() => (ui.panel = "quests")}>
+        {t("ui.quests")}{#if legal?.claimableQuests.length}<span class="badge" title={t("status.claimable_quests", { count: legal.claimableQuests.length })}>{legal.claimableQuests.length}</span>{/if}
+      </button>
       <button role="tab" aria-selected={ui.panel === "log"} onclick={() => (ui.panel = "log")}>{t("ui.chronicle")}</button>
     </div>
     <div class="tabpanel">
@@ -251,6 +253,20 @@
   .tabs button[aria-selected="true"] {
     background: var(--accent);
     color: #fff;
+  }
+  .badge {
+    display: inline-grid;
+    place-items: center;
+    min-width: 1.3em;
+    height: 1.3em;
+    margin-left: 0.35em;
+    padding: 0 0.3em;
+    border-radius: 999px;
+    background: #d19a12;
+    color: #fff;
+    font-size: 0.75em;
+    font-weight: 700;
+    vertical-align: 0.1em;
   }
   .panel-toggle {
     display: none;

@@ -6,9 +6,10 @@ import { validateCardTarget } from "./cards.js";
 import type { RulesContext } from "./context.js";
 import { RuleViolation } from "./errors.js";
 import { getQuestProgress } from "./quests.js";
-import { canAfford } from "./resources.js";
+import { canAfford, totalResources } from "./resources.js";
 import {
   canAffordBuild,
+  type BuildCheck,
   checkBuildManor,
   checkBuildRoute,
   checkUpgrade,
@@ -18,7 +19,19 @@ import {
   getWritTargets,
   holdingAt,
 } from "./selectors.js";
-import type { CardId, CardTarget, GameState, PlayerId, QuestId, ResourceType, RouteId, SiteId } from "./types.js";
+import {
+  RESOURCE_TYPES,
+  type CardId,
+  type CardTarget,
+  type GameState,
+  type PlayerId,
+  type QuestId,
+  type ResourceCost,
+  type ResourceType,
+  type Resources,
+  type RouteId,
+  type SiteId,
+} from "./types.js";
 
 export type ActionMode =
   | "none"
@@ -127,12 +140,7 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
     });
   const marketTradesLeft = Math.max(0, r.market.maxTradesPerTurn - p.marketTradesThisTurn);
   const marketGive = (Object.keys(p.resources) as ResourceType[]).filter((res) => p.resources[res] >= r.market.give);
-  const tradePosts = r.enableTradePosts
-    ? getPlayerHoldings(state, playerId)
-        .map((h) => ({ siteId: h.siteId, post: ctx.board.site(h.siteId).tradePost }))
-        .filter((x): x is { siteId: SiteId; post: NonNullable<typeof x.post> } => !!x.post)
-        .map((x) => ({ siteId: x.siteId, resource: x.post.resource, give: x.post.give }))
-    : [];
+  const tradePosts = ownedTradePosts(ctx, state, playerId);
   const writTargets = r.writ.enabled ? getWritTargets(ctx, state, playerId) : [];
   const canIssueWrit =
     r.writ.enabled &&
@@ -169,6 +177,15 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
     wardenMenaces,
     claimableQuests,
   };
+}
+
+/** Trading Posts the player holds, whether or not they can pay for a trade now. */
+function ownedTradePosts(ctx: RulesContext, state: GameState, playerId: PlayerId): LegalActionSummary["tradePosts"] {
+  if (!state.ruleset.enableTradePosts) return [];
+  return getPlayerHoldings(state, playerId)
+    .map((h) => ({ siteId: h.siteId, post: ctx.board.site(h.siteId).tradePost }))
+    .filter((x): x is { siteId: SiteId; post: NonNullable<typeof x.post> } => !!x.post)
+    .map((x) => ({ siteId: x.siteId, resource: x.post.resource, give: x.post.give }));
 }
 
 /** All valid targets for a card in hand (used by the AI and UI pickers). */
@@ -234,6 +251,209 @@ export function enumerateCardTargets(ctx: RulesContext, state: GameState, player
       throw e;
     }
   });
+}
+
+// ------------------------------------------------------------------ availability
+
+/** The Main-phase actions a UI offers as tools. */
+export type PlayerAction = "route" | "manor" | "upgrade" | "market" | "writ" | "warden" | "card";
+
+export const PLAYER_ACTIONS: readonly PlayerAction[] = ["route", "manor", "upgrade", "market", "writ", "warden", "card"];
+
+/** Why an action is unavailable right now, most fundamental first. */
+export type UnavailableReason =
+  | "WRONG_PHASE"
+  | "FEATURE_DISABLED"
+  | "LIMIT_REACHED"
+  | "NO_TARGET"
+  | "DECK_EMPTY"
+  | "NO_TRADE_GIVE"
+  | "NEED_RESOURCES";
+
+export interface MarketTrade {
+  give: ResourceType;
+  receive: ResourceType;
+  tradePostSiteId?: SiteId;
+}
+
+export interface ActionAvailability {
+  ok: boolean;
+  reason?: UnavailableReason;
+  /** Fixed price (without tolls or surcharges), for have/need displays. */
+  cost: ResourceCost;
+  /** Resources of the payer's choice always owed on top (the Writ bribe). */
+  extraAny: number;
+  /** NEED_RESOURCES: the shortfall for the cheapest legal target. */
+  missing?: ResourceCost;
+  /** NEED_RESOURCES: resources of any kind still owed (toll, surcharge, bribe). */
+  missingAny?: number;
+  /** Trades this turn still allows after which the action is affordable. */
+  fixByTrade?: MarketTrade[];
+  /** Market only: trades left this turn. */
+  tradesLeft?: number;
+}
+
+/** A price: a fixed cost plus some resources of the payer's choice. */
+interface Price {
+  cost: ResourceCost;
+  any: number;
+}
+
+function costTotal(cost: ResourceCost): number {
+  return RESOURCE_TYPES.reduce((s, r) => s + (cost[r] ?? 0), 0);
+}
+
+function canPay(have: Resources, price: Price): boolean {
+  return canAfford(have, price.cost) && totalResources(have) - costTotal(price.cost) >= price.any;
+}
+
+function shortfall(have: Resources, price: Price): { missing: ResourceCost; missingAny: number } {
+  const missing: ResourceCost = {};
+  let leftover = 0;
+  for (const r of RESOURCE_TYPES) {
+    const need = price.cost[r] ?? 0;
+    if (have[r] < need) missing[r] = need - have[r];
+    else leftover += have[r] - need;
+  }
+  return { missing, missingAny: Math.max(0, price.any - leftover) };
+}
+
+/** Distinct prices of a build's legal targets (tolls and surcharges vary per target). */
+function buildPrices(checks: BuildCheck[]): Price[] {
+  const seen = new Map<string, Price>();
+  for (const c of checks) {
+    if (!c.legal) continue;
+    const any = (c.needsToll ? BALANCE.costs.toll : 0) + (c.needsSurcharge ? BALANCE.costs.goblinSurcharge : 0);
+    seen.set(`${JSON.stringify(c.cost)}:${any}`, { cost: c.cost, any });
+  }
+  return [...seen.values()];
+}
+
+/**
+ * Trades payable from `have`: Trading Posts first because they are cheaper,
+ * then the Market, giving away what the player holds most of.
+ */
+function tradeOptions(state: GameState, have: Resources, posts: LegalActionSummary["tradePosts"]): { trade: MarketTrade; give: number }[] {
+  const out: { trade: MarketTrade; give: number }[] = [];
+  for (const p of posts) {
+    if (have[p.resource] < p.give) continue;
+    for (const r of RESOURCE_TYPES) if (r !== p.resource) out.push({ trade: { give: p.resource, receive: r, tradePostSiteId: p.siteId }, give: p.give });
+  }
+  const give = state.ruleset.market.give;
+  const byStock = [...RESOURCE_TYPES].sort((a, b) => have[b] - have[a]);
+  for (const g of byStock) {
+    if (have[g] < give) continue;
+    for (const r of RESOURCE_TYPES) if (r !== g) out.push({ trade: { give: g, receive: r }, give });
+  }
+  return out;
+}
+
+/** The shortest run of at most `left` trades after which one of `prices` is payable. */
+function findTradeFix(
+  state: GameState,
+  have: Resources,
+  prices: Price[],
+  posts: LegalActionSummary["tradePosts"],
+  left: number,
+): MarketTrade[] | undefined {
+  const receive = state.ruleset.market.receive;
+  let frontier: { have: Resources; trades: MarketTrade[] }[] = [{ have, trades: [] }];
+  for (let depth = 0; depth < left; depth++) {
+    const next: typeof frontier = [];
+    for (const node of frontier) {
+      for (const o of tradeOptions(state, node.have, posts)) {
+        const after = { ...node.have, [o.trade.give]: node.have[o.trade.give] - o.give };
+        after[o.trade.receive] += receive;
+        const trades = [...node.trades, o.trade];
+        if (prices.some((p) => canPay(after, p))) return trades;
+        next.push({ have: after, trades });
+      }
+    }
+    frontier = next;
+  }
+  return undefined;
+}
+
+/**
+ * Whether each Main-phase action is available to the player and, if not, why.
+ * UIs render the reason instead of re-deriving legality (spec §103). For
+ * NEED_RESOURCES it adds the shortfall of the cheapest target and, when the
+ * trades left this turn would cover it, which trades to make.
+ */
+export function getActionAvailability(ctx: RulesContext, state: GameState, playerId: PlayerId): Record<PlayerAction, ActionAvailability> {
+  const legal = getLegalActions(ctx, state, playerId);
+  const p = state.players[playerId];
+  const r = state.ruleset;
+  const fixed: Record<PlayerAction, Price> = {
+    route: { cost: BALANCE.costs.route, any: 0 },
+    manor: { cost: BALANCE.costs.manor, any: 0 },
+    upgrade: { cost: BALANCE.costs.stronghold, any: 0 },
+    market: { cost: {}, any: 0 },
+    writ: { cost: BALANCE.costs.royalWrit, any: BALANCE.costs.royalWritBribe },
+    warden: { cost: BALANCE.costs.warden, any: 0 },
+    card: { cost: BALANCE.costs.card, any: 0 },
+  };
+  const tradesLeft = legal.mode === "main" ? legal.marketTradesLeft : 0;
+  const out = Object.fromEntries(
+    PLAYER_ACTIONS.map((a): [PlayerAction, ActionAvailability] => [
+      a,
+      { ok: false, cost: { ...fixed[a].cost }, extraAny: fixed[a].any, ...(a === "market" ? { tradesLeft } : {}) },
+    ]),
+  ) as Record<PlayerAction, ActionAvailability>;
+  if (!p || legal.mode !== "main") {
+    for (const a of PLAYER_ACTIONS) out[a].reason = "WRONG_PHASE";
+    return out;
+  }
+
+  // Obstacles that resources cannot fix come first; `prices` holds what the
+  // remaining actions would cost (one entry per distinct target price).
+  const blocked: Partial<Record<PlayerAction, UnavailableReason>> = {};
+  const prices: Partial<Record<PlayerAction, Price[]>> = {
+    route: buildPrices(ctx.board.topology.routes.map((x) => checkBuildRoute(ctx, state, playerId, x.id))),
+    manor: buildPrices(ctx.board.topology.sites.map((x) => checkBuildManor(ctx, state, playerId, x.id))),
+    upgrade: buildPrices(getPlayerHoldings(state, playerId).map((h) => checkUpgrade(state, playerId, h.siteId))),
+  };
+  for (const a of ["route", "manor", "upgrade"] as const) if (prices[a]?.length === 0) blocked[a] = "NO_TARGET";
+
+  if (tradesLeft === 0) blocked.market = "LIMIT_REACHED";
+  else if (legal.marketGive.length + legal.tradePosts.length === 0) blocked.market = "NO_TRADE_GIVE";
+
+  if (!r.writ.enabled) blocked.writ = "FEATURE_DISABLED";
+  else if (p.writsIssuedThisTurn >= r.writ.maxPerTurn) blocked.writ = "LIMIT_REACHED";
+  else if (legal.writTargets.length === 0) blocked.writ = "NO_TARGET";
+  else prices.writ = [fixed.writ];
+
+  if (!r.warden.enabled) blocked.warden = "FEATURE_DISABLED";
+  else if (p.wardensHiredThisTurn >= r.warden.maxPerTurn) blocked.warden = "LIMIT_REACHED";
+  else if (legal.wardenMenaces.length === 0) blocked.warden = "NO_TARGET";
+  else prices.warden = [fixed.warden];
+
+  if (!r.enableCards) blocked.card = "FEATURE_DISABLED";
+  else if (state.cardDeck.length + state.discardPile.length === 0) blocked.card = "DECK_EMPTY";
+  else prices.card = [fixed.card];
+
+  const posts = ownedTradePosts(ctx, state, playerId);
+  for (const a of PLAYER_ACTIONS) {
+    const reason = blocked[a];
+    if (reason) {
+      out[a].reason = reason;
+      continue;
+    }
+    const options = prices[a];
+    if (!options || options.some((price) => canPay(p.resources, price))) {
+      out[a].ok = true;
+      continue;
+    }
+    const gaps = options.map((price) => shortfall(p.resources, price));
+    const size = (g: (typeof gaps)[number]) => costTotal(g.missing) + g.missingAny;
+    const best = gaps.reduce((x, y) => (size(y) < size(x) ? y : x));
+    out[a].reason = "NEED_RESOURCES";
+    out[a].missing = best.missing;
+    out[a].missingAny = best.missingAny;
+    const fix = findTradeFix(state, p.resources, options, posts, tradesLeft);
+    if (fix) out[a].fixByTrade = fix;
+  }
+  return out;
 }
 
 export { holdingAt };
