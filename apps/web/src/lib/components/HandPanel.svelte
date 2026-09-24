@@ -2,13 +2,21 @@
   import { cardDefIdOf, HIDDEN_CARD, type LegalActionSummary } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { startCard } from "../game/interaction.js";
-  import type { GameSession } from "../game/session.svelte.js";
+  import { currentActor, type GameSession } from "../game/session.svelte.js";
   import { ui, resetTool } from "../stores/ui.svelte.js";
 
   let { session, legal }: { session: GameSession; legal: LegalActionSummary | null } = $props();
   const viewer = $derived(session.viewerId);
   const hand = $derived(viewer ? (session.draft.players[viewer]?.hand ?? []) : []);
   let discardSel: string[] = $state([]);
+  // With no viewer (hot-seat AI turn or curtain) no hand is shown at all.
+  const hiddenNote = $derived.by(() => {
+    if (viewer || session.transport.kind !== "local") return null;
+    const waiting = session.curtainFor ?? currentActor(session.draft);
+    if (!waiting) return null;
+    const name = session.draft.players[waiting]?.displayName ?? "";
+    return session.curtainFor ? t("ui.hands_hidden_curtain", { name }) : t("ui.hands_hidden_ai", { name });
+  });
 
   const playable = $derived(new Set(legal?.playableCards ?? []));
   const discarding = $derived(legal?.mode === "end" && legal.mustDiscard > 0);
@@ -28,8 +36,19 @@
 
 {#if session.draft.ruleset.enableCards}
   <section class="hand" aria-label={t("ui.your_hand")}>
-    <h3>{viewer ? `${session.draft.players[viewer]?.displayName}'s hand` : "Hand"} <small>({hand.length}/{session.draft.ruleset.handLimit})</small></h3>
-    {#if hand.length === 0}
+    <h3>
+      {viewer ? t("ui.players_hand", { name: session.draft.players[viewer]?.displayName ?? "" }) : t("ui.hand")}
+      {#if viewer}<small>({hand.length}/{session.draft.ruleset.handLimit})</small>{/if}
+    </h3>
+    {#if hiddenNote}
+      <p class="empty hidden">
+        <svg class="lock" width="14" height="16" viewBox="0 0 14 16" aria-hidden="true">
+          <path d="M3.5 7V4.5a3.5 3.5 0 0 1 7 0V7" fill="none" stroke="currentColor" stroke-width="1.8" />
+          <rect x="1" y="7" width="12" height="8.5" rx="1.8" fill="currentColor" />
+        </svg>
+        {hiddenNote}
+      </p>
+    {:else if viewer && hand.length === 0}
       <p class="empty">No cards. {t("action.buy_card")}: {t("cost.card")}</p>
     {/if}
     <ul>
@@ -85,6 +104,15 @@
     margin: 0;
     font-size: 0.85rem;
     opacity: 0.7;
+  }
+  .hidden {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-style: italic;
+  }
+  .lock {
+    flex: none;
   }
   .card {
     width: 10.5rem;

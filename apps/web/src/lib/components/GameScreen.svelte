@@ -10,6 +10,7 @@
   import { resetTool, ui } from "../stores/ui.svelte.js";
   import { resetView, zoomAt, zoomTo, viewport } from "../stores/viewport.svelte.js";
   import ActionBar from "./ActionBar.svelte";
+  import Announcer from "./Announcer.svelte";
   import Board from "./Board.svelte";
   import DebugPanel from "./DebugPanel.svelte";
   import Dialogs from "./Dialogs.svelte";
@@ -18,6 +19,7 @@
   import LogPanel from "./LogPanel.svelte";
   import Overlays from "./Overlays.svelte";
   import PlayersPanel from "./PlayersPanel.svelte";
+  import PrivacyCurtain from "./PrivacyCurtain.svelte";
   import QuestPanel from "./QuestPanel.svelte";
   import ResourceIcon from "./ResourceIcon.svelte";
   import SettingsDialog from "./SettingsDialog.svelte";
@@ -75,7 +77,7 @@
 
 <svelte:window onkeydown={keydown} />
 
-<div class="game">
+<div class="game" inert={!!session.curtainFor}>
   <header class="topbar">
     <button class="ghost" onclick={onexit} aria-label={t("ui.main_menu")}>☰</button>
     <h1>{t("app.title")}</h1>
@@ -133,6 +135,8 @@
   </footer>
 </div>
 
+<PrivacyCurtain {session} />
+<Announcer {session} />
 <Dialogs {session} {legal} />
 {#if ui.dialog === "settings"}<SettingsDialog onclose={() => (ui.dialog = null)} />{/if}
 {#if ui.showDebug}<DebugPanel {session} onclose={() => (ui.showDebug = false)} />{/if}
