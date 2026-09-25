@@ -2,7 +2,7 @@
 
 ## Toolchain
 
-- **Node 22.13+** (see `.nvmrc`) with **corepack** — `corepack enable` provides the pinned pnpm (`packageManager` in `package.json`).
+- **Node 22.14+** (see `.nvmrc`; older releases bundle a corepack that rejects npm's current signing key) with **corepack** — `corepack enable` provides the pinned pnpm (`packageManager` in `package.json`).
 - **Desktop builds:** Rust (stable, via rustup) and the Tauri system libraries. On Debian/Ubuntu: `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf`.
 - **Android (optional):** JDK 17, Android SDK with NDK 29 (`ANDROID_HOME`, `NDK_HOME`), and `rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android`. The Android Studio project lives in `src-tauri/gen/android` (committed). Build with `pnpm tauri android build --apk`; release APKs are unsigned until a keystore is configured (see Tauri's Android signing guide).
 - **E2E tests:** `pnpm --filter @manors-menaces/web exec playwright install --with-deps chromium`.

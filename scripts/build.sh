@@ -6,7 +6,7 @@
 #   A missing toolchain skips a target on a default run, but fails when the
 #   target was named explicitly.
 #
-# Requirements: Node 22.13+ with corepack (pnpm); desktop also needs Rust and the
+# Requirements: Node 22.14+ with corepack (pnpm); desktop also needs Rust and the
 # Tauri system libraries; android needs the Android SDK + NDK (ANDROID_HOME,
 # NDK_HOME), JDK 17 and `rustup target add aarch64-linux-android …`.
 set -uo pipefail

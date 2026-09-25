@@ -28,6 +28,11 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      # Contributors get pnpm through the corepack bundled with the .nvmrc
+      # Node (README, AGENTS.md); corepack older than 0.31 rejects npm's
+      # current signing key, which the pnpm action above would hide.
+      - name: Bundled corepack provides the pinned pnpm
+        run: corepack pnpm --version
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
