@@ -19,6 +19,7 @@ async function startTwoHumansAndAi(page: Page) {
   await page.getByRole("button", { name: "New game" }).click();
   await page.getByRole("radio", { name: "3", exact: true }).check({ force: true });
   await page.getByLabel("Player 2 type").selectOption("human");
+  await page.getByLabel("Name of player 3").fill(AI);
   await page.getByText("Advanced").click();
   await page.getByLabel(/Seed/).fill("e2e-hotseat");
   await page.getByRole("button", { name: "Begin" }).click();
@@ -178,4 +179,38 @@ test("a live region announces AI actions and turn changes", async ({ page }) => 
   await expect(region).toHaveAttribute("aria-live", "polite");
   await expect(region).toContainText(`${AI}'s turn`);
   await expect(region).toContainText(`${HUMAN_1}'s turn`);
+});
+
+test("revealing into a Counterspell or Prophecy decision keeps focus in its dialog", async ({ page }) => {
+  await startTwoHumansAndAi(page);
+  await untilHumanMainTurn(page);
+  const current = (await page.locator(".hand h3").textContent())?.includes(HUMAN_1) ? HUMAN_1 : HUMAN_2;
+  const other = current === HUMAN_1 ? HUMAN_2 : HUMAN_1;
+  const focusInDialog = (name: string) =>
+    page.evaluate((n) => document.activeElement?.closest('[role="dialog"]')?.getAttribute("aria-label") === n, name);
+
+  // The other human holds a Counterspell; the current one casts a Spell.
+  await page.getByRole("button", { name: "Debug", exact: true }).click();
+  const debug = page.getByRole("dialog", { name: "Debug tools" });
+  const [player, card] = [debug.locator("select").nth(0), debug.locator("select").nth(1)];
+  await player.selectOption({ label: other });
+  await card.selectOption("counterspell");
+  await debug.getByRole("button", { name: "Draw specific card" }).click();
+  await player.selectOption({ label: current });
+  await card.selectOption("very_minor_prophecy");
+  await debug.getByRole("button", { name: "Draw specific card" }).click();
+  await debug.getByRole("button", { name: "Close" }).click();
+  await page.locator(".hand button.card", { hasText: "Very Minor Prophecy" }).click();
+
+  await expect(page.getByRole("dialog", { name: `Pass to ${other}` })).toBeVisible();
+  await page.keyboard.press("Enter");
+  const counterspell = page.getByRole("dialog", { name: "Counterspell?" });
+  await expect(counterspell).toBeVisible();
+  await expect.poll(() => focusInDialog("Counterspell?")).toBe(true);
+
+  await counterspell.getByRole("button", { name: "Pass", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: `Pass to ${current}` })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog", { name: "Very Minor Prophecy" })).toBeVisible();
+  await expect.poll(() => focusInDialog("Very Minor Prophecy")).toBe(true);
 });

@@ -30,6 +30,13 @@
   async function begin() {
     session.revealForCurtain();
     await tick();
+    // A decision dialog (Counterspell, Prophecy) owns focus. It may have
+    // mounted behind the curtain, where the inert game refused its autofocus.
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]');
+    if (dialog) {
+      if (!dialog.contains(document.activeElement)) dialog.querySelector<HTMLElement>("button:not(:disabled), [href], input, select")?.focus();
+      return;
+    }
     // Hand focus to the first available action rather than dropping it on <body>.
     // Setup placements have no enabled button, only highlighted board targets.
     const target =
