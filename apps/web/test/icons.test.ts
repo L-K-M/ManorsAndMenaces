@@ -22,7 +22,10 @@ const GLYPH_ICONS = /[☰⚙⤢◎✕✖♛↻↶↷⌂✓✔↑↓−🌾🌲�
 
 describe("icons", () => {
   it("components draw SVG icons instead of glyph characters", () => {
-    const offenders = svelteFiles(SRC).flatMap((file) =>
+    // Guard against a vacuous pass if the source tree moves.
+    const files = svelteFiles(SRC);
+    expect(files.length).toBeGreaterThan(0);
+    const offenders = files.flatMap((file) =>
       readFileSync(file, "utf8")
         .split("\n")
         .map((line, i) => ({ line: line.trim(), at: `${file.slice(SRC.length + 1)}:${i + 1}` }))
