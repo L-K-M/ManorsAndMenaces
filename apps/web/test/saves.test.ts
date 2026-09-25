@@ -83,8 +83,19 @@ describe("autosave slots", () => {
   it(`keeps the ${MAX_AUTOSAVES} newest autosaves and prunes only older autosaves`, () => {
     const autos = Array.from({ length: MAX_AUTOSAVES + 2 }, (_, i) => at(autosaveId(`m${i}`), i));
     const manual = at("save:x:r1", 0);
-    expect(autosavesToPrune([...autos, manual]).sort()).toEqual([autosaveId("m0"), autosaveId("m1")]);
-    expect(autosavesToPrune(autos.slice(0, MAX_AUTOSAVES))).toEqual([]);
+    const active = autosaveId(`m${MAX_AUTOSAVES + 1}`);
+    expect(autosavesToPrune([...autos, manual], active).sort()).toEqual([autosaveId("m0"), autosaveId("m1")]);
+    expect(autosavesToPrune(autos.slice(0, MAX_AUTOSAVES), autosaveId("m0"))).toEqual([]);
+  });
+
+  it("never prunes the slot this game is writing, even if its clock says it is the oldest", () => {
+    // Clock skew, or another tab writing newer rows: timestamps alone do not
+    // protect the active slot, which counts towards the kept total.
+    const autos = Array.from({ length: MAX_AUTOSAVES + 1 }, (_, i) => at(autosaveId(`m${i}`), i));
+    const active = autosaveId("m0");
+    const pruned = autosavesToPrune(autos, active);
+    expect(pruned).not.toContain(active);
+    expect(pruned).toEqual([autosaveId("m1")]);
   });
 });
 

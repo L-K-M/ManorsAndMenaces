@@ -282,9 +282,16 @@ test("the game menu keeps the game open, exports a save and asks before leaving"
   await row.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(row).toHaveCount(0);
 
+  // A rejected file is reported; a later good import clears the report.
+  await load.getByLabel("Import a save file").setInputFiles({ name: "junk.json", mimeType: "application/json", buffer: Buffer.from("{}") });
+  await expect(load).toContainText("not a Manors & Menaces save");
   await load.getByLabel("Import a save file").setInputFiles(file);
   await passCurtain(page);
   await expect(page.getByRole("region", { name: "Players" })).toContainText("Bertram");
+  await exitToTitle(page);
+  await page.getByRole("button", { name: "Load game" }).click();
+  await expect(load).toBeVisible();
+  await expect(load).not.toContainText("not a Manors & Menaces save");
 });
 
 test("leaving warns instead of claiming a game is saved when saving fails", async ({ page }) => {

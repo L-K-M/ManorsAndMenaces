@@ -493,10 +493,10 @@ export class GameSession {
     this.enqueueAutosave(() => platform.remove(id));
   }
 
-  /** Autosaves are bounded: once per session, delete all but the newest. */
+  /** Autosaves are bounded: once per session, delete all but the newest (and this game's). */
   private async pruneAutosaves(): Promise<void> {
     this.autosavesPruned = true;
-    for (const id of autosavesToPrune(await platform.listSaves())) await platform.remove(id);
+    for (const id of autosavesToPrune(await platform.listSaves(), this.autosaveSlot)) await platform.remove(id);
   }
 
   private enqueueAutosave(write: () => Promise<void>): void {

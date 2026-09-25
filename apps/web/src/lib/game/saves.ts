@@ -8,7 +8,7 @@
 //                             saving the same position twice rewrites one row
 //                             while any different position gets its own
 //   autosave                  the single shared slot of older builds, still
-//                             listed and resumable as an autosave
+//                             listed and resumable (and pruned) as an autosave
 //
 // A new game gets a fresh autosave slot (<n> is a per-game nonce: custom seeds
 // repeat, so the match id alone is not unique). Continuing an autosave keeps
@@ -63,10 +63,14 @@ export function latestAutosave<T extends SlotRef>(slots: readonly T[]): T | unde
   return newestFirst(slots.filter((s) => isAutosave(s.id)))[0];
 }
 
-/** Ids of the autosaves beyond the newest `keep`, to delete. */
-export function autosavesToPrune(slots: readonly SlotRef[], keep = MAX_AUTOSAVES): string[] {
-  return newestFirst(slots.filter((s) => isAutosave(s.id)))
-    .slice(keep)
+/**
+ * Ids of the autosaves to delete so that at most `keep` remain. `active` is
+ * the slot this game writes: it is always kept (its timestamp alone cannot
+ * protect it, e.g. after a clock change) and counts towards `keep`.
+ */
+export function autosavesToPrune(slots: readonly SlotRef[], active: string, keep = MAX_AUTOSAVES): string[] {
+  return newestFirst(slots.filter((s) => isAutosave(s.id) && s.id !== active))
+    .slice(keep - 1)
     .map((s) => s.id);
 }
 

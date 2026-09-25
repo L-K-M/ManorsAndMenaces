@@ -84,6 +84,7 @@
    */
   function openSave(data: SaveFile, autosaveSlot?: string) {
     showLoad = false;
+    loadError = null;
     confirmDelete = null;
     const isTutorial = isTutorialSave(data);
     openSession(GameSession.fromSave(data, isTutorial ? { autosave: false } : autosaveSlot ? { autosaveSlot } : {}), isTutorial);
