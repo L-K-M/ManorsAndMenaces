@@ -24,7 +24,13 @@ function fail(message) {
 
 function build(pkg) {
   console.log(`==> pnpm --filter ${pkg} build`);
-  const run = spawnSync("pnpm", ["--filter", pkg, "build"], { cwd: root, encoding: "utf8" });
+  const args = ["--filter", pkg, "build"];
+  // Windows installs pnpm as a pnpm.cmd shim, which Node launches only through
+  // a shell. The arguments are fixed package names, so joining needs no quoting.
+  const run =
+    process.platform === "win32"
+      ? spawnSync(`pnpm ${args.join(" ")}`, { cwd: root, encoding: "utf8", shell: true })
+      : spawnSync("pnpm", args, { cwd: root, encoding: "utf8" });
   const output = `${run.stdout ?? ""}${run.stderr ?? ""}`;
   process.stdout.write(output);
   if (run.error) fail(`could not run pnpm: ${run.error.message}`);
