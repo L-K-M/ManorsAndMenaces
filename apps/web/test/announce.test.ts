@@ -72,6 +72,11 @@ describe("announcementsFor", () => {
     expect(announcementsFor([manor("bertram")], GREENVALE_MAP, names, hotseat)).toEqual([`Bertram built a Manor at ${region.name}.`]);
   });
 
+  it("speaks rival quips, whose bubbles are visual only", () => {
+    const quip = entry({ text: "Lord Mumble: “Mine, all mine.”", playerId: "cordelia", kind: "quip" });
+    expect(announcementsFor([quip], GREENVALE_MAP, names, soloAlice)).toEqual(["Lord Mumble: “Mine, all mine.”"]);
+  });
+
   it("always announces the winner", () => {
     const won = entry({
       text: "Alice wins with 12 Renown!",

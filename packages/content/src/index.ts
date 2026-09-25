@@ -10,6 +10,7 @@ export { CARDS } from "./cards.js";
 export { QUESTS } from "./quests.js";
 export { MENACES } from "./menaces.js";
 export { EN } from "./i18n/en.js";
+export { RIVALS, RIVAL_QUIP_TRIGGERS, rivalById, rivalQuipKeys, type RivalDefinition, type RivalPortrait, type RivalQuipTrigger } from "./rivals.js";
 export { validateMap, maximumIndependentSet, type MapValidation } from "./validate.js";
 export { GREENVALE_MAP } from "./maps/greenvale.js";
 

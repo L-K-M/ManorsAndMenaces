@@ -27,6 +27,7 @@
   import PrivacyCurtain from "./PrivacyCurtain.svelte";
   import QuestPanel from "./QuestPanel.svelte";
   import ResourcePurse from "./ResourcePurse.svelte";
+  import RivalQuips from "./RivalQuips.svelte";
   import ScoreStrip from "./ScoreStrip.svelte";
   import ToolIcon from "./ToolIcon.svelte";
   import SettingsDialog from "./SettingsDialog.svelte";
@@ -212,6 +213,7 @@
       <button onclick={zoomToMine} aria-label={t("ui.zoom_to_my_holdings")}><ToolIcon name="locate" /></button>
     </div>
     <BoardHud {session} />
+    <RivalQuips {session} />
     <Overlays {session} {tutorial} {onexit} {onrematch} />
     {#if tutorial}<TutorialCoach {session} onfinish={onexit} />{/if}
   </main>

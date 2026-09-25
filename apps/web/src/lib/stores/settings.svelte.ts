@@ -11,6 +11,8 @@ export interface Settings {
   music: boolean;
   privacyCurtain: boolean;
   showRegionNames: boolean;
+  /** Named AI rivals remark on the game in speech bubbles and the Chronicle. */
+  rivalChatter: boolean;
 }
 
 const KEY = "mm.settings.v1";
@@ -24,6 +26,7 @@ const defaults = (): Settings => ({
   music: false,
   privacyCurtain: true,
   showRegionNames: true,
+  rivalChatter: true,
 });
 
 function load(): Settings {

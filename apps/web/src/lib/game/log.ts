@@ -9,7 +9,7 @@ export interface LogEntry {
   id: number;
   text: string;
   playerId: string | null;
-  kind: "turn" | "info" | "important";
+  kind: "turn" | "info" | "important" | "quip";
   /** Raw event for the expandable debug view. */
   raw?: GameEvent;
   /** Logged locally for a buffered (not yet submitted) action. */
@@ -17,6 +17,11 @@ export interface LogEntry {
 }
 
 let nextId = 1;
+
+/** A rival's remark for the Chronicle; it is flavour, not an engine event. */
+export function quipEntry(text: string, playerId: string): LogEntry {
+  return { id: nextId++, text, playerId, kind: "quip" };
+}
 
 export function nameOf(state: GameState, playerId: string | null | undefined): string {
   return (playerId && state.players[playerId]?.displayName) || "?";

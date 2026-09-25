@@ -35,6 +35,8 @@ function announce(entry: LogEntry, map: MapDefinition, names: Record<PlayerId, s
   const raw = entry.raw;
 
   if (entry.kind === "turn") return pid && pid === who.self ? t("sr.your_turn") : t("sr.turn", { name });
+  // A rival's quip (#24): its bubble is visual only, so the line is spoken here.
+  if (entry.kind === "quip") return entry.text;
   if (raw?.type === "game_won") return entry.text;
   // Changes to the local seat's resources that its own actions did not name.
   if (raw?.type === "harvest_completed") return raw.playerId === who.self ? entry.text : null;

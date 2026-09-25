@@ -154,8 +154,9 @@ describe("other text keys", () => {
     }
   });
   it('call Routes "Routes" in rules and help text (the spec\'s term)', () => {
-    // Names and flavour text may say "road"; rules, help and tutorial text may not.
-    const offenders = Object.entries(EN).filter(([key, text]) => key !== "route.road" && !/\.(name|flavor)$/.test(key) && /\broads?\b/i.test(text));
+    // Names and flavour text (rival mottos included) may say "road"; rules,
+    // help and tutorial text may not.
+    const offenders = Object.entries(EN).filter(([key, text]) => key !== "route.road" && !/\.(name|flavor|motto)$/.test(key) && /\broads?\b/i.test(text));
     expect(offenders).toEqual([]);
   });
 });

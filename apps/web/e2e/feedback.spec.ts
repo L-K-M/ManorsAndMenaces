@@ -15,6 +15,9 @@ async function start(page: Page, opts: { humans: 1 | 2; speed: Speed; players?: 
   await page.getByRole("button", { name: "New game" }).click();
   await page.getByRole("radio", { name: String(opts.players ?? 2), exact: true }).check({ force: true });
   if (opts.humans === 2) await page.getByLabel("Player 2 type").selectOption("human");
+  // Computer seats are named after their rival (#24); keep the names used here.
+  const names = ["Alice", "Bertram", "Cordelia", "Dunstan"];
+  for (let i = 1; i < (opts.players ?? 2); i++) await page.getByLabel(`Name of player ${i + 1}`).fill(names[i] ?? "");
   await page.getByText("Advanced").click({ force: true });
   await page.getByLabel(/Seed/).fill(opts.seed ?? "e2e-seed");
   await page.getByRole("button", { name: "Begin" }).click({ force: true });

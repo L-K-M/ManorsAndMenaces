@@ -37,6 +37,7 @@
     <label><input type="checkbox" bind:checked={settings.music} /> {t("ui.music")}</label>
     <label><input type="checkbox" bind:checked={settings.privacyCurtain} /> {t("ui.privacy_curtain_between_hot_seat")}</label>
     <label><input type="checkbox" bind:checked={settings.showRegionNames} /> {t("ui.show_region_names_on_the")}</label>
+    <label><input type="checkbox" bind:checked={settings.rivalChatter} /> {t("ui.rival_banter")}</label>
   </form>
 </Modal>
 
