@@ -84,13 +84,13 @@ describe("protocol details", () => {
     // 204 must have no body (RFC 9110); check at the HTTP level, since fetch
     // implementations hide the violation rather than reject it.
     const { request } = await import("node:http");
-    const res = await new Promise<{ status: number; body: string; allowOrigin: string | null }>((resolve) => {
+    const res = await new Promise<{ status: number; body: string; allowOrigin: string | null; contentType: string | null }>((resolve) => {
       const req = request(
         { host: "127.0.0.1", port: Number(base.split(":")[2]), path: "/api/matches", method: "OPTIONS" },
         (r) => {
           let body = "";
           r.on("data", (c: Buffer) => (body += c));
-          r.on("end", () => resolve({ status: r.statusCode ?? 0, body, allowOrigin: r.headers["access-control-allow-origin"] ?? null }));
+          r.on("end", () => resolve({ status: r.statusCode ?? 0, body, allowOrigin: r.headers["access-control-allow-origin"] ?? null, contentType: r.headers["content-type"] ?? null }));
         },
       );
       req.end();
@@ -98,6 +98,7 @@ describe("protocol details", () => {
     expect(res.status).toBe(204);
     expect(res.body).toBe("");
     expect(res.allowOrigin).not.toBeNull();
+    expect(res.contentType).toBeNull();
   });
   it("serves /api/health without rate limiting", async () => {
     // A strict limiter must not 429 the Docker HEALTHCHECK (Dockerfile).
