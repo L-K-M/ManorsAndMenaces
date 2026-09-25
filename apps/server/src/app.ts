@@ -79,6 +79,17 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     res.end(JSON.stringify(body));
   };
 
+  // 204 responses must have no body (RFC 9110 §6.5.1). Node's HTTP layer
+  // discards one silently, but keep the wire and headers explicit.
+  const sendNoContent = (res: ServerResponse): void => {
+    res.writeHead(204, {
+      "access-control-allow-origin": cors,
+      "access-control-allow-headers": "authorization, content-type",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+    });
+    res.end();
+  };
+
   const readJson = (req: IncomingMessage): Promise<unknown> =>
     new Promise((resolveBody, reject) => {
       let size = 0;
@@ -137,7 +148,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     } catch {
       return send(res, 400, { error: "bad url" });
     }
-    if (req.method === "OPTIONS") return send(res, 204, {});
+    if (req.method === "OPTIONS") return sendNoContent(res);
     if (!url.pathname.startsWith("/api/")) {
       try {
         return serveStatic(req, res);
@@ -146,10 +157,12 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         return send(res, 500, { error: "internal error" });
       }
     }
+    // Health checks bypass the limiter: a burst of legitimate traffic must not
+    // make the Docker HEALTHCHECK 429 a healthy container (Dockerfile).
+    if (req.method === "GET" && url.pathname === "/api/health") return send(res, 200, { ok: true });
     if (!allow(req.socket.remoteAddress ?? "?")) return send(res, 429, { error: "slow down" });
     try {
       const parts = url.pathname.split("/").filter(Boolean); // ["api", ...]
-      if (req.method === "GET" && url.pathname === "/api/health") return send(res, 200, { ok: true });
       if (req.method === "POST" && url.pathname === "/api/guest") {
         const body = (await readJson(req)) as { displayName?: unknown };
         return send(res, 200, service.createGuest(body.displayName));
