@@ -1,18 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { RESOURCE_DETAILS, RESOURCE_GLYPHS } from "../src/lib/theme.js";
 
-const SRC = fileURLToPath(new URL("../src", import.meta.url));
-
-function svelteFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-    const path = join(dir, e.name);
-    if (e.isDirectory()) return svelteFiles(path);
-    return e.name.endsWith(".svelte") ? [path] : [];
-  });
-}
+// Every component's source, read through Vite rather than node:fs: apps/web
+// type-checks its tests with browser and Vite types only (no @types/node).
+const SOURCES = import.meta.glob<string>("../src/**/*.svelte", { query: "?raw", import: "default", eager: true });
 
 // Unicode and emoji glyphs that used to stand in for icons. They render
 // differently per platform (or not at all without symbol fonts), so icons
@@ -23,12 +14,12 @@ const GLYPH_ICONS = /[☰⚙⤢◎✕✖♛↻↶↷⌂✓✔↑↓−🌾🌲�
 describe("icons", () => {
   it("components draw SVG icons instead of glyph characters", () => {
     // Guard against a vacuous pass if the source tree moves.
-    const files = svelteFiles(SRC);
+    const files = Object.entries(SOURCES);
     expect(files.length).toBeGreaterThan(0);
-    const offenders = files.flatMap((file) =>
-      readFileSync(file, "utf8")
+    const offenders = files.flatMap(([file, source]) =>
+      source
         .split("\n")
-        .map((line, i) => ({ line: line.trim(), at: `${file.slice(SRC.length + 1)}:${i + 1}` }))
+        .map((line, i) => ({ line: line.trim(), at: `${file.replace("../src/", "")}:${i + 1}` }))
         .filter(({ line }) => !line.startsWith("//") && GLYPH_ICONS.test(line))
         .map(({ at, line }) => `${at}: ${line}`),
     );
