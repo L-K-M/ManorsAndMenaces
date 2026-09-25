@@ -168,7 +168,15 @@ async function chronicle(page: Page) {
 
 /** Ends turns until it is `who`'s turn, then returns once they can act. */
 async function untilTurnOf(who: Page, other: Page) {
-  if (await other.getByRole("button", { name: /Assign Banners →/ }).count()) {
+  // Wait a moment rather than count once: right after setup the button may not have rendered yet.
+  const othersTurn = await other
+    .getByRole("button", { name: /Assign Banners →/ })
+    .waitFor({ state: "visible", timeout: 5_000 })
+    .then(
+      () => true,
+      () => false,
+    );
+  if (othersTurn) {
     await toBannerPhase(other);
     await other.getByRole("button", { name: /End Turn/ }).click();
   }
@@ -257,4 +265,31 @@ test("a match link that is not yours opens the lobby and is dropped", async ({ b
   await expect(page.getByRole("alert")).toContainText("no such match");
   await expect(page).not.toHaveURL(/#\/match\//);
   await expect(page.getByRole("button", { name: /Create/ })).toBeVisible();
+});
+
+test("a player who left the match hears it is their turn and opens it from the notice", async ({ browser }) => {
+  const [alice, bob] = await startMatch(browser);
+  await playSetup([alice, bob]);
+  await untilTurnOf(bob, alice);
+  await alice.getByRole("button", { name: "Main menu" }).click();
+  await alice.getByRole("dialog", { name: "Menu" }).getByRole("button", { name: "Exit to title" }).click();
+  await alice.getByRole("dialog", { name: "Leave this game?" }).getByRole("button", { name: "Exit to title" }).click();
+  await expect(alice.getByRole("button", { name: "Play online" })).toBeVisible();
+
+  await toBannerPhase(bob);
+  await bob.getByRole("button", { name: /End Turn/ }).click();
+
+  const notices = alice.getByRole("region", { name: "Match notices" });
+  await expect(notices).toContainText("Your turn");
+  await expect(notices).toContainText("Your move in the match with Bob.");
+  await notices.getByRole("button", { name: "Open" }).click();
+  await expect(alice.locator(".board")).toBeVisible();
+  await expect(alice.getByRole("button", { name: /Assign Banners →/ })).toBeVisible();
+  await expect(notices).toHaveCount(0);
+
+  // Bob has the match open: its turn needs no notice.
+  await toBannerPhase(alice);
+  await alice.getByRole("button", { name: /End Turn/ }).click();
+  await expect(bob.getByRole("button", { name: /Assign Banners →/ })).toBeVisible({ timeout: 20_000 });
+  await expect(bob.getByRole("region", { name: "Match notices" })).toHaveCount(0);
 });

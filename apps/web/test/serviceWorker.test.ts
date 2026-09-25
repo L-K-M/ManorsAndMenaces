@@ -79,7 +79,13 @@ describe("generated service worker", () => {
 
   type Listener = (event: unknown) => void;
 
-  function boot(options: { online: boolean }) {
+  interface FakeWindow {
+    url: string;
+    messages: unknown[];
+    focused: boolean;
+  }
+
+  function boot(options: { online: boolean; windows?: FakeWindow[] }) {
     const listeners = new Map<string, Listener>();
     const stores = new Map<string, Map<string, Response>>([
       [`${CACHE_PREFIX}v1`, new Map()],
@@ -104,10 +110,19 @@ describe("generated service worker", () => {
       if (!options.online) throw new TypeError("Failed to fetch");
       return new Response(`network ${new URL(request.url).pathname}`);
     };
+    const shown: { title: string; options: NotificationOptions }[] = [];
+    const opened: string[] = [];
+    const windows = options.windows ?? [];
     const self = {
       location: new URL(`${ORIGIN}/sw.js`),
       addEventListener: (type: string, listener: Listener) => listeners.set(type, listener),
-      clients: { claim: async () => undefined },
+      clients: {
+        claim: async () => undefined,
+        matchAll: async () =>
+          windows.map((w) => ({ url: w.url, postMessage: (m: unknown) => w.messages.push(m), focus: async () => void (w.focused = true) })),
+        openWindow: async (url: string) => void opened.push(url),
+      },
+      registration: { showNotification: async (title: string, options: NotificationOptions) => void shown.push({ title, options }) },
       skipWaiting: async () => undefined,
     };
     runInNewContext(renderServiceWorker(TEMPLATE, manifest), { self, caches, fetch, URL, Request, Response, Set, Promise });
@@ -124,7 +139,7 @@ describe("generated service worker", () => {
     const get = (path: string, mode: RequestMode = "cors", origin = ORIGIN) => dispatch("fetch", { request: { url: `${origin}${path}`, method: "GET", mode } });
     // dispatch() resolves to the response the worker answered with, if any.
     const text = async (answer: Promise<Response | undefined>) => (await answer)?.text() ?? "not intercepted";
-    return { stores, dispatch, get, text };
+    return { stores, dispatch, get, text, shown, opened };
   }
 
   it("precaches the release on install and deletes only this app's older caches on activate", async () => {
@@ -171,5 +186,49 @@ describe("generated service worker", () => {
     };
     expect(await ask(`${ORIGIN}/assets/index-abc123.js`)).toBe(true);
     expect(await ask(`${ORIGIN}/assets/index-old999.js`)).toBe(false);
+  });
+
+  describe("turn notices (spec §85)", () => {
+    const notice = { matchId: "m_1", kind: "your_turn", title: "Your turn", body: "Your move in the match with Bob." };
+
+    it("shows the notice a push brings, one per match", async () => {
+      const sw = boot({ online: true });
+      await sw.dispatch("push", { data: { json: () => notice } });
+      expect(sw.shown).toEqual([
+        { title: "Your turn", options: { body: notice.body, tag: "match-m_1", data: { matchId: "m_1" }, icon: `${ORIGIN}/icons/icon-192.png` } },
+      ]);
+    });
+
+    it("still shows something for a push it cannot read, as browsers require", async () => {
+      const sw = boot({ online: true });
+      await sw.dispatch("push", {
+        data: {
+          json: () => {
+            throw new SyntaxError("bad");
+          },
+        },
+      });
+      expect(sw.shown).toHaveLength(1);
+      expect(sw.shown[0]?.options.data).toEqual({ matchId: null });
+    });
+
+    it("opens the match when the notice is clicked, in a new window if none is open", async () => {
+      const sw = boot({ online: true });
+      let closed = false;
+      await sw.dispatch("notificationclick", { notification: { data: { matchId: "m_1" }, close: () => (closed = true) } });
+      expect(closed).toBe(true);
+      expect(sw.opened).toEqual([`${ORIGIN}/#/match/m_1`]);
+    });
+
+    it("hands the match to an open window of the app and focuses it", async () => {
+      const window: FakeWindow = { url: `${ORIGIN}/`, messages: [], focused: false };
+      const other: FakeWindow = { url: "https://elsewhere.example/", messages: [], focused: false };
+      const sw = boot({ online: true, windows: [other, window] });
+      await sw.dispatch("notificationclick", { notification: { data: { matchId: "m_1" }, close: () => undefined } });
+      expect(window.messages).toEqual([{ type: "OPEN_MATCH", matchId: "m_1" }]);
+      expect(window.focused).toBe(true);
+      expect(other.messages).toEqual([]);
+      expect(sw.opened).toEqual([]);
+    });
   });
 });

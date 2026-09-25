@@ -14,6 +14,9 @@
   import SettingsDialog from "./lib/components/SettingsDialog.svelte";
   import Modal from "./lib/components/Modal.svelte";
   import OnlineLobby from "./lib/online/OnlineLobby.svelte";
+  import NoticeBanner from "./lib/online/NoticeBanner.svelte";
+  import { dismissNotice, watchNotices } from "./lib/online/notices.svelte.js";
+  import { setMatchRoute } from "./lib/online/route.js";
   import UpdatePrompt from "./lib/components/UpdatePrompt.svelte";
   import TitleVignette from "./lib/components/TitleVignette.svelte";
   import ToolIcon from "./lib/components/ToolIcon.svelte";
@@ -141,6 +144,37 @@
       loadError = t("ui.not_a_save_file");
     }
   }
+  // Notices about online matches that are not on screen (spec §85): heard
+  // while this device has a guest session, from any screen.
+  watchNotices({ openMatchId: () => (session?.transport.kind === "online" ? session.authoritative.matchId : null) });
+  /** Remounting the lobby makes it open the match in the address. */
+  let lobbyKey = $state(0);
+  /**
+   * Opening a notice leaves the current game without the menu's warnings, so
+   * not from one that would be lost: a tutorial, or a game that could not be saved.
+   */
+  const canLeave = (s: GameSession | null, isTutorial: boolean): boolean => !s || s.transport.kind === "online" || (!isTutorial && !s.autosaveFailed);
+  const canLeaveForNotice = $derived(canLeave(session, tutorial));
+  /** Opens an online match from a notice or a clicked system notification. */
+  function openMatchFromNotice(matchId: string) {
+    if (!canLeaveForNotice) return;
+    dismissNotice(matchId);
+    if (session) exit();
+    setMatchRoute(matchId);
+    screen = "online";
+    lobbyKey++;
+  }
+  $effect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    // The service worker hands over clicks on its notifications (sw.template.js).
+    const onMessage = (e: MessageEvent) => {
+      const data = e.data as { type?: unknown; matchId?: unknown } | null;
+      if (data?.type === "OPEN_MATCH" && typeof data.matchId === "string") openMatchFromNotice(data.matchId);
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  });
+
   function exit() {
     session?.destroy();
     ui.dialog = null;
@@ -209,7 +243,9 @@
     {:else if screen === "new"}
       <NewGame onstart={(o) => start(o)} onback={() => (screen = "title")} />
     {:else if screen === "online"}
-      <OnlineLobby onopen={openSession} onback={() => (screen = "title")} />
+      {#key lobbyKey}
+        <OnlineLobby onopen={openSession} onback={() => (screen = "title")} />
+      {/key}
     {/if}
   </div>
 {/if}
@@ -270,6 +306,7 @@
   </Modal>
 {/if}
 
+<NoticeBanner onopen={openMatchFromNotice} canOpen={canLeaveForNotice} />
 <UpdatePrompt />
 
 {#if showRules}

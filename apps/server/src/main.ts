@@ -15,6 +15,10 @@
 //                 appending the address it saw; otherwise clients can spoof it.
 //                 X-Forwarded-For is read first when present, so a proxy that
 //                 sets only Forwarded must still strip or overwrite it.
+//   VAPID_SUBJECT contact for Web Push services (RFC 8292): mailto:you@example.org
+//                 or an https: URL of yours (default: the project's repository).
+//                 Push reaches players whose app is closed; it needs the web
+//                 client served over HTTPS.
 //
 // Fatal errors (the port is taken, an uncaught exception) exit with status 1
 // so a supervisor such as Docker restarts the server; AI seats resume then.
@@ -43,6 +47,7 @@ const app = createApp({
   corsOrigin: process.env.CORS_ORIGIN ?? "*",
   aiDelayMs: Number(process.env.AI_DELAY_MS ?? 700),
   trustProxy,
+  ...(process.env.VAPID_SUBJECT ? { push: { subject: process.env.VAPID_SUBJECT } } : {}),
 });
 const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? "0.0.0.0";

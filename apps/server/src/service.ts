@@ -12,6 +12,7 @@ import type {
   GuestSessionResponse,
   HistoryEntry,
   MatchHistoryResponse,
+  MatchNotice,
   MatchSeatInfo,
   MatchView,
   SubmitCommandsRequest,
@@ -33,6 +34,7 @@ import {
   type PlayerId,
   type RulesEngine,
 } from "@manors-menaces/rules";
+import { actorOf, noticeFor, noticesAfter } from "./notices.js";
 import type { MatchRow, SeatRow, Store, UserRow } from "./store.js";
 
 export class HttpError extends Error {
@@ -88,6 +90,8 @@ export class MatchService {
   private closed = false;
   /** Presence callback set by the transport layer (WebSocket connections). */
   isConnected: (userId: string) => boolean = () => false;
+  /** Delivery of a notice to a user, set by the transport layer (WebSocket or Web Push). */
+  notify: (userId: string, notice: MatchNotice) => void = () => {};
 
   constructor(
     private readonly store: Store,
@@ -253,6 +257,7 @@ export class MatchService {
       return { accepted: false, revision: fresh?.revision ?? match.revision, events: [], error: { code: "REVISION_MISMATCH" } };
     }
     this.emit(match.id, r.events);
+    this.announce(match.id, match.state, r.newState);
     this.scheduleAi(match.id);
     return { accepted: true, revision: r.newState.revision, events: r.events.map((e) => redactEvent(e, playerId)), state: redactState(r.newState, playerId) };
   }
@@ -325,13 +330,6 @@ export class MatchService {
 
   // ------------------------------------------------------------------ AI seats
 
-  private actorOf(state: GameState): PlayerId | null {
-    if (state.status === "finished") return null;
-    if (state.pending?.kind === "reaction") return state.pending.eligiblePlayerIds[0] ?? null;
-    if (state.pending?.kind === "prophecy") return state.pending.playerId;
-    return state.activePlayerId;
-  }
-
   /**
    * Schedules every AI seat that is due to act. AI turns run on in-memory
    * timers, so this must run at startup or matches stall after a restart.
@@ -344,7 +342,7 @@ export class MatchService {
     if (this.closed || this.aiTimers.has(matchId)) return;
     const match = this.store.match(matchId);
     if (!match?.state) return;
-    const actor = this.actorOf(match.state);
+    const actor = actorOf(match.state);
     const seat = this.store.seats(matchId).find((s) => s.player_id === actor);
     if (!seat || seat.kind !== "ai") return;
     this.aiTimers.set(
@@ -358,7 +356,7 @@ export class MatchService {
 
   private runAiStep(matchId: string, seat: SeatRow): void {
     const match = this.store.match(matchId);
-    if (!match?.state || this.actorOf(match.state) !== seat.player_id) return;
+    if (!match?.state || actorOf(match.state) !== seat.player_id) return;
     const rng = createRng(seedRng(`${match.seed}:ai:${match.revision}`));
     const intent = chooseAction(this.engine, match.state, seat.player_id, { level: seat.ai_level ?? "normal", rng });
     if (!intent) {
@@ -385,6 +383,7 @@ export class MatchService {
     if (this.store.commitBatch(matchId, match.revision, r.newState, [command])) {
       this.aiFailures.delete(matchId);
       this.emit(matchId, r.events);
+      this.announce(matchId, match.state, r.newState);
     }
     this.scheduleAi(matchId);
   }
@@ -418,6 +417,18 @@ export class MatchService {
         Math.min(AI_RETRY_MS * 2 ** failures, AI_RETRY_MAX_MS),
       ),
     );
+  }
+
+  /** Tells the humans who must act now, or whose match just ended (spec §85). */
+  private announce(matchId: string, before: GameState, after: GameState): void {
+    const due = noticesAfter(before, after);
+    if (due.length === 0) return;
+    const seats = this.store.seats(matchId);
+    for (const { playerId, kind } of due) {
+      const seat = seats.find((s) => s.player_id === playerId);
+      if (seat?.kind !== "human" || !seat.user_id) continue;
+      this.notify(seat.user_id, noticeFor(matchId, kind, playerId, after));
+    }
   }
 
   private emit(matchId: string, events: GameEvent[]): void {

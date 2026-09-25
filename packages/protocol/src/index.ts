@@ -168,10 +168,32 @@ export interface ApiErrorBody {
   code?: ApiErrorCode;
 }
 
+/** Why a player hears about a match they may not have open (spec §85). */
+export type NoticeKind = "your_turn" | "match_over";
+
+/**
+ * A notice for one player: over their WebSocket while the app is open
+ * anywhere, else as a Web Push message. Worded by the server, since the push
+ * service's notification shows it as is.
+ */
+export interface MatchNotice {
+  matchId: string;
+  kind: NoticeKind;
+  title: string;
+  body: string;
+}
+
+/** POST /api/push/subscribe: a browser's PushSubscription, as `toJSON()` gives it. */
+export interface PushSubscriptionRequest {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}
+
 /** Server → client push messages over WebSocket. */
 export type ServerMessage =
   | { type: "hello"; userId: string }
   | { type: "match_update"; match: MatchView; events: GameEvent[] }
+  | { type: "notice"; notice: MatchNotice }
   | { type: "error"; message: string };
 
 /**

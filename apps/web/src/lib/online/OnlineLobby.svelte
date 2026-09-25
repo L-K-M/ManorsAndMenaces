@@ -12,6 +12,8 @@
   import { ApiError, OnlineClient, onlineTransport } from "./client.js";
   import { clearMatchRoute, matchRoute, setMatchRoute } from "./route.js";
   import { lastSeenRevision, watchSeen } from "./seen.js";
+  import { onNotice, watchNotices } from "./notices.svelte.js";
+  import { disablePush, enablePush, pushState, type PushState } from "./push.js";
   import ToolIcon from "../components/ToolIcon.svelte";
 
   let { onopen, onback }: { onopen: (s: GameSession) => void; onback: () => void } = $props();
@@ -65,6 +67,13 @@
       throw e;
     }
     notice = t("ui.session_renewed");
+    await sessionChanged();
+  }
+
+  /** A new guest session: hear its notices, and move this browser's push subscription to it. */
+  async function sessionChanged() {
+    watchNotices();
+    if ((await pushState()) === "on") pushSetting = await enablePush(client).catch(() => pushSetting);
   }
 
   async function signIn() {
@@ -72,6 +81,7 @@
     await guard(async () => {
       await client.ensureGuest(name.trim() || "Guest");
       signedIn = true;
+      await sessionChanged();
       await refresh();
     });
   }
@@ -82,6 +92,18 @@
   $effect(() => {
     if (signedIn) void refresh();
   });
+  // "Your turn" in the list follows the notices.
+  $effect(() => onNotice(() => void refresh()));
+
+  // Turn notices by Web Push, for when the app is closed (spec §85).
+  let pushSetting: PushState = $state("unsupported");
+  void pushState().then((s) => (pushSetting = s));
+  async function togglePush(input: HTMLInputElement) {
+    const next = await guard(() => (input.checked ? enablePush(client) : disablePush(client)));
+    pushSetting = next ?? (await pushState());
+    // The click already flipped the box; show what actually happened.
+    input.checked = pushSetting === "on";
+  }
 
   // A reload (or a link) with #/match/ID reopens that match straight away.
   const resumeId = matchRoute();
@@ -244,6 +266,13 @@
         <button class="primary" disabled={busy}>{t("ui.join")}</button>
       </form>
     </div>
+    {#if pushSetting !== "unsupported"}
+      <label class="push">
+        <input type="checkbox" checked={pushSetting === "on"} disabled={busy || pushSetting === "denied"} onchange={(e) => togglePush(e.target as HTMLInputElement)} />
+        {t("ui.turn_notifications")}
+        <small class="muted">{pushSetting === "denied" ? t("ui.turn_notifications_denied") : t("ui.turn_notifications_hint")}</small>
+      </label>
+    {/if}
     <h3>{t("ui.your_matches")} <button class="ghost" onclick={refresh} aria-label={t("ui.refresh")}><ToolIcon name="refresh" size={20} /></button></h3>
     {#if matches.length === 0}<p class="muted">{t("ui.no_matches_yet")}</p>{/if}
     <ul class="matches">
@@ -323,5 +352,15 @@
   }
   .muted {
     opacity: 0.7;
+  }
+  .push {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: 0.4rem;
+    margin-top: 1rem;
+  }
+  .push small {
+    grid-column: 2;
   }
 </style>
