@@ -185,6 +185,32 @@ test("arrow keys pan and double-click zooms in", async ({ page }) => {
   expect((await viewBox(page)).w).toBeLessThan(panned.w * 0.8);
 });
 
+test("arrow keys scroll the side panel after clicking in it, not the board", async ({ page, isMobile }) => {
+  test.skip(isMobile, "the side panel is a drawer on phones");
+  await startHotseat(page);
+  const side = page.locator("aside.side");
+  // Give the panel more content than fits, as a long Chronicle would.
+  await side.evaluate((el) => {
+    const filler = document.createElement("div");
+    filler.style.height = "2000px";
+    el.querySelector(".tabpanel")?.append(filler);
+  });
+  expect(await side.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+
+  const before = await viewBox(page);
+  const box = (await side.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height - 20);
+  for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowDown");
+  await expect.poll(() => side.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  expect(await viewBox(page)).toEqual(before);
+
+  // Back on the board, the same key pans it.
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  const zoomed = await viewBox(page);
+  await page.keyboard.press("ArrowDown");
+  expect((await viewBox(page)).y).toBeGreaterThan(zoomed.y);
+});
+
 test("a new targeting step brings off-screen targets into view @mobile", async ({ page }) => {
   await startHotseat(page);
   await page.locator(".site.hl").first().click();

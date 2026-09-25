@@ -17,6 +17,7 @@ import {
   interpolateBox,
   panBox,
   pinchBox,
+  reachBox,
   resizeBox,
   screenToBoard,
   zoomBox,
@@ -31,11 +32,16 @@ export type { Point, ViewBox };
 /** Whether a camera move jumps or glides (glides respect reduced motion). */
 export type Motion = "instant" | "animate";
 
-export const viewport: { box: ViewBox } = $state({ box: { x: 0, y: 0, w: 1600, h: 1000 } });
+/** `box` is the camera; `sea` is the most board area it can ever show. */
+export const viewport: { box: ViewBox; sea: ViewBox } = $state({
+  box: { x: 0, y: 0, w: 1600, h: 1000 },
+  sea: { x: -800, y: -600, w: 3200, h: 2200 },
+});
 
 const FLIGHT_MS = 320;
 
 let world: ViewBox = { x: 0, y: 0, w: 1600, h: 1000 };
+let land: readonly Point[] = [];
 /** Container size in CSS px; null until the board has been measured. */
 let size: Size | null = null;
 /** The latest camera, at most one frame ahead of `viewport.box`. */
@@ -46,7 +52,7 @@ let frame = 0;
 let flight: { from: ViewBox; to: ViewBox; start: number | null; ms: number } | null = null;
 
 function limits(): CameraLimits {
-  return { world, aspect: size ? size.w / size.h : world.w / world.h };
+  return { world, aspect: size ? size.w / size.h : world.w / world.h, land };
 }
 
 function schedule(): void {
@@ -95,10 +101,12 @@ function move(box: ViewBox, motion: Motion, home = false): void {
   schedule();
 }
 
-/** The island's extent in board units; the camera keeps it in reach. */
-export function setWorld(bounds: ViewBox): void {
+/** The island's extent and coastline in board units; the camera keeps them in view. */
+export function setWorld(bounds: ViewBox, coastline: readonly Point[] = []): void {
+  land = coastline;
   if (bounds.x === world.x && bounds.y === world.y && bounds.w === world.w && bounds.h === world.h) return;
   world = { ...bounds };
+  viewport.sea = reachBox(limits());
   jump(homeBox(limits()), true);
 }
 
@@ -109,6 +117,7 @@ export function setContainer(w: number, h: number): void {
   if (prev && prev.w === w && prev.h === h) return;
   const from = target();
   size = { w, h };
+  viewport.sea = reachBox(limits());
   if (!prev || atHome) jump(homeBox(limits()), true);
   else jump(resizeBox(from, prev, size));
 }

@@ -1,6 +1,8 @@
+import { GREENVALE_MAP } from "@manors-menaces/content";
 import { describe, expect, it } from "vitest";
 import {
   HOME_PADDING,
+  boundsOf,
   clampBox,
   fitBox,
   frameTargets,
@@ -11,6 +13,7 @@ import {
   panBox,
   pathPoints,
   pinchBox,
+  reachBox,
   resizeBox,
   screenToBoard,
   visibleFraction,
@@ -18,6 +21,7 @@ import {
   zoomBox,
   zoomRange,
   type CameraLimits,
+  type Point,
   type ViewBox,
 } from "../src/lib/stores/camera.js";
 
@@ -65,18 +69,55 @@ describe("limits", () => {
   });
 
   it("cannot pan the island off-screen", () => {
-    // Whatever the zoom and however far the pan, at least half the view on
-    // each axis is island (or the whole island shows).
-    const { minW, maxW } = zoomRange(landscape);
-    const overlap = (a: number, aw: number, b: number, bw: number) => Math.min(a + aw, b + bw) - Math.max(a, b);
-    for (const w of [minW, 800, homeBox(landscape).w, maxW]) {
+    // The real coastline: its bounding-box corners are open sea, so keeping
+    // the view's centre inside the bounds is not enough. Pan hard towards
+    // every corner and edge at every zoom; a good share of the view stays land.
+    const land = pathPoints(GREENVALE_MAP.coastline);
+    const island = boundsOf(land)!;
+    const inside = (p: Point) => {
+      let hit = false;
+      for (let i = 0, j = land.length - 1; i < land.length; j = i++) {
+        const a = land[i]!;
+        const b = land[j]!;
+        if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) hit = !hit;
+      }
+      return hit;
+    };
+    const landShare = (b: ViewBox) => {
+      let n = 0;
+      for (let i = 0; i < 20; i++) for (let j = 0; j < 20; j++) n += inside({ x: b.x + ((i + 0.5) * b.w) / 20, y: b.y + ((j + 0.5) * b.h) / 20 }) ? 1 : 0;
+      return n / 400;
+    };
+    for (const aspect of [1400 / 800, 412 / 428]) {
+      const limits: CameraLimits = { world: island, aspect, land };
+      const { minW, maxW } = zoomRange(limits);
+      for (const w of [minW, 800, homeBox(limits).w, maxW]) {
+        for (const x of [-1, 0, 1]) {
+          for (const y of [-1, 0, 1]) {
+            if (x === 0 && y === 0) continue;
+            const b = clampBox({ x: x * 99999, y: y * 99999, w, h: w / aspect }, limits);
+            expect(landShare(b)).toBeGreaterThanOrEqual(w === minW ? 0.3 : 0.15);
+          }
+        }
+      }
+    }
+  });
+
+  it("never shows past the reach of the sea", () => {
+    const land = pathPoints(GREENVALE_MAP.coastline);
+    for (const aspect of [4.5, 1400 / 800, 412 / 915]) {
+      const limits: CameraLimits = { world: boundsOf(land)!, aspect, land };
+      const reach = reachBox(limits);
+      const { maxW } = zoomRange(limits);
       for (const [x, y] of [
-        [99999, -99999],
-        [-99999, 99999],
+        [-99999, -99999],
+        [99999, 99999],
       ] as const) {
-        const b = clampBox({ x, y, w, h: w / landscape.aspect }, landscape);
-        expect(overlap(b.x, b.w, world.x, world.w)).toBeGreaterThanOrEqual(Math.min(0.5 * b.w, world.w) - 1e-9);
-        expect(overlap(b.y, b.h, world.y, world.h)).toBeGreaterThanOrEqual(Math.min(0.5 * b.h, world.h) - 1e-9);
+        const b = clampBox({ x, y, w: maxW, h: maxW / aspect }, limits);
+        expect(b.x).toBeGreaterThanOrEqual(reach.x - 1e-6);
+        expect(b.y).toBeGreaterThanOrEqual(reach.y - 1e-6);
+        expect(b.x + b.w).toBeLessThanOrEqual(reach.x + reach.w + 1e-6);
+        expect(b.y + b.h).toBeLessThanOrEqual(reach.y + reach.h + 1e-6);
       }
     }
   });
@@ -139,6 +180,9 @@ describe("wheel", () => {
     const out = wheel(0, 100);
     if (out.kind === "zoom") expect(out.factor).toBeLessThan(1);
     expect(wheel(0, 3, { deltaMode: 1 }).kind).toBe("zoom");
+    // Chrome at a non-100% page zoom reports fractional notch deltas.
+    expect(wheel(0, 90.909).kind).toBe("zoom");
+    expect(wheel(0.4, -111.11).kind).toBe("zoom");
   });
 
   it("zooms on ctrl+wheel (trackpad pinch) and clamps the step", () => {
@@ -150,10 +194,16 @@ describe("wheel", () => {
     expect(huge.factor).toBe(2);
   });
 
+  it("zooms a ctrl+mouse notch as gently as a plain notch", () => {
+    const i = wheel(0, -100, { ctrlKey: true });
+    if (i.kind !== "zoom") throw new Error("expected zoom");
+    expect(i.factor).toBeCloseTo(Math.exp(0.15), 9);
+  });
+
   it("normalises line and page units", () => {
     const i = wheel(0, -1, { deltaMode: 1, ctrlKey: true });
     if (i.kind !== "zoom") throw new Error("expected zoom");
-    expect(i.factor).toBeCloseTo(Math.exp(0.16), 9);
+    expect(i.factor).toBeCloseTo(Math.exp(16 * 0.0015), 9);
   });
 });
 

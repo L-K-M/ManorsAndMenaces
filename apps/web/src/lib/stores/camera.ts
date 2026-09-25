@@ -25,6 +25,8 @@ export interface CameraLimits {
   world: ViewBox;
   /** Container width / height. */
   aspect: number;
+  /** The coastline polygon; when given, the view's centre always stays on land. */
+  land?: readonly Point[];
 }
 
 /** Board units of sea kept around the island in the home view. */
@@ -98,21 +100,66 @@ export function zoomRange(limits: CameraLimits): { minW: number; maxW: number } 
   return { minW: Math.min(minW, maxW), maxW };
 }
 
+/** Whether `p` lies inside the polygon `poly` (even-odd rule). */
+function insidePolygon(p: Point, poly: readonly Point[]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i]!;
+    const b = poly[j]!;
+    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
+/** The point on the outline of `poly` nearest to `p`. */
+function nearestOnPolygon(p: Point, poly: readonly Point[]): Point {
+  let best = p;
+  let bestD = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[j]!;
+    const b = poly[i]!;
+    const ex = b.x - a.x;
+    const ey = b.y - a.y;
+    const len2 = ex * ex + ey * ey;
+    const t = len2 > 0 ? clamp(((p.x - a.x) * ex + (p.y - a.y) * ey) / len2, 0, 1) : 0;
+    const q = { x: a.x + t * ex, y: a.y + t * ey };
+    const d = Math.hypot(p.x - q.x, p.y - q.y);
+    if (d < bestD) {
+      bestD = d;
+      best = q;
+    }
+  }
+  return best;
+}
+
 /**
  * Apply zoom limits (around the view centre) and match the aspect. Panning
- * keeps the view's centre over the island's bounds, so at least half the
- * view (or the whole island) is always island. A tighter "no more than N%
- * sea" rule would pin the view in place at some zoom levels, which makes a
- * pinch drift away from under the fingers.
+ * keeps the view's centre on land (on the coastline at worst), so however
+ * far the player pans, the island stays in view. Without a coastline the
+ * centre is kept inside the island's bounds. Only the centre is limited: a
+ * rule on how much sea may show would pin the view in place at some zoom
+ * levels, which makes a pinch drift away from under the fingers.
  */
 export function clampBox(box: ViewBox, limits: CameraLimits): ViewBox {
   const { minW, maxW } = zoomRange(limits);
   const w = clamp(box.w, minW, maxW);
   const h = w / limits.aspect;
+  const { world, land } = limits;
+  let c = { x: clamp(box.x + box.w / 2, world.x, world.x + world.w), y: clamp(box.y + box.h / 2, world.y, world.y + world.h) };
+  if (land && land.length >= 3 && !insidePolygon(c, land)) c = nearestOnPolygon(c, land);
+  return { x: c.x - w / 2, y: c.y - h / 2, w, h };
+}
+
+/**
+ * The most board area the camera can ever show: the island's bounds grown by
+ * half the widest view, since the view's centre never leaves those bounds.
+ * The sea is drawn over this area so no bare edge ever shows.
+ */
+export function reachBox(limits: CameraLimits): ViewBox {
+  const { maxW } = zoomRange(limits);
+  const maxH = maxW / limits.aspect;
   const { world } = limits;
-  const cx = clamp(box.x + box.w / 2, world.x, world.x + world.w);
-  const cy = clamp(box.y + box.h / 2, world.y, world.y + world.h);
-  return { x: cx - w / 2, y: cy - h / 2, w, h };
+  return { x: world.x - maxW / 2, y: world.y - maxH / 2, w: world.w + maxW, h: world.h + maxH };
 }
 
 /** Container-relative CSS pixels to board units. */
@@ -168,17 +215,20 @@ export interface WheelInput {
 
 /**
  * Interpret a wheel event. Trackpad pinches arrive as ctrl+wheel and zoom;
- * mouse wheel notches (line/page units, or large whole-pixel vertical steps)
- * zoom gently; everything else is a two-finger scroll and pans. Pan deltas
- * are in CSS pixels of content movement.
+ * mouse wheel notches (line/page units, or large purely vertical pixel
+ * steps) zoom gently, with or without ctrl; everything else is a two-finger
+ * scroll and pans. The notch test is a heuristic: browsers do not say which
+ * device sent the event, and a notch's pixel size varies with page zoom and
+ * platform (so it need not be a whole number). Pan deltas are in CSS pixels
+ * of content movement.
  */
 export function wheelIntent(e: WheelInput): WheelIntent {
   const unit = e.deltaMode === 1 ? WHEEL_LINE_PX : e.deltaMode === 2 ? WHEEL_PAGE_PX : 1;
   const dx = e.deltaX * unit;
   const dy = e.deltaY * unit;
-  const notch = e.deltaMode !== 0 || (e.deltaX === 0 && Math.abs(e.deltaY) >= 50 && Number.isInteger(e.deltaY));
+  const notch = e.deltaMode !== 0 || (Math.abs(e.deltaX) < 1 && Math.abs(e.deltaY) >= 50);
   if (e.ctrlKey || notch) {
-    const rate = e.ctrlKey ? PINCH_ZOOM_RATE : WHEEL_ZOOM_RATE;
+    const rate = notch ? WHEEL_ZOOM_RATE : PINCH_ZOOM_RATE;
     return { kind: "zoom", factor: clamp(Math.exp(-dy * rate), 1 / MAX_WHEEL_FACTOR, MAX_WHEEL_FACTOR) };
   }
   return { kind: "pan", dx: -dx, dy: -dy };

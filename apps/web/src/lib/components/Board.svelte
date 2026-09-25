@@ -23,9 +23,10 @@
   const sitesById = $derived(new Map(map.sites.map((s) => [s.id, s])));
   const regionsById = $derived(new Map(map.regions.map((r) => [r.id, r])));
 
-  // The camera keeps the island (the coastline's extent) in reach.
-  const island = $derived(boundsOf(pathPoints(map.coastline)) ?? { x: 0, y: 0, w: map.width, h: map.height });
-  $effect(() => setWorld(island));
+  // The camera keeps the island (its coastline and extent) in view.
+  const coast = $derived(pathPoints(map.coastline));
+  const island = $derived(boundsOf(coast) ?? { x: 0, y: 0, w: map.width, h: map.height });
+  $effect(() => setWorld(island, coast));
   // Every game opens on the whole island, not wherever the last one left off.
   onMount(() => resetView("instant"));
 
@@ -299,8 +300,8 @@
        zoom. The layers below are deliberately not indented under it. -->
   <g class="camera" transform={cameraTransform}>
   <!-- sea -->
-  <rect x={-800} y={-600} width={map.width + 1600} height={map.height + 1200} fill="#bfe0f2" />
-  <rect x={-800} y={-600} width={map.width + 1600} height={map.height + 1200} fill="url(#waves)" />
+  <rect x={viewport.sea.x} y={viewport.sea.y} width={viewport.sea.w} height={viewport.sea.h} fill="#bfe0f2" />
+  <rect x={viewport.sea.x} y={viewport.sea.y} width={viewport.sea.w} height={viewport.sea.h} fill="url(#waves)" />
   <path d={map.coastline} fill="#e9dcb4" stroke="#b69e6a" stroke-width="18" transform="translate(0,0)" />
 
   <!-- terrain / regions -->

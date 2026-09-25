@@ -61,11 +61,27 @@
   }
   // Arrow keys pan the board by a tenth of the view.
   const PAN_KEYS: Record<string, [number, number]> = { ArrowLeft: [-0.1, 0], ArrowRight: [0.1, 0], ArrowUp: [0, -0.1], ArrowDown: [0, 0.1] };
+  // With nothing focused, the browser scrolls the box around whatever was
+  // last clicked, so remember it.
+  let lastPressed: Element | null = null;
+  /** Whether the browser would scroll a box around `from` along this axis. */
+  function scrollsNatively(from: Element | null, vertical: boolean): boolean {
+    for (let el = from; el && el !== document.body; el = el.parentElement) {
+      const style = getComputedStyle(el);
+      const overflow = vertical ? style.overflowY : style.overflowX;
+      const room = vertical ? el.scrollHeight > el.clientHeight : el.scrollWidth > el.clientWidth;
+      if (room && /auto|scroll|overlay/.test(overflow)) return true;
+    }
+    return false;
+  }
   function keydown(e: KeyboardEvent) {
     if ((e.target as HTMLElement)?.closest("input, select, textarea, [contenteditable]")) return;
     const pan = PAN_KEYS[e.key];
     if (pan) {
       if (e.altKey || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.closest("[role=dialog], [role=tablist]")) return;
+      // Leave the key to a scrollable panel (Chronicle, side panel, hand).
+      const focus = document.activeElement && document.activeElement !== document.body ? document.activeElement : lastPressed;
+      if (scrollsNatively(focus, pan[1] !== 0)) return;
       e.preventDefault();
       nudge(...pan);
       return;
@@ -82,7 +98,7 @@
   }
 </script>
 
-<svelte:window onkeydown={keydown} />
+<svelte:window onkeydown={keydown} onpointerdowncapture={(e) => (lastPressed = e.target as Element | null)} />
 
 <div class="game">
   <header class="topbar">
