@@ -248,7 +248,7 @@ test("arrow keys do not pan the board behind the privacy curtain", async ({ page
   await page.keyboard.press("Enter");
 
   // Clicking the curtain's text leaves nothing focused.
-  await page.getByRole("dialog", { name: "Pass the device" }).locator(".pass").click();
+  await page.getByRole("dialog", { name: /^Pass (the device|to )/ }).locator(".pass").click();
   const before = await viewBox(page);
   await page.keyboard.press("ArrowLeft");
   expect(await viewBox(page)).toEqual(before);

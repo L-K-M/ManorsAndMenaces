@@ -295,6 +295,21 @@ export function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
+/** Starts at full speed: for a glide retargeted while the camera is moving. */
+export function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+/**
+ * The highlighted targets to frame after the set changes: only those that
+ * were not highlighted before. Narrowing a choice (a selected Banner adds its
+ * Regions next to it, placing it removes them) must not pull the camera back
+ * out to the whole set.
+ */
+export function addedTargets(previous: ReadonlySet<string>, current: Iterable<string>): string[] {
+  return [...current].filter((k) => !previous.has(k));
+}
+
 /**
  * The view after the container resizes: keep the centre and the on-screen
  * scale, so a rotated phone or a resized window shows more or less board

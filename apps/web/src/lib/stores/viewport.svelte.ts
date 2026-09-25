@@ -11,6 +11,7 @@ import {
   boundsOf,
   clampBox,
   easeInOutCubic,
+  easeOutCubic,
   fitBox,
   frameTargets,
   homeBox,
@@ -49,7 +50,7 @@ let current: ViewBox = { ...viewport.box };
 /** True until the player moves the camera, so a resize can refit the island. */
 let atHome = true;
 let frame = 0;
-let flight: { from: ViewBox; to: ViewBox; start: number | null; ms: number } | null = null;
+let flight: { from: ViewBox; to: ViewBox; start: number | null; ms: number; ease: (t: number) => number } | null = null;
 
 function limits(): CameraLimits {
   return { world, aspect: size ? size.w / size.h : world.w / world.h, land };
@@ -69,7 +70,7 @@ function render(now: number): void {
   if (flight) {
     flight.start ??= now;
     const t = Math.min(1, (now - flight.start) / flight.ms);
-    current = interpolateBox(flight.from, flight.to, easeInOutCubic(t));
+    current = interpolateBox(flight.from, flight.to, flight.ease(t));
     if (t < 1) schedule();
     else flight = null;
   }
@@ -96,7 +97,10 @@ function move(box: ViewBox, motion: Motion, home = false): void {
   const to = clampBox(box, limits());
   const ms = FLIGHT_MS * animationScale();
   if (motion === "instant" || ms === 0 || typeof requestAnimationFrame !== "function") return jump(to, home);
-  flight = { from: { ...current }, to, start: null, ms };
+  // A glide retargeted mid-flight (a held arrow or +/- key) keeps its speed
+  // instead of restarting from rest, which made the camera crawl while the
+  // key was held and then sweep past after it was released.
+  flight = { from: { ...current }, to, start: null, ms, ease: flight ? easeOutCubic : easeInOutCubic };
   atHome = home;
   schedule();
 }

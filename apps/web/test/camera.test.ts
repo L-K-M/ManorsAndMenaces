@@ -2,8 +2,10 @@ import { GREENVALE_MAP } from "@manors-menaces/content";
 import { describe, expect, it } from "vitest";
 import {
   HOME_PADDING,
+  addedTargets,
   boundsOf,
   clampBox,
+  easeOutCubic,
   fitBox,
   frameTargets,
   homeBox,
@@ -263,6 +265,28 @@ describe("framing targets", () => {
     // Height-bound: (750 + 2 × 60) × aspect.
     expect(next!.w).toBeCloseTo(870 * landscape.aspect, 6);
   });
+
+  it("frames only newly added targets, so narrowing a choice keeps the camera still", () => {
+    // Banner assignment: the player's Banners sit at Holdings across the island.
+    const at = new Map<string, Point>([
+      ["banner:b1", { x: 250, y: 180 }],
+      ["banner:b2", { x: 1300, y: 850 }],
+      ["banner:b3", { x: 1400, y: 200 }],
+      ["banner:b4", { x: 900, y: 600 }],
+      ["region:r1", { x: 300, y: 210 }],
+    ]);
+    const points = (keys: readonly string[]) => keys.map((k) => at.get(k)!);
+    const banners = ["banner:b1", "banner:b2", "banner:b3", "banner:b4"];
+    // Selecting b1, which is in view, adds its legal Region next to it.
+    const selected = [...banners, "region:r1"];
+    expect(frameTargets(zoomedIn, points(selected), landscape, 90)).not.toBeNull();
+    const added = addedTargets(new Set(banners), selected);
+    expect(added).toEqual(["region:r1"]);
+    expect(frameTargets(zoomedIn, points(added), landscape, 90)).toBeNull();
+    // Placing the Banner only removes targets; a fresh tool frames them all.
+    expect(addedTargets(new Set(selected), banners)).toEqual([]);
+    expect(addedTargets(new Set(), selected)).toEqual(selected);
+  });
 });
 
 describe("motion and resize", () => {
@@ -274,6 +298,12 @@ describe("motion and resize", () => {
     expect(end.x).toBeCloseTo(b.x, 9);
     expect(end.w).toBeCloseTo(b.w, 9);
     expect(interpolateBox(a, b, 0.5).w).toBeCloseTo(200, 9);
+  });
+
+  it("eases a retargeted glide out from full speed", () => {
+    expect(easeOutCubic(0)).toBe(0);
+    expect(easeOutCubic(1)).toBe(1);
+    expect(easeOutCubic(0.1)).toBeGreaterThan(0.25);
   });
 
   it("keeps the centre and scale when the container resizes", () => {

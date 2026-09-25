@@ -9,7 +9,7 @@
   import { computeHighlights, legalFor, onPick } from "../game/interaction.js";
   import { regionName } from "../game/log.js";
   import { ui, type Pick } from "../stores/ui.svelte.js";
-  import { boundsOf, isDoubleTap, isDrag, pathPoints, wheelIntent, type Point, type Tap } from "../stores/camera.js";
+  import { addedTargets, boundsOf, isDoubleTap, isDrag, pathPoints, wheelIntent, type Point, type Tap } from "../stores/camera.js";
   import { viewport, frameIfHidden, panScreen, pinch, resetView, setContainer, setWorld, zoomAtScreen } from "../stores/viewport.svelte.js";
   import { settings, animationScale } from "../stores/settings.svelte.js";
   import { MENACE_THEME, PLAYER_THEMES, RESOURCE_COLORS, RESOURCE_GLYPHS, emblemPath } from "../theme.js";
@@ -195,9 +195,21 @@
     void onPick(session, legal, p);
   }
 
-  // When a new set of targets appears (a tool, a card step, the next setup
-  // placement) and most of it is off-screen, glide to show it (spec §48).
-  function targetPoints(): Point[] {
+  // When new targets appear (a tool, a card step, the next setup placement)
+  // and most of them are off-screen, glide to show them (spec §48). Targets
+  // are keyed `kind:id`.
+  function targetKeys(): string[] {
+    const keyed = (kind: string, ids: Iterable<string>) => [...ids].map((id) => `${kind}:${id}`);
+    return [
+      ...keyed("site", hl.sites),
+      ...keyed("route", hl.routes),
+      ...keyed("region", hl.regions),
+      ...keyed("banner", hl.banners),
+      ...keyed("menace", hl.menaces),
+      ...keyed("location", hl.locations),
+    ];
+  }
+  function targetPoints(keys: readonly string[]): Point[] {
     const pts: Point[] = [];
     const site = (id: string) => sitesById.get(id);
     const routeMid = (id: string) => {
@@ -210,27 +222,34 @@
       const r = regionsById.get(id);
       return r && { x: r.labelX, y: r.labelY };
     };
-    const add = (p: Point | undefined) => p && pts.push(p);
-    hl.sites.forEach((id) => add(site(id)));
-    hl.routes.forEach((id) => add(routeMid(id)));
-    hl.regions.forEach((id) => add(region(id)));
-    hl.banners.forEach((id) => add(bannerPositions.get(id)));
-    hl.menaces.forEach((id) => {
-      const m = gs.menaces[id];
-      if (m) add(menacePos(m));
-    });
-    hl.locations.forEach((k) => {
-      const [kind, id = ""] = k.split(":");
-      add(kind === "site" ? site(id) : kind === "route" ? routeMid(id) : region(id));
-    });
+    const point = (kind: string, id: string): Point | undefined => {
+      if (kind === "site") return site(id);
+      if (kind === "route") return routeMid(id);
+      if (kind === "region") return region(id);
+      if (kind === "banner") return bannerPositions.get(id);
+      if (kind === "menace") {
+        const m = gs.menaces[id];
+        return m && menacePos(m);
+      }
+      if (kind === "location") {
+        const [where = "", whereId = ""] = id.split(":");
+        return point(where, whereId);
+      }
+      return undefined;
+    };
+    for (const k of keys) {
+      const cut = k.indexOf(":");
+      const p = point(k.slice(0, cut), k.slice(cut + 1));
+      if (p) pts.push(p);
+    }
     return pts;
   }
-  let framedKey = "";
+  let framed = new Set<string>();
   $effect(() => {
-    const key = [hl.sites, hl.routes, hl.regions, hl.banners, hl.menaces, hl.locations].map((set) => [...set].sort().join()).join("|");
-    if (key === framedKey) return;
-    framedKey = key;
-    untrack(() => frameIfHidden(targetPoints()));
+    const keys = targetKeys();
+    const added = addedTargets(framed, keys);
+    framed = new Set(keys);
+    if (added.length) untrack(() => frameIfHidden(targetPoints(added)));
   });
   function key(e: KeyboardEvent, p: Pick) {
     if (e.key === "Enter" || e.key === " ") {
