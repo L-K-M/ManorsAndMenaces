@@ -9,6 +9,7 @@
   import { resetTool, ui } from "../stores/ui.svelte.js";
   import { resetView, zoomAt, zoomTo, viewport } from "../stores/viewport.svelte.js";
   import ActionBar from "./ActionBar.svelte";
+  import Announcer from "./Announcer.svelte";
   import Board from "./Board.svelte";
   import DebugPanel from "./DebugPanel.svelte";
   import Dialogs from "./Dialogs.svelte";
@@ -18,6 +19,7 @@
   import LogPanel from "./LogPanel.svelte";
   import Overlays from "./Overlays.svelte";
   import PlayersPanel from "./PlayersPanel.svelte";
+  import PrivacyCurtain from "./PrivacyCurtain.svelte";
   import QuestPanel from "./QuestPanel.svelte";
   import ResourceIcon from "./ResourceIcon.svelte";
   import SettingsDialog from "./SettingsDialog.svelte";
@@ -89,7 +91,7 @@
 <svelte:window onkeydown={keydown} onpagehide={() => void session.flushAutosave()} />
 <svelte:document onvisibilitychange={onhidden} />
 
-<div class="game">
+<div class="game" inert={!!session.curtainFor}>
   <header class="topbar">
     <button class="ghost" onclick={() => (ui.dialog = "menu")} aria-label={t("ui.main_menu")} aria-haspopup="dialog">☰</button>
     <h1>{t("app.title")}</h1>
@@ -147,6 +149,8 @@
   </footer>
 </div>
 
+<PrivacyCurtain {session} />
+<Announcer {session} />
 <Dialogs {session} {legal} />
 {#if ui.dialog === "menu"}<GameMenu {session} {tutorial} {onexit} onsettings={() => ((settingsFromMenu = true), (ui.dialog = "settings"))} onclose={() => (ui.dialog = null)} />{/if}
 {#if ui.dialog === "settings"}<SettingsDialog onclose={() => ((ui.dialog = settingsFromMenu ? "menu" : null), (settingsFromMenu = false))} />{/if}

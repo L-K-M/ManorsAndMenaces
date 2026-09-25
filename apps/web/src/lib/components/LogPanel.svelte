@@ -19,7 +19,7 @@
     <h3>{t("ui.chronicle")}</h3>
     {#if dev}<label><input type="checkbox" bind:checked={showRaw} /> {t("ui.details")}</label>{/if}
   </header>
-  <ol bind:this={listEl} aria-live="polite">
+  <ol bind:this={listEl}>
     {#each session.log as entry (entry.id)}
       {@const seat = session.seat(entry.playerId)}
       <li class={entry.kind} style="--pc: {entry.playerId ? (PLAYER_THEMES[seat?.color ?? 0]?.color ?? '#555') : '#555'}">

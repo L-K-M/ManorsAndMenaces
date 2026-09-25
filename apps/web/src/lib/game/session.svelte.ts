@@ -24,6 +24,7 @@ import { AiClient } from "./aiClient.js";
 import { aiPaceDelayMs, aiStepPace, resolveAiStep, type AiStep } from "./aiStep.js";
 import { engineFor, mapFor } from "./engine.js";
 import { formatEvents, noticeEntry, type LogEntry } from "./log.js";
+import { initialView, nextView, privacyMode, revealView, type PrivacyMode, type PrivacyView } from "./privacy.js";
 import { autosavesToPrune, describeSave, exportFileName, manualSaveId, newAutosaveId, replayPending, saveLabel } from "./saves.js";
 import { recordGame } from "./telemetry.js";
 import { devlog } from "../devlog.js";
@@ -93,7 +94,7 @@ export class GameSession {
   floaters: Floater[] = $state.raw([]);
   error: string | null = $state(null);
   busy = $state(false);
-  /** Player whose private information (hand) the UI shows. */
+  /** Player whose private information (hand) the UI shows; see privacy.ts. */
   viewerId: PlayerId | null = $state(null);
   /** Hot-seat: waiting for this player to take the device. */
   curtainFor: PlayerId | null = $state(null);
@@ -160,7 +161,7 @@ export class GameSession {
       this.draft = step.after;
     }
     this.aiRngState = seedRng(`${opts.state.matchId}:ai:${opts.state.revision}`);
-    this.viewerId = this.onlinePlayerId ?? this.firstHuman();
+    this.viewerId = this.onlinePlayerId ?? initialView(this.privacyMode(), this.firstHuman()).viewerId;
     this.afterStateChange([]);
     // Writing an unchanged save back would let merely opening an older
     // position replace newer progress; the first change writes it instead.
@@ -216,6 +217,16 @@ export class GameSession {
 
   private firstHuman(): PlayerId | null {
     return this.seats.find((s) => s.kind === "human")?.playerId ?? null;
+  }
+
+  /** Local games only: read each time, as the curtain setting can change mid-game. */
+  private privacyMode(): PrivacyMode {
+    return privacyMode(this.seats.filter((s) => s.kind === "human").length, settings.privacyCurtain);
+  }
+
+  private setView(view: PrivacyView): void {
+    this.viewerId = view.viewerId;
+    this.curtainFor = view.curtainFor;
   }
 
   /** The player this client may act for right now, if any. */
@@ -398,11 +409,8 @@ export class GameSession {
         recordGame(this.ctx, state, Object.fromEntries(this.seats.map((s) => [s.playerId, s.kind])));
       }
       // Hot-seat privacy curtain between different humans (§56.1).
-      const humans = this.seats.filter((s) => s.kind === "human").length;
-      if (actor && this.isHuman(actor) && actor !== this.viewerId) {
-        if (settings.privacyCurtain && humans >= 2) this.curtainFor = actor;
-        else this.viewerId = actor;
-      }
+      const view = { viewerId: this.viewerId, curtainFor: this.curtainFor };
+      this.setView(nextView(this.privacyMode(), view, actor, this.isHuman(actor), state.activePlayerId));
       if (actor && !this.isHuman(actor)) this.scheduleAi();
       else if (actor) this.expireAiNotice();
     } else if (events.some((e) => e.type === "turn_started" && e.playerId === this.onlinePlayerId)) {
@@ -411,9 +419,7 @@ export class GameSession {
   }
 
   revealForCurtain(): void {
-    if (!this.curtainFor) return;
-    this.viewerId = this.curtainFor;
-    this.curtainFor = null;
+    this.setView(revealView({ viewerId: this.viewerId, curtainFor: this.curtainFor }));
   }
 
   private scheduleAi(delayMs = 0): void {

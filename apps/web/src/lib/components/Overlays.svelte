@@ -1,5 +1,6 @@
 <script lang="ts">
-  // Privacy curtain (§56.1), victory screen, and the entity inspector.
+  // Victory screen and the entity inspector. The privacy curtain lives in
+  // PrivacyCurtain.svelte, outside the game root that it makes inert.
   import { getPlayerHoldings, getRenown } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { regionName } from "../game/log.js";
@@ -72,16 +73,6 @@
   });
 </script>
 
-{#if session.curtainFor}
-  <div class="curtain" role="dialog" aria-modal="true" aria-label={t("ui.pass_the_device")}>
-    <div class="card">
-      <p class="pass">{t("ui.pass_to")}</p>
-      <h2>{gs.players[session.curtainFor]?.displayName}</h2>
-      <button class="primary big" onclick={() => session.revealForCurtain()}>{t("ui.tap_to_begin_turn")}</button>
-    </div>
-  </div>
-{/if}
-
 {#if gs.status === "finished"}
   <Modal title={t("ui.victory")}>
     <p class="winner">
@@ -113,31 +104,6 @@
 {/if}
 
 <style>
-  .curtain {
-    position: fixed;
-    inset: 0;
-    background: radial-gradient(circle at 50% 40%, #3d6b3a, #1d321b);
-    display: grid;
-    place-items: center;
-    z-index: 60;
-  }
-  .curtain .card {
-    text-align: center;
-    color: #fffaf0;
-  }
-  .pass {
-    font-size: 1.2rem;
-    opacity: 0.8;
-    margin: 0;
-  }
-  .curtain h2 {
-    font: 700 3rem/1.1 var(--font-display);
-    margin: 0.3rem 0 1.2rem;
-  }
-  .big {
-    font-size: 1.2rem;
-    padding: 0.8rem 1.6rem;
-  }
   .winner {
     font-size: 1.1rem;
   }
