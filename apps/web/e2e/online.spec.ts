@@ -74,3 +74,28 @@ test("a stale saved session is replaced by a new guest session", async ({ page }
   expect(saved.token).toBeTruthy();
   expect(saved.token).not.toBe("stale-token");
 });
+
+test("a failed session renewal does not leave the renewal notice behind", async ({ page }) => {
+  // The server forgets every session it hands out, then stops issuing new ones.
+  await page.route("http://localhost:8788/api/matches", (route) => route.fulfill({ status: 401, json: { error: "unknown session", code: "INVALID_SESSION" } }));
+  let guests = 0;
+  await page.route("http://localhost:8788/api/guest", (route) =>
+    ++guests === 1
+      ? route.fulfill({ json: { token: "short-lived", userId: "u_short", displayName: "Carol" } })
+      : route.fulfill({ status: 500, json: { error: "internal error" } }),
+  );
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false }));
+    localStorage.setItem("mm.online.v1", JSON.stringify({ serverUrl: "http://localhost:8788", token: "stale-token", userId: "u_gone", displayName: "Carol" }));
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "Play online" }).click();
+  // The first renewal succeeds, so the notice is accurate while the lobby stays open.
+  await expect(page.locator(".notice")).toContainText("new guest");
+  await page.getByRole("button", { name: "↻" }).click();
+  // The second renewal fails: back to the sign-in form, without claiming a new session.
+  await expect(page.getByRole("button", { name: "Continue as guest" })).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText("internal error");
+  await expect(page.locator(".notice")).toHaveCount(0);
+});

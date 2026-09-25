@@ -49,6 +49,7 @@
       await client.ensureGuest(name.trim() || "Guest");
     } catch (e) {
       signedIn = false; // back to the form, where the server address can be changed
+      notice = null; // an earlier renewal's "signed in as a new guest" is no longer true
       throw e;
     }
     notice = t("ui.session_renewed");

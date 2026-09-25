@@ -119,14 +119,18 @@ export interface SubmitCommandsResponse {
 
 /**
  * Machine-readable reasons on HTTP error bodies. Older servers send only
- * `error`, so clients must also handle a missing `code`.
+ * `error`, so clients must also handle a missing `code`, and treat a code
+ * they do not recognise (added by a newer server) as a generic error.
  * - INVALID_SESSION (401): the token is missing or unknown; start a new session.
  * - COMMAND_ID_CONFLICT (409): a command id was already used for a different command.
  * - DUPLICATE_COMMAND_ID (400): one batch repeats a command id.
  */
 export type ApiErrorCode = "INVALID_SESSION" | "COMMAND_ID_CONFLICT" | "DUPLICATE_COMMAND_ID";
 
-/** Body of every non-2xx HTTP response. */
+/**
+ * Body of every non-2xx HTTP response this server sends. A proxy in front of
+ * it can answer with a body of its own, so clients must not assume JSON.
+ */
 export interface ApiErrorBody {
   error: string;
   code?: ApiErrorCode;

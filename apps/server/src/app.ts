@@ -40,6 +40,9 @@ export interface AppOptions {
 // WebSocket limits. A client sends one small frame per match it opens, so
 // these leave ample room while stopping a single socket from making the
 // server read, redact and send a match view thousands of times a second.
+// Commands travel over HTTP (64 KB body cap), never over the socket: the
+// largest valid ClientMessage is a subscribe with a server-issued match id
+// (`m_` + UUID), 71 bytes.
 const WS_MAX_MESSAGE_BYTES = 4_096;
 const WS_MESSAGES_PER_SECOND = 5;
 const WS_MESSAGE_BURST = 20;
@@ -107,7 +110,7 @@ function forwardedChain(req: IncomingMessage): string[] {
 
 /**
  * The address rate limits are keyed on. Behind `trustProxy` proxies it is
- * the entry that many places from the right of the forwarding chain: the
+ * the entry `trustProxy` places from the right of the forwarding chain: the
  * address the outermost trusted proxy saw. Entries further left come from
  * the client and could be rotated to dodge the limit, so they are ignored.
  */
