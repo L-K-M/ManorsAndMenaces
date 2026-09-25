@@ -631,7 +631,8 @@
   .bar .seg:first-child {
     border-radius: 5px 0 0 5px;
   }
-  .bar .seg:last-of-type {
+  /* The goal marker is always the bar's last span, so the last segment is the one before it. */
+  .bar .seg:nth-last-of-type(2) {
     border-top-right-radius: 5px;
     border-bottom-right-radius: 5px;
   }

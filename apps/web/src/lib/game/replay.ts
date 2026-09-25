@@ -1,7 +1,8 @@
 // Replays a saved command history with the rules engine (spec §62), so the
 // client can derive the Chronicle and end-of-game statistics from it.
 
-import { hashState, type GameCommand, type GameEvent, type GameState, type RulesEngine } from "@manors-menaces/rules";
+import { hashState, type ApplyResult, type GameCommand, type GameEvent, type GameState, type RulesEngine } from "@manors-menaces/rules";
+import { devlog } from "../devlog.js";
 
 export interface ReplayStep {
   command: GameCommand;
@@ -23,7 +24,10 @@ export interface ReplayResult {
 
 /**
  * Applies `commands` to `initial` in order and calls `visit` for each accepted
- * one. Stops at the first rejected command instead of throwing.
+ * one. Stops at the first rejected command instead of throwing. A command the
+ * engine throws on (a damaged or older save) also ends the replay as
+ * incomplete: callers use the result only for the Chronicle and statistics,
+ * which must never keep a save from loading.
  */
 export function replayHistory(
   engine: RulesEngine,
@@ -34,7 +38,13 @@ export function replayHistory(
 ): ReplayResult {
   let state = initial;
   for (const command of commands) {
-    const r = engine.applyCommand(state, command);
+    let r: ApplyResult;
+    try {
+      r = engine.applyCommand(state, command);
+    } catch (e) {
+      devlog("rules", "replay stopped: the engine threw on a saved command", e);
+      return { final: state, complete: false };
+    }
     if (!r.accepted || !r.newState) return { final: state, complete: false };
 
     visit({ command, events: r.events, before: state, after: r.newState });

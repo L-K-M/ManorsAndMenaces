@@ -2,7 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 import { runAiUntilHuman } from "@manors-menaces/ai";
 import { rulesContentFor } from "@manors-menaces/content";
 import { SAVE_SCHEMA_VERSION, type SaveFile } from "@manors-menaces/protocol";
-import { RULESET_VERSION, createRng, createRulesEngine, seedRng, standardRuleset } from "@manors-menaces/rules";
+import { RULESET_VERSION, createRng, createRulesEngine, mvpRuleset, seedRng, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
+import { TUTORIAL_SEED } from "../src/lib/game/rematch.js";
 
 // Critical flows (spec §66.5): create game, initial placement, first turn,
 // build route, assign banner, harvest, buy card, move menace, save/reload, win.
@@ -23,20 +24,20 @@ async function startHotseat(page: Page, rules: "standard" | "mvp" = "standard") 
   await page.getByRole("button", { name: "Begin" }).click();
 }
 
-/** A finished three-player hot-seat game with its full history, played by the AI. */
-function finishedSave(): SaveFile {
+/** A finished hot-seat game with its full history, played by the AI (three players by default). */
+function finishedSave(seed = "e2e-finished", names = ["Ysolde", "Wat", "Maud"], ruleset: RulesetConfig = standardRuleset(3)): SaveFile {
   const engine = createRulesEngine(rulesContentFor());
-  const seats = ["Ysolde", "Wat", "Maud"].map((displayName, i) => ({ playerId: `P${i + 1}`, displayName, kind: "human" as const, color: i }));
+  const seats = names.map((displayName, i) => ({ playerId: `P${i + 1}`, displayName, kind: "human" as const, color: i }));
   const initialState = engine.createGame({
-    matchId: "local-e2e-finished",
-    seed: "e2e-finished",
+    matchId: `local-${seed}`,
+    seed,
     rulesetVersion: RULESET_VERSION,
-    ruleset: standardRuleset(3),
+    ruleset,
     players: seats.map((s) => ({ id: s.playerId, displayName: s.displayName })),
   });
-  const rng = createRng(seedRng("e2e-finished-ai"));
+  const rng = createRng(seedRng(`${seed}-ai`));
   const { state, commands } = runAiUntilHuman(engine, initialState, () => true, () => ({ level: "normal", rng }), 20_000);
-  expect(state.status).toBe("finished");
+  expect(state.status, "the AI must finish the game within its 20,000-command budget").toBe("finished");
   return { schemaVersion: SAVE_SCHEMA_VERSION, rulesetVersion: RULESET_VERSION, savedAt: new Date(0).toISOString(), mapId: "greenvale", seats, initialState, state, commandHistory: commands };
 }
 
@@ -186,6 +187,26 @@ test("a finished saved game opens on the full results", async ({ page }) => {
   await expect(page.locator(".round")).toHaveText("Round 1");
   await page.getByRole("tab", { name: "Players" }).click();
   for (const name of ["Ysolde", "Wat", "Maud"]) await expect(page.locator(".players")).toContainText(name);
+  expect(errors).toEqual([]);
+});
+
+// Review question: does "Play again" after a tutorial continued from a save
+// drop into an unguided game? It opens the New Game setup instead.
+test("a finished tutorial loaded from a save leads to a real game setup", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false })));
+  await page.reload();
+  await page.getByRole("button", { name: "Load game" }).click();
+  const save = finishedSave(TUTORIAL_SEED, ["You", "Lord Mumble"], mvpRuleset());
+  await page.getByLabel(/Import a save file/).setInputFiles({ name: "tutorial.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(save)) });
+
+  const victory = page.getByRole("dialog", { name: "Victory!" });
+  await expect(victory).toBeVisible();
+  await expect(victory.getByRole("button", { name: "Play again" })).toHaveCount(0);
+  await victory.getByRole("button", { name: "Play a real game" }).click();
+  await expect(page.getByRole("heading", { name: "New game" })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

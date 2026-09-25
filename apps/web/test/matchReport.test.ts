@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { RESOURCE_TYPES, getRenown, standardRuleset } from "@manors-menaces/rules";
+import { RESOURCE_TYPES, clone, getRenown, standardRuleset } from "@manors-menaces/rules";
 import { buildMatchReport, pickAwards, renownChart, type MatchStats, type PlayerResult } from "../src/lib/game/matchReport.js";
+import { replayHistory } from "../src/lib/game/replay.js";
 import { engine, playGame } from "./helpers.js";
 
 const game = playGame(standardRuleset(3), "victory", 3);
@@ -47,6 +48,22 @@ describe("buildMatchReport", () => {
     }
   });
 
+  // Review claim: Strongholds counted twice. A Stronghold is a paid upgrade
+  // of a founded Manor, so the builder metric counts it as a second build.
+  it("counts every Route, Manor and Stronghold built exactly once", () => {
+    const builds = new Map<string, number>();
+    replayHistory(engine, game.initial, game.commands, ({ events }) => {
+      for (const e of events) {
+        if (e.type === "route_built" || e.type === "holding_built" || e.type === "holding_upgraded") builds.set(e.playerId, (builds.get(e.playerId) ?? 0) + 1);
+      }
+    });
+    expect(report.standings.some((r) => r.stats.strongholds > 0)).toBe(true);
+    for (const r of report.standings) expect(r.stats.routes + r.stats.manors + r.stats.strongholds).toBe(builds.get(r.playerId));
+
+    const award = report.awards.find((a) => a.id === "master_builder");
+    expect(award?.value).toBe(Math.max(...builds.values()));
+  });
+
   it("hands out two to four distinct awards, at most two per player, deterministically", () => {
     expect(report.awards.length).toBeGreaterThanOrEqual(2);
     expect(report.awards.length).toBeLessThanOrEqual(4);
@@ -65,7 +82,10 @@ describe("buildMatchReport", () => {
 
   it("falls back to the final state when the history does not replay", () => {
     const broken = [...game.commands.slice(0, 30), ...game.commands.slice(31)];
-    for (const history of [null, { initial: game.initial, commands: broken }, { initial: game.final, commands: [] }]) {
+    // A damaged initial state makes the engine throw rather than reject.
+    const damaged = clone(game.initial);
+    for (const p of Object.values(damaged.players)) delete (p as Partial<typeof p>).stats;
+    for (const history of [null, { initial: game.initial, commands: broken }, { initial: game.final, commands: [] }, { initial: damaged, commands: game.commands }]) {
       const r = buildMatchReport(engine, game.final, history);
       expect(r.historyComplete).toBe(false);
       expect(r.timeline).toBeNull();

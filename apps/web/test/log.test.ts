@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mvpRuleset } from "@manors-menaces/rules";
+import { clone, mvpRuleset } from "@manors-menaces/rules";
 import { mapFor } from "../src/lib/game/engine.js";
 import { rebuildLog } from "../src/lib/game/log.js";
 import { engine, playGame } from "./helpers.js";
@@ -26,6 +26,18 @@ describe("rebuildLog", () => {
 
     expect(r.complete).toBe(false);
     expect(r.entries.length).toBeGreaterThan(1);
+    expect(r.entries.at(-1)?.text).toMatch(/could not be restored/);
+  });
+
+  // Regression (review): loading replays the history, so a save whose initial
+  // state the engine cannot apply commands to (damaged, or from an older
+  // version) threw out of GameSession.fromSave and could not be loaded.
+  it("does not throw when the engine cannot apply a damaged history", () => {
+    const damaged = clone(game.initial);
+    for (const p of Object.values(damaged.players)) delete (p as Partial<typeof p>).stats;
+    const r = rebuildLog(engine, map, damaged, game.commands, game.final);
+
+    expect(r.complete).toBe(false);
     expect(r.entries.at(-1)?.text).toMatch(/could not be restored/);
   });
 
