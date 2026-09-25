@@ -10,6 +10,7 @@
   import { animationScale } from "../stores/settings.svelte.js";
   import { MENACE_THEME, PLAYER_THEMES, RESOURCE_GLYPHS, emblemPath, type PlayerTheme } from "../theme.js";
   import ResourceIcon from "./ResourceIcon.svelte";
+  import ToolIcon from "./ToolIcon.svelte";
 
   let { session, tutorial = false, onexit, onrematch }: { session: GameSession; tutorial?: boolean; onexit: () => void; onrematch: () => void } = $props();
 
@@ -179,7 +180,7 @@
           <h2>{winner.name}</h2>
           <p class="sub">{t("ui.victory_subtitle", { renown: winner.renown.total, round: report.round })}</p>
         </div>
-        <button class="close" aria-label={t("ui.close")} onclick={close}>✕</button>
+        <button class="close" aria-label={t("ui.close")} onclick={close}><ToolIcon name="close" size={20} /></button>
       </header>
 
       <div class="body">
@@ -199,7 +200,7 @@
                     <div class="line">
                       <strong>{r.name}</strong>
                       {#if seat?.kind === "ai"}<span class="tag">{t("ui.computer")} · {t(`ui.${seat.aiLevel ?? "normal"}`)}</span>{/if}
-                      <span class="total"><span aria-hidden="true">♛</span> {r.renown.total} <small>{t("ui.renown")}</small></span>
+                      <span class="total"><ToolIcon name="crown" size={14} /> {r.renown.total} <small>{t("ui.renown")}</small></span>
                     </div>
                     <div class="bar" aria-hidden="true">
                       {#each BREAKDOWN as b}
@@ -349,7 +350,7 @@
   </div>
 {:else if winner}
   <button class="game-over" bind:this={reopenButton} onclick={() => (open = true)} style="--pc: {wt.color}; --pd: {wt.dark}">
-    <span aria-hidden="true">♛</span>
+    <ToolIcon name="crown" size={16} />
     {t("ui.game_over_results")}
   </button>
 {/if}

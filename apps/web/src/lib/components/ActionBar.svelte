@@ -186,7 +186,7 @@
         <ol class="stepper" aria-label={t("status.turn_phases")}>
           {#each PHASES as p, i}
             <li class:done={i < phaseIndex} class:now={i === phaseIndex} aria-current={i === phaseIndex ? "step" : undefined} title={t(`phase.${p}`)}>
-              {#if i < phaseIndex}<span class="tick" aria-hidden="true">✓</span>{/if}{t(`phase_short.${p}`)}
+              {#if i < phaseIndex}<span class="tick"><ToolIcon name="check" size={11} /></span>{/if}{t(`phase_short.${p}`)}
             </li>
           {/each}
         </ol>
@@ -210,7 +210,7 @@
     {:else if legal.mode === "setup_manor" || legal.mode === "setup_route"}
       <p class="status">{t(legal.mode === "setup_manor" ? "setup.place_manor" : "setup.place_route", { name: gs.players[legal.playerId]?.displayName ?? "" })}</p>
       <div class="end">
-        <button class="ghost" disabled={!session.canUndo} onclick={() => session.undo()}>↶ {t("action.undo")}</button>
+        <button class="ghost" disabled={!session.canUndo} onclick={() => session.undo()}><ToolIcon name="undo" size={18} /> {t("action.undo")}</button>
       </div>
     {:else if legal.mode === "setup_banners"}
       <p class="status">
@@ -218,10 +218,10 @@
         — {hints.hint ? t(hints.hint) : ""}
       </p>
       <div class="end">
-        <button class="ghost" disabled={!ui.selectedBannerId} onclick={sendHome}>⌂ {t("action.send_home")}</button>
+        <button class="ghost" disabled={!ui.selectedBannerId} onclick={sendHome}><ToolIcon name="home" size={18} /> {t("action.send_home")}</button>
         <button class="ghost" disabled={draftChanges === 0} onclick={resetBanners}>{t("action.reset")}</button>
         <button class="primary" class:arming disabled={arming} onclick={once(() => legal && confirmBanners(session, legal))}>
-          ✓ {t("action.confirm_banners")}{draftChanges ? ` (${draftChanges})` : ""}
+          <ToolIcon name="check" size={18} /> {t("action.confirm_banners")}{draftChanges ? ` (${draftChanges})` : ""}
         </button>
       </div>
     {:else if legal.mode === "banner_assignment"}
@@ -232,10 +232,10 @@
       <!-- "Back to actions" takes the spot of "Assign Banners →" and End Turn
            sits apart from it, so re-clicking that spot can never end the turn. -->
       <div class="end">
-        <button class="ghost" disabled={!ui.selectedBannerId} onclick={sendHome}>⌂ {t("action.send_home")}</button>
+        <button class="ghost" disabled={!ui.selectedBannerId} onclick={sendHome}><ToolIcon name="home" size={18} /> {t("action.send_home")}</button>
         <button class="ghost" disabled={draftChanges === 0} onclick={resetBanners}>{t("action.reset")}</button>
         <button class="primary" class:arming disabled={arming} onclick={once(finishBanners)}>
-          {draftChanges ? `✓ ${t("action.confirm_end_turn")}` : t("action.end_turn_keep")}<kbd aria-hidden="true">⏎</kbd>
+          {#if draftChanges}<ToolIcon name="check" size={18} /> {t("action.confirm_end_turn")}{:else}{t("action.end_turn_keep")}{/if}<kbd aria-hidden="true">⏎</kbd>
         </button>
         <button class="ghost" class:arming disabled={arming || !session.canUndo} onclick={once(() => session.undo())} data-refocus>← {t("action.back_to_main")}</button>
       </div>
@@ -284,10 +284,10 @@
           <button class="claim" class:glow={animationScale() > 0} onclick={() => claim(q)}>
             <span aria-hidden="true">★</span>
             <span class="label">{t("action.claim_quest", { quest: t(`quest.${q}.name`) })}</span><span class="short" aria-hidden="true">{t("action.claim")}</span>
-            <small>+{session.ctx.quest(q).renown} ♛</small>
+            <small>+{session.ctx.quest(q).renown} <ToolIcon name="crown" size={14} /></small>
           </button>
         {/each}
-        <button class="ghost" disabled={!session.canUndo} onclick={() => session.undo()} aria-label={t("action.undo")}>↶ {t("action.undo")}</button>
+        <button class="ghost" disabled={!session.canUndo} onclick={() => session.undo()} aria-label={t("action.undo")}><ToolIcon name="undo" size={18} /> {t("action.undo")}</button>
         <button class="primary" class:arming disabled={arming} onclick={once(endMain)} data-refocus>{t("action.end_main")} →</button>
       </div>
     {:else if legal.mode === "end"}
@@ -295,7 +295,7 @@
         {#if legal.mustDiscard > 0}{t("error.HAND_OVER_LIMIT", { limit: gs.ruleset.handLimit })}{:else}{t("phase.end")}{/if}
       </p>
       <div class="end">
-        <button class="ghost" class:arming disabled={arming || !session.canUndo} onclick={once(() => session.undo())}>↶ {t("action.undo")}</button>
+        <button class="ghost" class:arming disabled={arming || !session.canUndo} onclick={once(() => session.undo())}><ToolIcon name="undo" size={18} /> {t("action.undo")}</button>
         <button class="primary" class:arming disabled={arming || legal.mustDiscard > 0} onclick={once(endTurn)}>{t("action.end_turn")}<kbd aria-hidden="true">⏎</kbd></button>
       </div>
     {:else if legal.mode === "reaction" || legal.mode === "prophecy"}
@@ -308,14 +308,14 @@
        buttons take clicks, so a toast never blocks a board target under it. -->
   <div class="toasts">
     {#if legal?.mode === "main" && hints.hint && ui.tool !== "none"}
-      <p class="hint">{t(hints.hint)} <button class="ghost cancel" onclick={resetTool}>✕ {t("action.cancel")}</button></p>
+      <p class="hint">{t(hints.hint)} <button class="ghost cancel" onclick={resetTool}><ToolIcon name="close" size={16} /> {t("action.cancel")}</button></p>
     {/if}
     {#if legal?.mode === "banner_assignment" && questReminder.length}
       <p class="notice" role="status">
         <span aria-hidden="true">★</span>
         {t("status.quest_still_claimable", { quest: questReminder.map((q) => t(`quest.${q}.name`)).join(", ") })}
         {#if session.canUndo}<button class="link" onclick={() => backAndClaim(questReminder[0] as string)}>{t("status.back_and_claim")}</button>{/if}
-        <button class="link dismiss" aria-label={t("status.dismiss")} onclick={() => (questReminder = [])}>✕</button>
+        <button class="link dismiss" aria-label={t("status.dismiss")} onclick={() => (questReminder = [])}><ToolIcon name="close" size={18} /></button>
       </p>
     {/if}
     {#if legal?.mode === "banner_assignment" && getPlayerBanners(gs, legal.playerId).length === 0}

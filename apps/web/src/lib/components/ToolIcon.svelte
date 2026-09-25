@@ -24,6 +24,7 @@
     undo: "M9 14 L4 9 L9 4 M4 9 H14 A6 6 0 0 1 14 21 H10",
     home: "M3.5 11.5 L12 4 L20.5 11.5 M6.5 9.5 V20 H17.5 V9.5 M10.5 20 V15 H13.5 V20",
     check: "M4.5 12.5 L9.5 17.5 L19.5 6.5",
+    sparkle: "M12 3 L13.9 10.1 L21 12 L13.9 13.9 L12 21 L10.1 13.9 L3 12 L10.1 10.1 Z",
     "arrow-up": "M12 19.5 V5 M6 11 L12 5 L18 11",
     "arrow-down": "M12 4.5 V19 M6 13 L12 19 L18 13",
   } as const;
@@ -31,7 +32,7 @@
   export type ToolIconName = keyof typeof PATHS;
 
   /** Icons drawn as solid shapes rather than outlines. */
-  const FILLED: ReadonlySet<ToolIconName> = new Set(["crown"]);
+  const FILLED: ReadonlySet<ToolIconName> = new Set(["crown", "sparkle"]);
 </script>
 
 <script lang="ts">

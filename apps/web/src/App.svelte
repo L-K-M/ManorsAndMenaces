@@ -116,7 +116,7 @@
       loadError = t("ui.export_failed");
     }
   }
-  /** The pressed ✕ is replaced by the confirmation: focus its safe choice. */
+  /** The pressed delete button is replaced by the confirmation: focus its safe choice. */
   function focusNow(node: HTMLElement) {
     node.focus();
   }
@@ -229,8 +229,9 @@
               <span class="who">
                 {#each meta.players as p}
                   {@const theme = PLAYER_THEMES[p.color] ?? PLAYER_THEMES[0]!}
-                  <span class="player" class:winner={meta.winner === p.name}>
+                  <span class="player">
                     <svg width="14" height="14" viewBox="-7 -7 14 14" aria-hidden="true"><path d={emblemPath(theme.shape, 5.5)} fill={theme.color} stroke={theme.dark} stroke-width="1.2" /></svg>{p.name}
+                    {#if meta.winner === p.name}<span class="crown"><ToolIcon name="crown" size={14} /></span>{/if}
                   </span>
                 {/each}
               </span>
@@ -489,8 +490,8 @@
     align-items: center;
     gap: 0.25rem;
   }
-  .player.winner::after {
-    content: "♛";
+  .crown {
+    display: inline-flex;
     color: #b08500;
   }
   .facts {

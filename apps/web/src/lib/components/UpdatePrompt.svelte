@@ -3,6 +3,7 @@
   import { t } from "../i18n.js";
   import { appUpdate, applyUpdate, dismissUpdate } from "../pwa.svelte.js";
   import { settings } from "../stores/settings.svelte.js";
+  import ToolIcon from "./ToolIcon.svelte";
 </script>
 
 <!-- The live region exists from the start so screen readers announce the
@@ -10,7 +11,7 @@
 <div role="status">
   {#if appUpdate.ready}
     <div class="update" transition:fly={{ y: -24, duration: settings.reducedMotion ? 0 : 220 }}>
-      <span class="seal" aria-hidden="true">✦</span>
+      <span class="seal" aria-hidden="true"><ToolIcon name="sparkle" size={18} /></span>
       <p>{t("app.update_ready")}</p>
       <div class="buttons">
         <button class="ghost" onclick={dismissUpdate}>{t("app.update_later")}</button>
