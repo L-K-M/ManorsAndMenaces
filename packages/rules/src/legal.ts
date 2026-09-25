@@ -358,12 +358,21 @@ function findTradeFix(
 ): MarketTrade[] | undefined {
   const receive = state.ruleset.market.receive;
   let frontier: { have: Resources; trades: MarketTrade[] }[] = [{ have, trades: [] }];
+  // Whether a fix exists from here depends only on the resource vector
+  // (Trading Posts are reusable within a turn), so each vector is expanded
+  // once, at the shallowest depth BFS reaches it. Without this, paths that
+  // differ only in trade order multiply by ~20 per extra trade allowed.
+  const vectorKey = (res: Resources) => RESOURCE_TYPES.map((r) => res[r]).join(",");
+  const seen = new Set([vectorKey(have)]);
   for (let depth = 0; depth < left; depth++) {
     const next: typeof frontier = [];
     for (const node of frontier) {
       for (const o of tradeOptions(state, node.have, posts)) {
         const after = { ...node.have, [o.trade.give]: node.have[o.trade.give] - o.give };
         after[o.trade.receive] += receive;
+        const key = vectorKey(after);
+        if (seen.has(key)) continue;
+        seen.add(key);
         const trades = [...node.trades, o.trade];
         if (prices.some((p) => canPay(after, p))) return trades;
         next.push({ have: after, trades });

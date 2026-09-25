@@ -101,6 +101,29 @@ describe("getActionAvailability", () => {
     expect(a.warden.fixByTrade).toEqual([{ give: "stone", receive: "grain", tradePostSiteId: "s7" }]);
   });
 
+  it("finds the shortest fix when a ruleset allows more Market trades", () => {
+    const rules = (trades: number) => {
+      const r = standardRuleset(2);
+      r.market.maxTradesPerTurn = trades;
+      return r;
+    };
+    // A Stronghold needs 2 Grain + 2 Iron: four trades at p2's Stone post.
+    const fixFor = (trades: number) => {
+      const { state, p2 } = setupGame(rules(trades));
+      const s = withResources(passTurn(state), p2, { stone: 20 });
+      return { s, p2, a: getActionAvailability(ctx, s, p2) };
+    };
+    expect(fixFor(3).a.upgrade).toMatchObject({ reason: "NEED_RESOURCES", missing: { grain: 2, iron: 2 } });
+    expect(fixFor(3).a.upgrade.fixByTrade).toBeUndefined();
+
+    const { s, p2, a } = fixFor(6);
+    const fix = a.upgrade.fixByTrade ?? [];
+    expect(fix).toHaveLength(4);
+    // The returned trades are a real sequence: making them affords the action.
+    const after = fix.reduce((st, trade) => act(st, p2, { type: "trade", ...trade }).state, s);
+    expect(getActionAvailability(ctx, after, p2).upgrade.ok).toBe(true);
+  });
+
   it("counts the Royal Writ bribe as one resource of any kind", () => {
     const { state, p1 } = setupGame();
     const a = getActionAvailability(ctx, withResources(state, p1, { essence: 1 }), p1);
