@@ -8,6 +8,7 @@ export type RuleErrorCode =
   | "INVALID_PAYMENT"
   | "ROUTE_OCCUPIED"
   | "SITE_OCCUPIED"
+  | "ALREADY_STRONGHOLD"
   | "SITE_TOO_CLOSE"
   | "NOT_CONNECTED"
   | "REGION_FULL"
