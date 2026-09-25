@@ -66,7 +66,7 @@ VERSION=$(node -p "require('./package.json').version")
 declare -a OK=() SKIPPED=() FAILED=()
 
 skip_or_fail() { # target reason
-  if [[ $EXPLICIT -eq 1 || $INSTALL -eq 1 ]]; then
+  if [[ $EXPLICIT -eq 1 || ( $INSTALL -eq 1 && "$1" == "desktop" ) ]]; then
     echo "!! $1: $2"
     FAILED+=("$1")
   else
@@ -77,7 +77,7 @@ skip_or_fail() { # target reason
 
 # Locate the Android SDK, NDK and JDK without demanding exported variables:
 # honour ANDROID_HOME/NDK_HOME/JAVA_HOME, else fall back to the default
-# install locations. Prints what it picked; returns 1 when unusable.
+# install locations. Exports what it finds; on failure sets ANDROID_FAIL.
 detect_android_toolchain() {
   ANDROID_FAIL=""
   if [[ -z "${ANDROID_HOME:-}" ]]; then
@@ -123,8 +123,20 @@ detect_android_toolchain() {
     [[ -n "${JAVA_HOME:-}" ]] && export JAVA_HOME
   fi
   if ! command -v java >/dev/null 2>&1 && [[ ! -x "${JAVA_HOME:-/nonexistent}/bin/java" ]]; then
-    ANDROID_FAIL="JDK 17 not found (install one or set JAVA_HOME)"
+    ANDROID_FAIL="JDK not found (install one or set JAVA_HOME)"
     return 1
+  fi
+  # Tauri's Android build needs JDK 17+; an older JDK fails cryptically
+  # deep inside gradle. Best effort: accept when the version is unreadable.
+  local java_bin="$(command -v java 2>/dev/null || true)"
+  [[ -z "$java_bin" && -x "${JAVA_HOME:-/nonexistent}/bin/java" ]] && java_bin="$JAVA_HOME/bin/java"
+  if [[ -n "$java_bin" ]]; then
+    local major
+    major="$($java_bin -version 2>&1 | head -1 | sed -nE 's/.*version "(1\.)?([0-9]+).*/\2/p')"
+    if [[ -n "$major" && "$major" -lt 17 ]]; then
+      ANDROID_FAIL="JDK $major is too old: the Android build needs JDK 17+ (set JAVA_HOME)"
+      return 1
+    fi
   fi
   return 0
 }
@@ -140,6 +152,8 @@ if [[ $CHECK -eq 1 ]]; then
     echo "-- sdk:      $ANDROID_HOME"
     echo "-- ndk:      $NDK_HOME"
     echo "-- java:     ${JAVA_HOME:-from PATH}"
+  elif [[ $EXPLICIT -eq 1 ]]; then
+    echo "-- android:  $ANDROID_FAIL (android will FAIL: requested explicitly)"
   else
     echo "-- android:  $ANDROID_FAIL (android will skip)"
   fi
@@ -196,9 +210,19 @@ for target in "${TARGETS[@]}"; do
           APP="$(find src-tauri/target -maxdepth 6 -path "*/$BUNDLE_PROFILE/bundle/macos/*.app" -print -quit 2>/dev/null)"
           [[ -n "$APP" ]] || { echo "!! no .app bundle found to install"; FAILED+=("desktop install"); continue; }
           NAME="$(basename "$APP")"
-          echo "==> installing /Applications/$NAME"
-          rm -rf "/Applications/$NAME"
-          ditto "$APP" "/Applications/$NAME" 2>/dev/null || cp -R "$APP" "/Applications/$NAME"
+          # Stage into a temp dir and swap, so a failed copy never destroys
+          # an already-installed app.
+          TMP_APP="/Applications/.${NAME}.incoming"
+          rm -rf "$TMP_APP"
+          if ditto "$APP" "$TMP_APP" 2>/dev/null || cp -R "$APP" "$TMP_APP"; then
+            rm -rf "/Applications/$NAME"
+            mv "$TMP_APP" "/Applications/$NAME"
+          else
+            rm -rf "$TMP_APP"
+            echo "!! failed to install $APP into /Applications"
+            FAILED+=("desktop install")
+            continue
+          fi
           open -R "/Applications/$NAME" 2>/dev/null || true
         fi
         OK+=("desktop → $DIST/desktop")
