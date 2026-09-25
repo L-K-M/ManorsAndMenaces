@@ -191,6 +191,7 @@ test("only the suggested Market route marks a resource as suggested", async ({ p
 
   const buy = page.getByRole("button", { name: /^Buy Card/ });
   for (let i = 0; i < 12 && (await buy.isEnabled()); i++) await buy.click();
+  await expect(buy).toBeDisabled();
   await page.getByRole("button", { name: "Trade at the Market to afford Buy Card" }).click();
 
   const market = page.getByRole("dialog", { name: "Market" });
@@ -200,6 +201,7 @@ test("only the suggested Market route marks a resource as suggested", async ({ p
   await expect(market.locator("button.suggested")).toHaveCount(1);
 
   const postResource = /(Timber|Stone)/.exec((await viaPost.textContent()) ?? "")?.[1] ?? "";
+  expect(postResource).not.toBe("");
   await market.getByRole("button", { name: new RegExp(`^3× .*${postResource}`) }).click();
   await expect(market.locator("button.suggested")).toHaveCount(0);
 });

@@ -420,6 +420,12 @@
     color: #fff;
     border-color: var(--accent-dark);
   }
+  /* A tool that is still armed but no longer available must not look active. */
+  .tools button.on:disabled {
+    background: #f6eedb;
+    border-color: #c9b995;
+    color: #8a7a5c;
+  }
   .why {
     font-size: 0.7rem;
     font-style: italic;
