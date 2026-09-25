@@ -175,6 +175,15 @@ export class GameSession {
     const actor = this.localActor;
     if (!actor || this.busy) return false;
     const command = this.envelope(actor, intent);
+    if (this.transport.kind === "online" && !UNDO_SAFE_COMMANDS.has(command.type)) {
+      // Online, the draft is a redacted view (§105): it cannot know whether a
+      // hidden hand opens a reaction window, what a draw yields, or what the
+      // deck holds for a Prophecy. The server is authoritative (§59), so
+      // locking commands go straight to it and the draft waits for its answer.
+      devlog("command", command.type, { command, deferredToServer: true });
+      this.error = null;
+      return this.flush([...this.buffered, command]);
+    }
     const r = this.engine.applyCommand(this.draft, command);
     devlog("command", command.type, { command, accepted: r.accepted, error: r.error });
     if (!r.accepted || !r.newState) {
@@ -194,11 +203,9 @@ export class GameSession {
       this.notify(r.events, r.newState);
       return true;
     }
-    // Locking commands are logged from the authoritative result, so an online
-    // draft built on redacted state (e.g. a card draw) is never shown.
+    // Locking commands are logged from the authoritative result.
     this.draft = r.newState;
-    await this.flush([...this.buffered, command]);
-    return true;
+    return this.flush([...this.buffered, command]);
   }
 
   get canUndo(): boolean {
@@ -218,7 +225,8 @@ export class GameSession {
 
   private inFlight = 0;
 
-  private async flush(batch: GameCommand[]): Promise<void> {
+  /** Submits the batch; resolves to whether the server accepted it. */
+  private async flush(batch: GameCommand[]): Promise<boolean> {
     this.busy = true;
     this.inFlight = batch.length;
     const base = this.authoritative.revision;
@@ -239,7 +247,7 @@ export class GameSession {
         this.draft = this.authoritative;
         this.buffered = [];
         this.undoStack = [];
-        return;
+        return false;
       }
       if (this.transport.kind === "local") this.commandHistory.push(...batch);
       this.appendLog(res.events, res.state);
@@ -252,6 +260,7 @@ export class GameSession {
       this.undoStack = [];
       this.notify(res.events, res.state);
       this.afterStateChange(res.events);
+      return true;
     } finally {
       this.busy = false;
       this.inFlight = 0;
