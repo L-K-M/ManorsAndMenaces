@@ -14,7 +14,13 @@
   import { addedTargets, boundsOf, isDoubleTap, isDrag, pathPoints, wheelIntent, type Point, type Tap } from "../stores/camera.js";
   import { viewport, frameIfHidden, panScreen, pinch, resetView, setContainer, setWorld, zoomAtScreen } from "../stores/viewport.svelte.js";
   import { settings, animationScale } from "../stores/settings.svelte.js";
-  import { MENACE_THEME, PLAYER_THEMES, RESOURCE_COLORS, RESOURCE_GLYPHS, emblemPath } from "../theme.js";
+  import { PLAYER_THEMES, RESOURCE_COLORS, RESOURCE_GLYPHS, emblemPath } from "../theme.js";
+  import { bridgeRails } from "../art/routes.js";
+  import CoastLayer from "./board/CoastLayer.svelte";
+  import HoldingFigure from "./board/HoldingFigure.svelte";
+  import LandmarkArt from "./board/LandmarkArt.svelte";
+  import MenaceFigure from "./board/MenaceFigure.svelte";
+  import TerrainLayer from "./board/TerrainLayer.svelte";
 
   // `legal`, `hl` and `preview` are derived once in GameScreen and shared.
   let {
@@ -539,6 +545,19 @@
   <rect x={viewport.sea.x} y={viewport.sea.y} width={viewport.sea.w} height={viewport.sea.h} fill="url(#waves)" />
   <path d={map.coastline} fill="#e9dcb4" stroke="#b69e6a" stroke-width="18" transform="translate(0,0)" />
 
+  <CoastLayer {map} />
+  <!-- Region fills with the illustrated terrain over them. The Region buttons
+       below hold only hit areas, target tints and labels, so all the art
+       paints under gameplay text. -->
+  <g class="layer-fills" clip-path="url(#island-clip)" pointer-events="none">
+    {#each map.regions as region (region.id)}
+      <path d={region.path} class="fill" fill={RESOURCE_COLORS[region.resource].fill} stroke="#6b5a3a" stroke-width="2" stroke-linejoin="round" />
+      <!-- the terrain art replaces the hatch as the second channel, except in high contrast -->
+      {#if settings.highContrast}<path d={region.path} fill="url(#hatch-{region.resource})" />{/if}
+    {/each}
+  </g>
+  <TerrainLayer {map} />
+
   <!-- terrain / regions -->
   <g class="layer-regions" clip-path="url(#island-clip)">
     {#each map.regions as region (region.id)}
@@ -559,8 +578,7 @@
         onblur={() => (focusRegionId = null)}
       >
         <g>
-          <path d={region.path} fill={colors.fill} stroke="#6b5a3a" stroke-width="2" stroke-linejoin="round" />
-          <path d={region.path} fill="url(#hatch-{region.resource})" pointer-events="none" />
+          <path d={region.path} fill="transparent" />
         </g>
         <g transform="translate({region.labelX},{region.labelY})" pointer-events="none">
           <circle r="23" class="focus-ring" />
@@ -613,13 +631,18 @@
         >
           <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} class="hit" />
           {#if owner}
+            {@const rt = playerTheme(owner)}
+            <!-- a raised piece: offset shadow, dark rim, colour, lit top edge; planks on bridges -->
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} transform="translate(2.5,3)" stroke="#1d160c" stroke-opacity="0.25" stroke-width="13" stroke-linecap="round" />
             <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#3a2d1a" stroke-width="13" stroke-linecap="round" />
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={playerTheme(owner).color} stroke-width="8" stroke-linecap="round" />
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={rt.color} stroke-width="8" stroke-linecap="round" />
+            {#if route.kind === "bridge"}<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={rt.dark} stroke-opacity="0.4" stroke-width="7" stroke-dasharray="1.2 2.6" />{/if}
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} transform="translate(-1.2,-1.4)" stroke={rt.light} stroke-opacity="0.8" stroke-width="1.8" stroke-linecap="round" />
           {:else}
             <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#8a7650" stroke-width="4" stroke-dasharray={route.kind === "trail" ? "3 7" : "10 6"} stroke-linecap="round" opacity="0.75" />
           {/if}
           {#if route.kind === "bridge"}
-            <circle cx={(a.x + b.x) / 2} cy={(a.y + b.y) / 2} r="5" fill="#8a7650" opacity="0.7" />
+            <path d={bridgeRails(a, b)} fill="none" stroke="#4a3522" stroke-width="2.4" stroke-linecap="round" />
           {/if}
           {#if fogged.has(route.id)}
             <ellipse cx={(a.x + b.x) / 2} cy={(a.y + b.y) / 2} rx="34" ry="16" fill="#f4f4f4" opacity="0.8" />
@@ -656,7 +679,7 @@
         <circle r="22" class="hit" />
         {#if site.landmarkId}
           <g transform="translate(0,-4)" pointer-events="none">
-            <path d="M-14,10 L-14,-6 L-9,-6 L-9,-12 L-4,-12 L-4,-6 L4,-6 L4,-12 L9,-12 L9,-6 L14,-6 L14,10 Z" fill="#d8cbb0" stroke="#5a4a32" stroke-width="2" />
+            <LandmarkArt id={site.landmarkId} />
           </g>
         {/if}
         {#if site.tradePost}
@@ -667,13 +690,7 @@
         {/if}
         {#if holding && theme}
           <g pointer-events="none" class="holding">
-            {#if holding.type === "manor"}
-              <path d="M-13,12 L-13,-2 L0,-14 L13,-2 L13,12 Z" fill={theme.color} stroke={theme.dark} stroke-width="2.5" />
-              <path d="M-4,12 L-4,4 L4,4 L4,12" fill={theme.dark} />
-            {:else}
-              <path d="M-17,14 L-17,-8 L-12,-8 L-12,-14 L-6,-14 L-6,-8 L6,-8 L6,-14 L12,-14 L12,-8 L17,-8 L17,14 Z" fill={theme.color} stroke={theme.dark} stroke-width="2.5" />
-              <path d="M-4,14 L-4,4 A4,4 0 0,1 4,4 L4,14" fill={theme.dark} />
-            {/if}
+            <HoldingFigure type={holding.type} {theme} />
             <path d={emblemPath(theme.shape, 4)} transform="translate(0,-26)" fill={theme.light} stroke={theme.dark} stroke-width="1.5" />
           </g>
         {:else}
@@ -711,8 +728,13 @@
           onpointerleave={() => hoverOut({ kind: "banner", id: banner.id })}
         >
           <rect x="-12" y="-26" width="26" height="30" class="hit" />
+          <!-- a raised piece: cast shadows of pole and flag, gold finial, lit top edge -->
+          <line x1="-6" y1="4" x2="6" y2="8.5" stroke="#1d160c" stroke-opacity="0.25" stroke-width="3" stroke-linecap="round" />
+          <polygon points="-3.5,-21 14.5,-16 -3.5,-9" fill="#1d160c" opacity="0.2" />
           <line x1="-6" y1="4" x2="-6" y2="-24" stroke="#3a2d1a" stroke-width="2.5" />
+          <circle cx="-6" cy="-25.5" r="2" fill="#e0b64a" stroke="#6b4c00" stroke-width="0.8" />
           <path d="M-6,-24 L12,-19 L-6,-12 Z" fill={theme.color} stroke={theme.dark} stroke-width="1.5" opacity={banner.settled ? 1 : 0.75} />
+          <line x1="-4.8" y1="-22.8" x2="9" y2="-19" stroke={theme.light} stroke-width="1.2" stroke-linecap="round" opacity="0.85" />
           <path d={emblemPath(theme.shape, 2.4)} transform="translate(0,-18)" fill={theme.light} pointer-events="none" />
           {#if !banner.settled}<circle cx="-6" cy="4" r="2.5" fill="#fffaf0" stroke={theme.dark} />{/if}
           {#if isHl || selected}
@@ -728,7 +750,6 @@
   <g class="layer-menaces">
     {#each Object.values(gs.menaces) as menace (menace.id)}
       {@const pos = menacePos(menace)}
-      {@const theme = MENACE_THEME[menace.type]}
       {@const isHl = hl.menaces.has(menace.id)}
       {@const hoard = Object.entries(menace.state.hoard ?? {}).filter(([, n]) => (n ?? 0) > 0)}
       <g
@@ -745,8 +766,7 @@
         onpointerleave={() => hoverOut({ kind: "menace", id: menace.id })}
       >
         <circle r="25" class="focus-ring" />
-        <circle r="19" fill="#fffaf0" stroke={theme.color} stroke-width="3" />
-        <path d={theme.glyph} fill={theme.color} stroke="#1f1f1f" stroke-width="1" fill-rule="evenodd" />
+        <MenaceFigure type={menace.type} animate={dur > 0} />
         {#if hoard.length}
           <text y={20 + Math.max(12, lod.minor)} text-anchor="middle" class="hoard" style="font-size: {Math.max(12, lod.minor)}px">{hoard.map(([r, n]) => `${n}${RESOURCE_COLORS[r as keyof typeof RESOURCE_COLORS].label}`).join(" ")}</text>
         {/if}
@@ -1058,7 +1078,7 @@
     stroke-width: 4;
     fill: rgba(27, 95, 209, 0.12);
   }
-  .hc .region > g > path:first-child {
+  .hc .layer-fills .fill {
     stroke: #000;
     stroke-width: 3;
   }
