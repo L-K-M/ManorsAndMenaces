@@ -60,6 +60,8 @@ test("landmarks, Menaces and the map name are drawn as art", async ({ page }) =>
   await expect(terrain).toHaveCount(1);
   expect(await terrain.locator("path[data-ink]").count()).toBeGreaterThan(50);
   expect(await terrain.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe("none");
+  // It replaces the hatch patterns, which only high contrast keeps.
+  await expect(page.locator('svg.board path[fill^="url(#hatch-"]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -90,37 +92,139 @@ async function changedPixels(page: Page, a: Buffer, b: Buffer, clip: { x: number
   );
 }
 
-test("highlighted Routes stay clearly visible over the terrain art", async ({ page }) => {
-  await startHotseat(page);
-  await page.locator(".site.hl").first().click();
+/** Every highlighted Route's glow changes a clearly visible band of pixels. */
+async function expectRoutesLit(page: Page) {
   const routes = await page.locator(".route.hl").all();
   expect(routes.length).toBeGreaterThan(0);
-  // Hold the highlight's pulse at its brightest (still an animation, as
-  // players see it) so the two shots are comparable.
+  // Chrome runs an SVG element's opacity animation on the compositor, and
+  // over the terrain those highlight layers sometimes never showed; the
+  // pulse animates paint instead.
+  const pulses = await page.evaluate(() =>
+    document
+      .getAnimations()
+      .map((a) => a.effect as KeyframeEffect | null)
+      .filter((e) => e?.target?.matches(".hl-line, .hl-ring, .hl-fill, .dest"))
+      .map((e) => e!.getKeyframes().some((k) => "opacity" in k)),
+  );
+  expect(pulses.length).toBeGreaterThan(0);
+  expect(pulses.filter(Boolean)).toEqual([]);
+  // Hold the highlight's pulse at its brightest so the two shots are
+  // comparable. Rate 0 keeps it a running animation, laid out as players
+  // see it; pausing would change how Chrome layers it.
   await page.evaluate(() =>
     document.getAnimations().forEach((a) => {
-      a.pause();
       a.currentTime = 0;
+      a.playbackRate = 0;
     }),
   );
+  // Hide every glow at once for the comparison shot: hiding one at a time
+  // re-layers the others and can make a missing glow reappear.
+  const lit = await page.screenshot();
+  await page.locator(".hl-line").evaluateAll((els) => els.forEach((e) => ((e as SVGElement).style.display = "none")));
+  const unlit = await page.screenshot();
+  await page.locator(".hl-line").evaluateAll((els) => els.forEach((e) => ((e as SVGElement).style.display = "")));
   for (const route of routes) {
     const box = (await route.boundingBox())!;
     const clip = { x: Math.round(box.x - 6), y: Math.round(box.y - 6), width: Math.round(box.width + 12), height: Math.round(box.height + 12) };
-    const lit = await page.screenshot();
-    await route.locator(".hl-line").evaluate((e) => ((e as SVGElement).style.display = "none"));
-    const unlit = await page.screenshot();
-    await route.locator(".hl-line").evaluate((e) => ((e as SVGElement).style.display = ""));
     // A visible highlight changes a band a few pixels wide along the Route.
     const length = Math.hypot(box.width, box.height);
     expect(await changedPixels(page, lit, unlit, clip), (await route.getAttribute("aria-label")) ?? "").toBeGreaterThan(length * 2);
   }
+}
+
+test("highlighted Routes stay clearly visible over the terrain art", async ({ page }) => {
+  await startHotseat(page);
+  await page.locator(".site.hl").first().click();
+  await expectRoutesLit(page);
+});
+
+test("highlighted Routes stay visible on a busy main-phase board", async ({ page }) => {
+  // On this board (three players, their Holdings, Routes and Banners) an
+  // opacity pulse, which Chrome animates on the compositor, left the
+  // Route highlights invisible over the terrain.
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true }));
+    indexedDB.deleteDatabase("manors-menaces");
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "New game" }).click();
+  await page.getByRole("radio", { name: "3", exact: true }).check({ force: true });
+  await page.getByText("Advanced").click();
+  await page.getByLabel(/Seed/).fill("review-seed");
+  await page.getByRole("button", { name: "Begin" }).click();
+  const mainTurn = page.getByRole("button", { name: /Assign Banners →/ });
+  for (let k = 0; k < 30 && !(await mainTurn.count()); k++) {
+    const status = page.locator(".actions .status").first();
+    const s = (await status.count()) ? ((await status.textContent()) ?? "") : "";
+    if (/place a Manor/.test(s)) await page.locator(".site.hl").first().click();
+    else if (/free Route/.test(s)) await page.locator(".route.hl").first().click();
+    else if (/starting Banners/.test(s)) {
+      const n = await page.locator(".banner.hl").count();
+      for (let i = 0; i < n; i++) {
+        await page.locator(".banner.hl").nth(i).click();
+        const regions = page.locator(".region.hl");
+        if (await regions.count()) await regions.first().click();
+      }
+      await page.getByRole("button", { name: /Confirm Banners/ }).click();
+    }
+    await page.waitForTimeout(700);
+  }
+  await expect(mainTurn).toBeVisible();
+  await page.getByRole("button", { name: "Debug" }).click();
+  await page.getByRole("button", { name: "Grant 5 of each resource" }).click();
+  await page.getByRole("dialog", { name: "Debug tools" }).getByRole("button", { name: "Close" }).click();
+  await page.getByRole("button", { name: /Build Route/ }).click();
+  await expectRoutesLit(page);
 });
 
 test("high contrast swaps the terrain art for hatching; Menaces idle when animation is on", async ({ page }) => {
   await startHotseat(page, { animationSpeed: "normal", highContrast: true });
   await expect(page.locator(".site.hl").first()).toBeVisible();
   await expect(page.locator("svg.board .terrain path[data-ink]")).toHaveCount(0);
-  const hatch = page.locator('svg.board .region path[fill^="url(#hatch-"]').first();
-  expect(await hatch.evaluate((el) => getComputedStyle(el).display)).not.toBe("none");
+  await expect(page.locator('svg.board path[fill^="url(#hatch-"]').first()).toBeVisible();
+  expect(
+    await page
+      .locator("svg.board .layer-fills .fill")
+      .first()
+      .evaluate((el) => getComputedStyle(el).stroke),
+  ).toBe("rgb(0, 0, 0)");
   expect(await page.locator(".figure.idle").count()).toBeGreaterThan(0);
+});
+
+test("terrain art paints over the Region fills and under their tints and labels", async ({ page }) => {
+  await startHotseat(page);
+  await expect(page.locator(".site.hl").first()).toBeVisible();
+  // Every terrain path (motifs, streams, ridges) paints after every Region
+  // fill and before every Region button's children: the group that holds
+  // the target tint, and the label group (disc, pips, name, harvest notes).
+  const report = await page.locator("svg.board").evaluate((svg) => {
+    const follows = (a: Node, b: Node) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    const art = [...svg.querySelectorAll(".terrain path")];
+    const fills = [...svg.querySelectorAll("path.fill")];
+    const over = [...svg.querySelectorAll(".region > g")];
+    const misplaced = art.filter((p) => !fills.every((f) => follows(f, p)) || !over.every((o) => follows(p, o)));
+    return {
+      art: art.length,
+      fills: fills.length,
+      regions: svg.querySelectorAll(".region").length,
+      over: over.length,
+      misplaced: misplaced.map((p) => p.getAttribute("data-ink") ?? p.getAttribute("class")),
+    };
+  });
+  expect(report.art).toBeGreaterThan(50);
+  expect(report.fills).toBe(report.regions);
+  expect(report.over).toBe(report.regions * 2);
+  expect(report.misplaced).toEqual([]);
+});
+
+test("Menace figures hold still when the system asks for reduced motion", async ({ page }) => {
+  // Settings saved before the OS preference changed still say animate.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await startHotseat(page, { animationSpeed: "normal", reducedMotion: false });
+  await expect(page.locator(".figure.idle").first()).toBeAttached();
+  const moving = await page
+    .locator("svg.board .figure")
+    .evaluateAll((figures) => figures.flatMap((f) => [...f.querySelectorAll("*")]).filter((el) => getComputedStyle(el).animationName !== "none").length);
+  expect(moving).toBe(0);
 });

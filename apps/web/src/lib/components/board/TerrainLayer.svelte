@@ -1,8 +1,9 @@
 <script lang="ts">
   // Illustrated terrain over the Region fills (see art/terrain.ts): a soft
   // painted edge along every border, then the merged motif paths. It is
-  // static, never takes pointer events and sits under Routes, pieces and
-  // highlights. High contrast keeps only the streams and ridges that explain
+  // static, never takes pointer events and sits under every Region's target
+  // tint and label (disc, pips, name, harvest notes), Routes and pieces.
+  // High contrast keeps only the streams and ridges that explain
   // bridges and passes; Board.svelte shows the flat hatch patterns there.
   import type { MapDefinition } from "@manors-menaces/content";
   import { terrainArt } from "../../art/terrain.js";

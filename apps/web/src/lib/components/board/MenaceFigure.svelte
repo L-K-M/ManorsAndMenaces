@@ -488,9 +488,12 @@
       transform: translateY(-2.5px);
     }
   }
+  /* A backstop for settings saved before the system asked for reduced
+     motion. !important because the per-part idle rules above are more
+     specific than this one, and a media query adds no specificity. */
   @media (prefers-reduced-motion: reduce) {
     .idle * {
-      animation: none;
+      animation: none !important;
     }
   }
 </style>

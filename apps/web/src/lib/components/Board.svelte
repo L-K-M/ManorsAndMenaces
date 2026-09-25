@@ -221,6 +221,18 @@
   <path d={map.coastline} fill="#e9dcb4" stroke="#b69e6a" stroke-width="18" transform="translate(0,0)" />
 
   <CoastLayer {map} />
+  <!-- Region fills with the illustrated terrain over them. The Region buttons
+       below hold only hit areas, target tints and labels, so all the art
+       paints under gameplay text. -->
+  <g class="layer-fills" clip-path="url(#island-clip)" pointer-events="none">
+    {#each map.regions as region (region.id)}
+      <path d={region.path} class="fill" fill={RESOURCE_COLORS[region.resource].fill} stroke="#6b5a3a" stroke-width="2" stroke-linejoin="round" />
+      <!-- the terrain art replaces the hatch as the second channel, except in high contrast -->
+      {#if settings.highContrast}<path d={region.path} fill="url(#hatch-{region.resource})" />{/if}
+    {/each}
+  </g>
+  <TerrainLayer {map} />
+
   <!-- terrain / regions -->
   <g class="layer-regions">
     {#each map.regions as region (region.id)}
@@ -240,8 +252,7 @@
         onpointerleave={() => (ui.hoverRegionId = null)}
       >
         <g clip-path="url(#island-clip)">
-          <path d={region.path} fill={colors.fill} stroke="#6b5a3a" stroke-width="2" stroke-linejoin="round" />
-          <path d={region.path} fill="url(#hatch-{region.resource})" pointer-events="none" />
+          <path d={region.path} fill="transparent" />
           {#if isHl}<path d={region.path} class="hl-fill" pointer-events="none" />{/if}
         </g>
         <g transform="translate({region.labelX},{region.labelY})" pointer-events="none">
@@ -260,7 +271,6 @@
         </g>
       </g>
     {/each}
-    <TerrainLayer {map} />
   </g>
 
   <!-- routes -->
@@ -470,11 +480,6 @@
     font: 700 9px/1 var(--font-body);
     fill: #7a5a1a;
   }
-  /* The illustrated terrain (TerrainLayer) replaces the flat hatch patterns
-     as each Region's second channel; high contrast keeps the hatch. */
-  .board:not(.hc) .region path[fill^="url(#hatch-"] {
-    display: none;
-  }
   .hoard {
     font: 700 12px/1 var(--font-body);
     fill: #7a1d10;
@@ -484,23 +489,23 @@
   }
   .hl-fill {
     fill: #fff6a8;
-    opacity: 0.45;
-    animation: pulse 1.4s ease-in-out infinite;
+    fill-opacity: 0.45;
+    animation: pulse 1.4s steps(6) infinite;
   }
   .hl-line {
     stroke: #ffe14d;
     stroke-width: 10;
     stroke-linecap: round;
-    opacity: 0.8;
+    stroke-opacity: 0.8;
     filter: url(#glow);
-    animation: pulse 1.4s ease-in-out infinite;
+    animation: pulse 1.4s steps(6) infinite;
   }
   .hl-ring,
   .dest {
     fill: none;
     stroke: #ffcf1f;
     stroke-width: 4;
-    animation: pulse 1.4s ease-in-out infinite;
+    animation: pulse 1.4s steps(6) infinite;
   }
   .targeting .region:not(.hl),
   .targeting .route:not(.hl),
@@ -535,21 +540,28 @@
     stroke-width: 4;
     fill: rgba(27, 95, 209, 0.12);
   }
-  .hc .region > g > path:first-child {
+  .hc .layer-fills .fill {
     stroke: #000;
     stroke-width: 3;
   }
   .hc .hl-fill {
     fill: #ffff00;
-    opacity: 0.6;
+    fill-opacity: 0.6;
   }
+  /* The pulse animates paint, not opacity: Chrome runs an SVG element's
+     opacity animation on the compositor in a layer of its own, and over the
+     terrain art those layers sometimes never showed, leaving legal targets
+     unmarked. Painting repaints the board, so the pulse moves in steps
+     (about 9 repaints a second rather than 60). */
   @keyframes pulse {
     0%,
     100% {
-      opacity: 0.85;
+      fill-opacity: 0.85;
+      stroke-opacity: 0.85;
     }
     50% {
-      opacity: 0.35;
+      fill-opacity: 0.35;
+      stroke-opacity: 0.35;
     }
   }
   @media (prefers-reduced-motion: reduce) {
