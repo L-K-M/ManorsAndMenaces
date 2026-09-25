@@ -52,6 +52,9 @@
       d="M-16,11 L-16.5,2 Q-14,-0.5 -11.5,2 L-12,11 Z M12,11 L11.5,2 Q14,-0.5 16.5,2 L16,11 Z M-5,12 L-5.4,5 Q-3,3 -0.6,5 L-1,12 Z M1.5,12 L1.1,5.4 Q3.4,3.4 5.8,5.4 L5.4,12 Z"
     />
     <path class="glow" d="M0,-18 L0.8,-16 L2.8,-15.4 L0.8,-14.8 L0,-12.8 L-0.8,-14.8 L-2.8,-15.4 L-0.8,-16 Z" />
+  {:else}
+    <!-- LandmarkId is any string: a landmark without its own art gets a generic keep -->
+    <path class="stone" d="M-14,11 L-14,-5 L-9,-5 L-9,-11 L-4,-11 L-4,-5 L4,-5 L4,-11 L9,-11 L9,-5 L14,-5 L14,11 Z" />
   {/if}
 </g>
 
