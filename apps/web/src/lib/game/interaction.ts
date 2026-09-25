@@ -146,7 +146,7 @@ export function currentCardStep(session: GameSession): { field: string; pick: st
     // An optional field (e.g. Dragon Whisperer's `take`) is skipped when no
     // candidate offers it: a single-type or empty Hoard needs no choice.
     if ([...seen.values()].every((v) => v === undefined)) continue;
-    return { field: s.field, pick: s.pick, options: [...seen.values()] };
+    return { field: s.field, pick: s.pick, options: [...seen.values()].filter((v) => v !== undefined) };
   }
   return null;
 }
