@@ -277,6 +277,7 @@
   /* The scoreboard takes the free space in the bar and shrinks (names
      first) rather than wrapping the bar onto a second row. */
   .score {
+    container: score / inline-size;
     flex: 1 1 0;
     min-width: 0;
   }
@@ -412,8 +413,11 @@
   [data-layout="wide"] .hand {
     --cards-container: size;
   }
+  /* Large text on a small phone moves the tray toggle onto its own row
+     rather than pushing it off screen. */
   .dock-head {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
   }
@@ -548,6 +552,9 @@
     gap: 0.6rem;
     overflow-y: auto;
     overscroll-behavior: contain;
+    /* The tray scrolls, so there is room to read whole cards. */
+    --rules-lines: none;
+    --flavor-display: block;
   }
   [data-layout="rail"] .tray .preview {
     flex: none;
@@ -595,7 +602,6 @@
     display: block;
   }
   [data-layout="sheet"] .score {
-    container: score / inline-size;
     order: 10;
     flex-basis: 100%;
   }

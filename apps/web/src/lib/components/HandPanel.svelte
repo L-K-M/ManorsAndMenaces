@@ -14,6 +14,10 @@
   const discarding = $derived(legal?.mode === "end" && legal.mustDiscard > 0);
 
   async function click(cardId: string) {
+    if (held) {
+      held = false;
+      return;
+    }
     if (discarding) {
       discardSel = discardSel.includes(cardId) ? discardSel.filter((c) => c !== cardId) : [...discardSel, cardId];
       return;
@@ -29,15 +33,39 @@
   // mouse (or tabbing to it) shows the whole card above it. It is positioned
   // against the viewport so the hand's scroll box cannot clip it.
   let peek: { cardId: string; x: number; top: number; bottom: number } | null = $state(null);
+  function placePeek(el: HTMLElement, cardId: string) {
+    const r = el.getBoundingClientRect();
+    peek = { cardId, x: r.left + r.width / 2, top: r.top, bottom: r.bottom };
+  }
   function showPeek(e: PointerEvent | FocusEvent, cardId: string) {
     if (e instanceof PointerEvent && (e.pointerType !== "mouse" || !matchMedia("(hover: hover)").matches)) return;
     const el = e.currentTarget as HTMLElement;
     if (e instanceof FocusEvent && !el.matches(":focus-visible")) return;
-    const r = el.getBoundingClientRect();
-    peek = { cardId, x: r.left + r.width / 2, top: r.top, bottom: r.bottom };
+    placePeek(el, cardId);
   }
   function hidePeek() {
     peek = null;
+  }
+
+  // Touch has no hover: pressing and holding a card shows the same preview
+  // until the finger lifts, and that press does not also play the card.
+  // Starting to scroll the hand cancels the pointer, and with it the hold.
+  const HOLD_MS = 400;
+  let holdTimer: ReturnType<typeof setTimeout> | undefined;
+  let held = false;
+  function pressStart(e: PointerEvent, cardId: string) {
+    if (e.pointerType === "mouse") return;
+    const el = e.currentTarget as HTMLElement;
+    held = false;
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(() => {
+      held = true;
+      placePeek(el, cardId);
+    }, HOLD_MS);
+  }
+  function pressEnd() {
+    clearTimeout(holdTimer);
+    if (held) hidePeek();
   }
 </script>
 
@@ -65,6 +93,10 @@
               onclick={() => click(cardId)}
               onpointerenter={(e) => showPeek(e, cardId)}
               onpointerleave={hidePeek}
+              onpointerdown={(e) => pressStart(e, cardId)}
+              onpointerup={pressEnd}
+              onpointercancel={pressEnd}
+              oncontextmenu={(e) => held && e.preventDefault()}
               onfocus={(e) => showPeek(e, cardId)}
               onblur={hidePeek}
             >
@@ -94,9 +126,11 @@
       </div>
     {/if}
     {#if discarding}
-      <button class="primary" disabled={discardSel.length !== (legal?.mustDiscard ?? 0)} onclick={discard}>
-        {t("action.discard")} {discardSel.length}/{legal?.mustDiscard}
-      </button>
+      <div class="discard">
+        <button class="primary" disabled={discardSel.length !== (legal?.mustDiscard ?? 0)} onclick={discard}>
+          {t("action.discard")} {discardSel.length}/{legal?.mustDiscard}
+        </button>
+      </div>
     {/if}
   </section>
 {/if}
@@ -134,6 +168,16 @@
   li {
     display: flex;
   }
+  /* In a scrolling tray (rail, phone sheet) Discard stays in view while you
+     choose which cards to let go. Its backing hides the cards behind it
+     while it is still disabled (and see-through). */
+  .discard {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    display: grid;
+    background: var(--parchment);
+  }
   .empty {
     margin: 0;
     font-size: 0.85rem;
@@ -154,6 +198,9 @@
     background: linear-gradient(#fffdf6, #f2e6c8);
     opacity: 0.7;
     cursor: default;
+    /* A held press previews the card instead of selecting its text. */
+    user-select: none;
+    -webkit-touch-callout: none;
   }
   .card.playable {
     opacity: 1;

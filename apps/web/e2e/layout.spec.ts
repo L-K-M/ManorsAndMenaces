@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 // Responsive game layout (spec §53): the board stays the hero on every screen,
 // never rescales while you play, and every HUD control is reachable.
 
-async function startVsAi(page: Page) {
+async function startVsAi(page: Page, players = 2) {
   await page.goto("/");
   await page.evaluate(() => {
     localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: false }));
@@ -11,7 +11,7 @@ async function startVsAi(page: Page) {
   });
   await page.reload();
   await page.getByRole("button", { name: "New game" }).click();
-  await page.getByRole("radio", { name: "2", exact: true }).check({ force: true });
+  await page.getByRole("radio", { name: String(players), exact: true }).check({ force: true });
   await page.getByText("Advanced").click();
   await page.getByLabel(/Seed/).fill("layout-seed");
   await page.getByRole("button", { name: "Begin" }).click();
@@ -42,8 +42,8 @@ async function completeSetup(page: Page) {
   await expect(main).toBeVisible();
 }
 
-/** Grants resources and draws four cards through the debug panel (§100). */
-async function fillHand(page: Page) {
+/** Grants resources and draws cards through the debug panel (§100). */
+async function fillHand(page: Page, count = 4) {
   await page.getByRole("button", { name: "Debug" }).click();
   const dialog = page.getByRole("dialog", { name: "Debug tools" });
   await dialog.getByRole("button", { name: "Grant 5 of each resource" }).click();
@@ -51,13 +51,25 @@ async function fillHand(page: Page) {
     .getByLabel("Card")
     .locator("option")
     .evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
-  for (let i = 0; i < 4; i++) {
-    await dialog.getByLabel("Card").selectOption(cards[i] ?? "");
+  for (let i = 0; i < count; i++) {
+    await dialog.getByLabel("Card").selectOption(cards[i % cards.length] ?? "");
     await dialog.getByRole("button", { name: "Draw specific card" }).click();
   }
   await dialog.getByRole("button", { name: "Close" }).click();
   // The hand header and the phone tray toggle both show the count.
-  await expect(page.getByText(/\b4\/7\b/).first()).toBeVisible();
+  await expect(page.getByText(new RegExp(`\\b${count}/7\\b`)).first()).toBeVisible();
+}
+
+/** Names of the hand's cards whose rules text is cut off. */
+async function clippedRules(page: Page) {
+  return page.locator(".hand .card:not(.peek)").evaluateAll((els) =>
+    els
+      .filter((el) => {
+        const rules = el.querySelector<HTMLElement>(".rules");
+        return !rules || rules.offsetHeight === 0 || rules.scrollHeight > rules.clientHeight + 1;
+      })
+      .map((el) => el.querySelector("strong")?.textContent ?? ""),
+  );
 }
 
 async function boardBox(page: Page) {
@@ -134,6 +146,55 @@ test.describe("phone landscape", () => {
       await expectInViewport(page, /Assign Banners →/);
       await expect(page.getByRole("list", { name: "Scoreboard" }).getByRole("listitem")).toHaveCount(2);
     }
+  });
+
+  test("rail shows whole cards and keeps Discard in view", async ({ page }) => {
+    await startVsAi(page);
+    await completeSetup(page);
+    await fillHand(page, 10);
+    // The rail's tray scrolls, so its cards have room for all their rules.
+    expect(await clippedRules(page)).toEqual([]);
+    await page.getByRole("button", { name: /Assign Banners →/ }).click();
+    await page.getByRole("button", { name: /Confirm Banners/ }).click();
+    await expect(page.getByRole("button", { name: /^Discard \d/ })).toBeInViewport({ ratio: 1 });
+  });
+
+  test("tutorial coach sits at the bottom of the board", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Tutorial" }).click();
+    const coach = await page.getByRole("complementary", { name: "Tutorial" }).boundingBox();
+    const board = await boardBox(page);
+    expect(coach).toBeTruthy();
+    if (!coach) return;
+    expect(board.top + board.height - (coach.y + coach.height)).toBeLessThanOrEqual(24);
+  });
+});
+
+test.describe("touch tablet 1180x820", () => {
+  test.use({ viewport: { width: 1180, height: 820 }, isMobile: true, hasTouch: true });
+
+  test("press and hold shows the whole card without playing it", async ({ page }) => {
+    await startVsAi(page);
+    await completeSetup(page);
+    await fillHand(page, 6);
+    const clipped = (await clippedRules(page))[0] ?? "";
+    expect(clipped).not.toBe("");
+    const card = page.locator(".hand .card:not(.peek)", { hasText: clipped }).first();
+    const box = await card.boundingBox();
+    expect(box).toBeTruthy();
+    if (!box) return;
+
+    // A real touch press, held; Playwright's touchscreen API only taps.
+    const cdp = await page.context().newCDPSession(page);
+    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
+    const peek = page.locator(".hand .peek");
+    await expect(peek).toBeVisible();
+    await expect(peek).toContainText(clipped);
+    expect(await peek.locator(".rules").evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await expect(peek).toBeHidden();
+    await expect(card).toHaveAttribute("aria-pressed", "false");
   });
 });
 
@@ -216,5 +277,23 @@ test.describe("small phone 360x740", () => {
       const box = await page.locator(".count label", { hasText: n }).boundingBox();
       expect(box && box.width >= 44 && box.height >= 44).toBe(true);
     }
+  });
+
+  test("four players and large text still fit the phone HUD", async ({ page }) => {
+    await startVsAi(page, 4);
+    await completeSetup(page);
+    // Every name keeps a few letters, and the player to act is in view.
+    const names = page.locator(".scoreboard .name");
+    await expect(names).toHaveCount(4);
+    const ems = await names.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width / parseFloat(getComputedStyle(el).fontSize)));
+    for (const w of ems) expect(w).toBeGreaterThanOrEqual(2.4);
+    const active = page.locator(".scoreboard [aria-current='true']");
+    await expect(active).toBeInViewport({ ratio: 1 });
+
+    await page.evaluate(() => document.documentElement.style.setProperty("--text-scale", "1.5"));
+    await expectInViewport(page, /^Hand \d/);
+    await expectInViewport(page, /Assign Banners →/);
+    await expect(active).toBeInViewport({ ratio: 1 });
+    expect(await pageFits(page)).toEqual({ scrollsX: false, scrollsY: false });
   });
 });

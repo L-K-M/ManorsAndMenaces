@@ -10,9 +10,32 @@
   let { session }: { session: GameSession } = $props();
   const gs = $derived(session.draft);
   const actor = $derived(currentActor(gs));
+
+  // A crowded strip (four players, large text) scrolls sideways; keep the
+  // player to act in view. Only the strip scrolls, never the page.
+  let list: HTMLOListElement | undefined = $state();
+  function revealActive() {
+    const li = list?.querySelector<HTMLElement>("[aria-current]");
+    if (!list || !li) return;
+    const box = list.getBoundingClientRect();
+    const r = li.getBoundingClientRect();
+    if (r.left < box.left) list.scrollLeft -= box.left - r.left;
+    else if (r.right > box.right) list.scrollLeft += r.right - box.right;
+  }
+  $effect(() => {
+    void actor;
+    revealActive();
+  });
+  // The Text size setting and rotating the phone resize the strip.
+  $effect(() => {
+    if (!list) return;
+    const observer = new ResizeObserver(revealActive);
+    observer.observe(list);
+    return () => observer.disconnect();
+  });
 </script>
 
-<ol class="scoreboard" aria-label={t("ui.scoreboard")}>
+<ol class="scoreboard" aria-label={t("ui.scoreboard")} bind:this={list}>
   {#each gs.turnOrder as pid (pid)}
     {@const p = gs.players[pid]}
     {@const theme = PLAYER_THEMES[session.seat(pid)?.color ?? 0] ?? PLAYER_THEMES[0]!}
@@ -46,10 +69,13 @@
     overflow-x: auto;
     scrollbar-width: none;
   }
+  /* A grid, so a chip can shrink its name down to a few letters but no
+     further: the name column's minimum is what the chip's minimum width
+     counts, not the whole name. */
   li {
     flex: 0 1 auto;
-    min-width: 0;
-    display: inline-flex;
+    display: inline-grid;
+    grid-template-columns: auto minmax(2.6em, max-content) auto;
     align-items: center;
     gap: 0.3rem;
     padding: 0.15rem 0.55rem 0.15rem 0.4rem;
@@ -87,10 +113,17 @@
     opacity: 0.7;
   }
   /* A narrow scoreboard row (phones) keeps the names and drops the target,
-     which the Players panel still shows. */
+     which the Players panel still shows, and tightens the chips. */
   @container score (max-width: 26rem) {
     .renown small {
       display: none;
+    }
+    .scoreboard {
+      gap: 0.25rem;
+    }
+    li {
+      gap: 0.2rem;
+      padding: 0.15rem 0.35rem 0.15rem 0.25rem;
     }
   }
   .sr {
