@@ -1,6 +1,6 @@
 # Storybook visual refresh
 
-Last updated: 2026-09-25. Artwork committed and pushed; latest main included.
+Last updated: 2026-09-25. Royal Quest illustration pass complete.
 
 ## User request and scope
 
@@ -410,3 +410,45 @@ an original painting, a runtime WebP and a recorded prompt. The checks above
 apply to the unchanged implementation; no unnecessary rerun was needed.
 This checkpoint is committed and pushed separately. No PR was opened, no
 merge into main was performed, and there was no new CI/review round.
+
+## Royal Quest illustrations
+
+Continuing the visual refresh after the user's "continue": a fresh fetch
+found no additional main changes. The live preview shows Royal Quests still
+as plain text cards beside the illustrated hand. Add distinct paintings for
+all 12 quest definitions, matching their conditions and the existing card
+art. Keep the panel compact, the full rules readable, expiry and claim actions
+intact, and provide a high-contrast/image-failure fallback. Give progress bars
+an accessible name and a visible percentage using the existing rules selector.
+Originals and exact prompts live in `media-sources/storybook/quests/`; web
+copies go in `apps/web/public/art/quests/`. Inspect desktop and phone layouts,
+verify every definition has art, and check quest claiming still works.
+The Mac remains locked, so use the isolated browser review on localhost:5175.
+
+- Generated and inspected all 12 distinct quest paintings with the built-in
+  image tool. Originals and a linked scene index are saved in
+  `media-sources/storybook/quests/`. Runtime WebPs are 600 × 400, about 960KB
+  combined. The existing `generate-card-art.mjs` now derives both decks;
+  regenerating preserved every existing hand-card runtime file unchanged.
+- Quest cards show uncropped landscape art next to their title and full
+  requirement. Expiry and progress share a compact footer. Progress uses the
+  existing rules selector, with visible percentages and localized accessible
+  names. The existing parchment emblem handles high contrast and failed loads.
+- Checked the panel visually at 1280 × 720 and 360 × 640. All three current
+  quests fit the desktop panel; the phone keeps readable rules and rewards.
+  Browser resize overrides are reset and the isolated quest preview remains
+  open. The user's main browser game and native save were not played.
+- All 26 quest/card/layout browser tests passed, including all 12 distinct
+  artwork URLs, readable rules, expiry, partial progress, both fallback modes,
+  phone and short-landscape panels, and a successful claim awarding Renown.
+  Typecheck reported zero errors/warnings, lint passed, and all 19 card/quest
+  rules tests passed. No rules code or gameplay content was changed.
+- Production web/server builds and the server smoke test passed. Desktop
+  packaging also succeeded; the new app is in the project's
+  `src-tauri/target/release/bundle/macos/` directory. Native visual inspection
+  remains unavailable while the Mac is locked. The installed `/Applications`
+  copy remains unchanged. This pass is complete and is being committed and
+  pushed to `codex/save-icon-concept`, without a PR or a merge into main.
+  Logs: `/tmp/mm-quests-e2e-final.log`, `/tmp/mm-quests-typecheck-final.log`,
+  `/tmp/mm-quests-lint-final.log`, `/tmp/mm-quests-unit.log`,
+  `/tmp/mm-quests-build.log`, `/tmp/mm-quests-desktop.log`.

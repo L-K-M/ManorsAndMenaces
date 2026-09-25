@@ -2,6 +2,7 @@
   import { getQuestProgress, questRoundsLeft, type LegalActionSummary } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import ToolIcon from "./ToolIcon.svelte";
+  import QuestArt from "./QuestArt.svelte";
   import type { GameSession } from "../game/session.svelte.js";
 
   let { session, legal }: { session: GameSession; legal: LegalActionSummary | null } = $props();
@@ -29,12 +30,14 @@
         {@const def = session.ctx.quest(q)}
         {@const prog = viewer ? getQuestProgress(session.ctx, gs, viewer, q) : null}
         {@const left = questRoundsLeft(gs, q)}
-        <li class:ready={claimable.has(q)}>
+        <li class="quest" class:ready={claimable.has(q)}>
+          <div class="illustration"><QuestArt id={def.conditionId} /></div>
           <div class="head">
             <strong>{t(`quest.${q}.name`)}</strong>
             <span class="renown">+{def.renown} <ToolIcon name="crown" size={14} label={t("ui.renown")} /></span>
           </div>
-          <p>{describe(q)}</p>
+          <p class="description">{describe(q)}</p>
+          <div class="meta">
           {#if left !== null}
             <p class="expiry" class:soon={left === 1}>
               <ToolIcon name="hourglass" size={13} />
@@ -42,10 +45,15 @@
             </p>
           {/if}
           {#if prog}
-            <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax={prog.target} aria-valuenow={prog.current}>
-              <span style="width: {(100 * prog.current) / prog.target}%"></span>
+            {@const percent = Math.round((100 * prog.current) / prog.target)}
+            <div class="progress">
+              <div class="bar" role="progressbar" aria-label={t("ui.quest_progress", { name: t(`quest.${q}.name`) })} aria-valuemin="0" aria-valuemax={prog.target} aria-valuenow={prog.current}>
+                <span style="width: {percent}%"></span>
+              </div>
+              <span class="percent" aria-hidden="true">{percent}%</span>
             </div>
           {/if}
+          </div>
           {#if claimable.has(q)}
             <button class="primary" onclick={() => session.perform({ type: "claim_quest", questId: q })}>{t("action.claim")}</button>
           {/if}
@@ -93,6 +101,26 @@
     box-shadow: 0 0 0 1px #2d8a3a;
     background: #eaf7e6;
   }
+  .quest {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    column-gap: 0.6rem;
+    row-gap: 0.2rem;
+  }
+  .illustration {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: start;
+  }
+  .head, .description { grid-column: 2; }
+  .meta, .quest > button { grid-column: 1 / -1; }
+  .meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.6rem;
+  }
   .head {
     display: flex;
     align-items: baseline;
@@ -101,6 +129,7 @@
   }
   .head strong {
     font: 700 1.1rem/1.1 var(--font-display);
+    overflow-wrap: anywhere;
   }
   .renown {
     color: #75551e;
@@ -108,11 +137,10 @@
     font-weight: 700;
   }
   p {
-    margin: 0.15rem 0 0.3rem;
+    margin: 0;
     font-size: 0.85rem;
   }
   .expiry {
-    margin-top: -0.15rem;
     font-size: 0.75rem;
     font-style: italic;
     opacity: 0.75;
@@ -122,17 +150,32 @@
     opacity: 1;
   }
   .bar {
+    flex: 1;
     height: 8px;
     background: #0001;
     border-radius: 3px;
     overflow: hidden;
-    margin-bottom: 0.3rem;
     border: 1px solid #8a765044;
   }
   .bar span {
     display: block;
     height: 100%;
     background: var(--primary-face);
+  }
+  .progress {
+    display: flex;
+    flex: 1;
+    min-width: 4.5rem;
+    align-items: center;
+    gap: 0.45rem;
+  }
+  .percent {
+    min-width: 3ch;
+    font-size: 0.7rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-soft);
+    text-align: right;
   }
   .done li {
     font-size: 0.8rem;

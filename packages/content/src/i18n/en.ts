@@ -96,6 +96,7 @@ export const EN: Record<string, string> = {
   "quest.far_reaches.description": "Own two Holdings at least 6 Routes apart.",
   "quest.the_safer_road.name": "The Safer Road",
   "quest.the_safer_road.description": "Twice, move a Menace away from something of yours.",
+  "ui.quest_progress": "{name} progress",
 
   // ---------------------------------------------------------------- menaces
   "menace.toll_troll.name": "Toll Troll",

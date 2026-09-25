@@ -25,7 +25,8 @@ includes a woman wizard, goblin woman druid, goblin alchemist, male dragon
 whisperer and a woman bard. All gameplay identities and rules stay unchanged.
 
 From the repository root, run `node tools/generate-card-art.mjs` to produce
-600px runtime WebP copies in `apps/web/public/art/cards`. This optional artwork
+600px runtime WebP copies in `apps/web/public/art/cards` and regenerate the
+[Royal Quest paintings](../quests/README.md) alongside them. This optional artwork
 preparation uses `cwebp` from libwebp, as the title-scenery preparation does.
 Ordinary builds use the checked-in runtime copies without an image encoder.
 The eleven runtime paintings total about 712KB.
