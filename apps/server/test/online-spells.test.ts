@@ -167,6 +167,7 @@ describe("online Spells", () => {
     expect(events.map((e) => e.type)).toContain("card_resolved");
     expect(after.players[me]?.resources.iron).toBe((before.players[me]?.resources.iron ?? 0) + 1);
     expect(after.players[me]?.hand).toEqual([]);
+    expect(after.pending).toBeUndefined();
   });
 
   it("open a reaction window when the opponent secretly holds a Counterspell", async () => {
@@ -218,6 +219,10 @@ describe("online Spells", () => {
     const pending = after.pending;
     if (pending?.kind !== "prophecy") throw new Error("expected a Prophecy decision");
     expect(pending.cardIds.every((c) => c !== HIDDEN_CARD)).toBe(true);
+    // The opponent learns how many cards were revealed, never which.
+    const opp = (await view(matchId, tokens[other] as string)).state.pending;
+    if (opp?.kind !== "prophecy") throw new Error("expected the opponent to see the Prophecy decision");
+    expect(opp.cardIds).toEqual(pending.cardIds.map(() => HIDDEN_CARD));
 
     // Only the server knows the deck, so the client submits the order without
     // validating it against its redacted view.
@@ -245,13 +250,19 @@ describe("online Spells", () => {
       human,
     );
 
-    await playSpellLikeTheClient(matchId, tokens[human] as string);
+    const { after } = await playSpellLikeTheClient(matchId, tokens[human] as string);
+    const ironBefore = after.players[human]?.resources.iron ?? 0;
+    const counterspells = (s: GameState) => s.discardPile.filter((c) => c.startsWith("counterspell#")).length;
     // The AI answers the reaction window on its own; the turn returns to the caster.
     for (let i = 0; i < 100; i++) {
       const s = (await view(matchId, tokens[human] as string)).state;
       if (!s.pending) {
         expect(s.activePlayerId).toBe(human);
         expect(s.discardPile.some((c) => c.startsWith("arcane_exchange#"))).toBe(true);
+        // Either answer is allowed, but it must be applied consistently: a
+        // countered Spell yields no iron, a resolved one yields one.
+        const countered = counterspells(s) > counterspells(after);
+        expect(s.players[human]?.resources.iron).toBe(ironBefore + (countered ? 0 : 1));
         return;
       }
       await new Promise((r) => setTimeout(r, 20));

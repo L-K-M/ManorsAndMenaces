@@ -4,8 +4,8 @@
 // to caller-owned objects in the state it returns (§106).
 
 import { describe, expect, it } from "vitest";
-import { hashState, type CardTarget, type GameCommand, type GameState, type PlayerId } from "../src/index.js";
-import { act, cmd, engine, grant, newGame, setupGame, standardRuleset } from "./helpers.js";
+import { getLegalBannerRegions, hashState, type CardTarget, type GameCommand, type GameState, type PlayerId } from "../src/index.js";
+import { act, cmd, engine, give, grant, newGame, setupGame, standardRuleset } from "./helpers.js";
 
 const MENACE_RULESET = { ...standardRuleset(2), activeMenaces: ["toll_troll" as const, "young_dragon" as const, "highwayman" as const] };
 
@@ -30,12 +30,6 @@ const JUNK: unknown[] = [
   // be read as if they were the object's own.
   JSON.parse('{"kind":"region","__proto__":{"regionId":"R1"}}'),
 ];
-
-function give(s: GameState, p: PlayerId, card: string): GameState {
-  const r = engine.applyDebugCommand(s, { type: "debug_draw_card", commandId: "d", matchId: s.matchId, playerId: p, targetPlayerId: p, cardDefId: card });
-  if (!r.newState) throw new Error(r.error?.code);
-  return r.newState;
-}
 
 /** p1 in the Main phase, able to pay for anything, holding `card`. */
 function holding(card: string) {
@@ -84,6 +78,8 @@ describe("malformed card targets", () => {
   it("rejects missing or non-object targets for every card", () => {
     for (const def of engine.ctx.content.cards.filter((c) => c.timing.includes("main"))) {
       const { s, p1, cardId } = holding(def.id);
+      // A bare { effect } is an incomplete target for every card but Very
+      // Minor Prophecy, whose complete target it is.
       const bare = def.effectId === "very_minor_prophecy" ? [] : [{ effect: def.effectId }];
       for (const target of [...JUNK, ...bare]) {
         const r = apply(s, p1, { type: "play_card", cardId, target });
@@ -195,11 +191,14 @@ describe("hostile command fields", () => {
         regionId: "R2",
       },
     }).state;
-    const prophecy = act(give(main, p1, "very_minor_prophecy"), p1, {
+    expect(reaction.pending?.kind).toBe("reaction");
+    const withProphecy = give(main, p1, "very_minor_prophecy");
+    const prophecy = act(withProphecy, p1, {
       type: "play_card",
-      cardId: "very_minor_prophecy#1",
+      cardId: withProphecy.players[p1]?.hand.find((c) => !main.players[p1]?.hand.includes(c)) as string,
       target: { effect: "very_minor_prophecy" },
     }).state;
+    expect(prophecy.pending?.kind).toBe("prophecy");
     const banners = act(main, p1, { type: "end_main_phase" }).state;
     const end = act(banners, p1, { type: "assign_banners", assignments: {} }).state;
     const withCard = engine.ctx.content.cards.filter((c) => c.timing.includes("main")).map((c) => ({ id: c.id, ...holding(c.id) }));
@@ -225,7 +224,11 @@ describe("hostile command fields", () => {
         for (const [field, make] of variants) {
           for (const value of JUNK) {
             const label = `${name} ${type} ${field}=${JSON.stringify(value)}`;
-            expect(() => apply(s, actor, { ...make(value), type }), label).not.toThrow();
+            let r: ReturnType<typeof apply> | undefined;
+            expect(() => (r = apply(s, actor, { ...make(value), type })), label).not.toThrow();
+            // Junk can be valid (e.g. a null bribe), so only require a decisive
+            // outcome: a new state, or a rejection carrying an error code.
+            expect(r?.accepted ? r.newState !== undefined : typeof r?.error?.code === "string", label).toBe(true);
           }
         }
       }
@@ -264,10 +267,10 @@ describe("command payloads are copied into the state", () => {
   });
 
   it("a Spell held in a reaction window", () => {
-    const { s, p1, p2 } = holding("teleportation_mishap");
+    const { s, p1, p2, cardId } = holding("teleportation_mishap");
     const withCounter = give(s, p2, "counterspell");
     const target = { effect: "teleportation_mishap" as const, menaceIdA: "menace_toll_troll", menaceIdB: "menace_young_dragon" };
-    const pending = expectDetached(withCounter, cmd(withCounter, p1, { type: "play_card", cardId: "teleportation_mishap#1", target }));
+    const pending = expectDetached(withCounter, cmd(withCounter, p1, { type: "play_card", cardId, target }));
     expect(pending.pending?.kind).toBe("reaction");
   });
 
@@ -286,12 +289,14 @@ describe("command payloads are copied into the state", () => {
   });
 
   it("Banner assignments and Prophecy orders", () => {
-    const { s, p1 } = holding("very_minor_prophecy");
-    const prophecy = act(s, p1, { type: "play_card", cardId: "very_minor_prophecy#1", target: { effect: "very_minor_prophecy" } }).state;
+    const { s, p1, cardId } = holding("very_minor_prophecy");
+    const prophecy = act(s, p1, { type: "play_card", cardId, target: { effect: "very_minor_prophecy" } }).state;
     const order = prophecy.pending?.kind === "prophecy" ? [...prophecy.pending.cardIds].reverse() : [];
     const resolved = expectDetached(prophecy, cmd(prophecy, p1, { type: "resolve_prophecy", order }));
     const phase = act(resolved, p1, { type: "end_main_phase" }).state;
     const banner = Object.values(phase.banners).find((b) => b.ownerId === p1 && b.regionId === "R1")?.id as string;
-    expectDetached(phase, cmd(phase, p1, { type: "assign_banners", assignments: { [banner]: null } }));
+    // A string value, so scramble() has something in the assignments to corrupt.
+    const region = getLegalBannerRegions(engine.ctx, phase, banner)[0] as string;
+    expectDetached(phase, cmd(phase, p1, { type: "assign_banners", assignments: { [banner]: region } }));
   });
 });

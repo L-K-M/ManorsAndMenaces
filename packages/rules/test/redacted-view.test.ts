@@ -3,16 +3,10 @@
 // work on such a view, because the client computes legal actions from it.
 
 import { describe, expect, it } from "vitest";
-import { enumerateCardTargets, getLegalActions, HIDDEN_CARD, redactState, type GameState, type PlayerId } from "../src/index.js";
-import { cmd, engine, grant, setupGame, standardRuleset } from "./helpers.js";
+import { enumerateCardTargets, getLegalActions, HIDDEN_CARD, redactState, type GameState } from "../src/index.js";
+import { cmd, engine, give, grant, setupGame, standardRuleset } from "./helpers.js";
 
 const ctx = engine.ctx;
-
-function give(s: GameState, p: PlayerId, card: string): GameState {
-  const r = engine.applyDebugCommand(s, { type: "debug_draw_card", commandId: "d", matchId: s.matchId, playerId: p, targetPlayerId: p, cardDefId: card });
-  if (!r.newState) throw new Error(r.error?.code);
-  return r.newState;
-}
 
 /** p1 holds an Arcane Exchange and can pay for it; p2 holds `opponentCard`. */
 function spellInHand(opponentCard: string) {
@@ -43,7 +37,7 @@ describe("redacted views", () => {
   });
 
   it("computes legal actions after a local buy draws a hidden card", () => {
-    const { s, p1 } = spellInHand("knight_errant");
+    const { s, p1, spell } = spellInHand("knight_errant");
     const view = redactState(grant(s, p1, { grain: 1, iron: 1, essence: 1 }), p1);
     const r = engine.applyCommand(view, cmd(view, p1, { type: "buy_card" }));
     expect(r.accepted).toBe(true);
@@ -52,7 +46,7 @@ describe("redacted views", () => {
 
     const legal = getLegalActions(ctx, after, p1);
     expect(legal.mode).toBe("main");
-    expect(legal.playableCards).not.toContain(HIDDEN_CARD);
+    expect(legal.playableCards).toEqual([spell]);
   });
 
   it("computes reaction options when the reacting hand is hidden", () => {
@@ -66,6 +60,8 @@ describe("redacted views", () => {
     const legal = getLegalActions(ctx, spectator, p2);
     expect(legal.mode).toBe("reaction");
     expect(legal.reactionCards).toEqual([]);
+    // The reacting player's own view still offers the Counterspell.
+    expect(getLegalActions(ctx, redactState(pending, p2), p2).reactionCards).toEqual(pending.players[p2]?.hand);
   });
 
   it("rejects playing a hidden card with a structured error", () => {
