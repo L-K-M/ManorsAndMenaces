@@ -17,6 +17,9 @@ services:
       # overwrite X-Forwarded-For (it is read before Forwarded), never pass a
       # client-supplied one through untouched.
       TRUST_PROXY: ${TRUST_PROXY:-0}
+      # Contact for Web Push services (turn notices to players whose app is
+      # closed): mailto:you@example.org or an https: URL of yours.
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-https://github.com/L-K-M/ManorsAndMenaces}
     volumes:
       - manors-data:/data # SQLite database
 volumes:
