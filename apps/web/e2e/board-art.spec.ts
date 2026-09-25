@@ -46,7 +46,7 @@ test("landmarks, Menaces and the map name are drawn as art", async ({ page }) =>
   expect(await menaces.count()).toBeGreaterThan(0);
   for (const menace of await menaces.all()) {
     await expect(menace.locator("[data-menace]")).toHaveCount(1);
-    await expect(menace).toHaveAttribute("aria-label", /^(Toll Troll|Young Dragon|Bog Witch|Highwayman|Goblin Tinkers): /);
+    await expect(menace).toHaveAttribute("aria-label", /^(Toll Troll|Young Dragon|Bog Witch|Highwaywoman|Goblin Tinkers): /);
     expect((await menace.boundingBox())!.height).toBeGreaterThanOrEqual(24);
   }
   // Animation is off in these settings, so nothing idles.
@@ -63,6 +63,50 @@ test("landmarks, Menaces and the map name are drawn as art", async ({ page }) =>
   // It replaces the hatch patterns, which only high contrast keeps.
   await expect(page.locator('svg.board path[fill^="url(#hatch-"]')).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test("targeting keeps creature artwork saturated without enabling unavailable targets", async ({ page }) => {
+  await startHotseat(page);
+  const creature = page.locator(".menace:not(.hl)").first();
+  await expect(creature).toBeVisible();
+  expect(await creature.evaluate((el) => getComputedStyle(el).opacity)).toBe("1");
+  expect(await creature.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe("none");
+  await expect(creature).toHaveAttribute("tabindex", "-1");
+});
+
+test("painted menaces load with transparent backgrounds", async ({ page }) => {
+  await startHotseat(page);
+  await expect(page.locator(".menace .painted image")).toHaveCount(2);
+  const assets = await page.evaluate(async () => {
+    const names = ["toll-troll", "young-dragon", "highwayman", "bog-witch", "goblin-tinkers"];
+    return Promise.all(names.map(async (name) => {
+      const image = new Image();
+      image.src = `/art/menaces/${name}.png`;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 256;
+      const context = canvas.getContext("2d")!;
+      context.drawImage(image, 0, 0);
+      return { name, width: image.naturalWidth, height: image.naturalHeight,
+        cornerAlpha: context.getImageData(0, 0, 1, 1).data[3],
+        centreAlpha: context.getImageData(128, 128, 1, 1).data[3] };
+    }));
+  });
+  for (const asset of assets) {
+    expect(asset, asset.name).toMatchObject({ width: 256, height: 256, cornerAlpha: 0 });
+    expect(asset.centreAlpha, asset.name).toBeGreaterThan(0);
+  }
+});
+
+test("high contrast and failed image loads retain vector menace figures", async ({ page }) => {
+  await startHotseat(page, { highContrast: true });
+  await expect(page.locator(".menace image")).toHaveCount(0);
+  expect(await page.locator(".menace .body path").count()).toBeGreaterThan(10);
+
+  await page.route("**/art/menaces/*.png", (route) => route.abort());
+  await startHotseat(page);
+  await expect(page.locator(".menace image")).toHaveCount(0);
+  expect(await page.locator(".menace .body path").count()).toBeGreaterThan(10);
 });
 
 /** Pixels inside `clip` that differ clearly between two PNG screenshots. */

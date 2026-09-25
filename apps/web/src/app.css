@@ -60,28 +60,30 @@
   --font-display: "Alegreya SC", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
   --font-label: "Alegreya", "Palatino Linotype", Palatino, Georgia, serif;
   --font-body: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --paper: #fffaf0;
-  --parchment: #f2e6c8;
-  --wood: #5a3e22;
-  --ink: #2b2115;
+  --paper: #fff8e8;
+  --parchment: #eddbaf;
+  --wood: #263f2b;
+  --ink: #302418;
   --accent: #2f6b3a;
   --accent-dark: #1d4524;
   /* Parchment UI kit. Surfaces are small gradients plus a 160 px noise tile
      drawn by an inline SVG filter, never large images. */
   --ink-soft: #5a4a32;
-  --edge: #8a7650;
-  --gilt: #b8892b;
-  --wax: #8e2b22;
+  --edge: #80633e;
+  --gilt: #bb8b35;
+  --wax: #a53e2c;
+  --forest-panel: linear-gradient(110deg, #203c2b, #36563a 60%, #263f2b);
+  --panel-face: var(--paper-grain), linear-gradient(115deg, #f9edcf, #ecdbb3);
   --radius-m: 10px;
   --radius-l: 16px;
-  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .36 0 0 0 0 .26 0 0 0 0 .13 .55 0 0 0 -.2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .36 0 0 0 0 .26 0 0 0 0 .13 .12 0 0 0 -.04'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
   --paper-sheet: var(--paper-grain), radial-gradient(ellipse at 50% 0%, #fffdf7 0%, #fbf3e0 60%, #f1e2bf 100%);
-  --button-face: linear-gradient(#fffdf7, #f3e6c6);
-  --button-face-hover: linear-gradient(#fffaf0, #f7e2b0);
+  --button-face: linear-gradient(#fffbed, #f4dfb4);
+  --button-face-hover: linear-gradient(#fffdf4, #f8dda0);
   --primary-face: linear-gradient(color-mix(in srgb, var(--accent) 88%, #fff), var(--accent) 55%, color-mix(in srgb, var(--accent) 88%, #000));
   --primary-face-hover: linear-gradient(color-mix(in srgb, var(--accent) 86%, #fff), color-mix(in srgb, var(--accent) 96%, #fff));
   --field-face: #fffdf7;
-  --shadow-raised: inset 0 1px 0 #ffffffc0, inset 0 -2px 0 #5a3e2224, 0 1px 2px #2b211533;
+  --shadow-raised: inset 0 1px 0 #ffffffd9, inset 0 -2px 0 #5a3e2224, 0 2px 0 #57402255, 0 3px 6px #2b21151a;
   --shadow-pressed: inset 0 2px 4px #2b211547;
   --shadow-card: 0 2px 6px #2b211526, 0 16px 40px #2b211547;
   /* A thin gilt rule just inside the edge of paper sheets (cards, dialogs). */
@@ -261,6 +263,8 @@ label:has(> input:focus-visible) {
   --primary-face: var(--accent);
   --primary-face-hover: var(--accent-dark);
   --field-face: #ffffff;
+  --panel-face: linear-gradient(#ffffff, #ffffff);
+  --forest-panel: #102517;
 }
 .high-contrast button {
   border-color: #000;

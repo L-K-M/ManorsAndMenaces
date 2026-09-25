@@ -1,15 +1,19 @@
 <script lang="ts">
-  // A rival's face, composed from the parts named in its content data and
-  // dressed in the seat colour. The emblem badge keeps the seat's heraldic
-  // shape visible, so the portrait never relies on colour alone.
+  // Painted faces with vector alternatives for high contrast. The seat's
+  // colour ring and heraldic badge keep ownership readable in either mode.
   import type { RivalPortrait } from "@manors-menaces/content";
   import { emblemPath, type PlayerTheme } from "../theme.js";
+  import { settings } from "../stores/settings.svelte.js";
 
   let { portrait, theme, size = 40, badge = true, title }: { portrait: RivalPortrait; theme: PlayerTheme; size?: number; badge?: boolean; title?: string } = $props();
 
   const clipId = $props.id();
+  const artwork: Record<RivalPortrait["headwear"], string> = {
+    coronet: "emperor-mumble", horns: "grum", feathered_hat: "madame-quill",
+    helm: "dame-brash", eyeshade: "tally-nib", witch_hat: "lady-fennick",
+  };
   const INK = "#3a2616";
-  const skin = $derived(portrait.face === "troll" ? { fill: "#9fb27f", line: "#4d5c35" } : portrait.face === "goblin" ? { fill: "#a9c56a", line: "#4f6a22" } : { fill: "#f3d3b1", line: "#8a6446" });
+  const skin = $derived(portrait.face === "troll" ? { fill: "#9fb27f", line: "#4d5c35" } : portrait.face === "goblin" ? { fill: "#a9c56a", line: "#4f6a22" } : portrait.headwear === "helm" ? { fill: "#925c3e", line: "#39251d" } : { fill: "#f3d3b1", line: "#8a6446" });
 </script>
 
 <svg class="portrait" width={size} height={size} viewBox="-24 -24 48 48" role={title ? "img" : undefined} aria-label={title} aria-hidden={title ? undefined : "true"}>
@@ -18,6 +22,9 @@
     <clipPath id={clipId}><circle r="21.6" /></clipPath>
   </defs>
   <circle r="22.8" fill={theme.light} stroke={theme.color} stroke-width="2.4" />
+  {#if !settings.highContrast}
+    <image href={`${import.meta.env.BASE_URL}art/rivals/${artwork[portrait.headwear]}.png`} x="-21.6" y="-21.6" width="43.2" height="43.2" clip-path="url(#{clipId})" />
+  {:else}
   <g clip-path="url(#{clipId})">
     <!-- Shoulders in the seat colour. -->
     <path d="M-21,26 C-20,14 -9,12.5 0,12.5 C9,12.5 20,14 21,26 Z" fill={theme.color} stroke={theme.dark} stroke-width="1.2" />
@@ -26,6 +33,8 @@
     <!-- Hair and ears behind the face. -->
     {#if portrait.headwear === "witch_hat"}
       <path d="M-10,-6 C-14,4 -13,12 -9,15 L-6,4 Z M10,-6 C14,4 13,12 9,15 L6,4 Z" fill="#5a3a2a" />
+    {:else if portrait.headwear === "helm"}
+      <path d="M-10,-5 Q-15,5 -10,17 L-6,12 L-7,-4 Z M10,-5 Q15,5 10,17 L6,12 L7,-4 Z" fill="#34241c" stroke={INK} stroke-width="1" />
     {:else if portrait.headwear === "coronet"}
       <ellipse cx="-10.5" cy="-2" rx="3" ry="4.5" fill="#d9d4cc" stroke="#8d877c" stroke-width="0.8" />
       <ellipse cx="10.5" cy="-2" rx="3" ry="4.5" fill="#d9d4cc" stroke="#8d877c" stroke-width="0.8" />
@@ -118,6 +127,8 @@
       <rect x="-1.6" y="-12.4" width="3.2" height="3" rx="0.5" fill="none" stroke="#f0c850" stroke-width="0.9" />
     {/if}
   </g>
+  {/if}
+  <circle r="21.6" fill="none" stroke="#493721" stroke-width="0.8" />
   {#if badge}
     <g transform="translate(16.5 16.5)">
       <path d={emblemPath(theme.shape, 4.6)} fill={theme.color} stroke="#fffaf0" stroke-width="1.6" stroke-linejoin="round" />
@@ -130,5 +141,6 @@
     display: block;
     flex: none;
     overflow: visible;
+    filter: drop-shadow(0 1px 1px #39291b40);
   }
 </style>

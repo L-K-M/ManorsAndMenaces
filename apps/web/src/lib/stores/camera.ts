@@ -33,8 +33,8 @@ export interface CameraLimits {
 export const HOME_PADDING = 60;
 /** The most zoomed-in view still shows this many board units on its short side. */
 const MIN_SHORT_SIDE = 200;
-/** How far past the home view the player may zoom out. */
-const MAX_ZOOM_OUT = 1.3;
+/** Keep the deeply indented coastline readable even when panned to a cape. */
+const MAX_ZOOM_OUT = 1.15;
 /** A press becomes a drag once it moves this far (CSS px) from where it began. */
 const DRAG_THRESHOLD_PX = { mouse: 4, touch: 8 } as const;
 /** Two taps this close in time (ms) and space (CSS px) are a double tap. */

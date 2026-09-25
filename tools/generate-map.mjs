@@ -59,8 +59,9 @@ const shuffle = (arr) => {
 };
 
 // ------------------------------------------------------------ geometry utils
-// Irregular island outline: an ellipse with low-frequency bulges and bays so
-// the realm reads as an illustrated map rather than a geometric shape (§10).
+// Stable layout envelope. Keep its RNG draws and geometry unchanged: published
+// saves use the site/route IDs extracted below. Geography is shaped separately
+// at emission, after all gameplay identities and connections are established.
 const PHASES = [rand() * 6.28, rand() * 6.28, rand() * 6.28];
 const coastRadius = (a) =>
   1 + 0.075 * Math.sin(3 * a + PHASES[0]) + 0.045 * Math.sin(5 * a + PHASES[1]) + 0.025 * Math.sin(9 * a + PHASES[2]);
@@ -372,15 +373,48 @@ const nameCursor = { grain: 0, timber: 0, stone: 0, iron: 0, essence: 0 };
 const regionName = new Map(regionOrder.map((c) => [c, REGION_NAMES[resources[c]][nameCursor[resources[c]]++]]));
 const ROUTE_KINDS = ["road", "road", "road", "road", "road", "road", "trail", "trail", "bridge", "pass"];
 const r1 = (n) => Math.round(n * 10) / 10;
-const pathOf = (poly) => "M" + poly.map(([x, y]) => `${r1(x)},${r1(y)}`).join("L") + "Z";
+
+// Coastlines need features at distinct scales: broad asymmetric land masses,
+// deep sheltered bays, and smaller rocky coves. Radial deformation keeps one
+// connected island; fading it toward the centre leaves room for the interior
+// Regions. Use a separate seed-derived phase so art never changes the layout
+// RNG, resource assignments, route kinds, or the identities in existing saves.
+const geographyPhase = (SEED - 14) * 2.399963229728653;
+const bay = (angle, centre, width) => {
+  const distance = Math.atan2(Math.sin(angle - centre), Math.cos(angle - centre));
+  return Math.exp(-0.5 * (distance / width) ** 2);
+};
+const shapePoint = ([x, y]) => {
+  const dx = (x - CX) / RX;
+  const dy = (y - CY) / RY;
+  const angle = Math.atan2(dy, dx);
+  const a = angle + geographyPhase;
+  const envelope = coastRadius(angle);
+  const radius = Math.hypot(dx, dy) / envelope;
+  const relief =
+    0.06 * Math.sin(2 * a + 0.4) + 0.045 * Math.cos(a - 0.4)
+    - 0.49 * bay(a, 4.65, 0.22)
+    - 0.30 * bay(a, 0.68, 0.24)
+    - 0.12 * bay(a, 3.12, 0.18)
+    - 0.18 * bay(a, 6.05, 0.16)
+    + 0.055 * bay(a, 5.6, 0.3)
+    + 0.024 * Math.sin(17 * a + 1.2) + 0.012 * Math.sin(29 * a - 0.7);
+  // Keep the radial mapping monotone even when another seed aligns a bay
+  // with a narrow part of the envelope; the shoreline must not fold inland.
+  const displacement = Math.max(-0.55, relief / envelope);
+  const scale = 1 + displacement * Math.sqrt(radius);
+  return [CX + (x - CX) * scale, CY + (y - CY) * scale];
+};
+const pathOf = (poly) => "M" + poly.map(shapePoint).map(([x, y]) => `${r1(x)},${r1(y)}`).join("L") + "Z";
 
 const siteDefs = alive.map((s) => {
   const lmIdx = landmarks.indexOf(s);
   const postIdx = posts.indexOf(s);
+  const [x, y] = shapePoint([sites[s].x, sites[s].y]);
   return {
     id: siteId.get(s),
-    x: r1(sites[s].x),
-    y: r1(sites[s].y),
+    x: r1(x),
+    y: r1(y),
     adjacentRegionIds: [...sites[s].cells].map((c) => regionId.get(c)).sort(),
     ...(lmIdx >= 0 ? { landmarkId: LANDMARK_NAMES[lmIdx][0] } : {}),
     ...(postIdx >= 0 ? { tradePost: { resource: postIdx === 0 ? "stone" : "iron", give: 2 } } : {}),
@@ -393,7 +427,7 @@ const routeDefs = edges.map(([a, b], i) => ({
   kind: ROUTE_KINDS[Math.floor(rand() * ROUTE_KINDS.length)],
 }));
 const regionDefs = regionOrder.map((c) => {
-  const [lx, ly] = centroid(cells[c]);
+  const [lx, ly] = centroid(cells[c].map(shapePoint));
   return {
     id: regionId.get(c),
     name: regionName.get(c),

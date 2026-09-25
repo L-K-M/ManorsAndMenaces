@@ -18,6 +18,7 @@
   {#if !settings.highContrast}
     <path d={art.edges} class="edge wide" />
     <path d={art.edges} class="edge" />
+    <path d={art.edges} class="sunlit-edge" transform="translate(1.5,2)" />
   {/if}
   <path d={art.streams[0]} class="stream" />
   <path d={art.streams[1]} class="stream-shine" />
@@ -46,7 +47,13 @@
     stroke: #2b2115;
     stroke-width: 7;
     stroke-linejoin: round;
-    opacity: 0.1;
+    opacity: 0.07;
+  }
+  .sunlit-edge {
+    fill: none;
+    stroke: #fff2c8;
+    stroke-width: 2;
+    opacity: 0.23;
   }
   .stream {
     fill: #6aa6c6;
@@ -71,6 +78,6 @@
   }
   .edge.wide {
     stroke-width: 18;
-    opacity: 0.07;
+    opacity: 0.04;
   }
 </style>

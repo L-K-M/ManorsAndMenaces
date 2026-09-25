@@ -76,5 +76,7 @@ export function distinctRivals(seats: readonly RivalSeat[], count: number): (str
  */
 export function seatRival(seat: SeatConfig | undefined): RivalDefinition | undefined {
   if (seat?.kind !== "ai") return undefined;
-  return rivalById(seat.rivalId) ?? RIVALS.find((r) => rivalName(r) === seat.displayName);
+  // Older saves without ids used these names before the storybook art refresh.
+  const legacyNames: Record<string, string> = { "Lord Mumble": "lord_mumble", "Sir Brash": "sir_brash" };
+  return rivalById(seat.rivalId) ?? RIVALS.find((r) => rivalName(r) === seat.displayName) ?? rivalById(legacyNames[seat.displayName]);
 }

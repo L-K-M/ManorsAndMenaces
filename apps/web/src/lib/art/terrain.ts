@@ -27,7 +27,7 @@ export interface InkStyle {
 /** Ink layers per resource, bottom to top. */
 export const TERRAIN_INKS = {
   grain: {
-    furrow: { stroke: "#a17c16", width: 1.7, opacity: 0.5 },
+    furrow: { stroke: "#997322", width: 1.1, opacity: 0.28 },
     shadow: { fill: "#5c470c", opacity: 0.22 },
     body: { fill: "#e3bd4f", stroke: "#86680f", width: 0.9 },
     detail: { stroke: "#86680f", width: 0.8 },
@@ -36,9 +36,9 @@ export const TERRAIN_INKS = {
   timber: {
     shadow: { fill: "#15290f", opacity: 0.26 },
     trunk: { fill: "#5b3d22" },
-    under: { fill: "#24491d" },
-    crown: { fill: "#3f8034" },
-    light: { fill: "#86c267" },
+    under: { fill: "#294b2b" },
+    crown: { fill: "#527c3b" },
+    light: { fill: "#b0cf76" },
   },
   stone: {
     shadow: { fill: "#34302a", opacity: 0.24 },
@@ -275,18 +275,18 @@ const MOTIFS: Record<MotifKind, { r: number; draw: (at: Place, emit: Emit, rng: 
     r: 8,
     draw(at, emit) {
       emit("shadow", shadow(at, 6.5, 2.2, 5));
-      emit("body", place("M-5,5 L-3.5,-5 Q0,-9.5 3.5,-5 L5,5 Z", at));
-      emit("light", place("M-3.5,-5 Q-1.6,-8.4 -0.2,-8.6 L-1.8,4.6 L-4.5,4.6 Z", at));
-      emit("detail", place("M-3.9,-0.4 Q0,1.2 3.9,-0.4 M0,-8.8 L0,-11 M-1.4,-8.4 L-2.6,-10.4 M1.4,-8.4 L2.6,-10.4", at));
+      emit("body", place("M-6,5 Q-4,0 -3,-2 L-5,-8 Q-2,-11 0,-8 Q2,-11 5,-8 L3,-2 Q4,1 6,5 Q0,7 -6,5 Z", at));
+      emit("light", place("M-4,-8 Q-2,-10 -1,-7 L-1,-2 L-3,5 L-5,5 L-2,-2 Z", at));
+      emit("detail", place("M-3.5,-1 Q0,1 3.5,-1 M-3.5,0.8 Q0,2 3.5,0.8 M0,-7 L0,-2 M-2,3 L-3,5 M2,3 L3,5", at));
     },
   },
   haystack: {
     r: 9,
     draw(at, emit) {
       emit("shadow", shadow(at, 8, 2.4, 4.5));
-      emit("body", place("M-7.5,4.5 Q-8,-6 0,-7 Q8,-6 7.5,4.5 Z", at));
+      emit("body", place("M-8,4.5 Q-8,-4 -2,-7 Q1,-10 4,-6 Q8,-4 8,4.5 Q0,7 -8,4.5 Z", at));
       emit("light", place("M-6.4,1 Q-6.4,-4.6 -1,-5.8 Q-4.2,-2.8 -4.2,1.8 Z", at));
-      emit("detail", place("M-5.6,-1.4 Q0,-3.4 5.6,-1.4 M-6.6,2 Q0,0.4 6.6,2", at));
+      emit("detail", place("M-6,-0.6 Q0,-2.4 6,-0.6 M-7,3 Q0,1 7,3 M-2,-5 l-1,2 M2,-5 l1,2", at));
     },
   },
   boulder: {
@@ -508,12 +508,12 @@ function scatter(region: RegionDefinition, recipe: Recipe, c: Ctx, rng: () => nu
     const R = recipe.clusters.radius;
     return Math.max(...centres.map((q) => 1 - Math.hypot(p.x - q.x, p.y - q.y) / R)) * 1.6;
   };
-  const tryPlace = (kind: MotifKind, attempts: number) => {
+  const tryPlace = (kind: MotifKind, attempts: number, distribution: "clustered" | "uniform" = "clustered") => {
     for (let i = 0; i < attempts && out.length < recipe.max; i++) {
       const p = { x: b.x0 + rng() * (b.x1 - b.x0), y: b.y0 + rng() * (b.y1 - b.y0) };
       const s = 0.85 + rng() * 0.3;
       const r = MOTIFS[kind].r * s;
-      if (rng() > density(p)) continue;
+      if (rng() > (distribution === "uniform" ? 1 : density(p))) continue;
       if (out.some((m) => Math.hypot(m.x - p.x, m.y - p.y) < (m.r + r) * recipe.pack)) continue;
       if (!fits(p, r, c)) continue;
       out.push({ regionId: region.id, kind, x: r1(p.x), y: r1(p.y), r });
@@ -524,6 +524,9 @@ function scatter(region: RegionDefinition, recipe: Recipe, c: Ctx, rng: () => nu
   if (recipe.feature) tryPlace(recipe.feature, 400);
   const tries = Math.round((area / 1000) * recipe.tries);
   for (let i = 0; i < tries && out.length < recipe.max; i++) tryPlace(pickKind(recipe.kinds, rng), 1);
+  // Bays can leave usable pockets outside the random clusters. Give sparse
+  // Regions a bounded, uniform pass, preserving all gameplay clearances.
+  for (let i = 0; i < 160 && out.length < 2; i++) tryPlace(pickKind(recipe.kinds, rng), 1, "uniform");
   return out;
 }
 
@@ -552,7 +555,7 @@ function crossings(o: Pt, u: Pt, poly: readonly Pt[]): [number, number][] {
  * through the label point so the field reads as a patchwork.
  */
 function furrows(region: RegionDefinition, c: Ctx, motifs: Motif[], rng: () => number): string {
-  const SPACING = 8;
+  const SPACING = 11;
   const STEP = 3;
   const b = bounds(c.poly);
   const theta = (rng() - 0.5) * 1.6;

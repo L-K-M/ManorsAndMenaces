@@ -49,7 +49,8 @@ const rival = (id: string, portrait: RivalPortrait): RivalDefinition => ({
 });
 
 export const RIVALS: readonly RivalDefinition[] = [
-  rival("lord_mumble", { face: "round", headwear: "coronet", eyes: "spectacles", mouth: "moustache" }),
+  // Keep ids stable for existing saves when a character's name or art changes.
+  rival("lord_mumble", { face: "goblin", headwear: "coronet", eyes: "dots", mouth: "tusks" }),
   rival("grum", { face: "troll", headwear: "horns", eyes: "narrow", mouth: "tusks" }),
   rival("madame_quill", { face: "long", headwear: "feathered_hat", eyes: "monocle", mouth: "smirk" }),
   rival("sir_brash", { face: "round", headwear: "helm", eyes: "visor", mouth: "grin" }),

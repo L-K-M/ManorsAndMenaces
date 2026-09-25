@@ -1,15 +1,21 @@
 <script lang="ts">
-  // A Menace as a little painted miniature on a round base (spec §49: each
-  // Menace has its own silhouette and idle animation). Drawn around 0,0 in
-  // about a 48-unit box so the highlight rings around the Menace still fit.
-  // Colours are player-neutral; the idle motion is off whenever animation is.
+  // Painted miniatures use compact transparent sprites. Vector figures remain
+  // available for high contrast and failed image loads. Both fit the existing
+  // label clearances and targeting rings, and respect reduced motion.
   import type { MenaceType } from "@manors-menaces/rules";
 
-  let { type, animate }: { type: MenaceType; animate: boolean } = $props();
+  let { type, animate, highContrast = false }: { type: MenaceType; animate: boolean; highContrast?: boolean } = $props();
+  let imageFailed = $state(false);
+  const painted = $derived(!highContrast && !imageFailed);
 </script>
 
 <g class="figure {type}" class:idle={animate} data-menace={type}>
   <circle r="22" class="hit-area" />
+  {#if painted}
+    <g class="body painted" pointer-events="none" aria-hidden="true">
+      <image href="/art/menaces/{type.replaceAll('_', '-')}.png" x="-27" y="-33" width="54" height="54" onerror={() => imageFailed = true} />
+    </g>
+  {:else}
   <ellipse cx="2.5" cy="16.5" rx="18" ry="5.5" class="cast" />
   <ellipse cy="14" rx="16.5" ry="5.2" class="base" />
   <ellipse cy="13" rx="14.5" ry="3.9" class="base-top" />
@@ -20,13 +26,17 @@
       <path class="skin halo" d="M-13,8 C-15,-3 -9,-11 0,-11 C9,-11 15,-5 14,6 C13,10 -12,11 -13,8 Z" />
       <ellipse cx="1" cy="1" rx="7" ry="5.5" class="belly" />
       <path class="cloth" d="M-12.5,5 L12.5,5 L10.5,9.5 L3,8 L0,11 L-3,8 L-10.5,9.5 Z" />
-      <path class="skin" d="M-8,-16 L-12.5,-19.5 L-8.5,-12 Z M4,-16 L8.5,-19.5 L4.5,-12 Z" />
-      <circle cx="-2" cy="-13" r="6.8" class="skin" />
-      <path class="brow" d="M-6.5,-16.5 L-3,-15.5 M3,-16.5 L-0.5,-15.5" />
-      <circle cx="-4.4" cy="-14.2" r="1" class="eye" />
-      <circle cx="0.6" cy="-14.2" r="1" class="eye" />
-      <ellipse cx="-1.8" cy="-11" rx="2.8" ry="2.2" class="skin nose" />
-      <path class="tusk" d="M-5,-8.4 L-4.4,-10 L-3.8,-8.4 Z M0.4,-8.4 L1,-10 L1.6,-8.4 Z" />
+      <path class="horn" d="M-9,-17 Q-15,-20 -12,-25 Q-10,-20 -6,-19 Z M5,-18 Q11,-21 9,-25 Q7,-22 2,-20 Z" />
+      <path class="skin" d="M-9,-15 L-15,-18 L-11,-10 M5,-15 L12,-17 L8,-9" />
+      <ellipse cx="-2" cy="-12" rx="9" ry="8.2" class="skin" />
+      <ellipse cx="-5.4" cy="-13.5" rx="2.8" ry="2.3" class="eye-white" />
+      <ellipse cx="1.4" cy="-13.5" rx="2.8" ry="2.3" class="eye-white" />
+      <circle cx="-4.6" cy="-13.4" r="1.4" class="eye" />
+      <circle cx="2.2" cy="-13.4" r="1.4" class="eye" />
+      <path class="brow" d="M-8,-17 Q-5,-19 -3,-16 M0,-16 Q3,-16 4,-18" />
+      <path class="grin" d="M-7,-8 Q-1,-3 4,-9" />
+      <ellipse cx="-1.8" cy="-10.5" rx="3.4" ry="2.6" class="skin nose" />
+      <path class="tusk" d="M-6.5,-7 L-6,-9.5 L-4.6,-6 Z M1,-6 L2.7,-9 L3,-7 Z" />
       <path class="arm" d="M11,-4 C15,-2 16,2 14,5" />
       <g class="club">
         <path class="wood" d="M13,5 L18,-8" />
@@ -40,10 +50,13 @@
       <path class="hood" d="M-4.8,-11 C-4.8,-16.5 4.8,-16.5 4.8,-11 C4.8,-6.8 -4.8,-6.8 -4.8,-11 Z" />
       <ellipse cx="-1.9" cy="-11.6" rx="1.1" ry="0.7" class="glint" />
       <ellipse cx="1.9" cy="-11.6" rx="1.1" ry="0.7" class="glint" />
+      <path class="grin" d="M-2,-8.8 Q0,-7.5 2,-9" stroke="#f6dca4" />
       <circle cx="0" cy="-6" r="1.4" class="clasp" />
+      <path d="M5,-5 Q9,1 8,7" class="cloak-shine" />
       <path class="strap" d="M-11,-1 L-14.5,3" />
       <rect x="-17.5" y="3" width="6" height="7" rx="1.2" class="lantern" />
       <path class="lantern-top" d="M-17,3 L-14.5,0.6 L-12,3 Z" />
+      <path d="M-15.7,5 L-15.7,8 M-13.4,5 L-13.4,8" class="lantern-light" />
       <path class="blade" d="M10.5,0 L18,-9" />
     </g>
   {:else if type === "young_dragon"}
@@ -58,9 +71,11 @@
       <path class="scales neck" d="M-4,-2 C-8,-6 -9,-11 -8,-15" />
       <path class="scales" d="M-13.5,-16.5 C-13.5,-21 -7.5,-23 -4,-20.5 C-1.5,-18.5 -2,-14.8 -5,-13.8 L-11.5,-12.6 C-13.6,-13.4 -14,-15 -13.5,-16.5 Z" />
       <path class="horn" d="M-6.5,-21 L-4,-26.5 L-3.4,-19.6 Z M-9.5,-21.6 L-9,-26 L-7,-21 Z" />
-      <circle cx="-7.8" cy="-18" r="1.5" class="dragon-eye" />
-      <circle cx="-8.2" cy="-18" r="0.6" class="eye" />
+      <ellipse cx="-7.8" cy="-18" rx="2.4" ry="2.7" class="dragon-eye" />
+      <circle cx="-8.6" cy="-17.8" r="1.1" class="eye" />
+      <path d="M-10,-21.1 Q-7.8,-22.7 -5.8,-20.6 M-12,-14.8 Q-8,-12.6 -5,-15.2" class="grin" />
       <path class="nostril" d="M-12.6,-16.4 L-11.6,-16.8" />
+      <path d="M1,-1 q2,-2 4,0 M7,1 q2,-2 4,0 M3,3 q2,-2 4,0" class="scale-detail" />
     </g>
   {:else if type === "bog_witch"}
     <g class="body">
@@ -68,14 +83,18 @@
       <path class="hair" d="M-10.5,-11 C-12.5,-7 -11.5,-4 -9.5,-2.5 M-2,-11 C-0.5,-7 -1.5,-4 -2.8,-2.5" />
       <circle cx="-6.2" cy="-10.5" r="4" class="witch-skin" />
       <path class="witch-skin" d="M-9.8,-10.8 L-12.8,-9.2 L-9.6,-8.8 Z" />
-      <circle cx="-7.4" cy="-11" r="0.8" class="eye" />
+      <ellipse cx="-7.4" cy="-11" rx="1.7" ry="1.5" class="eye-white" />
+      <circle cx="-7.8" cy="-11" r="0.85" class="eye" />
+      <path d="M-8.5,-7.5 Q-6.5,-6 -4.8,-7.8" class="grin" />
       <ellipse cx="-6" cy="-13.8" rx="8.4" ry="2.1" class="hat" />
       <path class="hat" d="M-10.6,-14 C-8.4,-18 -7.4,-24 -2.6,-29 C-3.6,-24 -2.8,-18 -1.4,-14 Z" />
       <path class="hat-band" d="M-9.8,-15.6 C-7,-16.6 -4.4,-16.6 -2,-15.8" />
+      <path d="m-5,-16 1,-1.2 1,1.2-1,1.2z" class="clasp" />
       <path class="spoon" d="M4,-11 L8.5,3" />
       <path class="arm robe" d="M-5,-4 C-1,-3 2,-5 5,-7" />
       <path class="cauldron" d="M0.5,3.5 C0,13 18,13 17.5,3.5 Z" />
       <path class="cauldron-leg" d="M3,11 L2,13.5 M15,11 L16,13.5" />
+      <path d="M3.5,6 Q4,8 6,8.5" class="pot-shine" />
       <ellipse cx="9" cy="3.5" rx="9" ry="2.5" class="rim" />
       <ellipse cx="9" cy="3.5" rx="7.2" ry="1.6" class="brew" />
       <circle cx="7" cy="0.6" r="1.6" class="bubble b1" />
@@ -100,8 +119,10 @@
         <path class="gob-skin" d="M-11.5,-6 L-17,-9.4 L-11.5,-3.4 Z M-3.5,-6 L2,-9.4 L-3.5,-3.4 Z" />
         <circle cx="-7.5" cy="-5.2" r="4.8" class="gob-skin" />
         <path class="cap" d="M-12,-7 C-11,-12 -4,-12 -3,-7 Z" />
-        <circle cx="-9.2" cy="-5" r="0.9" class="gob-eye" />
-        <circle cx="-5.8" cy="-5" r="0.9" class="gob-eye" />
+        <ellipse cx="-9.2" cy="-5" rx="1.5" ry="1.6" class="gob-eye" />
+        <ellipse cx="-5.8" cy="-5" rx="1.5" ry="1.6" class="gob-eye" />
+        <circle cx="-8.8" cy="-5" r="0.7" class="eye" />
+        <circle cx="-5.4" cy="-5" r="0.7" class="eye" />
         <path class="grin" d="M-9.4,-2.4 Q-7.5,-1.2 -5.6,-2.4" />
       </g>
       <g class="goblin g2">
@@ -109,9 +130,11 @@
         <circle cx="15.5" cy="-11.6" r="3.6" class="gob-skin halo" />
         <circle cx="14.3" cy="-11.8" r="0.7" class="gob-eye" />
         <circle cx="16.7" cy="-11.8" r="0.7" class="gob-eye" />
-        <path class="goggles" d="M12.4,-14 L18.6,-14" />
+        <circle cx="13.7" cy="-15" r="1.8" class="goggles" />
+        <circle cx="17.4" cy="-15" r="1.8" class="goggles" />
       </g>
     </g>
+  {/if}
   {/if}
 </g>
 
@@ -155,21 +178,25 @@
 
   /* Toll Troll: mossy stone-grey, club in hand. */
   .skin {
-    fill: #8c9a66;
+    fill: #9ba64e;
   }
   .skin.shade {
-    fill: #66733f;
+    fill: #65733c;
   }
   .belly {
     fill: #a9b67f;
     stroke: none;
   }
   .nose {
-    fill: #9fad72;
+    fill: #aab45d;
   }
   .brow {
     fill: none;
-    stroke-width: 1.3;
+    stroke-width: 1.9;
+  }
+  .eye-white {
+    fill: #fff1c9;
+    stroke-width: 0.7;
   }
   .tusk {
     fill: #f6efd8;
@@ -180,7 +207,7 @@
   }
   .arm {
     fill: none;
-    stroke: #8c9a66;
+    stroke: #9ba64e;
     stroke-width: 4;
   }
   .wood {
@@ -193,11 +220,20 @@
 
   /* Highwayman: dark hooded cloak, lantern and blade. */
   .cloak {
-    fill: #3e4252;
+    fill: #665174;
   }
   .fold {
     fill: none;
-    stroke: #262935;
+    stroke: #3e304b;
+  }
+  .cloak-shine {
+    fill: none;
+    stroke: #917a9e;
+    stroke-width: 1.4;
+  }
+  .lantern-light {
+    stroke: #fff1ba;
+    stroke-width: 1.3;
   }
   .hood {
     fill: #121319;
@@ -233,12 +269,12 @@
     stroke-width: 0.8;
   }
   .scales {
-    fill: #cf6a2e;
+    fill: #cc6845;
   }
   .scales.tail,
   .scales.neck {
     fill: none;
-    stroke: #cf6a2e;
+    stroke: #cc6845;
     stroke-width: 5.4;
   }
   .scales.neck {
@@ -247,6 +283,11 @@
   .dragon-eye {
     fill: #fff0a0;
     stroke-width: 0.6;
+  }
+  .scale-detail {
+    fill: none;
+    stroke: #8c422b;
+    stroke-width: 0.7;
   }
   .nostril {
     stroke-width: 0.8;
@@ -260,7 +301,7 @@
     fill: #f2cf8c;
   }
 
-  /* Bog Witch: tall hat, green face, bubbling cauldron. */
+  /* Bog Witch: tall hat, silver hair, bubbling cauldron. */
   .robe {
     fill: #4c6b58;
   }
@@ -270,7 +311,7 @@
     stroke-width: 3;
   }
   .witch-skin {
-    fill: #a9c381;
+    fill: #bc895a;
   }
   .hair {
     fill: none;
@@ -290,7 +331,12 @@
     stroke-width: 1.6;
   }
   .cauldron {
-    fill: #2c2c2c;
+    fill: #344b45;
+  }
+  .pot-shine {
+    fill: none;
+    stroke: #839689;
+    stroke-width: 1.4;
   }
   .cauldron-leg {
     stroke-width: 1.6;
@@ -321,7 +367,7 @@
     stroke-width: 1.8;
   }
   .gear {
-    fill: #b0b3b8;
+    fill: #d4ad59;
     stroke-width: 0.8;
   }
   .gear-hole {
@@ -349,13 +395,13 @@
     fill: #7b5a36;
   }
   .gob-skin {
-    fill: #74a13d;
+    fill: #91aa52;
   }
   .cap {
     fill: #b24f2e;
   }
   .gob-eye {
-    fill: #f7e26b;
+    fill: #fff0ca;
     stroke-width: 0.4;
   }
   .grin {
@@ -363,6 +409,7 @@
     stroke-width: 0.8;
   }
   .goggles {
+    fill: #617b80;
     stroke: #c9a646;
     stroke-width: 1.4;
   }
@@ -401,6 +448,10 @@
   }
   .idle.goblin_tinkers .body {
     animation: none;
+  }
+  .idle.bog_witch .body.painted,
+  .idle.goblin_tinkers .body.painted {
+    animation: lean 7.4s ease-in-out infinite;
   }
   .idle .goblin {
     transform-origin: 0 12px;

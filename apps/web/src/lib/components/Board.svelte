@@ -516,8 +516,14 @@
   onlostpointercapture={(e) => e.target === svgEl && release(e.pointerId)}
 >
   <defs>
+    {#each Object.entries(RESOURCE_COLORS) as [resource, colors]}
+      <linearGradient id="terrain-{resource}" x1="0" y1="0" x2="0.8" y2="1">
+        <stop offset="0" stop-color={colors.fill} />
+        <stop offset="1" stop-color={colors.dark} stop-opacity="0.45" />
+      </linearGradient>
+    {/each}
     <pattern id="waves" width="60" height="30" patternUnits="userSpaceOnUse">
-      <path d="M0,15 Q15,5 30,15 T60,15" fill="none" stroke="#9cc9e6" stroke-width="2" opacity="0.6" />
+      <path d="M0,15 Q15,5 30,15 T60,15" fill="none" stroke="#538e94" stroke-width="1.4" opacity="0.25" />
     </pattern>
     <pattern id="hatch-grain" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">
       <line x1="0" y1="0" x2="0" y2="10" stroke="#caa73a" stroke-width="2" opacity="0.35" />
@@ -542,7 +548,7 @@
        zoom. The layers below are deliberately not indented under it. -->
   <g class="camera" transform={cameraTransform}>
   <!-- sea -->
-  <rect x={viewport.sea.x} y={viewport.sea.y} width={viewport.sea.w} height={viewport.sea.h} fill="#bfe0f2" />
+  <rect x={viewport.sea.x} y={viewport.sea.y} width={viewport.sea.w} height={viewport.sea.h} fill="#a9d0ca" />
   <rect x={viewport.sea.x} y={viewport.sea.y} width={viewport.sea.w} height={viewport.sea.h} fill="url(#waves)" />
   <path d={map.coastline} fill="#e9dcb4" stroke="#b69e6a" stroke-width="18" transform="translate(0,0)" />
 
@@ -553,6 +559,7 @@
   <g class="layer-fills" clip-path="url(#island-clip)" pointer-events="none">
     {#each map.regions as region (region.id)}
       <path d={region.path} class="fill" fill={RESOURCE_COLORS[region.resource].fill} stroke="#6b5a3a" stroke-width="2" stroke-linejoin="round" />
+      {#if !settings.highContrast}<path d={region.path} fill="url(#terrain-{region.resource})" opacity="0.4" />{/if}
       <!-- the terrain art replaces the hatch as the second channel, except in high contrast -->
       {#if settings.highContrast}<path d={region.path} fill="url(#hatch-{region.resource})" />{/if}
     {/each}
@@ -695,7 +702,7 @@
             <path d={emblemPath(theme.shape, 4)} transform="translate(0,-26)" fill={theme.light} stroke={theme.dark} stroke-width="1.5" />
           </g>
         {:else}
-          <circle r="7" fill="#fffaf0" stroke="#6b5a3a" stroke-width="2.5" pointer-events="none" />
+          <circle class="empty-site" r="7" fill="#fffaf0" stroke="#6b5a3a" stroke-width="2.5" pointer-events="none" />
         {/if}
         {#if isHl}
           <circle r={siteRing(!!holding)} class="hl-casing" stroke-width={px(5, 6)} pointer-events="none" />
@@ -767,7 +774,7 @@
         onpointerleave={() => hoverOut({ kind: "menace", id: menace.id })}
       >
         <circle r="25" class="focus-ring" />
-        <MenaceFigure type={menace.type} animate={dur > 0} />
+        <MenaceFigure type={menace.type} animate={dur > 0} highContrast={settings.highContrast} />
         {#if hoard.length}
           <text y={20 + Math.max(12, lod.minor)} text-anchor="middle" class="hoard" style="font-size: {Math.max(12, lod.minor)}px">{hoard.map(([r, n]) => `${n}${RESOURCE_COLORS[r as keyof typeof RESOURCE_COLORS].label}`).join(" ")}</text>
         {/if}
@@ -877,7 +884,7 @@
     display: block;
     touch-action: none;
     user-select: none;
-    background: #bfe0f2;
+    background: #a9d0ca;
     cursor: grab;
   }
   .board:active {
@@ -1018,9 +1025,8 @@
     font-size: 1rem;
   }
   .targeting .route:not(.hl),
-  .targeting .site:not(.hl),
-  .targeting .banner:not(.hl):not(.selected),
-  .targeting .menace:not(.hl):not(.selected) {
+  .targeting .site:not(.hl) .empty-site,
+  .targeting .banner:not(.hl):not(.selected) {
     opacity: 0.5;
   }
   .targeting .region:not(.hl),

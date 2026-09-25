@@ -64,7 +64,7 @@
       {
         seats: [
           { playerId: "P1", displayName: "You", kind: "human", color: 0 },
-          { playerId: "P2", displayName: "Lord Mumble", kind: "ai", aiLevel: "easy", color: 1 },
+          { playerId: "P2", displayName: t("rival.lord_mumble.name"), rivalId: "lord_mumble", kind: "ai", aiLevel: "easy", color: 1 },
         ],
         ruleset: mvpRuleset(),
         seed: TUTORIAL_SEED,
@@ -175,6 +175,7 @@
     <TitleVignette animate={animationScale() > 0} />
     {#if screen === "title"}
       <section class="hero">
+        <img class="title-art" src={`${import.meta.env.BASE_URL}art/manor-troll.png`} alt="" width="640" height="640" fetchpriority="high" />
         <h1 class="logo">
           {#if titleWords.length === 2}
             {titleWords[0]} <span class="amp">&amp;</span>
@@ -315,6 +316,33 @@
     justify-items: center;
     text-align: center;
   }
+  .title-art {
+    width: clamp(6rem, 15vh, 10rem);
+    height: auto;
+    margin-bottom: 0.6rem;
+    filter: drop-shadow(0 8px 12px #243c2b33);
+  }
+  @media (min-width: 1050px) and (min-height: 701px) {
+    .hero {
+      width: min(68rem, 94vw);
+      grid-template-columns: 1fr 1fr;
+      grid-template-areas: "art logo" "art tagline" "art menu" "art version";
+      column-gap: 2rem;
+      align-items: center;
+    }
+    .hero .title-art {
+      grid-area: art;
+      width: 100%;
+      margin: 0;
+    }
+    .hero .logo {
+      grid-area: logo;
+      font-size: clamp(3rem, 4.8vw, 4.6rem);
+    }
+    .hero .tagline { grid-area: tagline; }
+    .hero .menu { grid-area: menu; }
+    .hero .version { grid-area: version; }
+  }
   .logo {
     margin: 0;
     font: 700 clamp(2.5rem, 7.4vw, 5.2rem) / 0.95 var(--font-display);
@@ -368,6 +396,8 @@
     filter: drop-shadow(0 2px 2px #2b211559);
   }
   .menu button {
+    min-width: 0;
+    width: 100%;
     font-size: 1.1rem;
     padding: 0.6rem 1rem;
   }
@@ -379,7 +409,7 @@
     color: var(--ink-soft);
     font-size: 0.8rem;
   }
-  /* Portrait: keep the menu high so the island shows beneath it. */
+  /* Portrait: keep the menu high so the painted coastline shows beneath it. */
   @media (max-aspect-ratio: 1/1) {
     .hero {
       align-self: start;
@@ -389,6 +419,9 @@
   /* Short screens: tighten the stack so the card still fits once the
      Continue button appears (a 1024x600 netbook, a 360x640 phone). */
   @media (max-height: 700px) {
+    .title-art {
+      display: none;
+    }
     .hero {
       margin-top: 0;
     }

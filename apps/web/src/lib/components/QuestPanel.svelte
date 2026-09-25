@@ -37,7 +37,7 @@
           <p>{describe(q)}</p>
           {#if left !== null}
             <p class="expiry" class:soon={left === 1}>
-              <span aria-hidden="true">⌛</span>
+              <ToolIcon name="hourglass" size={13} />
               {left === 1 ? t("ui.quest_expires_next_round") : t("ui.quest_expires_in", { count: left })}
             </p>
           {/if}
@@ -82,10 +82,11 @@
     gap: 0.4rem;
   }
   li {
-    background: var(--paper);
-    border: 1px solid #0002;
-    border-radius: 8px;
-    padding: 0.4rem 0.55rem;
+    background: var(--paper-sheet);
+    border: 1px solid var(--edge);
+    border-radius: 11px;
+    padding: 0.6rem 0.65rem;
+    box-shadow: inset 0 0 0 3px #fff9e8, inset 0 0 0 4px #b5944d33, 0 2px 4px #3c291c18;
   }
   li.ready {
     border: 1px solid #2d8a3a;
@@ -94,10 +95,16 @@
   }
   .head {
     display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
     justify-content: space-between;
   }
+  .head strong {
+    font: 700 1.1rem/1.1 var(--font-display);
+  }
   .renown {
-    color: #8a6400;
+    color: #75551e;
+    white-space: nowrap;
     font-weight: 700;
   }
   p {
@@ -115,16 +122,17 @@
     opacity: 1;
   }
   .bar {
-    height: 6px;
+    height: 8px;
     background: #0001;
     border-radius: 3px;
     overflow: hidden;
     margin-bottom: 0.3rem;
+    border: 1px solid #8a765044;
   }
   .bar span {
     display: block;
     height: 100%;
-    background: #2d8a3a;
+    background: var(--primary-face);
   }
   .done li {
     font-size: 0.8rem;

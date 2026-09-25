@@ -31,7 +31,7 @@
     {#if p}
       <article class="player" class:active={actor === pid} data-player-target={pid} style="--pc: {theme.color}; --pl: {theme.light}">
         <header>
-          {#if rival}<RivalPortrait portrait={rival.portrait} {theme} size={30} title={t("ui.rival_portrait", { name: t(rival.nameKey), title: t(rival.titleKey), motto: t(rival.mottoKey) })} />
+          {#if rival}<RivalPortrait portrait={rival.portrait} {theme} size={46} title={t("ui.rival_portrait", { name: t(rival.nameKey), title: t(rival.titleKey), motto: t(rival.mottoKey) })} />
           {:else}<svg width="22" height="22" viewBox="-11 -11 22 22" aria-hidden="true"><path d={emblemPath(theme.shape, 8)} fill={theme.color} stroke={theme.dark} stroke-width="1.5" /></svg>{/if}
           <strong>{p.displayName}</strong>
           {#if seat?.kind === "ai"}<span class="tag">{t("ui.ai_seat", { level: t(`ui.${seat.aiLevel ?? "normal"}`) })}</span>{/if}
@@ -85,14 +85,15 @@
 <style>
   .players {
     display: grid;
-    gap: 0.5rem;
+    gap: 0.7rem;
   }
   .player {
     border: 2px solid color-mix(in srgb, var(--pc) 40%, transparent);
     border-left: 6px solid var(--pc);
-    border-radius: 10px;
-    padding: 0.45rem 0.6rem;
-    background: var(--paper);
+    border-radius: 13px;
+    padding: 0.65rem 0.7rem;
+    background: var(--paper-sheet);
+    box-shadow: inset 0 1px 0 #fffdf3, 0 3px 7px #5a3e221c;
   }
   /* In the flow, so the rival's counts stay readable while it speaks. */
   .quip {
@@ -101,20 +102,34 @@
   }
   .player.active {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc) 55%, transparent);
-    background: color-mix(in srgb, var(--pl) 25%, var(--paper));
+    background: linear-gradient(110deg, color-mix(in srgb, var(--pl) 25%, var(--paper)), var(--paper));
   }
   header {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.1rem 0.55rem;
+  }
+  header :global(.portrait),
+  header > svg {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  header strong {
+    grid-column: 2;
+    font-family: var(--font-display);
+    font-size: 1.1rem;
   }
   .tag {
+    grid-column: 2;
+    justify-self: start;
     font-size: 0.7rem;
     background: #0001;
     border-radius: 4px;
     padding: 0 0.3rem;
   }
   .presence {
+    grid-column: 2;
     font-size: 0.7rem;
     border-radius: 4px;
     padding: 0 0.3rem;
@@ -126,6 +141,8 @@
     opacity: 1;
   }
   .renown {
+    grid-column: 3;
+    grid-row: 1 / span 2;
     margin-left: auto;
     font-weight: 700;
     font-size: 1.1rem;
@@ -142,7 +159,9 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.35rem 0.7rem;
-    margin-top: 0.3rem;
+    margin-top: 0.5rem;
+    padding: 0.35rem 0;
+    border-top: 1px solid #b48e4930;
     font-variant-numeric: tabular-nums;
   }
   .next {

@@ -4,11 +4,11 @@ import type { MenaceType, ResourceType } from "@manors-menaces/rules";
 // (shape, icon or pattern) so nothing depends on colour alone.
 
 export const RESOURCE_COLORS: Record<ResourceType, { fill: string; dark: string; label: string }> = {
-  grain: { fill: "#e9cf6a", dark: "#8a6d12", label: "🌾" },
-  timber: { fill: "#6fae5a", dark: "#2d5a24", label: "🌲" },
-  stone: { fill: "#b9b3a8", dark: "#5a554d", label: "⛰" },
-  iron: { fill: "#8d9aab", dark: "#39424f", label: "⚒" },
-  essence: { fill: "#b79be0", dark: "#553b86", label: "✦" },
+  grain: { fill: "#edd17b", dark: "#856321", label: "🌾" },
+  timber: { fill: "#90b86d", dark: "#315737", label: "🌲" },
+  stone: { fill: "#c9bda7", dark: "#635747", label: "⛰" },
+  iron: { fill: "#a0afba", dark: "#404e5b", label: "⚒" },
+  essence: { fill: "#bca3d0", dark: "#62437d", label: "✦" },
 };
 
 /**
