@@ -46,7 +46,13 @@ export async function enablePush(client: OnlineClient): Promise<PushState> {
     sub = null;
   }
   sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes(publicKey) });
-  await client.pushSubscribe(sub.toJSON() as PushSubscriptionRequest);
+  try {
+    await client.pushSubscribe(sub.toJSON() as PushSubscriptionRequest);
+  } catch (e) {
+    // A browser subscription the server does not know would read as "on".
+    await sub.unsubscribe().catch(() => {});
+    throw e;
+  }
   return "on";
 }
 

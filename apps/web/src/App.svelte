@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { isSaveFile, type SaveFile } from "@manors-menaces/protocol";
   import { BALANCE, mvpRuleset } from "@manors-menaces/rules";
   import { t } from "./lib/i18n.js";
@@ -147,6 +148,11 @@
   // Notices about online matches that are not on screen (spec §85): heard
   // while this device has a guest session, from any screen.
   watchNotices({ openMatchId: () => (session?.transport.kind === "online" ? session.authoritative.matchId : null) });
+  $effect(() => {
+    // A match on screen needs no notice, however it was opened.
+    const matchId = session?.transport.kind === "online" ? session.authoritative.matchId : null;
+    if (matchId) untrack(() => dismissNotice(matchId));
+  });
   /** Remounting the lobby makes it open the match in the address. */
   let lobbyKey = $state(0);
   /**

@@ -273,7 +273,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
       if (url.pathname === "/api/push/subscribe" && req.method === "POST") {
         const sub = parseSubscription(await readObject(req));
         if (!sub) throw new HttpError(400, "not a push subscription this server can deliver to");
-        store.savePushSubscription(user.id, sub);
+        if (!store.savePushSubscription(user.id, sub)) throw new HttpError(409, "this push endpoint belongs to another browser");
         return send(res, 200, { ok: true });
       }
       if (url.pathname === "/api/push/unsubscribe" && req.method === "POST") {

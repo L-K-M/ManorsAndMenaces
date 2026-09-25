@@ -1,6 +1,6 @@
 import { createECDH, createDecipheriv, createPublicKey, hkdfSync, verify } from "node:crypto";
-import { describe, expect, it } from "vitest";
-import { encryptPayload, generateVapidKeys, isPushServiceHost, parseSubscription, vapidAuthorization, vapidKeysFromPem } from "../src/push.js";
+import { describe, expect, it, vi } from "vitest";
+import { encryptPayload, generateVapidKeys, isPushServiceHost, parseSubscription, sendPush, vapidAuthorization, vapidKeysFromPem } from "../src/push.js";
 
 // Web Push (RFC 8030) messages are encrypted for the browser (RFC 8291) and
 // signed by the server (VAPID, RFC 8292); the push service rejects anything
@@ -100,5 +100,26 @@ describe("push subscriptions", () => {
     ];
     for (const x of bad) expect(parseSubscription(x), JSON.stringify(x)).toBeNull();
     expect(isPushServiceHost("notify.windows.com.example")).toBe(false);
+  });
+});
+
+describe("delivery", () => {
+  const sub = { endpoint: "https://fcm.googleapis.com/fcm/send/x", p256dh: RFC.uaPublic, auth: RFC.auth };
+  const vapid = { keys: vapidKeysFromPem(generateVapidKeys()), subject: "mailto:ops@example.org" };
+
+  it("says why a push was refused, and frees the connection", async () => {
+    const res = new Response("bad jwt", { status: 401 });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await sendPush(sub, { hello: 1 }, vapid, (async () => res) as typeof fetch);
+    expect(result).toBe("failed");
+    expect(errors).toHaveBeenCalledWith(expect.stringMatching(/fcm\.googleapis\.com.*401/));
+    // An unread body holds its connection until garbage collection.
+    expect(res.bodyUsed).toBe(true);
+    errors.mockRestore();
+  });
+
+  it("reports an unsubscribed browser as gone", async () => {
+    expect(await sendPush(sub, {}, vapid, (async () => new Response(null, { status: 410 })) as typeof fetch)).toBe("gone");
+    expect(await sendPush(sub, {}, vapid, (async () => new Response(null, { status: 201 })) as typeof fetch)).toBe("sent");
   });
 });

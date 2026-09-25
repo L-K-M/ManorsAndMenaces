@@ -24,6 +24,10 @@ describe("noticesAfter", () => {
     expect(noticesAfter(turnOf("P1"), turnOf("P2"))).toEqual([{ playerId: "P2", kind: "your_turn" }]);
   });
 
+  it("tells the first player when the match starts", () => {
+    expect(noticesAfter(null, turnOf("P2"))).toEqual([{ playerId: "P2", kind: "your_turn" }]);
+  });
+
   it("says nothing while the same player keeps acting", () => {
     expect(noticesAfter(turnOf("P1"), { ...turnOf("P1"), revision: game.revision + 3 })).toEqual([]);
   });

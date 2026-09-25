@@ -181,6 +181,7 @@ export class MatchService {
     });
     this.store.startMatch(matchId, state);
     this.emit(matchId, []);
+    this.announce(matchId, null, state);
     this.scheduleAi(matchId);
   }
 
@@ -420,7 +421,7 @@ export class MatchService {
   }
 
   /** Tells the humans who must act now, or whose match just ended (spec §85). */
-  private announce(matchId: string, before: GameState, after: GameState): void {
+  private announce(matchId: string, before: GameState | null, after: GameState): void {
     const due = noticesAfter(before, after);
     if (due.length === 0) return;
     const seats = this.store.seats(matchId);

@@ -293,3 +293,22 @@ test("a player who left the match hears it is their turn and opens it from the n
   await expect(bob.getByRole("button", { name: /Assign Banners →/ })).toBeVisible({ timeout: 20_000 });
   await expect(bob.getByRole("region", { name: "Match notices" })).toHaveCount(0);
 });
+
+test("a notice goes away once its match is opened from the lobby", async ({ browser }) => {
+  const [alice, bob] = await startMatch(browser);
+  await playSetup([alice, bob]);
+  await untilTurnOf(bob, alice);
+  await alice.getByRole("button", { name: "Main menu" }).click();
+  await alice.getByRole("dialog", { name: "Menu" }).getByRole("button", { name: "Exit to title" }).click();
+  await alice.getByRole("dialog", { name: "Leave this game?" }).getByRole("button", { name: "Exit to title" }).click();
+
+  await toBannerPhase(bob);
+  await bob.getByRole("button", { name: /End Turn/ }).click();
+  const notices = alice.getByRole("region", { name: "Match notices" });
+  await expect(notices).toContainText("Your turn");
+
+  await alice.getByRole("button", { name: "Play online" }).click();
+  await alice.getByRole("button", { name: /Alice · Bob/ }).click();
+  await expect(alice.getByRole("button", { name: /Assign Banners →/ })).toBeVisible();
+  await expect(notices).toHaveCount(0);
+});

@@ -212,6 +212,14 @@ describe("generated service worker", () => {
       expect(sw.shown[0]?.options.data).toEqual({ matchId: null });
     });
 
+    it("still shows something for a push with no payload at all", async () => {
+      const sw = boot({ online: true });
+      await sw.dispatch("push", { data: null });
+      expect(sw.shown).toHaveLength(1);
+      expect(sw.shown[0]?.title).toBe("Manors & Menaces");
+      expect(sw.shown[0]?.options.data).toEqual({ matchId: null });
+    });
+
     it("opens the match when the notice is clicked, in a new window if none is open", async () => {
       const sw = boot({ online: true });
       let closed = false;

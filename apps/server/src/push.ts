@@ -125,6 +125,10 @@ export async function sendPush(
     body: encryptPayload(Buffer.from(JSON.stringify(payload)), sub),
     signal: AbortSignal.timeout(10_000),
   });
+  // Nothing in the reply is needed, but an unread body holds its connection.
+  await res.body?.cancel().catch(() => {});
   if (res.status === 404 || res.status === 410) return "gone";
-  return res.ok ? "sent" : "failed";
+  if (res.ok) return "sent";
+  console.error(`push to ${new URL(sub.endpoint).host} failed: HTTP ${res.status}`);
+  return "failed";
 }

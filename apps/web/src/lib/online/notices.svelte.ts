@@ -40,6 +40,7 @@ function receive(notice: MatchNotice): void {
 }
 
 export function dismissNotice(matchId: string): void {
+  if (!notices.list.some((n) => n.matchId === matchId)) return;
   notices.list = notices.list.filter((n) => n.matchId !== matchId);
 }
 

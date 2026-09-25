@@ -14,14 +14,17 @@ export function actorOf(state: GameState): PlayerId | null {
   return state.activePlayerId;
 }
 
-/** The players to notify after a commit took the match from `before` to `after`. */
-export function noticesAfter(before: GameState, after: GameState): { playerId: PlayerId; kind: NoticeKind }[] {
+/**
+ * The players to notify after a commit took the match from `before` to
+ * `after`; `before` is null when the match has just started.
+ */
+export function noticesAfter(before: GameState | null, after: GameState): { playerId: PlayerId; kind: NoticeKind }[] {
   if (after.status === "finished") {
-    if (before.status === "finished") return [];
+    if (before?.status === "finished") return [];
     return Object.keys(after.players).map((playerId) => ({ playerId, kind: "match_over" as const }));
   }
   const actor = actorOf(after);
-  return actor && actor !== actorOf(before) ? [{ playerId: actor, kind: "your_turn" }] : [];
+  return actor && actor !== (before && actorOf(before)) ? [{ playerId: actor, kind: "your_turn" }] : [];
 }
 
 function text(key: string, params: Record<string, string | number> = {}): string {

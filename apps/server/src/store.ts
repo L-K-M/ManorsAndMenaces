@@ -144,8 +144,18 @@ export class Store {
 
   // ------------------------------------------------------------------ push subscriptions
 
-  /** Saves a browser's subscription for `userId`, keeping each user's newest few. */
-  savePushSubscription(userId: string, sub: StoredSubscription, keep = MAX_PUSH_SUBSCRIPTIONS_PER_USER): void {
+  /**
+   * Saves a browser's subscription for `userId`, keeping their newest `keep`.
+   * A browser signing in as another guest brings the same keys, so the
+   * subscription moves to that guest. Another guest's endpoint with different
+   * keys is refused (returns false): the endpoint alone does not prove it is
+   * the same browser.
+   */
+  savePushSubscription(userId: string, sub: StoredSubscription, keep = MAX_PUSH_SUBSCRIPTIONS_PER_USER): boolean {
+    const existing = this.db.prepare("SELECT user_id, p256dh, auth FROM push_subscriptions WHERE endpoint = ?").get(sub.endpoint) as
+      | { user_id: string; p256dh: string; auth: string }
+      | undefined;
+    if (existing && existing.user_id !== userId && (existing.p256dh !== sub.p256dh || existing.auth !== sub.auth)) return false;
     this.db
       .prepare(
         `INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?)
@@ -157,6 +167,7 @@ export class Store {
         "DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint NOT IN (SELECT endpoint FROM push_subscriptions WHERE user_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?)",
       )
       .run(userId, userId, keep);
+    return true;
   }
 
   pushSubscriptions(userId: string): StoredSubscription[] {

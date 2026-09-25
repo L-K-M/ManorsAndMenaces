@@ -116,7 +116,12 @@ function decrypt(body: Buffer, ecdh: ReturnType<typeof createECDH>, auth: Buffer
   return JSON.parse(plain.subarray(0, -1).toString());
 }
 
-const settle = () => new Promise((r) => setTimeout(r, 50));
+/** For "nothing more arrives": give stragglers time to show up. */
+const settle = (ms = 200) => new Promise((r) => setTimeout(r, ms));
+/** For "this arrives": poll instead of guessing how long delivery takes. */
+async function waitFor(ok: () => boolean, ms = 3000): Promise<void> {
+  for (const end = Date.now() + ms; !ok() && Date.now() < end; ) await new Promise((r) => setTimeout(r, 20));
+}
 
 describe("turn notices", () => {
   it("tell a player whose app is open that it is their turn, over their socket", async () => {
@@ -128,6 +133,7 @@ describe("turn notices", () => {
     await settle();
     for (const s of Object.values(sockets)) s.notices.length = 0;
     await playUntilTurnOf(matchId, byPlayer, second);
+    await waitFor(() => sockets[second]!.notices.length > 0);
     await settle();
 
     expect(sockets[second]!.notices.at(-1)).toMatchObject({ matchId, kind: "your_turn", title: "Your turn" });
@@ -147,7 +153,7 @@ describe("turn notices", () => {
     const { publicKey } = (await api<{ publicKey: string }>("/api/push/key", byPlayer[second]!.token)).data;
 
     await playUntilTurnOf(matchId, byPlayer, second);
-    await settle();
+    await waitFor(() => pushes.some((p) => p.url === endpoint));
 
     const sent = pushes.filter((p) => p.url === endpoint);
     expect(sent.length).toBeGreaterThan(0);
@@ -163,9 +169,28 @@ describe("turn notices", () => {
     await api(`/api/push/subscribe`, byPlayer[second]!.token, { endpoint: "https://fcm.googleapis.com/fcm/send/gone", keys: browserKeys().keys });
     pushStatus = 410;
     await playUntilTurnOf(matchId, byPlayer, second);
-    await settle();
+    await waitFor(() => app.store.pushSubscriptions(byPlayer[second]!.userId).length === 0);
     expect(pushes.length).toBeGreaterThan(0);
     expect(app.store.pushSubscriptions(byPlayer[second]!.userId)).toEqual([]);
+  });
+});
+
+describe("match start", () => {
+  it("tells the first player to act that the match has begun", async () => {
+    const alice = await guest("Alice");
+    const bob = await guest("Bob");
+    const sockets = { alice: await listen(alice.token), bob: await listen(bob.token) };
+    const created = await api<{ matchId: string; inviteCode: string }>("/api/matches", alice.token, { displayName: "Alice", seatCount: 2, rulesetName: "standard" });
+    await api("/api/matches/join", bob.token, { inviteCode: created.data.inviteCode, displayName: "Bob" });
+    const state = (await api<MatchView>(`/api/matches/${created.data.matchId}`, alice.token)).data;
+    const firstIsAlice = state.state?.activePlayerId === state.youAre;
+    const first = firstIsAlice ? sockets.alice : sockets.bob;
+    const other = firstIsAlice ? sockets.bob : sockets.alice;
+
+    await waitFor(() => first.notices.length > 0);
+    expect(first.notices).toEqual([expect.objectContaining({ matchId: created.data.matchId, kind: "your_turn" })]);
+    expect(other.notices).toEqual([]);
+    Object.values(sockets).forEach((s) => s.close());
   });
 });
 
@@ -181,6 +206,21 @@ describe("push subscriptions", () => {
     expect(app.store.pushSubscriptions(carol.userId)).toHaveLength(1);
     expect((await api("/api/push/unsubscribe", carol.token, { endpoint: "https://fcm.googleapis.com/fcm/send/x" })).status).toBe(200);
     expect(app.store.pushSubscriptions(carol.userId)).toEqual([]);
+  });
+
+  it("follow a browser to a new guest, but cannot be claimed by someone else's keys", async () => {
+    const [carol, dave] = [await guest("Carol"), await guest("Dave")];
+    const endpoint = "https://fcm.googleapis.com/fcm/send/shared";
+    const keys = browserKeys().keys;
+    await api("/api/push/subscribe", carol.token, { endpoint, keys });
+    // Only the browser knows its keys; a stranger with the endpoint alone gets nowhere.
+    expect((await api("/api/push/subscribe", dave.token, { endpoint, keys: browserKeys().keys })).status).toBe(409);
+    expect(app.store.pushSubscriptions(carol.userId).map((s) => s.endpoint)).toEqual([endpoint]);
+    expect(app.store.pushSubscriptions(dave.userId)).toEqual([]);
+    // The same browser signing in as another guest takes its subscription along.
+    expect((await api("/api/push/subscribe", dave.token, { endpoint, keys })).status).toBe(200);
+    expect(app.store.pushSubscriptions(carol.userId)).toEqual([]);
+    expect(app.store.pushSubscriptions(dave.userId).map((s) => s.endpoint)).toEqual([endpoint]);
   });
 
   it("keep working after a restart: the server keeps its VAPID key", async () => {
