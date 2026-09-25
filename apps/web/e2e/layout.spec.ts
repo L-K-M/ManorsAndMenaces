@@ -42,17 +42,19 @@ async function completeSetup(page: Page) {
   await expect(main).toBeVisible();
 }
 
+/**
+ * Cards every deck holds, whatever the seats and Menaces: 2-player decks
+ * leave out cards that need a missing Menace or a pair of them.
+ */
+const ALWAYS_DEALT = ["wizard_interference", "knight_errant", "druids_blessing", "arcane_exchange", "festival_at_the_inn", "very_minor_prophecy", "fog_of_confusion"];
+
 /** Grants resources and draws cards through the debug panel (§100). */
 async function fillHand(page: Page, count = 4) {
   await page.getByRole("button", { name: "Debug" }).click();
   const dialog = page.getByRole("dialog", { name: "Debug tools" });
   await dialog.getByRole("button", { name: "Grant 5 of each resource" }).click();
-  const cards = await dialog
-    .getByLabel("Card")
-    .locator("option")
-    .evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
   for (let i = 0; i < count; i++) {
-    await dialog.getByLabel("Card").selectOption(cards[i % cards.length] ?? "");
+    await dialog.getByLabel("Card").selectOption(ALWAYS_DEALT[i % ALWAYS_DEALT.length] ?? "");
     await dialog.getByRole("button", { name: "Draw specific card" }).click();
   }
   await dialog.getByRole("button", { name: "Close" }).click();
@@ -303,7 +305,7 @@ test.describe("phone portrait 412x915", () => {
 
     // Slide-over panel: below the top bar, unreachable while closed, and
     // closable by the scrim and Escape.
-    const side = page.locator(".side");
+    const side = page.locator("#side-panel");
     const playersTab = page.getByRole("tab", { name: "Players", includeHidden: true });
     await playersTab.evaluate((el) => (el as HTMLElement).focus());
     expect(await playersTab.evaluate((el) => el === document.activeElement)).toBe(false);
