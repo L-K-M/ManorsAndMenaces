@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getQuestProgress, questRoundsLeft, type LegalActionSummary } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
+  import ToolIcon from "./ToolIcon.svelte";
   import type { GameSession } from "../game/session.svelte.js";
 
   let { session, legal }: { session: GameSession; legal: LegalActionSummary | null } = $props();
@@ -31,7 +32,7 @@
         <li class:ready={claimable.has(q)}>
           <div class="head">
             <strong>{t(`quest.${q}.name`)}</strong>
-            <span class="renown">+{def.renown} ♛</span>
+            <span class="renown">+{def.renown} <ToolIcon name="crown" size={14} label={t("ui.renown")} /></span>
           </div>
           <p>{describe(q)}</p>
           {#if left !== null}

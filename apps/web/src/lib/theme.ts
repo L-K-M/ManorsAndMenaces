@@ -11,13 +11,43 @@ export const RESOURCE_COLORS: Record<ResourceType, { fill: string; dark: string;
   essence: { fill: "#b79be0", dark: "#553b86", label: "✦" },
 };
 
-/** Small SVG glyph paths for resources, centred on 0,0 in a ~20px box. */
+/**
+ * Resource silhouettes, centred on 0,0 in a ~20px box, drawn so each reads
+ * without colour: a tied wheat sheaf, a fir tree, cut stone blocks, an anvil
+ * and a faceted crystal. The board fills them (grain is stroked, since its
+ * stalks are open lines); ResourceIcon adds RESOURCE_DETAILS on top.
+ */
 export const RESOURCE_GLYPHS: Record<ResourceType, string> = {
-  grain: "M0,9 L0,-6 M0,-6 C-4,-8 -5,-3 0,-1 M0,-6 C4,-8 5,-3 0,-1 M0,-1 C-4,-3 -5,2 0,4 M0,-1 C4,-3 5,2 0,4 M0,-6 L0,-10",
-  timber: "M0,-10 L7,2 L3,2 L8,8 L-8,8 L-3,2 L-7,2 Z M0,8 L0,11",
-  stone: "M-9,7 L-4,-4 L0,1 L4,-7 L9,7 Z",
-  iron: "M-8,-3 L4,-3 L4,-7 L8,-7 L8,5 L4,5 L4,1 L-8,1 Z M-2,1 L-2,9 L1,9 L1,1",
-  essence: "M0,-10 L2.5,-2.5 L10,0 L2.5,2.5 L0,10 L-2.5,2.5 L-10,0 L-2.5,-2.5 Z",
+  grain:
+    "M-3,10 Q-1.8,4 -4.6,-1.8 M0,10 L0,-2 M3,10 Q1.8,4 4.6,-1.8 M-3.4,4.6 L3.4,4 " +
+    "M0,-2 L-2.3,-3.6 L-1.4,-4.6 L-2.6,-6.2 L-1.5,-7.1 L-2.5,-8.6 L-1.2,-9.4 L0,-11.2 " +
+    "L1.2,-9.4 L2.5,-8.6 L1.5,-7.1 L2.6,-6.2 L1.4,-4.6 L2.3,-3.6 Z " +
+    "M-4.6,-1.8 L-7.4,-2.1 L-7.1,-3.4 L-8.9,-4.3 L-8.3,-5.6 L-9.9,-6.5 L-9.1,-7.8 L-8.9,-9.9 " +
+    "L-7,-8.9 L-5.5,-8.8 L-5.7,-7 L-4.3,-6.7 L-4.6,-4.8 L-3.3,-4.3 Z " +
+    "M4.6,-1.8 L3.3,-4.3 L4.6,-4.8 L4.3,-6.7 L5.7,-7 L5.5,-8.8 L7,-8.9 L8.9,-9.9 " +
+    "L9.1,-7.8 L9.9,-6.5 L8.3,-5.6 L8.9,-4.3 L7.1,-3.4 L7.4,-2.1 Z",
+  timber:
+    "M0,-11 Q2.2,-7.6 4.4,-5.2 Q3.3,-4.7 2.3,-4.9 Q4.6,-1.6 7.2,0.4 Q5.6,1.2 3.8,0.9 " +
+    "Q6.2,4.2 9,6.2 Q4.6,7.4 1.7,6.6 L1.9,10.4 L-1.9,10.4 L-1.7,6.6 Q-4.6,7.4 -9,6.2 " +
+    "Q-6.2,4.2 -3.8,0.9 Q-5.6,1.2 -7.2,0.4 Q-4.6,-1.6 -2.3,-4.9 Q-3.3,-4.7 -4.4,-5.2 Q-2.2,-7.6 0,-11 Z",
+  stone:
+    "M-9.6,1.4 L-1.2,0.9 L-0.8,9 L-9.8,9.2 Z M0.8,0.9 L9.5,1.3 L9.8,9.1 L0.9,9 Z " +
+    "M-4.9,-7.9 L4.6,-8.3 L4.9,-0.7 L-4.6,-0.6 Z",
+  iron:
+    "M-10.6,-5.2 L9.4,-5.6 L9.4,-1.2 L4.2,-1.2 Q2.4,1.4 3.4,4.2 L7.4,5.6 L7.4,8.6 L-7.4,8.6 " +
+    "L-7.4,5.6 L-3.4,4.2 Q-2.4,1.4 -4.2,-1.2 L-5.6,-1.2 Q-8.8,-2 -10.6,-5.2 Z",
+  essence:
+    "M-1,-10.6 L4.6,-4.6 L4.6,4.4 L-1,10.4 L-6.6,4.4 L-6.6,-4.6 Z " +
+    "M7.4,-10.6 Q7.9,-7.9 10.6,-7.4 Q7.9,-6.9 7.4,-4.2 Q6.9,-6.9 4.2,-7.4 Q6.9,-7.9 7.4,-10.6 Z",
+};
+
+/** Ink highlights drawn over RESOURCE_GLYPHS in ResourceIcon (hand-drawn detail). */
+export const RESOURCE_DETAILS: Record<ResourceType, string> = {
+  grain: "M0,-3.4 L0,-9.4 M-5.2,-2.9 L-8.1,-8.3 M5.2,-2.9 L8.1,-8.3",
+  timber: "M0,-7.4 L0,6 M0,-3.6 L-1.8,-2.4 M0,-0.4 L2.4,1.2 M0,3 L-3.2,4.8",
+  stone: "M-7.6,3.4 L-5.2,6.6 M-4.4,3 L-3.2,4.6 M3.2,3.2 L6,6.8 M-2.6,-5.8 L0.2,-2.6 M1.6,-6 L2.6,-4.6",
+  iron: "M-8.4,-4 L8.2,-4.3 M-4.8,6.8 L4.8,6.8",
+  essence: "M-1,-10.6 L-1,10.4 M-6.6,-4.6 L-1,-2 L4.6,-4.6 M-6.6,4.4 L-1,2 L4.6,4.4",
 };
 
 export interface PlayerTheme {

@@ -15,6 +15,8 @@
   import Modal from "./lib/components/Modal.svelte";
   import OnlineLobby from "./lib/online/OnlineLobby.svelte";
   import UpdatePrompt from "./lib/components/UpdatePrompt.svelte";
+  import TitleVignette from "./lib/components/TitleVignette.svelte";
+  import ToolIcon from "./lib/components/ToolIcon.svelte";
 
   type Screen = "title" | "new" | "game" | "online";
   // Invite links (#/join/CODE) open the online lobby directly (spec §86).
@@ -31,6 +33,8 @@
   let showLoad = $state(false);
   let showRules = $state(false);
   let loadError: string | null = $state(null);
+  // The logo sets the ampersand as a flourish when the title has one.
+  const titleWords = t("app.title").split(" & ");
 
   async function refreshSaves() {
     try {
@@ -168,11 +172,24 @@
   {/key}
 {:else}
   <div class="title-screen">
+    <TitleVignette animate={animationScale() > 0} />
     {#if screen === "title"}
       <section class="hero">
-        <h1>{t("app.title")}</h1>
-        <p class="tagline">{t("app.tagline")}</p>
+        <h1 class="logo">
+          {#if titleWords.length === 2}
+            {titleWords[0]} <span class="amp">&amp;</span>
+            {titleWords[1]}
+          {:else}
+            {t("app.title")}
+          {/if}
+        </h1>
+        <p class="tagline"><span>{t("app.tagline")}</span></p>
         <nav class="menu">
+          <svg class="seal" viewBox="-24 -24 48 48" aria-hidden="true">
+            <path d="M0,-21 C8,-22 14,-18 18,-12 C23,-6 22,3 20,9 C17,16 10,21 1,21 C-8,22 -15,17 -19,10 C-23,3 -22,-6 -18,-12 C-14,-18 -8,-21 0,-21 Z" fill="#8e2b22" stroke="#6a1d16" stroke-width="1.5" />
+            <circle r="14" fill="none" stroke="#b8503f" stroke-width="1.5" />
+            <path d="M-8.5,5 L-7.5,-5 L-3.5,-1.5 L0,-8 L3.5,-1.5 L7.5,-5 L8.5,5 Z M-8,8 H8" fill="#b8503f" stroke="#b8503f" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" />
+          </svg>
           {#if continueSave}
             {@const c = continueSave}
             <button class="primary continue" onclick={() => loadSave(c.id)}>
@@ -241,7 +258,7 @@
             <button class="ghost icon" aria-label={t("ui.export_save")} title={t("ui.export_save")} onclick={() => exportSave(s.id)}>
               <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m-4-4 4 4 4-4M4 14v2.5h12V14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </button>
-            <button class="ghost icon" aria-label={t("ui.delete_save")} title={t("ui.delete_save")} onclick={() => (confirmDelete = s.id)}>✕</button>
+            <button class="ghost icon" aria-label={t("ui.delete_save")} title={t("ui.delete_save")} onclick={() => (confirmDelete = s.id)}><ToolIcon name="close" size={20} /></button>
           {/if}
         </li>
       {/each}
@@ -279,35 +296,153 @@
     place-items: center;
     padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
       max(1rem, env(safe-area-inset-left));
-    background:
-      radial-gradient(ellipse at 50% 35%, #f4ecd2 0%, #e2d2a4 55%, #b9a06a 100%);
+  }
+  /* Everything on the title screens floats above the vignette. The New Game
+     and online panels become paper sheets without touching their markup. */
+  .title-screen > :global(:not(.vignette)) {
+    position: relative;
+    z-index: 1;
+  }
+  .title-screen > :global(section.panel) {
+    background-image: var(--paper-sheet);
+    border-width: 2px;
+    border-color: var(--edge);
+    box-shadow: var(--sheet-rule), var(--shadow-card);
   }
   .hero {
+    display: grid;
+    justify-items: center;
     text-align: center;
   }
-  h1 {
-    font: 700 clamp(2.6rem, 8vw, 5rem) / 1 var(--font-display);
+  .logo {
     margin: 0;
-    color: #3d2f1a;
-    text-shadow: 0 2px 0 #fff8;
+    font: 700 clamp(2.5rem, 7.4vw, 5.2rem) / 0.95 var(--font-display);
+    color: #3b2a14;
+    letter-spacing: 0.01em;
+    /* A cream halo keeps the ink legible over sky and clouds. */
+    text-shadow:
+      0 0 2px #fffaf0,
+      0 0 2px #fffaf0,
+      0 2px 0 #fffaf0,
+      0 4px 14px #fffaf0cc;
+  }
+  .amp {
+    display: inline-block;
+    margin: 0 0.06em;
+    font: italic 400 1.15em/0.8 var(--font-label);
+    color: #8a5f12;
   }
   .tagline {
-    font: italic 1.3rem var(--font-display);
-    margin: 0.4rem 0 1.6rem;
+    margin: 0.7rem 0 1.4rem;
+    font: italic 1.25rem/1.2 var(--font-label);
+    color: #fff6e0;
+    filter: drop-shadow(0 2px 2px #2b211540);
+  }
+  /* A wax-red ribbon with notched ends. */
+  .tagline span {
+    display: inline-block;
+    padding: 0.3rem 1.9rem 0.35rem;
+    background: linear-gradient(#a8392c, var(--wax) 60%, #7a2219);
+    clip-path: polygon(0 0, 100% 0, calc(100% - 0.8rem) 50%, 100% 100%, 0 100%, 0.8rem 50%);
   }
   .menu {
+    position: relative;
     display: grid;
-    gap: 0.5rem;
-    width: min(18rem, 80vw);
+    gap: 0.55rem;
+    width: min(20rem, 86vw);
     margin: 0 auto;
+    padding: 1.9rem 1.2rem 1.2rem;
+    border: 2px solid var(--edge);
+    border-radius: var(--radius-l);
+    background: var(--paper-sheet);
+    box-shadow: var(--sheet-rule), var(--shadow-card);
+  }
+  .seal {
+    position: absolute;
+    top: -1.5rem;
+    left: 50%;
+    width: 3rem;
+    height: 3rem;
+    translate: -50% 0;
+    filter: drop-shadow(0 2px 2px #2b211559);
   }
   .menu button {
     font-size: 1.1rem;
     padding: 0.6rem 1rem;
   }
   .version {
-    opacity: 0.5;
+    margin: 0.6rem 0 0;
+    padding: 0.1rem 0.6rem;
+    border-radius: 999px;
+    background: #fffaf0b3;
+    color: var(--ink-soft);
     font-size: 0.8rem;
+  }
+  /* Portrait: keep the menu high so the island shows beneath it. */
+  @media (max-aspect-ratio: 1/1) {
+    .hero {
+      align-self: start;
+      margin-top: max(0.5rem, 5vh);
+    }
+  }
+  /* Short screens: tighten the stack so the card still fits once the
+     Continue button appears (a 1024x600 netbook, a 360x640 phone). */
+  @media (max-height: 700px) {
+    .hero {
+      margin-top: 0;
+    }
+    .tagline {
+      margin: 0.5rem 0 1.1rem;
+    }
+    .menu {
+      gap: 0.4rem;
+      padding: 1.6rem 1rem 1rem;
+    }
+    .menu button {
+      padding: 0.4rem 1rem;
+    }
+    .version {
+      margin-top: 0.4rem;
+    }
+  }
+  /* Short landscape screens (phones on their side): logo beside the menu,
+     menu buttons in two columns, so nothing needs scrolling. */
+  @media (max-height: 560px) and (orientation: landscape) {
+    .hero {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto auto 1fr;
+      grid-template-areas:
+        "logo menu"
+        "tagline menu"
+        "version menu";
+      column-gap: 2rem;
+      align-self: stretch;
+      width: min(60rem, 100%);
+    }
+    .logo {
+      grid-area: logo;
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+    }
+    .tagline {
+      grid-area: tagline;
+      margin: 0.5rem 0;
+      font-size: 1rem;
+    }
+    .version {
+      grid-area: version;
+      align-self: end;
+    }
+    .menu {
+      grid-area: menu;
+      align-self: center;
+      grid-template-columns: 1fr 1fr;
+      width: min(26rem, 52vw);
+      padding-top: 1.6rem;
+    }
+    .menu button {
+      font-size: 1rem;
+      padding: 0.4rem 0.6rem;
+    }
   }
   .saves {
     list-style: none;

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t } from "../i18n.js";
   import type { Snippet } from "svelte";
+  import ToolIcon from "./ToolIcon.svelte";
 
   let { title, onclose, children, wide = false }: { title: string; onclose?: () => void; children: Snippet; wide?: boolean } = $props();
   let el: HTMLDivElement | undefined = $state();
@@ -37,7 +38,7 @@
   <div class="modal" class:wide bind:this={el} role="dialog" aria-modal="true" aria-label={title} tabindex="-1" onkeydown={keydown}>
     <header>
       <h2>{title}</h2>
-      {#if onclose}<button class="close" aria-label={t("ui.close")} onclick={onclose}>✕</button>{/if}
+      {#if onclose}<button class="close" aria-label={t("ui.close")} onclick={onclose}><ToolIcon name="close" size={20} /></button>{/if}
     </header>
     {@render children()}
   </div>
@@ -55,14 +56,14 @@
       max(1rem, env(safe-area-inset-left));
   }
   .modal {
-    background: var(--paper);
-    border: 3px solid #8a7650;
-    border-radius: 14px;
+    background: var(--paper-sheet);
+    border: 2px solid var(--edge);
+    border-radius: var(--radius-l);
     padding: 1rem 1.2rem 1.2rem;
     width: min(28rem, 100%);
     max-height: 90vh;
     overflow: auto;
-    box-shadow: 0 20px 60px #0006;
+    box-shadow: var(--sheet-rule), 0 20px 60px #0006;
   }
   .modal.wide {
     width: min(46rem, 100%);
@@ -72,6 +73,8 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 0.6rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--edge) 35%, transparent);
   }
   h2 {
     margin: 0;

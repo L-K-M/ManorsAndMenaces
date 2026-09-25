@@ -27,6 +27,7 @@
   import QuestPanel from "./QuestPanel.svelte";
   import ResourceIcon from "./ResourceIcon.svelte";
   import ScoreStrip from "./ScoreStrip.svelte";
+  import ToolIcon from "./ToolIcon.svelte";
   import SettingsDialog from "./SettingsDialog.svelte";
   import TutorialCoach from "./TutorialCoach.svelte";
 
@@ -174,14 +175,14 @@
 
 <div class="game" inert={!!session.curtainFor} data-layout={layout} class:no-cards={!cardsEnabled} class:tray-open={trayOpen} style="--sheet-overlap: {sheetOverlap}px">
   <header class="topbar">
-    <button class="ghost icon" onclick={() => (ui.dialog = "menu")} aria-label={t("ui.main_menu")} aria-haspopup="dialog">☰</button>
+    <button class="ghost icon" onclick={() => (ui.dialog = "menu")} aria-label={t("ui.main_menu")} aria-haspopup="dialog"><ToolIcon name="menu" /></button>
     <h1>{t("app.title")}</h1>
     <span class="round">{t("ui.round_n", { n: Math.max(1, gs.round) })}</span>
     {#if layout === "wide"}{@render mine()}{/if}
     <div class="score"><ScoreStrip {session} /></div>
     <span class="spacer"></span>
     {#if session.transport.kind === "local" && !tutorial}<button class="ghost" onclick={save}>{savedNote ?? t("ui.save")}</button>{/if}
-    <button class="ghost icon" onclick={() => (ui.dialog = "settings")} aria-label={t("ui.settings")}>⚙</button>
+    <button class="ghost icon" onclick={() => (ui.dialog = "settings")} aria-label={t("ui.settings")}><ToolIcon name="gear" /></button>
     {#if import.meta.env.DEV}<button class="ghost" onclick={() => (ui.showDebug = true)}>{t("ui.debug")}</button>{/if}
     {#if slideOver}
       <button
@@ -205,10 +206,10 @@
   <main class="board-wrap">
     <Board {session} {legal} {hl} preview={session.localActor ? preview : null} />
     <div class="camera" role="group" aria-label={t("ui.board_camera")}>
-      <button onclick={() => zoomBy(1.25)} aria-label={t("ui.zoom_in")}>+</button>
-      <button onclick={() => zoomBy(0.8)} aria-label={t("ui.zoom_out")}>−</button>
-      <button onclick={() => resetView()} aria-label={t("ui.reset_view")}>⤢</button>
-      <button onclick={zoomToMine} aria-label={t("ui.zoom_to_my_holdings")}>◎</button>
+      <button onclick={() => zoomBy(1.25)} aria-label={t("ui.zoom_in")}><ToolIcon name="plus" /></button>
+      <button onclick={() => zoomBy(0.8)} aria-label={t("ui.zoom_out")}><ToolIcon name="minus" /></button>
+      <button onclick={() => resetView()} aria-label={t("ui.reset_view")}><ToolIcon name="fit" /></button>
+      <button onclick={zoomToMine} aria-label={t("ui.zoom_to_my_holdings")}><ToolIcon name="locate" /></button>
     </div>
     {#each session.floaters.filter((f) => f.playerId === viewer) as f (f.id)}
       <div class="floater" style="--i: {f.id % 5}"><ResourceIcon resource={f.resource as never} size={22} /> {f.text}</div>

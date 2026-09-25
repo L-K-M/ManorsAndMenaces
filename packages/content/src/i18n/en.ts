@@ -410,6 +410,7 @@ export const EN: Record<string, string> = {
   "ui.game_log": "Game log",
   "ui.jump_to_latest": "↓ Jump to latest",
   "ui.close": "Close",
+  "ui.refresh": "Refresh",
   "ui.human": "Human",
   "ui.computer": "Computer",
   "ui.easy": "Easy",

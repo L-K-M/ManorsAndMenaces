@@ -2,6 +2,7 @@
   // Victory screen and the entity inspector. The privacy curtain lives in
   // PrivacyCurtain.svelte, outside the game root that it makes inert.
   import { t } from "../i18n.js";
+  import ToolIcon from "./ToolIcon.svelte";
   import { describePick } from "../game/inspect.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { ui } from "../stores/ui.svelte.js";
@@ -21,7 +22,7 @@
   <aside class="inspect" aria-live="polite">
     <header>
       <strong>{inspectText.title}</strong>
-      <button class="close" aria-label={t("ui.close")} onclick={() => (ui.inspect = null)}>✕</button>
+      <button class="close" aria-label={t("ui.close")} onclick={() => (ui.inspect = null)}><ToolIcon name="close" size={20} /></button>
     </header>
     {#each inspectText.lines as line}<p>{line}</p>{/each}
   </aside>
