@@ -72,6 +72,11 @@ test("a slow mouse drag pans the board and does not pick", async ({ page }) => {
   // The drag ended over the board, but it must not count as a click.
   await expect(page.locator(".site.hl").first()).toBeVisible();
   await expect(page.locator(".route.hl")).toHaveCount(0);
+
+  // The drag must not swallow a keyboard pick that follows it.
+  await page.locator(".site.hl").first().focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".route.hl").first()).toBeAttached();
 });
 
 test("releasing a drag outside the board leaves no stale pointer", async ({ page }) => {
@@ -233,4 +238,24 @@ test("a new targeting step brings off-screen targets into view @mobile", async (
   );
   const inside = centres.filter((c) => c.x >= r.x && c.x <= r.x + r.width && c.y >= r.y && c.y <= r.y + r.height);
   expect(inside.length).toBeGreaterThanOrEqual(centres.length / 2);
+});
+
+test("arrow keys do not pan the board behind the privacy curtain", async ({ page }) => {
+  await startHotseat(page);
+  await page.locator(".site.hl").first().click();
+  await zoomIn(page, 2);
+  await page.locator(".route.hl").first().focus();
+  await page.keyboard.press("Enter");
+
+  // Clicking the curtain's text leaves nothing focused.
+  await page.getByRole("dialog", { name: "Pass the device" }).locator(".pass").click();
+  const before = await viewBox(page);
+  await page.keyboard.press("ArrowLeft");
+  expect(await viewBox(page)).toEqual(before);
+
+  // Once the curtain is gone, the button pressed to close it no longer counts.
+  await passCurtain(page);
+  const shown = await viewBox(page);
+  await page.keyboard.press("ArrowLeft");
+  expect((await viewBox(page)).x).toBeLessThan(shown.x);
 });

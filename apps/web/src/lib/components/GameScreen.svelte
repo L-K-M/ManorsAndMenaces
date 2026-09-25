@@ -78,10 +78,12 @@
     if ((e.target as HTMLElement)?.closest("input, select, textarea, [contenteditable]")) return;
     const pan = PAN_KEYS[e.key];
     if (pan) {
-      if (e.altKey || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.closest("[role=dialog], [role=tablist]")) return;
-      // Leave the key to a scrollable panel (Chronicle, side panel, hand).
-      const focus = document.activeElement && document.activeElement !== document.body ? document.activeElement : lastPressed;
-      if (scrollsNatively(focus, pan[1] !== 0)) return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      // Leave the key to a dialog, a tablist or a scrollable panel (Chronicle,
+      // side panel, hand), including one clicked without taking focus. A
+      // pressed element that has since closed (the curtain's button) is gone.
+      const focus = document.activeElement && document.activeElement !== document.body ? document.activeElement : lastPressed?.isConnected ? lastPressed : null;
+      if (focus?.closest("[role=dialog], [role=tablist]") || scrollsNatively(focus, pan[1] !== 0)) return;
       e.preventDefault();
       nudge(...pan);
       return;

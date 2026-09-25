@@ -168,8 +168,9 @@ describe("zoom and pan", () => {
 
 describe("wheel", () => {
   it("pans on trackpad scrolls in both axes", () => {
-    expect(wheel(40, 0)).toEqual({ kind: "pan", dx: -40, dy: -0 });
-    expect(wheel(0, -2)).toEqual({ kind: "pan", dx: -0, dy: 2 });
+    // closeTo(0): toEqual tells -0 from 0, which is not behaviour.
+    expect(wheel(40, 0)).toEqual({ kind: "pan", dx: -40, dy: expect.closeTo(0) });
+    expect(wheel(0, -2)).toEqual({ kind: "pan", dx: expect.closeTo(0), dy: 2 });
     expect(wheel(3, 12.5)).toEqual({ kind: "pan", dx: -3, dy: -12.5 });
   });
 
