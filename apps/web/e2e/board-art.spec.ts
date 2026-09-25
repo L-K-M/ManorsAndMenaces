@@ -98,15 +98,43 @@ test("painted menaces load with transparent backgrounds", async ({ page }) => {
   }
 });
 
-test("high contrast and failed image loads retain vector menace figures", async ({ page }) => {
+test("painted landmarks load as transparent miniatures", async ({ page }) => {
+  await startHotseat(page);
+  const images = page.locator("svg.board .painted-landmark");
+  await expect(images).toHaveCount(5);
+  const assets = await images.evaluateAll(async (els) => Promise.all(els.map(async (el) => {
+    const image = new Image();
+    image.src = el.getAttribute("href")!;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 256;
+    const context = canvas.getContext("2d")!;
+    context.drawImage(image, 0, 0);
+    return { source: image.src, width: image.naturalWidth, height: image.naturalHeight,
+      cornerAlpha: context.getImageData(0, 0, 1, 1).data[3],
+      centreAlpha: context.getImageData(128, 128, 1, 1).data[3] };
+  })));
+  expect(new Set(assets.map((asset) => asset.source)).size).toBe(5);
+  for (const asset of assets) {
+    expect(asset, asset.source).toMatchObject({ width: 256, height: 256, cornerAlpha: 0 });
+    expect(asset.centreAlpha, asset.source).toBeGreaterThan(0);
+  }
+});
+
+test("high contrast and failed image loads retain vector creatures and landmarks", async ({ page }) => {
   await startHotseat(page, { highContrast: true });
   await expect(page.locator(".menace image")).toHaveCount(0);
   expect(await page.locator(".menace .body path").count()).toBeGreaterThan(10);
+  await expect(page.locator(".landmark-art image")).toHaveCount(0);
+  expect(await page.locator(".landmark-art path").count()).toBeGreaterThan(20);
 
   await page.route("**/art/menaces/*.png", (route) => route.abort());
+  await page.route("**/art/landmarks/*.png", (route) => route.abort());
   await startHotseat(page);
   await expect(page.locator(".menace image")).toHaveCount(0);
   expect(await page.locator(".menace .body path").count()).toBeGreaterThan(10);
+  await expect(page.locator(".landmark-art image")).toHaveCount(0);
+  expect(await page.locator(".landmark-art path").count()).toBeGreaterThan(20);
 });
 
 /** Pixels inside `clip` that differ clearly between two PNG screenshots. */

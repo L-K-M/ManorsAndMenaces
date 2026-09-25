@@ -1,6 +1,6 @@
 # Storybook visual refresh
 
-Last updated: 2026-09-25. Royal Quest illustration pass complete.
+Last updated: 2026-09-26. Painted landmarks and inspector pass complete.
 
 ## User request and scope
 
@@ -15,8 +15,8 @@ The original icon is saved at
 PR #35 was merged before this refresh. The user has now authorized committing
 and pushing this work, then merging the latest main into the task branch.
 No new PR was requested. The current branch is `codex/save-icon-concept`,
-updated to `origin/main` at `15640a5` during the second pass. This includes the
-separate icon update (#36) and build improvements (#37).
+updated to `origin/main` at `f359477` during the landmark pass. This includes the
+separate icon update (#36), build improvements (#37), and online resume (#38).
 
 ## Design goals and decisions
 
@@ -130,7 +130,7 @@ separate icon update (#36) and build improvements (#37).
   game-art generator renders all seven runtime assets without recreating the
   obsolete SVG icon master. `git diff --check` passed.
 
-## Current end state and future work
+## Earlier desktop pass and follow-up guidance
 
 ### Desktop screenshot follow-up
 
@@ -161,8 +161,9 @@ using `tauri://localhost`. It does not consume the browser dev server's updates.
 - Leave the local built app open for the user. To see this version later,
   reopen that project bundle; the older `/Applications` copy remains older.
 
-Both visual passes are complete and their relevant checks passed. Everything
-remains uncommitted locally; no refresh commits or PRs were created. Preview at
+At this earlier milestone both visual passes and their relevant checks were
+complete, with changes still local. Later passes below record commits and
+pushes after the user authorized them. Original preview at
 `http://127.0.0.1:5173/`; restart the dev server if the session has ended.
 
 Future work should begin with the user's visual feedback. macOS packaging and
@@ -452,3 +453,44 @@ The Mac remains locked, so use the isolated browser review on localhost:5175.
   Logs: `/tmp/mm-quests-e2e-final.log`, `/tmp/mm-quests-typecheck-final.log`,
   `/tmp/mm-quests-lint-final.log`, `/tmp/mm-quests-unit.log`,
   `/tmp/mm-quests-build.log`, `/tmp/mm-quests-desktop.log`.
+
+## Painted landmarks and board inspector
+
+The user requested another polish pass. Fetched and cleanly merged main at
+`f359477`, bringing in online resume and missed-move summaries (#38). There
+are no new card definitions. Keep these upstream features intact and verify
+the online browser tests along with the visual changes.
+
+- Completed five transparent painted landmarks: Royal Castle, Wizard Tower,
+  Adventurers' Inn, Dwarven Hall and Sacred Grove. Originals, exact prompts
+  and a linked scene index are in `media-sources/storybook/landmarks/`.
+  The five 256px runtime PNGs total about 486KB. The existing
+  `tools/generate-game-art.mjs` derives them along with portraits and menaces;
+  existing runtime art remained unchanged after regeneration.
+- Landmarks preserve the existing site positions, ownership emblems, holding
+  overlap and pointer targets. High contrast and image failures retain the
+  vector drawings, including the generic keep for unknown landmark IDs.
+- The board inspector reuses landmark and menace art at a larger size. A
+  parchment frame, display heading, responsive illustration size and bounded
+  scrolling keep the rules readable on phones and short landscape windows.
+  Gameplay commands, map topology and content definitions are unchanged.
+- Visually inspected all five landmark inspectors and the dragon inspector
+  in the isolated browser preview. Checked 1280 × 720, 360 × 640 and
+  844 × 390 layouts; restored the normal viewport afterward. The preview
+  uses `/tmp/mm-landmark-review.json`, a test save with a legal 15-command
+  setup history and all five menaces. The user's original game was untouched.
+- `pnpm check` passed: typecheck, lint, 411 tests across 45 files, map check,
+  production web/server builds and server smoke test. Full log:
+  `/tmp/mm-landmarks-check.log`.
+- All 39 board/art/online browser tests passed, including five unique alpha
+  sprites, building overlap, pointer targeting, inspector details, 150% text
+  on phone/short layouts, both vector fallbacks, online resume and missed
+  moves. Log: `/tmp/mm-landmarks-e2e.log`.
+- Mac release packaging succeeded. The refreshed app is in
+  `src-tauri/target/release/bundle/macos/Manors & Menaces.app`; log:
+  `/tmp/mm-landmarks-desktop.log`. Native visual inspection of this pass
+  remains unavailable while the Mac is locked. `/Applications` is unchanged.
+- This pass is complete and is being committed and pushed with the upstream
+  merge to `codex/save-icon-concept`. No PR or merge into main is part of the
+  authorized end state. Next work should start with new visual feedback and
+  preserve these tested assets, their source prompts and vector fallbacks.

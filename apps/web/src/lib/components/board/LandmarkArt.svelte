@@ -4,9 +4,13 @@
   // top of it. Player-neutral colours; decorative, so it takes no pointer
   // events (the Site's own hit area covers it).
   import type { LandmarkId } from "@manors-menaces/rules";
+  import { settings } from "../../stores/settings.svelte.js";
 
   let { id }: { id: LandmarkId } = $props();
   const paintId = $props.id();
+  const paintedIds = ["royal_castle", "wizard_tower", "adventurers_inn", "dwarven_hall", "sacred_grove"];
+  let failedId = $state<LandmarkId | null>(null);
+  const painted = $derived(!settings.highContrast && failedId !== id && paintedIds.includes(id));
 </script>
 
 <g class="landmark-art {id}" data-landmark={id} transform="translate(-22,-8) scale(0.9)" pointer-events="none"
@@ -22,6 +26,9 @@
       <stop stop-color="#edcb74" /><stop offset="0.55" stop-color="#bf8c45" /><stop offset="1" stop-color="#81522d" />
     </linearGradient>
   </defs>
+  {#if painted}
+    <image class="painted-landmark" href={`${import.meta.env.BASE_URL}art/landmarks/${id}.png`} x="-22" y="-31" width="44" height="44" aria-hidden="true" onerror={() => (failedId = id)} />
+  {:else}
   <ellipse cx="3" cy="11.5" rx="16" ry="4" class="cast" />
   {#if id === "royal_castle"}
     <path class="stone" d="M-6,11 L-6,-3 L-4,-3 L-4,-6 L-1,-6 L-1,-3 L1,-3 L1,-6 L4,-6 L4,-3 L6,-3 L6,11 Z" />
@@ -81,6 +88,7 @@
   {:else}
     <!-- LandmarkId is any string: a landmark without its own art gets a generic keep -->
     <path class="stone" d="M-14,11 L-14,-5 L-9,-5 L-9,-11 L-4,-11 L-4,-5 L4,-5 L4,-11 L9,-11 L9,-5 L14,-5 L14,11 Z" />
+  {/if}
   {/if}
 </g>
 

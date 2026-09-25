@@ -13,10 +13,12 @@ const tauriPackage = createRequire(join(root, "package.json")).resolve("@tauri-a
 const cli = join(dirname(tauriPackage), JSON.parse(readFileSync(tauriPackage, "utf8")).bin.tauri);
 const portraits = ["emperor-mumble", "grum", "madame-quill", "dame-brash", "tally-nib", "lady-fennick"];
 const menaces = ["toll-troll", "young-dragon", "highwayman", "bog-witch", "goblin-tinkers"];
+const landmarks = ["royal_castle", "wizard_tower", "adventurers_inn", "dwarven_hall", "sacred_grove"];
 const assets = [
   { source: "manors-and-menaces-icon-concept.png", output: "manor-troll.png", size: 640 },
   ...portraits.map((name) => ({ source: `storybook/${name}.png`, output: `rivals/${name}.png`, size: 256 })),
   ...menaces.map((name) => ({ source: `storybook/menaces/${name}.png`, output: `menaces/${name}.png`, size: 256 })),
+  ...landmarks.map((name) => ({ source: `storybook/landmarks/${name}.png`, output: `landmarks/${name}.png`, size: 256 })),
 ];
 const work = mkdtempSync(join(tmpdir(), "mm-game-art-"));
 try {
