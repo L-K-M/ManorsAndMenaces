@@ -201,7 +201,8 @@ export function enumerateCardTargets(ctx: RulesContext, state: GameState, player
       for (const m of menaces) for (const d of destsFor(m.location.kind)) candidates.push({ effect: "knight_errant", menaceId: m.id, destination: d });
       break;
     case "druids_blessing":
-      for (const b of Object.values(state.banners)) if (b.ownerId === playerId && b.regionId) candidates.push({ effect: "druids_blessing", bannerId: b.id });
+      // Banners at home count too: bless one now, assign it this turn, and it pays at the next Harvest.
+      for (const b of Object.values(state.banners)) if (b.ownerId === playerId) candidates.push({ effect: "druids_blessing", bannerId: b.id });
       break;
     case "teleportation_mishap":
       for (const a of menaces) for (const b of menaces) if (a.id < b.id) candidates.push({ effect: "teleportation_mishap", menaceIdA: a.id, menaceIdB: b.id });

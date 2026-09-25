@@ -1,6 +1,6 @@
 <script lang="ts">
   import { isSaveFile, type SaveFile, type SeatConfig } from "@manors-menaces/protocol";
-  import { mvpRuleset, type RulesetConfig } from "@manors-menaces/rules";
+  import { BALANCE, mvpRuleset, type RulesetConfig } from "@manors-menaces/rules";
   import { t } from "./lib/i18n.js";
   import { GameSession } from "./lib/game/session.svelte.js";
   import { platform, type SaveSummary } from "./lib/platform/adapter.js";
@@ -159,7 +159,7 @@
       <li>{t("action.buy_card")}: {t("cost.card")}</li>
       <li>{t("action.royal_writ")}: {t("cost.writ")}</li>
       <li>{t("action.warden")}: {t("cost.warden")}</li>
-      <li>{t("action.trade")}: {t("help.market")}</li>
+      <li>{t("action.trade")}: {t("help.market", { give: BALANCE.market.give, receive: BALANCE.market.receive, limit: BALANCE.market.maxTradesPerTurn })}</li>
     </ul>
   </Modal>
 {/if}

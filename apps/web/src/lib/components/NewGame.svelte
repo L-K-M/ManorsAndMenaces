@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "../i18n.js";
   import type { AiLevel, SeatConfig } from "@manors-menaces/protocol";
-  import { mvpRuleset, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
+  import { BALANCE, mvpRuleset, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
   import { PLAYER_THEMES, emblemPath } from "../theme.js";
 
   let { onstart, onback }: { onstart: (opts: { seats: SeatConfig[]; ruleset: RulesetConfig; seed?: string }) => void; onback: () => void } = $props();
@@ -10,6 +10,8 @@
   let count = $state(3);
   let mode: "standard" | "mvp" = $state("standard");
   let seed = $state("");
+  // Opt-in Quest expiry (§27.2); off by default, as in the spec's base rules.
+  let questExpiry = $state(false);
   let seats = $state(
     NAMES.map((name, i) => ({ name, kind: (i === 0 ? "human" : "ai") as "human" | "ai", level: "normal" as AiLevel })),
   );
@@ -22,7 +24,8 @@
       ...(s.kind === "ai" ? { aiLevel: s.level } : {}),
       color: i,
     }));
-    const ruleset = mode === "mvp" ? mvpRuleset() : standardRuleset(count);
+    const ruleset: RulesetConfig =
+      mode === "mvp" ? mvpRuleset() : { ...standardRuleset(count), ...(questExpiry ? { questExpiryRounds: BALANCE.questExpiryRounds } : {}) };
     onstart({ seats: chosen, ruleset, ...(seed.trim() ? { seed: seed.trim() } : {}) });
   }
 </script>
@@ -59,11 +62,14 @@
     <fieldset>
       <legend>{t("ui.rules")}</legend>
       <label class="rule"><input type="radio" name="mode" value="standard" bind:group={mode} /> <b>{t("ui.standard")}</b> {t("ui.cards_royal_quests_12_renown", { target: standardRuleset(count).targetRenown })}</label>
-      <label class="rule"><input type="radio" name="mode" value="mvp" bind:group={mode} /> <b>{t("ui.core")}</b> {t("ui.banners_building_and_the_toll")}</label>
+      <label class="rule"><input type="radio" name="mode" value="mvp" bind:group={mode} /> <b>{t("ui.core")}</b> {t("ui.banners_building_and_the_toll", { target: mvpRuleset().targetRenown })}</label>
     </fieldset>
     <details>
       <summary>{t("ui.advanced")}</summary>
       <label>{t("ui.seed_for_reproducible_games")} <input bind:value={seed} placeholder={t("ui.random")} /></label>
+      {#if mode === "standard"}
+        <label class="check"><input type="checkbox" bind:checked={questExpiry} /> {t("ui.quest_expiry_option", { rounds: BALANCE.questExpiryRounds })}</label>
+      {/if}
     </details>
     <div class="row">
       <button type="button" onclick={onback}>{t("ui.back")}</button>
@@ -122,6 +128,19 @@
     display: flex;
     gap: 0.4rem;
     align-items: baseline;
+  }
+  .check {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    margin-top: 0.5rem;
+  }
+  .check input {
+    min-height: 0;
+    width: 1.1rem;
+    height: 1.1rem;
+    margin: 0;
+    accent-color: var(--accent);
   }
   .row {
     display: flex;
