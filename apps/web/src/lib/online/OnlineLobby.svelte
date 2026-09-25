@@ -4,7 +4,7 @@
   // your asynchronous matches, and joining by code.
   import type { AiLevel, MatchView, SeatConfig } from "@manors-menaces/protocol";
   import { GameSession } from "../game/session.svelte.js";
-  import { OnlineClient, onlineTransport } from "./client.js";
+  import { ApiError, OnlineClient, onlineTransport } from "./client.js";
 
   let { onopen, onback }: { onopen: (s: GameSession) => void; onback: () => void } = $props();
 
@@ -13,6 +13,7 @@
   let serverUrl = $state(client.serverUrl);
   let signedIn = $state(!!client.token);
   let error: string | null = $state(null);
+  let notice: string | null = $state(null);
   let busy = $state(false);
   let matches: MatchView[] = $state([]);
   let seatCount = $state(2);
@@ -26,13 +27,31 @@
     busy = true;
     error = null;
     try {
-      return await fn();
+      try {
+        return await fn();
+      } catch (e) {
+        if (!(e instanceof ApiError && e.sessionInvalid)) throw e;
+        // The server no longer knows the saved session: start a new guest
+        // session and try once more instead of stranding the lobby.
+        await renewSession();
+        return await fn();
+      }
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       return undefined;
     } finally {
       busy = false;
     }
+  }
+
+  async function renewSession() {
+    try {
+      await client.ensureGuest(name.trim() || "Guest");
+    } catch (e) {
+      signedIn = false; // back to the form, where the server address can be changed
+      throw e;
+    }
+    notice = t("ui.session_renewed");
   }
 
   async function signIn() {
@@ -128,6 +147,7 @@
 
 <section class="panel">
   <h2>{t("ui.play_online")}</h2>
+  {#if notice}<p class="notice" role="status">{notice}</p>{/if}
   {#if !signedIn}
     <form onsubmit={(e) => (e.preventDefault(), signIn())}>
       <label>{t("ui.your_name")} <input bind:value={name} maxlength="24" required /></label>
@@ -241,6 +261,13 @@
   }
   .error {
     color: #a3190c;
+  }
+  .notice {
+    margin: 0 0 0.8rem;
+    padding: 0.5rem 0.8rem;
+    border-left: 4px solid #8a7650;
+    border-radius: 6px;
+    background: rgba(138, 118, 80, 0.14);
   }
   .muted {
     opacity: 0.7;

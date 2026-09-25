@@ -57,3 +57,20 @@ test("two players create, join and complete setup online", async ({ browser }) =
   await expect(alice.locator(".site .holding")).toHaveCount(4);
   await expect(bob.locator(".site .holding")).toHaveCount(4);
 });
+
+test("a stale saved session is replaced by a new guest session", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false }));
+    // A token the server does not know, e.g. after its database was reset.
+    localStorage.setItem("mm.online.v1", JSON.stringify({ serverUrl: "http://localhost:8788", token: "stale-token", userId: "u_gone", displayName: "Carol" }));
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "Play online" }).click();
+  await expect(page.locator(".notice")).toContainText("new guest");
+  await expect(page.getByRole("button", { name: /Create/ })).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("mm.online.v1") ?? "{}") as { token?: string });
+  expect(saved.token).toBeTruthy();
+  expect(saved.token).not.toBe("stale-token");
+});
