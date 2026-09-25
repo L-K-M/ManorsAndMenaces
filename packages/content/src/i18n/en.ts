@@ -351,6 +351,7 @@ export const EN: Record<string, string> = {
   "sr.holding_upgraded": "{name} raised a Stronghold at {place}.",
   "ui.details": "details",
   "ui.game_log": "Game log",
+  "ui.jump_to_latest": "↓ Jump to latest",
   "ui.close": "Close",
   "ui.human": "Human",
   "ui.computer": "Computer",
