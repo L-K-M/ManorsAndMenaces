@@ -1164,7 +1164,7 @@ Unless the Quest says otherwise:
 - claiming is immediate during the Main Action phase;
 - claimed Quests remain visible in the claimant's area;
 - at the End Turn phase, each claimed Quest is replaced by the top card of the Quest deck, so 3 unclaimed Quests stay available until the deck runs out;
-- in the Standard rules, a Quest nobody claims leaves after a few rounds (§27.2).
+- in the Standard rules, a Quest nobody claims leaves after 4 rounds (§27.2).
 
 Terms used in Quest conditions:
 

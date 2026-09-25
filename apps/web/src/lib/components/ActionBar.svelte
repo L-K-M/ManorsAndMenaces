@@ -148,11 +148,11 @@
   // and web fonts. Neither element changes size when the chips do, so the
   // observer never feeds itself.
   $effect(() => {
-    const end = toolRow?.parentElement?.querySelector(".end");
-    if (!bar || !end) return;
+    if (!bar || !toolRow) return;
+    const end = toolRow.parentElement?.querySelector(".end");
     const observer = new ResizeObserver(fitChips);
     observer.observe(bar);
-    observer.observe(end);
+    if (end) observer.observe(end);
     return () => observer.disconnect();
   });
 
