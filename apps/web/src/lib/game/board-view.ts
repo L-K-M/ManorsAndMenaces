@@ -39,7 +39,7 @@ interface LabelSpec {
   base: number;
   /** Desired on-screen size at text scale 1. */
   targetPx: number;
-  /** Largest font size in board units before labels crowd their Region. */
+  /** Largest font size in board units (at text scale 1) before labels crowd their Region. */
   max: number;
   /** Below this on-screen size the label is hidden instead. */
   minPx: number;
@@ -58,13 +58,17 @@ const LANDMARK: LabelSpec = { base: 11, targetPx: 10.5, max: 15, minPx: 10 };
 /** On-screen diameter of the warning badge that replaces hidden notes. */
 const BADGE_PX = 15;
 
+// The Text size setting multiplies a label wherever it shows, and whether it
+// shows depends on the zoom alone. Larger text grows the dock and so shrinks
+// the board; scaling only the target would let the fixed cap bind and make
+// names smaller at Text size 1.5 than at 1.25.
 function capped(spec: LabelSpec, k: number, textScale: number): number {
-  return Math.min(spec.max, Math.max(spec.base, (spec.targetPx * textScale) / k));
+  return textScale * Math.min(spec.max, Math.max(spec.base, spec.targetPx / k));
 }
 
 function fit(spec: LabelSpec, k: number, textScale: number): number {
   const size = capped(spec, k, textScale);
-  return size * k >= spec.minPx ? size : 0;
+  return size * k >= spec.minPx * textScale ? size : 0;
 }
 
 export interface LabelLod {

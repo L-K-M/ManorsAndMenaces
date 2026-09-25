@@ -53,6 +53,21 @@ describe("labelLod", () => {
     expect(labelLod(k, 1.5).name).toBeGreaterThanOrEqual(labelLod(k, 1).name * 1.3);
   });
 
+  it("grows names with Text size on a small board too, and never hides them for it", () => {
+    // Larger text grows the dock, so the board, and with it the camera scale,
+    // shrinks (1280x720 at Text size 1.5 measured k = 0.354).
+    for (const k of [0.2, 0.3, 0.354, 0.393, 0.452, 0.8, 2]) {
+      for (const scale of [1.25, 1.5]) {
+        const plain = labelLod(k, 1);
+        const large = labelLod(k, scale);
+        expect(large.name > 0, `k ${k}, text ${scale}`).toBe(plain.name > 0);
+        expect(large.name, `k ${k}, text ${scale}`).toBeCloseTo(plain.name * scale, 9);
+        expect(large.minor).toBeCloseTo(plain.minor * scale, 9);
+        expect(large.landmark).toBeCloseTo(plain.landmark * scale, 9);
+      }
+    }
+  });
+
   it("hides names and notes on a phone's default view and shows names once zoomed in", () => {
     const k = screenScale(PHONE, MAP);
     const far = labelLod(k, 1);
