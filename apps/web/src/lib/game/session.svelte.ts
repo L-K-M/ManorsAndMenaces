@@ -35,8 +35,9 @@ export interface SessionEvents {
   /** A buffered local action, shown before it is submitted (it may be undone). */
   provisional: boolean;
   /**
-   * The batch was sent by this client for one of its human seats. Its
-   * provisional events were already published when they were buffered.
+   * The batch was sent by this client for one of its human seats. Only its
+   * buffered commands were published before, provisionally; the locking
+   * command that ended it was not, so subscribers must still show it.
    */
   own: boolean;
 }

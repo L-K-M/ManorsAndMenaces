@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { GREENVALE_MAP as map } from "@manors-menaces/content";
-import type { GameEvent, HarvestNote, ResourceType } from "@manors-menaces/rules";
+import {
+  RULESET_VERSION,
+  UNDO_SAFE_COMMANDS,
+  getLegalActions,
+  standardRuleset,
+  type GameCommand,
+  type GameEvent,
+  type GameState,
+  type HarvestNote,
+  type ResourceType,
+} from "@manors-menaces/rules";
+import { engineFor } from "../src/lib/game/engine.js";
 import { arcFrames, planHarvestFlights, regionPoint } from "../src/lib/game/harvestFlights.js";
 
 const [r1, r2, r3] = map.regions as [(typeof map.regions)[number], (typeof map.regions)[number], (typeof map.regions)[number]];
@@ -57,6 +68,51 @@ describe("planHarvestFlights", () => {
     );
 
     expect(plan.flights).toEqual([]);
+  });
+});
+
+// FeedbackController drops starting resources from this client's own
+// authoritative batches because they already flew when the Manor was
+// buffered. That holds only while the engine keeps the two properties
+// pinned here: placing a Manor is buffered (undo-safe, the same player
+// acts next), and it grants one resource per adjacent Region.
+describe("starting resources from a real setup", () => {
+  it("are previewed with the Manor, one token per adjacent Region", () => {
+    const engine = engineFor(map.id);
+    const players = ["P1", "P2", "P3"].map((id) => ({ id, displayName: id }));
+    let state: GameState = engine.createGame({ matchId: "flights", seed: "flights", rulesetVersion: RULESET_VERSION, ruleset: standardRuleset(3), players });
+    let seq = 0;
+    let checked = 0;
+
+    // Every Manor and Route; Banner assignment grants no Region-bound gains.
+    for (let step = 0; state.setup?.step !== "assign_banners" && step < 40; step++) {
+      const playerId = state.activePlayerId!;
+      const legal = getLegalActions(engine.ctx, state, playerId);
+      const intent =
+        legal.mode === "setup_manor"
+          ? { type: "place_initial_manor" as const, siteId: legal.initialManorSites[0]! }
+          : { type: "place_initial_route" as const, routeId: legal.initialRoutes[0]! };
+      const command = { ...intent, commandId: `c${++seq}`, matchId: state.matchId, playerId } as GameCommand;
+      const r = engine.applyCommand(state, command);
+      expect(r.accepted).toBe(true);
+      const next = r.newState!;
+
+      if (intent.type === "place_initial_manor") {
+        expect(UNDO_SAFE_COMMANDS.has(intent.type)).toBe(true);
+        expect(next.activePlayerId).toBe(playerId);
+        expect(next.pending ?? null).toBeNull();
+        const gains = r.events.filter((e) => e.type === "resource_gained" && e.reason === "starting_resources");
+        if (gains.length) {
+          const site = map.sites.find((s) => s.id === intent.siteId)!;
+          expect(gains.every((e) => e.type === "resource_gained" && e.amount === 1)).toBe(true);
+          expect(planHarvestFlights(r.events, map).flights.map((f) => f.from)).toEqual(site.adjacentRegionIds.map((id) => regionPoint(map, id)));
+          checked++;
+        }
+      }
+      state = next;
+    }
+
+    expect(checked).toBe(players.length);
   });
 });
 
