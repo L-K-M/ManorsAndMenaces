@@ -22,11 +22,12 @@
       ...(s.kind === "ai" ? { aiLevel: s.level } : {}),
       color: i,
     }));
-    if (!chosen.some((s) => s.kind === "human")) return;
     const ruleset = mode === "mvp" ? mvpRuleset() : standardRuleset(count);
     onstart({ seats: chosen, ruleset, ...(seed.trim() ? { seed: seed.trim() } : {}) });
   }
 
+  // With no human seat the computers play the whole game; say so, but allow it
+  // (a watchable demo, and the harness for the all-computer e2e tests).
   const humanCount = $derived(seats.slice(0, count).filter((s) => s.kind === "human").length);
 </script>
 
@@ -70,9 +71,9 @@
     </details>
     <div class="row">
       <button type="button" onclick={onback}>{t("ui.back")}</button>
-      <button type="submit" class="primary" disabled={humanCount === 0}>{t("ui.begin")}</button>
+      <button type="submit" class="primary" aria-describedby={humanCount === 0 ? "no-humans-note" : undefined}>{t("ui.begin")}</button>
     </div>
-    {#if humanCount === 0}<p class="hint">{t("ui.at_least_one_human_required")}</p>{/if}
+    {#if humanCount === 0}<p class="hint" id="no-humans-note">{t("ui.no_human_seats")}</p>{/if}
   </form>
 </section>
 
@@ -135,6 +136,5 @@
   .hint {
     margin: 0.5rem 0 0;
     font-size: 0.85rem;
-    color: #7a1d10;
   }
 </style>

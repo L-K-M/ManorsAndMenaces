@@ -30,8 +30,11 @@
     while (index < steps.length - 1 && steps[index]?.done(s)) index++;
   });
   let minimized = $state(false);
+  // Finishing only closes the coach; the game stays on screen to play out.
+  let dismissed = $state(false);
 </script>
 
+{#if !dismissed}
 <aside class="coach" class:minimized aria-live="polite" aria-label={t("ui.tutorial")}>
   <header>
     <strong>Tutorial · {index + 1}/{steps.length}</strong>
@@ -42,11 +45,12 @@
     <p class="lesson">{steps[index]?.text}</p>
     <p class="todo">→ {steps[index]?.todo}</p>
     {#if index === steps.length - 1}
-      <button class="primary finish" onclick={onfinish}>{t("ui.finish_tutorial")}</button>
+      <button type="button" class="primary finish" onclick={() => (dismissed = true)}>{t("ui.finish_tutorial")}</button>
     {/if}
     <div class="dots" aria-hidden="true">{#each steps as _, i}<span class:on={i <= index}></span>{/each}</div>
   {/if}
 </aside>
+{/if}
 
 <style>
   .coach {
