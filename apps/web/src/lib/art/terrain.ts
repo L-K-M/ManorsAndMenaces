@@ -14,6 +14,7 @@ import type { MapDefinition, RegionDefinition } from "@manors-menaces/content";
 import type { ResourceType } from "@manors-menaces/rules";
 import { PASS_OFFSET, RIVER_HALF, passRidges, riverAcross } from "./routes.js";
 import { artRng, bounds, edgeDistance, inside, polygonPoints, segmentDistance, signedArea, type Pt } from "./geometry.js";
+import { LABEL } from "../game/board-view.js";
 
 /** How one merged terrain path is painted. */
 export interface InkStyle {
@@ -106,8 +107,8 @@ export const CLEARANCE = {
   menace: { dx: 40, dy: 4, r: 26 },
   /** Region name: above the disc, about 3.6 units per character each side. */
   name: { top: -42, bottom: -14, perChar: 3.6, pad: 8 },
-  /** Banner row and pips under the disc. */
-  banners: { x: -32, y: 2, w: 84, h: 34 },
+  /** Capacity pips and the Banner row under the disc (flags stand at LABEL.bannerY, poles end 4 below). */
+  banners: { x: -30, y: 2, w: 56, h: LABEL.bannerY + 8 },
   /** A Site with its Holding, emblem, Trading Post and landmark art. */
   site: { dy: -8, r: 25 },
   landmark: { dx: -22, dy: -15, r: 22 },

@@ -34,6 +34,7 @@
   const gs = $derived(session.draft);
   const sitesById = $derived(new Map(map.sites.map((s) => [s.id, s])));
   const regionsById = $derived(new Map(map.regions.map((r) => [r.id, r])));
+  const routesById = $derived(new Map(map.routes.map((r) => [r.id, r])));
 
   // The camera keeps the island (its coastline and extent) in view.
   const coast = $derived(pathPoints(map.coastline));
@@ -77,8 +78,8 @@
 
   const previewByRegion = $derived(new Map((preview?.banners ?? []).map((b) => [b.regionId, b])));
 
-  // Pre-indexed lookups so per-frame template code stays O(1) instead of
-  // scanning all holdings/banners for every site/region.
+  // Pre-indexed lookups so the Site and Region loops stay O(1) per entity
+  // instead of scanning all holdings/banners for every Site/Region.
   const holdingBySite = $derived(new Map(Object.values(gs.holdings).map((h) => [h.siteId, h])));
   const bannerCountByRegion = $derived.by(() => {
     const counts = new Map<string, number>();
@@ -99,7 +100,7 @@
       const s = sitesById.get(loc.siteId);
       return s ? { x: s.x - 22, y: s.y + 20 } : { x: 0, y: 0 };
     }
-    const route = map.routes.find((r) => r.id === loc.routeId);
+    const route = routesById.get(loc.routeId);
     const a = route && sitesById.get(route.siteA);
     const b = route && sitesById.get(route.siteB);
     return a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : { x: 0, y: 0 };
@@ -238,7 +239,7 @@
     const pts: Point[] = [];
     const site = (id: string) => sitesById.get(id);
     const routeMid = (id: string) => {
-      const r = map.routes.find((x) => x.id === id);
+      const r = routesById.get(id);
       const a = r && site(r.siteA);
       const b = r && site(r.siteB);
       return a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : undefined;
@@ -321,7 +322,6 @@
       .map((r) => ({ id: r.id, a: sitesById.get(r.siteA), b: sitesById.get(r.siteB) })),
   );
   const hlSites = $derived(map.sites.filter((s) => hl.sites.has(s.id) || hl.locations.has(`site:${s.id}`)));
-  const holdingSites = $derived(new Set(Object.values(gs.holdings).map((h) => h.siteId)));
   const ringedBanners = $derived(Object.values(gs.banners).filter((b) => hl.banners.has(b.id) || ui.selectedBannerId === b.id));
   const ringedMenaces = $derived(Object.values(gs.menaces).filter((m) => hl.menaces.has(m.id) || ui.selectedMenaceId === m.id));
   const destRegions = $derived(hlRegions.filter((r) => hl.locations.has(`region:${r.id}`)));
@@ -333,7 +333,7 @@
   function nameSize(regionId: string): number {
     if (!settings.showRegionNames) return 0;
     if (lod.name) return lod.name;
-    const fewTargets = hlRegions.length <= MAX_NAMED_TARGETS && hlRegions.some((r) => r.id === regionId);
+    const fewTargets = hlRegions.length <= MAX_NAMED_TARGETS && (hl.regions.has(regionId) || hl.locations.has(`region:${regionId}`));
     return fewTargets || focusRegionId === regionId ? lod.nameCapped : 0;
   }
   type Region = (typeof map.regions)[number];
@@ -363,7 +363,7 @@
     const obstacles = { circles: [] as Circle[], segments: [] as Segment[], rects: [] as Rect[] };
     if (m) {
       for (const s of map.sites) {
-        obstacles.circles.push(holdingSites.has(s.id) ? { x: s.x, y: s.y - 8, r: 26 } : { x: s.x, y: s.y, r: 14 });
+        obstacles.circles.push(holdingBySite.has(s.id) ? { x: s.x, y: s.y - 8, r: 26 } : { x: s.x, y: s.y, r: 14 });
         if (s.tradePost) obstacles.circles.push({ x: s.x - 22 - (postScale - 1) * 8, y: s.y - 18 - (postScale - 1) * 8, r: 10 * postScale });
       }
       for (const menace of Object.values(gs.menaces)) obstacles.circles.push({ ...menacePos(menace), r: 22 });
@@ -449,10 +449,10 @@
       }
       case "site": {
         const s = sitesById.get(p.id);
-        return s ? { x: s.x, top: s.y - (holdingSites.has(s.id) ? 32 : 16), bottom: s.y + 16 } : null;
+        return s ? { x: s.x, top: s.y - (holdingBySite.has(s.id) ? 32 : 16), bottom: s.y + 16 } : null;
       }
       case "route": {
-        const route = map.routes.find((r) => r.id === p.id);
+        const route = routesById.get(p.id);
         const a = route && sitesById.get(route.siteA);
         const b = route && sitesById.get(route.siteB);
         return a && b ? { x: (a.x + b.x) / 2, top: (a.y + b.y) / 2 - 10, bottom: (a.y + b.y) / 2 + 10 } : null;
@@ -832,10 +832,12 @@
 {#if targeting}
   <!-- Breathing glow around every target. Kept out of the board <svg> so the
        animation only changes this layer's opacity on the compositor. -->
-  <svg class="glow" viewBox="{viewport.box.x} {viewport.box.y} {viewport.box.w} {viewport.box.h}" preserveAspectRatio="{align} meet" aria-hidden="true">
+  <svg class="glow" aria-hidden="true">
     <defs>
       {#each hlRegions as r (r.id)}<clipPath id="glow-clip-{r.id}"><path d={r.path} /></clipPath>{/each}
     </defs>
+    <!-- the board's own camera transform, so the glow tracks every pan and zoom exactly -->
+    <g transform={cameraTransform}>
     {#each hlRegions as r (r.id)}
       <path d={r.path} clip-path="url(#glow-clip-{r.id})" stroke-width={px(16, 22)} />
     {/each}
@@ -843,7 +845,7 @@
       {#if l.a && l.b}<line x1={l.a.x} y1={l.a.y} x2={l.b.x} y2={l.b.y} stroke-width={px(16, 28)} />{/if}
     {/each}
     {#each hlSites as site (site.id)}
-      <circle cx={site.x} cy={site.y} r={siteRing(holdingSites.has(site.id)) + px(5, 6)} stroke-width={px(7, 9)} />
+      <circle cx={site.x} cy={site.y} r={siteRing(holdingBySite.has(site.id)) + px(5, 6)} stroke-width={px(7, 9)} />
     {/each}
     {#each ringedBanners as b (b.id)}
       {@const pos = bannerPositions.get(b.id)}
@@ -856,6 +858,7 @@
     {#each destRegions as r (r.id)}
       <circle cx={r.labelX + 40} cy={r.labelY + 4} r={px(8, 12) + px(5, 6)} stroke-width={px(7, 9)} />
     {/each}
+    </g>
   </svg>
 {/if}
 

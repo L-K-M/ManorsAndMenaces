@@ -96,9 +96,21 @@ async function changedPixels(page: Page, a: Buffer, b: Buffer, clip: { x: number
 async function expectRoutesLit(page: Page) {
   const routes = await page.locator(".route.hl").all();
   expect(routes.length).toBeGreaterThan(0);
-  // Hold the highlight's pulse at its brightest so the two shots are
-  // comparable. Rate 0 keeps it a running animation, laid out as players
-  // see it; pausing would change how Chrome layers it.
+  // Chrome runs an SVG element's looping opacity animation on the
+  // compositor, and over the terrain those layers sometimes never showed,
+  // leaving legal targets unmarked. The marks inside the board stay still;
+  // only the separate glow <svg> above the board breathes.
+  const loopingMarks = await page.evaluate(
+    () =>
+      document
+        .getAnimations()
+        .map((a) => a.effect as KeyframeEffect | null)
+        .filter((e) => e?.target?.matches(".hl-casing, .hl-edge, .hl-line, .hl-ring, .dest, .veil") && e.getComputedTiming().iterations === Infinity).length,
+  );
+  expect(loopingMarks).toBe(0);
+  // Freeze every animation (the glow, idle Menaces) so the two shots are
+  // comparable. Rate 0 keeps them running animations, laid out as players
+  // see them; pausing would change how Chrome layers them.
   await page.evaluate(() =>
     document.getAnimations().forEach((a) => {
       a.currentTime = 0;

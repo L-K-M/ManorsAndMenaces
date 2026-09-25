@@ -4,6 +4,7 @@ import { CLEARANCE, terrainArt } from "../src/lib/art/terrain.js";
 import { CARTOUCHE, RIPPLES, coastArt } from "../src/lib/art/coast.js";
 import { edgeDistance, inside, offsetPolygon, polygonPoints, segmentDistance } from "../src/lib/art/geometry.js";
 import { RIVER_HALF, riverAcross } from "../src/lib/art/routes.js";
+import { bannerSlot } from "../src/lib/game/board-view.js";
 
 const map = GREENVALE_MAP;
 const coast = polygonPoints(map.coastline);
@@ -29,7 +30,9 @@ describe("terrain illustration", () => {
   it("scatters a bounded number of motifs, some in every Region", () => {
     expect(art.motifs.length).toBeGreaterThan(150);
     expect(art.motifs.length).toBeLessThan(700);
-    for (const r of map.regions) expect(art.motifs.filter((m) => m.regionId === r.id).length, r.id).toBeGreaterThanOrEqual(3);
+    // The smallest Regions give most of their room to the label stack (name,
+    // disc, pips and the Banner row below them), so two motifs is the floor.
+    for (const r of map.regions) expect(art.motifs.filter((m) => m.regionId === r.id).length, r.id).toBeGreaterThanOrEqual(2);
     for (const r of map.regions.filter((x) => x.resource === "iron")) {
       expect(
         art.motifs.some((m) => m.regionId === r.id && m.kind === "mine"),
@@ -56,12 +59,32 @@ describe("terrain illustration", () => {
         const half = r.name.length * CLEARANCE.name.perChar + CLEARANCE.name.pad;
         const inName = Math.abs(m.x - r.labelX) < half && m.y > r.labelY + CLEARANCE.name.top && m.y < r.labelY + CLEARANCE.name.bottom;
         expect(inName, `${m.kind} on the name of ${r.id}`).toBe(false);
+        const row = CLEARANCE.banners;
+        const dx = Math.max(r.labelX + row.x - m.x, 0, m.x - (r.labelX + row.x + row.w));
+        const dy = Math.max(r.labelY + row.y - m.y, 0, m.y - (r.labelY + row.y + row.h));
+        expect(Math.hypot(dx, dy), `${m.kind} under the Banners of ${r.id}`).toBeGreaterThanOrEqual(m.r - 0.1);
       }
       for (const s of map.sites) expect(Math.hypot(m.x - s.x, m.y - s.y - CLEARANCE.site.dy)).toBeGreaterThanOrEqual(CLEARANCE.site.r + m.r - 0.1);
       for (const route of map.routes) {
         const a = sites.get(route.siteA)!;
         const b = sites.get(route.siteB)!;
         expect(segmentDistance(m, a, b)).toBeGreaterThanOrEqual(CLEARANCE.route + m.r - 0.1);
+      }
+    }
+  });
+
+  it("keeps the Banner row clear wherever the board stands Banners", () => {
+    // Each Banner's hit box (x-12..x+14, y-26..y+4) in every slot a full
+    // Region can use lies inside the keep-out row, so no art hides under a flag.
+    const row = CLEARANCE.banners;
+    const most = Math.max(...map.regions.map((r) => r.capacity));
+    for (let n = 1; n <= most; n++) {
+      for (let i = 0; i < n; i++) {
+        const slot = bannerSlot({ x: 0, y: 0 }, i, n);
+        expect(slot.x - 12, `slot ${i + 1} of ${n}`).toBeGreaterThanOrEqual(row.x);
+        expect(slot.x + 14, `slot ${i + 1} of ${n}`).toBeLessThanOrEqual(row.x + row.w);
+        expect(slot.y - 26, `slot ${i + 1} of ${n}`).toBeGreaterThanOrEqual(row.y);
+        expect(slot.y + 4, `slot ${i + 1} of ${n}`).toBeLessThanOrEqual(row.y + row.h);
       }
     }
   });
