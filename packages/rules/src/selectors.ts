@@ -160,7 +160,8 @@ export function checkBuildManor(ctx: RulesContext, state: GameState, playerId: P
 export function checkUpgrade(state: GameState, playerId: PlayerId, siteId: SiteId): BuildCheck {
   const h = holdingAt(state, siteId);
   if (!h || h.ownerId !== playerId) return { legal: false, reason: "UNKNOWN_ENTITY" };
-  if (h.type !== "manor") return { legal: false, reason: "SITE_OCCUPIED" };
+  // A distinct code from SITE_OCCUPIED: the site is yours, it is just fully upgraded.
+  if (h.type !== "manor") return { legal: false, reason: "ALREADY_STRONGHOLD" };
   const needsSurcharge = menaceAt(state, { kind: "site", siteId })?.type === "goblin_tinkers";
   return { legal: true, cost: { ...BALANCE.costs.stronghold }, needsToll: false, needsSurcharge };
 }

@@ -105,7 +105,14 @@ describe("building (§12–13)", () => {
     const upgraded = events.find((e) => e.type === "holding_upgraded");
     expect(upgraded).toBeTruthy();
     expect(Object.values(s.banners).filter((b) => b.ownerId === p1)).toHaveLength(3);
-    reject(s, p1, { type: "upgrade_holding", siteId: "s1" }, "SITE_OCCUPIED");
+    reject(s, p1, { type: "upgrade_holding", siteId: "s1" }, "ALREADY_STRONGHOLD");
+  });
+  it("reports a distinct error when the Site already holds a Stronghold", () => {
+    const { state, p1 } = setupGame();
+    let s = grant(state, p1, { grain: 2, iron: 2 });
+    s = act(s, p1, { type: "upgrade_holding", siteId: "s1" }).state;
+    reject(s, p1, { type: "upgrade_holding", siteId: "s1" }, "ALREADY_STRONGHOLD");
+  });
   });
 });
 
