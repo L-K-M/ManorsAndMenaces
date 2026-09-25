@@ -45,9 +45,9 @@ async function completeSetup(page: Page) {
 
 async function endFullTurn(page: Page) {
   await page.getByRole("button", { name: /Assign Banners →/ }).click();
-  await page.getByRole("button", { name: /Confirm Banners/ }).click();
-  await page.getByRole("button", { name: "End Turn" }).click();
-  await expect(page.getByRole("button", { name: /Build Route/ })).toBeVisible({ timeout: 30_000 });
+  // The Banner phase's End Turn confirms the Banners and ends the turn.
+  await page.getByRole("button", { name: /End Turn/ }).click();
+  await expect(page.getByRole("button", { name: /^Build Route/ })).toBeVisible({ timeout: 30_000 });
 }
 
 test("the Chronicle keeps the reader's scroll position and offers a jump pill", async ({ page }) => {
@@ -85,7 +85,7 @@ test("the Chronicle keeps the reader's scroll position and offers a jump pill", 
   await page.getByRole("button", { name: "Debug" }).click();
   await page.getByRole("button", { name: "Grant 5 of each resource" }).click();
   await page.getByRole("dialog", { name: "Debug tools" }).getByRole("button", { name: "Close" }).click();
-  await page.getByRole("button", { name: /Build Route/ }).click();
+  await page.getByRole("button", { name: /^Build Route/ }).click();
   await page.locator(".route.hl").first().click();
   await expect(page.locator(".log ol li").last()).toContainText(/built a Route/);
   await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBe(0);

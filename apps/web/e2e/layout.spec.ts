@@ -116,7 +116,7 @@ test.describe("laptop 1280x720", () => {
     await fillHand(page);
     const cards = await boardBox(page);
     await page.getByRole("button", { name: /Assign Banners →/ }).click();
-    await expect(page.getByRole("button", { name: /Confirm Banners/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /End Turn/ })).toBeVisible();
     const banners = await boardBox(page);
 
     for (const b of [main, cards, banners]) expect(Math.abs(b.height - setup.height)).toBeLessThanOrEqual(1);
@@ -127,7 +127,7 @@ test.describe("laptop 1280x720", () => {
     await page.evaluate(() => document.documentElement.style.setProperty("--text-scale", "1.5"));
     expect((await boardBox(page)).height).toBeGreaterThanOrEqual(0.4 * 720);
     expect(await pageFits(page)).toEqual({ scrollsX: false, scrollsY: false });
-    await expectInViewport(page, /Confirm Banners/);
+    await expectInViewport(page, /End Turn/);
   });
 
   test("your resources stay in view whichever panel tab is open", async ({ page }) => {
@@ -161,11 +161,13 @@ test.describe("laptop 1280x720", () => {
   test("tool costs stay in the buttons' accessible names when hidden", async ({ page }) => {
     await startVsAi(page);
     await completeSetup(page);
+    // Affordable tools name their cost; unaffordable ones say what is missing.
+    await fillHand(page, 0);
     const tools = page.getByRole("toolbar", { name: "Actions" });
-    await expect(tools.getByRole("button", { name: /^Build Route\s*1 Timber \+ 1 Stone$/ })).toBeVisible();
-    await expect(tools.getByRole("button", { name: /^Market\s*\d+ left$/ })).toBeVisible();
+    await expect(tools.getByRole("button", { name: /^Build Route\s*1 Timber, 1 Stone$/ })).toBeVisible();
+    await expect(tools.getByRole("button", { name: /^Market\s*\d+ trades left$/ })).toBeVisible();
     // Visually the cost moves to the tooltip at this width.
-    const cost = tools.getByText("1 Timber + 1 Stone", { exact: true });
+    const cost = tools.getByText("1 Timber, 1 Stone", { exact: true });
     expect(await cost.evaluate((e) => e.getBoundingClientRect().width)).toBeLessThanOrEqual(1);
   });
 });
@@ -195,8 +197,9 @@ test.describe("phone landscape", () => {
     await fillHand(page, 10);
     // The rail's tray scrolls, so its cards have room for all their rules.
     expect(await clippedRules(page)).toEqual([]);
+    // End Turn confirms the Banners and stops in the End phase: the hand is over the limit.
     await page.getByRole("button", { name: /Assign Banners →/ }).click();
-    await page.getByRole("button", { name: /Confirm Banners/ }).click();
+    await page.getByRole("button", { name: /End Turn/ }).click();
     await expect(page.getByRole("button", { name: /^Discard \d/ })).toBeInViewport({ ratio: 1 });
   });
 

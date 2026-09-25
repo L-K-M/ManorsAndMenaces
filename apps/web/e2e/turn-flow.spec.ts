@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 // Turn flow: phase buttons that survive repeated clicks, the Market staying
 // open between trades, the Banner phase fast path and action explanations.
 
-async function startHotseat(page: Page) {
+async function startHotseat(page: Page, seed = "e2e-seed") {
   await page.goto("/");
   await page.evaluate(() => {
     localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true }));
@@ -14,7 +14,7 @@ async function startHotseat(page: Page) {
   await page.getByRole("radio", { name: "2", exact: true }).check({ force: true });
   await page.getByLabel("Player 2 type").selectOption("human");
   await page.getByText("Advanced").click();
-  await page.getByLabel(/Seed/).fill("e2e-seed");
+  await page.getByLabel(/Seed/).fill(seed);
   await page.getByRole("button", { name: "Begin" }).click();
 }
 
@@ -207,7 +207,8 @@ test("only the suggested Market route marks a resource as suggested", async ({ p
 });
 
 test("a claimable Quest is badged, prompted, and recalled when leaving Main", async ({ page }) => {
-  await startHotseat(page);
+  // A seed that reveals Far Reaches (#22's 2-player deck changed the shuffle).
+  await startHotseat(page, "e2e-seed-7");
   // The first player's Manors sit far apart, so Far Reaches is complete.
   await completeSetup(page);
 

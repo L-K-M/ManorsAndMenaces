@@ -53,9 +53,9 @@ async function untilHumanMainTurn(page: Page): Promise<void> {
   throw new Error("no human main turn reached");
 }
 
+/** Leaves Main; the Banner phase's End Turn then confirms and ends the turn. */
 async function toEndOfTurn(page: Page) {
   await page.getByRole("button", { name: /Assign Banners →/ }).click();
-  await page.getByRole("button", { name: /Confirm Banners/ }).click();
 }
 
 async function endTurn(page: Page) {
@@ -77,7 +77,7 @@ async function buyCard(page: Page) {
   await page.getByRole("button", { name: "Debug" }).click();
   await page.getByRole("button", { name: "Grant 5 of each resource" }).click();
   await page.getByRole("dialog", { name: "Debug tools" }).getByRole("button", { name: "Close" }).click();
-  await page.getByRole("button", { name: /Buy Card/ }).click();
+  await page.getByRole("button", { name: /^Buy Card/ }).click();
   await expect(page.locator(".hand button.card")).toHaveCount(1);
 }
 
