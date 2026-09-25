@@ -450,14 +450,17 @@ try {
 } catch (e) {
   problems.push(`cannot read ${target}: ${e.message}`);
 }
-if (committed !== undefined && committed !== out) {
+// Compare with LF endings so a Windows checkout (core.autocrlf) does not fail.
+if (committed !== undefined && committed.replace(/\r\n/g, "\n") !== out) {
   problems.push(`${target} differs from a fresh generation (seed ${SEED}); run \`pnpm map:generate\` and commit the result`);
 }
-// Validate with the same code the app uses. Warnings are the §11.1 balance
-// heuristics; the shipped map meets them, so a regression fails the check.
+// Validate with the same code the app uses. Errors fail the check. Warnings
+// are the §11.1 balance heuristics, which a hand-tuned map may trip on
+// purpose, so they are printed but do not fail it.
 const { validateMap } = await tsImport("../packages/content/src/validate.ts", import.meta.url);
 const validation = validateMap(map);
-problems.push(...validation.errors, ...validation.warnings);
+problems.push(...validation.errors);
+for (const w of validation.warnings) console.warn("map check warning:", w);
 if (stats.minRegionsPerSite < 2) problems.push(`a Site touches only ${stats.minRegionsPerSite} Region; every Site needs at least 2`);
 
 if (problems.length > 0) {

@@ -47,12 +47,15 @@ describe("generate-map --check", () => {
   });
 
   it("fails when the map was generated from another seed", () => {
-    const { status } = check("--out", copy, "--seed", "15");
+    const { status, output } = check("--out", copy, "--seed", "15");
     expect(status).toBe(1);
+    expect(output).toContain("differs from a fresh generation");
   });
 
   it("fails when the map file is missing", () => {
     rmSync(copy);
-    expect(check("--out", copy).status).toBe(1);
+    const { status, output } = check("--out", copy);
+    expect(status).toBe(1);
+    expect(output).toContain("cannot read");
   });
 });
