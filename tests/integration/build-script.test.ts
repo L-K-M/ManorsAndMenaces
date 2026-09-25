@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const ANDROID_TARGETS = ["aarch64-linux-android", "armv7-linux-androideabi", "i686-linux-android", "x86_64-linux-android"];
 const HOST_TARGET = "aarch64-apple-darwin";
-const SYSTEM_TOOLS = ["bash", "sh", "sed", "sort", "head", "tail", "dirname", "basename", "readlink", "mkdir", "mktemp", "find", "cp", "rm", "mv", "ls", "cat", "awk", "tr"];
+const SYSTEM_TOOLS = ["bash", "sh", "sed", "sort", "head", "tail", "dirname", "basename", "readlink", "mkdir", "mktemp", "find", "cp", "rm", "mv", "ls", "cat", "awk", "tr", "sleep"];
 
 function resolveTool(name: string): string {
   const found = spawnSync("sh", ["-c", `command -v ${name}`], { encoding: "utf8" }).stdout.trim();
@@ -214,8 +214,10 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
     beforeEach(() => onPath(rustToolchain("rustup", [])));
 
     it("retries without the Finder window layout when only the DMG step fails", () => {
-      // Tauri skips the Finder AppleScript when CI=true.
-      fakeTauriBuild(`mkdir -p "${APP}" && : > "${APP}/Info.plist"\n[ "$CI" = true ] || exit 1\nmkdir -p "${DMG}" && : > "${DMG}/Test.dmg"`);
+      // Tauri skips the Finder AppleScript when CI=true. The pause stands in
+      // for the compile: file times are coarse (a few ms), so an .app written
+      // at once could carry the same time as the script's start marker.
+      fakeTauriBuild(`sleep 0.05\nmkdir -p "${APP}" && : > "${APP}/Info.plist"\n[ "$CI" = true ] || exit 1\nmkdir -p "${DMG}" && : > "${DMG}/Test.dmg"`);
 
       const { status, output } = run(["desktop"]);
 
