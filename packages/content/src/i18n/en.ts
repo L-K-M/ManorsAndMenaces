@@ -28,6 +28,7 @@ export const EN: Record<string, string> = {
 
   // ---------------------------------------------------------------- cards
   "card.type.spell": "Spell",
+  "card.reaction_suffix": " · reaction",
   "card.type.hero": "Hero",
   "card.type.trick": "Trick",
   "card.type.charter": "Charter",

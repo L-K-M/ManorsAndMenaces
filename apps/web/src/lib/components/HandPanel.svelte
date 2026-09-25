@@ -54,9 +54,10 @@
   let holdTimer: ReturnType<typeof setTimeout> | undefined;
   let held = false;
   function pressStart(e: PointerEvent, cardId: string) {
+    // Any new press clears a hold, so the click after a touch hold is not swallowed.
+    held = false;
     if (e.pointerType === "mouse") return;
     const el = e.currentTarget as HTMLElement;
-    held = false;
     clearTimeout(holdTimer);
     holdTimer = setTimeout(() => {
       held = true;
@@ -106,7 +107,7 @@
               onfocus={(e) => showPeek(e, cardId)}
               onblur={hidePeek}
             >
-              <span class="type">{t(`card.type.${def.type}`)}{def.timing.includes("reaction") ? " · reaction" : ""}</span>
+              <span class="type">{t(`card.type.${def.type}`)}{def.timing.includes("reaction") ? t("card.reaction_suffix") : ""}</span>
               <strong>{t(`card.${id}.name`)}</strong>
               <span class="rules">{t(`card.${id}.rules`)}</span>
               <em class="flavor">{t(`card.${id}.flavor`)}</em>
@@ -125,7 +126,7 @@
         style="--x: {peek.x}px; --y: {above ? peek.top : peek.bottom}px"
         aria-hidden="true"
       >
-        <span class="type">{t(`card.type.${def.type}`)}{def.timing.includes("reaction") ? " · reaction" : ""}</span>
+        <span class="type">{t(`card.type.${def.type}`)}{def.timing.includes("reaction") ? t("card.reaction_suffix") : ""}</span>
         <strong>{t(`card.${id}.name`)}</strong>
         <span class="rules">{t(`card.${id}.rules`)}</span>
         <em class="flavor">{t(`card.${id}.flavor`)}</em>

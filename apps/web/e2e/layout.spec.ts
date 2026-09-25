@@ -143,6 +143,19 @@ test.describe("laptop 1280x720", () => {
     }
   });
 
+  test("the hint toast lets clicks through to the board", async ({ page }) => {
+    await startVsAi(page);
+    await completeSetup(page);
+    await fillHand(page, 1);
+    await page.getByRole("toolbar", { name: "Actions" }).getByRole("button", { name: /^Build Route/ }).click();
+    const hint = page.locator(".toasts .hint").first();
+    await expect(hint).toBeVisible();
+    const box = (await hint.boundingBox())!;
+    // Only Cancel takes the pointer; the rest of the toast is see-through.
+    const through = await page.evaluate(({ x, y }) => !document.elementFromPoint(x, y)?.closest(".toasts"), { x: box.x + 6, y: box.y + box.height / 2 });
+    expect(through).toBe(true);
+  });
+
   test("tool costs stay in the buttons' accessible names when hidden", async ({ page }) => {
     await startVsAi(page);
     await completeSetup(page);

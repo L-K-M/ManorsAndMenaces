@@ -199,7 +199,6 @@
     border: 2px solid #8a7650;
     border-radius: 12px;
     box-shadow: 0 6px 18px #0003;
-    pointer-events: auto;
   }
   .hint {
     display: flex;
@@ -212,9 +211,12 @@
     padding-block: 0.2rem;
     padding-right: 0.25rem;
   }
+  /* The toasts float over the board: only Cancel takes the pointer, so a
+     target under a hint or an error stays clickable. */
   .cancel {
     flex: none;
     font-style: normal;
+    pointer-events: auto;
   }
   .error {
     color: #a3190c;

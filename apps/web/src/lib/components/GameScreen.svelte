@@ -201,7 +201,7 @@
         <div class="dock-head">
           {@render mine()}
           {#if layout === "sheet"}
-            <button class="ghost tray-toggle" bind:this={trayToggle} aria-expanded={trayOpen} aria-controls="dock-tray" onclick={() => (trayOpen = !trayOpen)}>
+            <button class="ghost tray-toggle" bind:this={trayToggle} aria-expanded={trayOpen} aria-controls={trayOpen ? "dock-tray" : undefined} onclick={() => (trayOpen = !trayOpen)}>
               {cardsEnabled && me ? t("ui.hand_tray", { count: me.hand.length, limit: gs.ruleset.handLimit }) : t("ui.harvest_tray")}
               <span class="chevron" aria-hidden="true">▴</span>
             </button>
@@ -238,7 +238,7 @@
     --bar-h: 3.4rem;
     --tray-h: 8.75rem;
     --peek-h: 10.25rem;
-    --edge: 3px solid #8a7650;
+    --dock-rule: 3px solid #8a7650;
     position: relative;
     height: 100dvh;
     /* clip, not hidden: a hidden overflow box can still be scrolled by focus. */
@@ -356,7 +356,7 @@
   .side {
     grid-area: side;
     background: var(--parchment);
-    border-left: var(--edge);
+    border-left: var(--dock-rule);
     overflow-y: auto;
     padding: 0.5rem;
   }
@@ -391,7 +391,7 @@
     gap: 0.4rem;
     padding: 0.5rem max(0.75rem, env(safe-area-inset-right)) calc(0.5rem + env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
     background: var(--parchment);
-    border-top: var(--edge);
+    border-top: var(--dock-rule);
   }
   .actions {
     container: actionbar / inline-size;
@@ -549,7 +549,7 @@
     gap: 0.5rem;
     padding: 0.5rem max(0.6rem, env(safe-area-inset-right)) calc(0.5rem + env(safe-area-inset-bottom)) 0.6rem;
     border-top: none;
-    border-left: var(--edge);
+    border-left: var(--dock-rule);
     /* Instructions float over the board, next to the rail and clear of the
        camera. */
     --toast-inset: auto calc(100% + 0.75rem) 0.75rem auto;
