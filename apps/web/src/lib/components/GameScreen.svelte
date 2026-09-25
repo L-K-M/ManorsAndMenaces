@@ -49,6 +49,7 @@
   // board on demand. A discard needs the hand, so it opens by itself then;
   // arming a tool needs the board, so it closes.
   let trayOpen = $state(false);
+  let trayToggle: HTMLButtonElement | undefined = $state();
   // How far the sheet currently reaches over the board (a long status line,
   // the open tray), so the board's own controls can stay clear of it.
   let slotHeight = $state(0);
@@ -79,6 +80,11 @@
     panelOpen = false;
     panelToggle?.focus();
   }
+  function closeTray() {
+    const hadFocus = !!document.activeElement?.closest("#dock-tray");
+    trayOpen = false;
+    if (hadFocus) trayToggle?.focus();
+  }
 
   function zoomToMine() {
     const pid = session.localActor ?? viewer;
@@ -99,6 +105,7 @@
   function keydown(e: KeyboardEvent) {
     if ((e.target as HTMLElement)?.closest("input, select, textarea")) return;
     if (e.key === "Escape" && slideOver && panelOpen) closePanel();
+    else if (e.key === "Escape" && layout === "sheet" && trayOpen) closeTray();
     else if (e.key === "Escape") {
       resetTool();
       ui.inspect = null;
@@ -187,7 +194,7 @@
             </div>
           {/if}
           {#if layout === "sheet"}
-            <button class="ghost tray-toggle" aria-expanded={trayOpen} aria-controls="dock-tray" onclick={() => (trayOpen = !trayOpen)}>
+            <button class="ghost tray-toggle" bind:this={trayToggle} aria-expanded={trayOpen} aria-controls="dock-tray" onclick={() => (trayOpen = !trayOpen)}>
               {cardsEnabled && me ? t("ui.hand_tray", { count: me.hand.length, limit: gs.ruleset.handLimit }) : t("ui.harvest_tray")}
               <span class="chevron" aria-hidden="true">▴</span>
             </button>

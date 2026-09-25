@@ -196,6 +196,25 @@ test.describe("touch tablet 1180x820", () => {
     await expect(peek).toBeHidden();
     await expect(card).toHaveAttribute("aria-pressed", "false");
   });
+
+  test("a press that slides off a card before the hold shows no preview", async ({ page }) => {
+    await startVsAi(page);
+    await completeSetup(page);
+    await fillHand(page, 2);
+    const card = page.locator(".hand .card:not(.peek)").first();
+    const box = await card.boundingBox();
+    expect(box).toBeTruthy();
+    if (!box) return;
+
+    // A pen is not captured by the card, so it leaves while still pressed.
+    const cdp = await page.context().newCDPSession(page);
+    const pen = { button: "left", pointerType: "pen", clickCount: 1 } as const;
+    await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: box.x + box.width / 2, y: box.y + box.height / 2, ...pen });
+    await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x + box.width / 2, y: box.y - 120, ...pen });
+    await page.waitForTimeout(700);
+    await expect(page.locator(".hand .peek")).toBeHidden();
+    await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: box.x + box.width / 2, y: box.y - 120, ...pen });
+  });
 });
 
 test.describe("phone portrait 412x915", () => {
@@ -223,7 +242,12 @@ test.describe("phone portrait 412x915", () => {
     await expect(page.getByRole("region", { name: "Your hand" })).toBeInViewport();
     expect((await boardBox(page)).height).toBe(peek.height);
     await expectInViewport(page, /Assign Banners →/);
-    await tray.click();
+    // Escape closes the tray, like the slide-over panel, and focus in the
+    // tray moves back to its toggle.
+    await page.getByRole("region", { name: "Your hand" }).getByRole("button").first().focus();
+    await page.keyboard.press("Escape");
+    await expect(tray).toHaveAttribute("aria-expanded", "false");
+    await expect(tray).toBeFocused();
 
     // Touch-target audit with a tool armed.
     await page.getByRole("button", { name: /Build Route/ }).click();

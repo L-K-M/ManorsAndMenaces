@@ -67,6 +67,12 @@
     clearTimeout(holdTimer);
     if (held) hidePeek();
   }
+  // A pointer the card has not captured (a pen, say) can slide off while
+  // still pressed; the hold must not fire for a card it no longer touches.
+  function pointerLeave() {
+    clearTimeout(holdTimer);
+    hidePeek();
+  }
 </script>
 
 {#if session.draft.ruleset.enableCards}
@@ -92,7 +98,7 @@
               aria-label="{t(`card.${id}.name`)} ({t(`card.type.${def.type}`)}): {t(`card.${id}.rules`)}"
               onclick={() => click(cardId)}
               onpointerenter={(e) => showPeek(e, cardId)}
-              onpointerleave={hidePeek}
+              onpointerleave={pointerLeave}
               onpointerdown={(e) => pressStart(e, cardId)}
               onpointerup={pressEnd}
               onpointercancel={pressEnd}
