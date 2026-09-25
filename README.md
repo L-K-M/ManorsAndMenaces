@@ -16,7 +16,7 @@ A competitive turn-based fantasy strategy board game for 2–4 players. Build ro
 ## Quick start
 
 ```sh
-corepack enable            # provides pnpm
+corepack enable            # provides pnpm (Node 25+: npm install -g corepack first)
 pnpm install
 pnpm dev                   # web client on http://localhost:5173
 pnpm server                # online server on http://localhost:8787 (optional)
