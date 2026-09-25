@@ -137,6 +137,9 @@ export function formatEvents(events: GameEvent[], state: GameState, map: MapDefi
       case "quest_revealed":
         push(t("log.quest_revealed", { quest: t(`quest.${e.questId}.name`) }), null, "info", e);
         break;
+      case "quest_expired":
+        push(t("log.quest_expired", { quest: t(`quest.${e.questId}.name`) }), null, "info", e);
+        break;
       case "effect_started":
         if (e.effect === "fog") push(t("log.fog", { name: nameOf(state, e.playerId) }), e.playerId, "info", e);
         break;

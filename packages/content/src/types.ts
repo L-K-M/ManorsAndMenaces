@@ -77,6 +77,8 @@ export interface CardDefinition {
   effectId: CardEffectId;
   copies: number;
   requiresMenace?: MenaceType;
+  /** Needs two active Menaces on the same kind of place; see CardRulesDefinition. */
+  requiresMenacePair?: true;
 }
 
 export interface QuestDefinition {

@@ -1,12 +1,14 @@
+import type { QuestConditionId } from "@manors-menaces/rules";
 import type { QuestDefinition } from "./types.js";
 
-// Prototype Royal Quests (spec §27.1).
-const quest = (id: string, renown: number): QuestDefinition => ({
+// Prototype Royal Quests (spec §27.1). Each Quest's id is its condition id,
+// so a typo fails the type check.
+const quest = (id: QuestConditionId, renown: number): QuestDefinition => ({
   id,
   nameKey: `quest.${id}.name`,
   renown,
   descriptionKey: `quest.${id}.description`,
-  conditionId: id as QuestDefinition["conditionId"],
+  conditionId: id,
   exclusive: true,
 });
 

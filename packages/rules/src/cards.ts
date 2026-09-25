@@ -6,9 +6,18 @@ import { own } from "./clone.js";
 import type { RulesContext } from "./context.js";
 import { check, RuleViolation } from "./errors.js";
 import { isResourceType } from "./resources.js";
-import { isLegalMenaceDestination, menaceOfType, sameLocation, wizardDestinations } from "./selectors.js";
+import { isLegalMenaceDestination, menaceLocationKind, menaceOfType, sameLocation, wizardDestinations } from "./selectors.js";
 import type { Tx } from "./tx.js";
-import { RESOURCE_TYPES, type CardEffectId, type CardId, type CardTarget, type GameState, type PlayerId } from "./types.js";
+import {
+  RESOURCE_TYPES,
+  type CardEffectId,
+  type CardId,
+  type CardRulesDefinition,
+  type CardTarget,
+  type GameState,
+  type PlayerId,
+  type RulesetConfig,
+} from "./types.js";
 
 /** Throws a RuleViolation if the target is not valid for the card right now. */
 export function validateCardTarget(ctx: RulesContext, state: GameState, playerId: PlayerId, cardId: CardId, target: CardTarget): void {
@@ -56,9 +65,17 @@ export function validateCardTarget(ctx: RulesContext, state: GameState, playerId
     case "very_minor_prophecy":
       check(state.cardDeck.length + state.discardPile.length > 0, "DECK_EMPTY");
       return;
-    case "fog_of_confusion":
+    case "fog_of_confusion": {
       check(ctx.board.hasRoute(target.routeId), "INVALID_CARD_TARGET", "unknown Route");
+      // §19.10: the Route "remains owned", so the target is someone else's
+      // Route. Fogging your own or an unowned one only wastes the card.
+      const owner = state.routeOwners[target.routeId];
+      check(owner !== undefined && owner !== playerId, "INVALID_CARD_TARGET", "needs an opponent's Route");
+      // Re-fogging another player's fog extends it; re-fogging your own changes nothing.
+      const mine = state.activeEffects.some((e) => e.kind === "fog" && e.routeId === target.routeId && e.sourcePlayerId === playerId);
+      check(!mine, "INVALID_CARD_TARGET", "already fogged by you");
       return;
+    }
     case "dragon_whisperer": {
       const dragon = menaceOfType(state, "young_dragon");
       check(dragon, "INVALID_CARD_TARGET", "Young Dragon is not active");
@@ -157,6 +174,22 @@ export function resolveCardEffect(tx: Tx, playerId: PlayerId, target: CardTarget
 
 export function isReactionOnly(effectId: CardEffectId): boolean {
   return effectId === "counterspell";
+}
+
+/**
+ * Whether a card could ever be played under this ruleset. Setup leaves the
+ * others out of the deck (§19), so nobody pays for a card that can't be used.
+ */
+export function isCardUsableInRuleset(def: CardRulesDefinition, ruleset: RulesetConfig): boolean {
+  if (!ruleset.enableReactionCards && isReactionOnly(def.effectId)) return false;
+  if (def.requiresMenace && !ruleset.activeMenaces.includes(def.requiresMenace)) return false;
+  if (def.requiresMenacePair) {
+    // A swap needs two Menaces on the same kind of place (§19.5). The 2-player
+    // set (Troll on a Region, Highwayman on a Route) never has such a pair.
+    const kinds = ruleset.activeMenaces.map(menaceLocationKind);
+    if (new Set(kinds).size === kinds.length) return false;
+  }
+  return true;
 }
 
 export { RuleViolation };

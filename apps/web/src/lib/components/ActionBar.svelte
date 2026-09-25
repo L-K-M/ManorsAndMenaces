@@ -76,7 +76,7 @@
       <button class:on={ui.tool === "upgrade"} disabled={legal.upgradeSites.length === 0} onclick={() => tool("upgrade")} title={`${t("cost.stronghold")} — ${t("help.stronghold")}`}>
         <span class="i"><ToolIcon name="stronghold" /></span>{t("action.upgrade")}<small>{t("cost.stronghold")}</small>
       </button>
-      <button disabled={legal.marketTradesLeft === 0 || (legal.marketGive.length === 0 && legal.tradePosts.length === 0)} onclick={() => ((ui.dialog = "market"), resetTool())} title={t("help.market")}>
+      <button disabled={legal.marketTradesLeft === 0 || (legal.marketGive.length === 0 && legal.tradePosts.length === 0)} onclick={() => ((ui.dialog = "market"), resetTool())} title={t("help.market", { give: gs.ruleset.market.give, receive: gs.ruleset.market.receive, limit: gs.ruleset.market.maxTradesPerTurn })}>
         <span class="i"><ToolIcon name="market" /></span>{t("action.trade")}<small>{t("status.trades_left", { count: legal.marketTradesLeft })}</small>
       </button>
       {#if gs.ruleset.writ.enabled}

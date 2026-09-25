@@ -907,13 +907,15 @@ Recommended copies are shown.
 
 **Type:** Spell  
 **Timing:** Main Action  
-**Effect:** Choose one of your Banners. During your next Harvest, if it produces Grain or Timber, gain +1 additional matching resource.
+**Effect:** Choose one of your Banners. During your next Harvest, if it produces Grain or Timber, gain +1 additional matching resource.  
+**Note:** A Banner at home is a valid choice. It pays off if you assign it to a Grain or Timber Region before your next Harvest, for example in the same turn's Banner Assignment.
 
 ## 19.5 Teleportation Mishap ×2
 
 **Type:** Spell  
 **Timing:** Main Action  
-**Effect:** Swap the positions of two Menaces if both resulting placements are legal.
+**Effect:** Swap the positions of two Menaces if both resulting placements are legal.  
+**Note:** A Menace can only stand on its own kind of place (§20), so the two Menaces must both be on Regions, both on Routes or both on Sites. When no two active Menaces share a kind, as with the 2-player set (§118: Toll Troll on a Region, Highwayman on a Route), the card can never be played, so setup leaves it out of the deck, just like cards whose required Menace is inactive.
 
 ## 19.6 Bribe the Troll ×2
 
@@ -944,7 +946,8 @@ Recommended copies are shown.
 
 **Type:** Spell  
 **Timing:** Main Action  
-**Effect:** Choose one Route. Until the start of your next turn, that Route cannot be used for network connectivity. It remains owned.
+**Effect:** Choose one Route owned by an opponent. Until the start of your next turn, that Route cannot be used for network connectivity. It remains owned.  
+**Note:** Fogging an unowned Route or your own would only waste the card. Fogging a Route that another player has already fogged is allowed and extends the fog to your next turn; fogging one you have already fogged is not.
 
 ## 19.11 Dragon Whisperer ×2
 
@@ -1203,7 +1206,9 @@ During one Harvest, gain all 5 resource types.
 
 ### Patron of Heroes — 1 Renown
 
-Play 3 Hero cards.
+Play 2 Hero cards.
+
+(v0.2 asked for 3. The deck holds only 5 Hero cards, and 3 in 2-player games where Dragon Whisperer is left out, so 3 was almost never reachable: under 2% for a player drawing 6 cards in a 2-player game, against about 20% for 2.)
 
 ### Arcane Scholar — 1 Renown
 
@@ -1224,6 +1229,19 @@ Own Holdings at two Sites whose graph distance is at least 6.
 ### The Safer Road — 1 Renown
 
 Twice during the match, move a Menace away from a location that affects you: a Region holding one of your Banners, a Route you own, or a Site holding your Holding.
+
+## 27.2 Optional rule: Quest expiry
+
+Off by default (`RulesetConfig.questExpiryRounds`, absent or 0). The base rules above replace a Quest only when it is claimed, so a Quest nobody can realistically complete can hold one of the 3 slots for the whole match (simulation: King's Highway and Patron of Heroes were on show for hundreds of player-turns without a claim).
+
+With the option set to N (the New Game screen offers `BALANCE.questExpiryRounds`, 4):
+
+- each revealed Quest remembers the round it was revealed in; the opening Quests count from round 1;
+- when a new round begins, each Quest that has been on show for N rounds without being claimed goes to the bottom of the Quest deck, and the top Quest of the deck takes its slot;
+- Quests are checked in slot order, and no more Quests leave than the deck held when the round began, so a Quest never returns at once; with an empty deck, nothing leaves;
+- the Quest panel shows how many rounds each Quest has left.
+
+No randomness is involved beyond the setup shuffle of the Quest deck (§30), so replays stay deterministic.
 
 ---
 

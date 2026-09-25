@@ -24,6 +24,8 @@ export const BALANCE = {
   handLimit: 7,
   maxNonReactionCardsPerTurn: 1,
   revealedQuestCount: 3,
+  /** Rounds an unclaimed Quest stays on offer when the opt-in expiry rule is chosen (§27.2). */
+  questExpiryRounds: 4,
   initialManors: 2,
   prophecyCards: 3,
 } as const;

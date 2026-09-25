@@ -4,7 +4,7 @@
 
 import { clone, own } from "./clone.js";
 import { BALANCE } from "./balance.js";
-import { isReactionOnly, resolveCardEffect, validateCardTarget } from "./cards.js";
+import { isCardUsableInRuleset, resolveCardEffect, validateCardTarget } from "./cards.js";
 import type { DebugCommand, GameCommand } from "./commands.js";
 import { createContext, type RulesContext } from "./context.js";
 import { check, OK, RuleViolation, type RuleError, type RuleValidation } from "./errors.js";
@@ -38,6 +38,7 @@ import {
   type MenaceInstance,
   type PlayerId,
   type PlayerState,
+  type QuestId,
   type RegionId,
   type ResourceType,
   type RulesContent,
@@ -154,9 +155,7 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
   let cardDeck: string[] = [];
   if (ruleset.enableCards) {
     for (const def of ctx.content.cards) {
-      if (!ruleset.enableReactionCards && isReactionOnly(def.effectId)) continue;
-      // Cards that need a Menace not in this game could never be played.
-      if (def.requiresMenace && !ruleset.activeMenaces.includes(def.requiresMenace)) continue;
+      if (!isCardUsableInRuleset(def, ruleset)) continue;
       for (let i = 1; i <= def.copies; i++) cardDeck.push(`${def.id}#${i}`);
     }
     cardDeck = rng.shuffle(cardDeck);
@@ -220,6 +219,8 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
     discardPile: [],
     questDeck,
     revealedQuestIds,
+    // The opening Quests are on show from round 1, when play begins.
+    ...(ruleset.enableQuests && ruleset.questExpiryRounds ? { revealedQuestRounds: Object.fromEntries(revealedQuestIds.map((q) => [q, 1])) } : {}),
     activeEffects: [],
     nextIds: { holding: 1, banner: 1 },
   };
@@ -494,11 +495,7 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   const p = tx.player(playerId);
   check(p.hand.length <= s.ruleset.handLimit, "HAND_OVER_LIMIT");
   // Refill revealed Quests.
-  while (s.ruleset.enableQuests && s.revealedQuestIds.length < s.ruleset.revealedQuestCount && s.questDeck.length > 0) {
-    const q = s.questDeck.shift() as string;
-    s.revealedQuestIds.push(q);
-    tx.emit({ type: "quest_revealed", questId: q });
-  }
+  while (s.ruleset.enableQuests && s.revealedQuestIds.length < s.ruleset.revealedQuestCount && s.questDeck.length > 0) revealTopQuest(tx);
   p.marketTradesThisTurn = 0;
   p.nonReactionCardsPlayedThisTurn = 0;
   p.writsIssuedThisTurn = 0;
@@ -520,7 +517,10 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   }
   const idx = s.turnOrder.indexOf(playerId);
   const nextIdx = (idx + 1) % s.turnOrder.length;
-  if (nextIdx === 0) s.round += 1;
+  if (nextIdx === 0) {
+    s.round += 1;
+    expireQuests(tx);
+  }
   s.turnNumber += 1;
   s.activePlayerId = s.turnOrder[nextIdx] as PlayerId;
   startTurn(tx, s.activePlayerId);
@@ -790,9 +790,47 @@ function claimQuest(tx: Tx, playerId: PlayerId, questId: string): void {
   check(!tx.player(playerId).claimedQuestIds.includes(questId), "QUEST_NOT_AVAILABLE", "already claimed");
   check(getQuestProgress(tx.ctx, s, playerId, questId).complete, "QUEST_NOT_COMPLETE");
   // Exclusive Quests (the default, §27) leave the pool; others stay for everyone.
-  if (tx.ctx.quest(questId).exclusive) s.revealedQuestIds = s.revealedQuestIds.filter((q) => q !== questId);
+  if (tx.ctx.quest(questId).exclusive) {
+    s.revealedQuestIds = s.revealedQuestIds.filter((q) => q !== questId);
+    if (s.revealedQuestRounds) delete s.revealedQuestRounds[questId];
+  }
   tx.player(playerId).claimedQuestIds.push(questId);
   tx.emit({ type: "quest_claimed", playerId, questId, renown: tx.ctx.quest(questId).renown });
+}
+
+/** Moves the top of the Quest deck into the display: into `slot`, or appended. */
+function revealTopQuest(tx: Tx, slot?: number): void {
+  const s = tx.s;
+  const q = s.questDeck.shift() as QuestId;
+  if (slot === undefined) s.revealedQuestIds.push(q);
+  else s.revealedQuestIds[slot] = q;
+  if (s.ruleset.questExpiryRounds) (s.revealedQuestRounds ??= {})[q] = s.round;
+  tx.emit({ type: "quest_revealed", questId: q });
+}
+
+/**
+ * Opt-in Quest expiry (§27.2), run as each new round begins. A Quest shown
+ * for `questExpiryRounds` rounds without being claimed goes to the bottom of
+ * the Quest deck, and the top Quest takes its slot. At most as many Quests
+ * expire as the deck holds, so an expired Quest never returns at once; with
+ * an empty deck the display stays as it is.
+ */
+function expireQuests(tx: Tx): void {
+  const s = tx.s;
+  const rounds = s.ruleset.questExpiryRounds ?? 0;
+  if (!s.ruleset.enableQuests || rounds <= 0) return;
+  const shownSince = (s.revealedQuestRounds ??= {});
+  let replacements = s.questDeck.length;
+  s.revealedQuestIds.forEach((q, slot) => {
+    // A Quest with no record (a state saved before the option was set) starts its clock now.
+    shownSince[q] ??= s.round;
+    if (replacements === 0 || s.round - shownSince[q] < rounds) return;
+    replacements -= 1;
+    delete shownSince[q];
+    tx.emit({ type: "quest_expired", questId: q });
+    revealTopQuest(tx, slot);
+    s.questDeck.push(q);
+  });
 }
 
 // ------------------------------------------------------------------ debug (§100)

@@ -73,18 +73,21 @@ export interface RegionTopology {
 export type CardType = "spell" | "hero" | "trick" | "charter" | "story";
 export type CardTiming = "main" | "reaction";
 
-export type CardEffectId =
-  | "wizard_interference"
-  | "counterspell"
-  | "knight_errant"
-  | "druids_blessing"
-  | "teleportation_mishap"
-  | "bribe_the_troll"
-  | "arcane_exchange"
-  | "festival_at_the_inn"
-  | "very_minor_prophecy"
-  | "fog_of_confusion"
-  | "dragon_whisperer";
+/** Every card effect the engine implements (content tests check each is used). */
+export const CARD_EFFECT_IDS = [
+  "wizard_interference",
+  "counterspell",
+  "knight_errant",
+  "druids_blessing",
+  "teleportation_mishap",
+  "bribe_the_troll",
+  "arcane_exchange",
+  "festival_at_the_inn",
+  "very_minor_prophecy",
+  "fog_of_confusion",
+  "dragon_whisperer",
+] as const;
+export type CardEffectId = (typeof CARD_EFFECT_IDS)[number];
 
 /** The subset of a card definition the rules engine needs. */
 export interface CardRulesDefinition {
@@ -95,21 +98,26 @@ export interface CardRulesDefinition {
   copies: number;
   /** Menace that must be active for the card to be playable. */
   requiresMenace?: MenaceType;
+  /** Needs two active Menaces that stand on the same kind of place (Teleportation Mishap, §19.5). */
+  requiresMenacePair?: true;
 }
 
-export type QuestConditionId =
-  | "kings_highway"
-  | "friend_of_the_forest"
-  | "monster_problems"
-  | "grand_tour"
-  | "master_builder"
-  | "diverse_realm"
-  | "patron_of_heroes"
-  | "arcane_scholar"
-  | "stone_and_timber"
-  | "prosperous_estates"
-  | "far_reaches"
-  | "the_safer_road";
+/** Every Quest condition the engine implements (content tests check each is used). */
+export const QUEST_CONDITION_IDS = [
+  "kings_highway",
+  "friend_of_the_forest",
+  "monster_problems",
+  "grand_tour",
+  "master_builder",
+  "diverse_realm",
+  "patron_of_heroes",
+  "arcane_scholar",
+  "stone_and_timber",
+  "prosperous_estates",
+  "far_reaches",
+  "the_safer_road",
+] as const;
+export type QuestConditionId = (typeof QUEST_CONDITION_IDS)[number];
 
 export interface QuestRulesDefinition {
   id: QuestId;
@@ -152,6 +160,12 @@ export interface RulesetConfig {
    * (index 0 = first player). A first-player-advantage lever (spec §129.4).
    */
   seatBonus?: ResourceCost[];
+  /**
+   * Opt-in (§27.2): a revealed Quest nobody claims for this many rounds is
+   * swapped with the top of the Quest deck at the start of a round. Absent
+   * or 0: Quests stay until claimed, as §27 describes.
+   */
+  questExpiryRounds?: number;
 }
 
 export interface PlayerConfig {
@@ -307,6 +321,8 @@ export interface GameState {
 
   questDeck: QuestId[];
   revealedQuestIds: QuestId[];
+  /** Round each revealed Quest appeared in; kept only when `ruleset.questExpiryRounds` is on. */
+  revealedQuestRounds?: Record<QuestId, number>;
 
   activeEffects: ActiveEffect[];
   pending?: PendingDecision;

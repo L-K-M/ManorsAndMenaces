@@ -18,7 +18,9 @@ import type {
 // Hidden information (card identities) is carried only in events that the
 // protocol layer filters per recipient (see views.ts: redactEvent).
 
-export type HarvestNote = "blocked_by_troll" | "converted_by_witch" | "taken_by_dragon" | "druids_blessing";
+/** Why a Banner's Harvest differs from its Region's plain yield (UI key `harvest.<note>`). */
+export const HARVEST_NOTES = ["blocked_by_troll", "converted_by_witch", "taken_by_dragon", "druids_blessing"] as const;
+export type HarvestNote = (typeof HARVEST_NOTES)[number];
 
 export type GameEvent =
   | { type: "resource_gained"; playerId: PlayerId; resource: ResourceType; amount: number; reason: ResourceReason }
@@ -82,6 +84,8 @@ export type GameEvent =
   | { type: "warden_hired"; playerId: PlayerId; menaceId: MenaceId }
   | { type: "quest_claimed"; playerId: PlayerId; questId: QuestId; renown: number }
   | { type: "quest_revealed"; questId: QuestId }
+  /** Unclaimed for `ruleset.questExpiryRounds` rounds: back to the bottom of the Quest deck. */
+  | { type: "quest_expired"; questId: QuestId }
   | { type: "phase_changed"; playerId: PlayerId; phase: TurnPhase }
   | { type: "setup_step"; playerId: PlayerId; step: "place_manor" | "place_route" | "assign_banners" }
   | { type: "turn_started"; playerId: PlayerId; turnNumber: number; round: number }

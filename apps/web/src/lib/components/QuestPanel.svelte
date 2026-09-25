@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getQuestProgress, type LegalActionSummary } from "@manors-menaces/rules";
+  import { getQuestProgress, questRoundsLeft, type LegalActionSummary } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import type { GameSession } from "../game/session.svelte.js";
 
@@ -27,12 +27,19 @@
       {#each gs.revealedQuestIds as q (q)}
         {@const def = session.ctx.quest(q)}
         {@const prog = viewer ? getQuestProgress(session.ctx, gs, viewer, q) : null}
+        {@const left = questRoundsLeft(gs, q)}
         <li class:ready={claimable.has(q)}>
           <div class="head">
             <strong>{t(`quest.${q}.name`)}</strong>
             <span class="renown">+{def.renown} ♛</span>
           </div>
           <p>{describe(q)}</p>
+          {#if left !== null}
+            <p class="expiry" class:soon={left === 1}>
+              <span aria-hidden="true">⌛</span>
+              {left === 1 ? t("ui.quest_expires_next_round") : t("ui.quest_expires_in", { count: left })}
+            </p>
+          {/if}
           {#if prog}
             <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax={prog.target} aria-valuenow={prog.current}>
               <span style="width: {(100 * prog.current) / prog.target}%"></span>
@@ -94,6 +101,16 @@
   p {
     margin: 0.15rem 0 0.3rem;
     font-size: 0.85rem;
+  }
+  .expiry {
+    margin-top: -0.15rem;
+    font-size: 0.75rem;
+    font-style: italic;
+    opacity: 0.75;
+  }
+  .expiry.soon {
+    color: #9a3b12;
+    opacity: 1;
   }
   .bar {
     height: 6px;

@@ -81,7 +81,7 @@
 
 {#if ui.dialog === "market" && legal?.mode === "main"}
   <Modal title={t("action.trade")} onclose={close}>
-    <p class="help">{t("help.market")} {t("status.trades_left", { count: legal.marketTradesLeft })}.</p>
+    <p class="help">{t("help.market", { give: gs.ruleset.market.give, receive: gs.ruleset.market.receive, limit: gs.ruleset.market.maxTradesPerTurn })} {t("status.trades_left", { count: legal.marketTradesLeft })}.</p>
     <h4>{t("ui.give")}</h4>
     <div class="grid">
       {#each giveOptions as o}

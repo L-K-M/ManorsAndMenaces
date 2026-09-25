@@ -84,7 +84,7 @@ export function testContent(): RulesContent {
       { id: "counterspell", type: "spell", timing: ["reaction"], effectId: "counterspell", copies: 2 },
       { id: "knight_errant", type: "hero", timing: ["main"], effectId: "knight_errant", copies: 3 },
       { id: "druids_blessing", type: "spell", timing: ["main"], effectId: "druids_blessing", copies: 2 },
-      { id: "teleportation_mishap", type: "spell", timing: ["main"], effectId: "teleportation_mishap", copies: 2 },
+      { id: "teleportation_mishap", type: "spell", timing: ["main"], effectId: "teleportation_mishap", copies: 2, requiresMenacePair: true },
       { id: "bribe_the_troll", type: "trick", timing: ["main"], effectId: "bribe_the_troll", copies: 2, requiresMenace: "toll_troll" },
       { id: "arcane_exchange", type: "spell", timing: ["main"], effectId: "arcane_exchange", copies: 2 },
       { id: "festival_at_the_inn", type: "story", timing: ["main"], effectId: "festival_at_the_inn", copies: 2 },

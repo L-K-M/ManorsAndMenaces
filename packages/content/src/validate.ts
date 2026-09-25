@@ -1,3 +1,4 @@
+import { ALL_MENACES, RESOURCE_TYPES, isResourceType, menaceLocationKind, type ResourceType } from "@manors-menaces/rules";
 import type { MapDefinition } from "./types.js";
 
 // Map validation (spec §102). Errors are fatal in dev; warnings report the
@@ -6,8 +7,13 @@ import type { MapDefinition } from "./types.js";
 export interface MapValidation {
   errors: string[];
   warnings: string[];
-  stats: { sites: number; routes: number; regions: number; capacity: number; maxIndependentSites: number };
+  stats: { sites: number; routes: number; regions: number; capacity: number; maxIndependentSites: number; byResource: Record<ResourceType, number> };
 }
+
+/** §11.1: fewer Regions of a resource than this makes it a bottleneck. */
+const MIN_REGIONS_PER_RESOURCE = 3;
+/** §17.3: a Trading Post should serve a real neighbourhood of Regions. */
+const MIN_TRADE_POST_REGIONS = 3;
 
 export function validateMap(map: MapDefinition, maxPlayers = 4): MapValidation {
   const errors: string[] = [];
@@ -25,10 +31,17 @@ export function validateMap(map: MapDefinition, maxPlayers = 4): MapValidation {
   const regions = new Map(map.regions.map((r) => [r.id, r]));
   const routes = new Map(map.routes.map((r) => [r.id, r]));
 
+  const sitePairs = new Map<string, string>();
   for (const r of map.routes) {
     if (!sites.has(r.siteA) || !sites.has(r.siteB)) errors.push(`route ${r.id} has an unknown endpoint`);
     if (r.siteA === r.siteB) errors.push(`route ${r.id} is a loop`);
+    const pair = [r.siteA, r.siteB].sort().join("|");
+    const twin = sitePairs.get(pair);
+    if (twin) errors.push(`route ${r.id} duplicates ${twin}`);
+    else sitePairs.set(pair, r.id);
   }
+  const landmarkIds = new Set(map.landmarks.map((l) => l.id));
+  const landmarkSites = new Map<string, string>();
   for (const s of map.sites) {
     if (!Number.isFinite(s.x) || !Number.isFinite(s.y)) errors.push(`site ${s.id} has no coordinates`);
     if (s.adjacentRegionIds.length === 0) errors.push(`site ${s.id} touches no Region`);
@@ -38,17 +51,36 @@ export function validateMap(map: MapDefinition, maxPlayers = 4): MapValidation {
       else if (!region.adjacentSiteIds.includes(s.id)) errors.push(`adjacency ${s.id}–${rid} is not symmetric`);
     }
     if (s.tradePost && s.landmarkId) errors.push(`site ${s.id} is both a landmark and a Trading Post`);
+    if (s.tradePost) {
+      const { resource, give } = s.tradePost;
+      if (!isResourceType(resource)) errors.push(`Trading Post at ${s.id} trades unknown resource ${String(resource)}`);
+      if (!Number.isInteger(give) || give < 2) errors.push(`Trading Post at ${s.id} must give a whole number ≥ 2, not ${give}`);
+      if (s.adjacentRegionIds.length < MIN_TRADE_POST_REGIONS) warnings.push(`Trading Post at ${s.id} touches only ${s.adjacentRegionIds.length} Regions`);
+    }
+    if (s.landmarkId) {
+      if (!landmarkIds.has(s.landmarkId)) errors.push(`site ${s.id} names unknown landmark ${s.landmarkId}`);
+      const other = landmarkSites.get(s.landmarkId);
+      if (other) errors.push(`landmark ${s.landmarkId} is on more than one Site (${other}, ${s.id})`);
+      landmarkSites.set(s.landmarkId, s.id);
+    }
   }
   for (const r of map.regions) {
-    if (!(r.capacity >= 1)) errors.push(`region ${r.id} has capacity < 1`);
+    if (!Number.isInteger(r.capacity) || r.capacity < 1) errors.push(`region ${r.id} capacity ${r.capacity} is not a whole number ≥ 1`);
+    if (!isResourceType(r.resource)) errors.push(`region ${r.id} has unknown resource ${String(r.resource)}`);
+    if (r.adjacentSiteIds.length === 0) errors.push(`region ${r.id} touches no Site`);
+    // A Royal Writ needs a Holding next to the Region, so one Site's owner keeps it for good.
+    else if (r.adjacentSiteIds.length === 1) warnings.push(`region ${r.id} touches only one Site, so no Writ can contest it`);
     for (const sid of r.adjacentSiteIds) {
       const site = sites.get(sid);
       if (!site) errors.push(`region ${r.id} references unknown site ${sid}`);
       else if (!site.adjacentRegionIds.includes(r.id)) errors.push(`adjacency ${r.id}–${sid} is not symmetric`);
     }
   }
-  for (const res of ["grain", "timber", "stone", "iron", "essence"] as const) {
-    if (!map.regions.some((r) => r.resource === res)) errors.push(`no ${res} Region`);
+  const byResource = {} as Record<ResourceType, number>;
+  for (const res of RESOURCE_TYPES) byResource[res] = map.regions.filter((r) => r.resource === res).length;
+  for (const res of RESOURCE_TYPES) {
+    if (byResource[res] === 0) errors.push(`no ${res} Region`);
+    else if (byResource[res] < MIN_REGIONS_PER_RESOURCE) warnings.push(`only ${byResource[res]} ${res} Regions`);
   }
   for (const l of map.landmarks) {
     const s = sites.get(l.siteId);
@@ -57,6 +89,7 @@ export function validateMap(map: MapDefinition, maxPlayers = 4): MapValidation {
   for (const sid of map.questParams.kingsHighway) {
     if (!sites.get(sid)?.landmarkId) errors.push(`King's Highway endpoint ${sid} is not a landmark`);
   }
+  if (map.questParams.kingsHighway[0] === map.questParams.kingsHighway[1]) errors.push("King's Highway endpoints are the same Site");
   const occupied = new Set<string>();
   for (const m of map.menaceStarts) {
     const loc = m.location;
@@ -65,6 +98,11 @@ export function validateMap(map: MapDefinition, maxPlayers = 4): MapValidation {
     occupied.add(key);
     const exists = loc.kind === "region" ? regions.has(loc.regionId) : loc.kind === "route" ? routes.has(loc.routeId) : sites.has(loc.siteId);
     if (!exists) errors.push(`Menace start for ${m.menaceType} is not on the map`);
+    if (loc.kind !== menaceLocationKind(m.menaceType)) errors.push(`${m.menaceType} must start on a ${menaceLocationKind(m.menaceType)}, not a ${loc.kind}`);
+  }
+  // Any Menace may be drawn for a game (§118), so each needs a start.
+  for (const type of ALL_MENACES) {
+    if (!map.menaceStarts.some((m) => m.menaceType === type)) errors.push(`no start for ${type}`);
   }
 
   // Connectivity.
@@ -93,7 +131,11 @@ export function validateMap(map: MapDefinition, maxPlayers = 4): MapValidation {
     warnings.push(`only ${maxIndependentSites} Sites can hold Holdings at once; §11.1 wants ≥ ${4 * maxPlayers}`);
   const midGameBanners = 3 * 6.5;
   if (capacity < 1.3 * midGameBanners) warnings.push(`Banner capacity ${capacity} is below 1.3× the mid-game estimate`);
-  return { errors, warnings, stats: { sites: map.sites.length, routes: map.routes.length, regions: map.regions.length, capacity, maxIndependentSites } };
+  return {
+    errors,
+    warnings,
+    stats: { sites: map.sites.length, routes: map.routes.length, regions: map.regions.length, capacity, maxIndependentSites, byResource },
+  };
 }
 
 /** Exact maximum independent set by branch and bound (fine for ≤ ~60 nodes). */
