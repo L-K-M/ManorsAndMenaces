@@ -2,6 +2,7 @@
 
 import {
   BALANCE,
+  addCost,
   computeBannerHarvest,
   RESOURCE_TYPES,
   getHarvestPreview,
@@ -17,6 +18,7 @@ import {
   type ResourceType,
   type RulesContext,
 } from "@manors-menaces/rules";
+import { BASE_NEED, planExpansion } from "./expansion.js";
 
 export const WEIGHTS = {
   renown: 8,
@@ -30,6 +32,8 @@ export const WEIGHTS = {
   wasted: 0.8,
   stock: 0.6,
   buildOptions: 0.9,
+  /** Per Route of progress toward the planned Site (see `ExpansionPlan.score`). */
+  expansion: 1.5,
   denial: 0.12,
   win: 1000,
 };
@@ -40,7 +44,7 @@ export const WEIGHTS = {
  */
 export function resourceNeeds(ctx: RulesContext, state: GameState, playerId: PlayerId): Record<ResourceType, number> {
   const p = state.players[playerId];
-  const need: Record<ResourceType, number> = { grain: 1, timber: 1, stone: 1, iron: 0.9, essence: 0.6 };
+  const need: Record<ResourceType, number> = { ...BASE_NEED };
   if (!p) return need;
   const holdings = getPlayerHoldings(state, playerId);
   const manors = holdings.filter((h) => h.type === "manor").length;
@@ -50,7 +54,10 @@ export function resourceNeeds(ctx: RulesContext, state: GameState, playerId: Pla
   // cards as a standing goal made the AI hoard Iron/Essence instead of building).
   const goals: { cost: Partial<Record<ResourceType, number>>; weight: number }[] = [];
   if (manors > 0) goals.push({ cost: BALANCE.costs.stronghold, weight: 0.45 });
-  goals.push({ cost: buildable ? BALANCE.costs.manor : { ...BALANCE.costs.route, ...BALANCE.costs.manor }, weight: 0.45 });
+  // With no Site to build on, save for the next Route plus the Manor. Only one
+  // Route is counted however far the planned Site is: saving for the whole
+  // path at once made the AI hoard instead of building step by step.
+  goals.push({ cost: buildable ? BALANCE.costs.manor : addCost(BALANCE.costs.route, BALANCE.costs.manor), weight: 0.45 });
   if (state.ruleset.enableCards && state.cardDeck.length + state.discardPile.length > 0 && p.hand.length < 2) {
     goals.push({ cost: BALANCE.costs.card, weight: 0.15 });
   }
@@ -133,12 +140,17 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
     const n = p.resources[r];
     // Concave: the first few of each resource matter most, but spending a
     // surplus is never free (otherwise the AI burns resources on interference).
-    stock += (Math.min(n, 4) + 0.3 * Math.max(0, n - 4)) * need[r];
+    // Beyond 8 more is worth nothing, so a hoard gets traded toward the goal.
+    stock += (Math.min(n, 4) + 0.3 * Math.max(0, Math.min(n, 8) - 4)) * need[r];
     if (n > 6) wasted += n - 6;
   }
   const diversity = RESOURCE_TYPES.filter((r) => preview.totals[r] > 0).length;
   const reach = getNetworkSites(ctx, state, playerId).length;
   const buildOptions = ctx.board.topology.sites.filter((s) => checkBuildManor(ctx, state, playerId, s.id).legal).length;
+  // Each Route toward the planned Site is worth a bit more than the resources
+  // it costs, so a multi-Route expansion pays off step by step instead of
+  // only at the final Manor.
+  const expansion = planExpansion(ctx, state, playerId)?.score ?? 0;
 
   let quest = 0;
   for (const q of state.revealedQuestIds) {
@@ -169,6 +181,7 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
     WEIGHTS.questProgress * quest +
     WEIGHTS.networkReach * 0.25 * reach +
     WEIGHTS.buildOptions * Math.min(buildOptions, 2) +
+    WEIGHTS.expansion * expansion +
     WEIGHTS.diversity * 0.5 * diversity +
     WEIGHTS.cardValue * Math.min(cards, 4) +
     WEIGHTS.menacePressureOnOpponents * opponents -
