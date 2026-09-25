@@ -2,7 +2,6 @@
   // In-game layout (spec §53): board first, side panel for players/quests/log,
   // bottom bar for hand, actions and harvest preview. On phones the side panel
   // becomes a slide-over and the bottom bar an action sheet.
-  import { RESOURCE_TYPES } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { legalFor } from "../game/interaction.js";
   import type { GameSession } from "../game/session.svelte.js";
@@ -11,6 +10,7 @@
   import { resetView, zoomAt, zoomTo, viewport } from "../stores/viewport.svelte.js";
   import ActionBar from "./ActionBar.svelte";
   import Board from "./Board.svelte";
+  import BoardHud from "./BoardHud.svelte";
   import DebugPanel from "./DebugPanel.svelte";
   import Dialogs from "./Dialogs.svelte";
   import HandPanel from "./HandPanel.svelte";
@@ -19,7 +19,7 @@
   import Overlays from "./Overlays.svelte";
   import PlayersPanel from "./PlayersPanel.svelte";
   import QuestPanel from "./QuestPanel.svelte";
-  import ResourceIcon from "./ResourceIcon.svelte";
+  import ResourcePurse from "./ResourcePurse.svelte";
   import SettingsDialog from "./SettingsDialog.svelte";
   import TutorialCoach from "./TutorialCoach.svelte";
 
@@ -82,7 +82,7 @@
     <span class="round">Round {Math.max(1, gs.round)}</span>
     {#if me}
       <div class="mine" aria-label={t("ui.your_resources")}>
-        {#each RESOURCE_TYPES as r}<span><ResourceIcon resource={r} size={18} />{me.resources[r]}</span>{/each}
+        <ResourcePurse {session} playerId={viewer ?? ""} />
       </div>
     {/if}
     <span class="spacer"></span>
@@ -100,9 +100,7 @@
       <button onclick={resetView} aria-label={t("ui.reset_view")}>⤢</button>
       <button onclick={zoomToMine} aria-label={t("ui.zoom_to_my_holdings")}>◎</button>
     </div>
-    {#each session.floaters.filter((f) => f.playerId === viewer) as f (f.id)}
-      <div class="floater" style="--i: {f.id % 5}"><ResourceIcon resource={f.resource as never} size={22} /> {f.text}</div>
-    {/each}
+    <BoardHud {session} />
     <Overlays {session} {onexit} {onrematch} />
     {#if tutorial}<TutorialCoach {session} onfinish={onexit} />{/if}
   </main>
@@ -180,11 +178,6 @@
     gap: 0.5rem;
     font-variant-numeric: tabular-nums;
   }
-  .mine span {
-    display: inline-flex;
-    gap: 0.15rem;
-    align-items: center;
-  }
   .spacer {
     flex: 1;
   }
@@ -206,31 +199,6 @@
     height: 44px;
     padding: 0;
     font-size: 1.2rem;
-  }
-  .floater {
-    position: absolute;
-    left: 50%;
-    bottom: 1rem;
-    transform: translateX(calc(var(--i) * 60px - 120px));
-    background: var(--paper);
-    border-radius: 999px;
-    padding: 0.2rem 0.6rem;
-    font-weight: 700;
-    animation: float 1.5s ease-out forwards;
-    pointer-events: none;
-  }
-  @keyframes float {
-    from {
-      opacity: 0;
-      translate: 0 20px;
-    }
-    20% {
-      opacity: 1;
-    }
-    to {
-      opacity: 0;
-      translate: 0 -80px;
-    }
   }
   .side {
     grid-area: side;

@@ -23,15 +23,22 @@ import { t } from "../i18n.js";
 import { platform } from "../platform/adapter.js";
 import { aiDelayMs, settings } from "../stores/settings.svelte.js";
 import { engineFor, mapFor } from "./engine.js";
+import { EventBus } from "./eventBus.js";
 import { formatEvents, type LogEntry } from "./log.js";
 import { recordGame } from "./telemetry.js";
 import { devlog } from "../devlog.js";
 
-export interface Floater {
-  id: number;
-  playerId: PlayerId;
-  text: string;
-  resource: string;
+/** One batch of engine events, published once on `GameSession.events`. */
+export interface SessionEvents {
+  events: GameEvent[];
+  state: GameState;
+  /** A buffered local action, shown before it is submitted (it may be undone). */
+  provisional: boolean;
+  /**
+   * The batch was sent by this client for one of its human seats. Its
+   * provisional events were already published when they were buffered.
+   */
+  own: boolean;
 }
 
 /** Transport for submitting command batches (local engine or online server). */
@@ -52,7 +59,6 @@ export interface NewGameOptions {
   matchId?: string;
 }
 
-let floaterId = 1;
 let commandSeq = 0;
 
 /** Who must act next: reaction/prophecy decisions come before the active player. */
@@ -74,7 +80,6 @@ export class GameSession {
   draft: GameState = $state() as GameState;
   buffered: GameCommand[] = $state([]);
   log: LogEntry[] = $state([]);
-  floaters: Floater[] = $state([]);
   error: string | null = $state(null);
   busy = $state(false);
   /** Player whose private information (hand) the UI shows. */
@@ -91,7 +96,8 @@ export class GameSession {
   private aiTimer: ReturnType<typeof setTimeout> | null = null;
   private aiRng: GameRng;
   private destroyed = false;
-  private listeners = new Set<(events: GameEvent[], state: GameState) => void>();
+  /** Every batch of events, for animation and feedback layers. */
+  readonly events = new EventBus<SessionEvents>();
 
   constructor(opts: {
     mapId: string;
@@ -163,11 +169,6 @@ export class GameSession {
     return actor;
   }
 
-  onEvents(fn: (events: GameEvent[], state: GameState) => void): () => void {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
-  }
-
   // ------------------------------------------------------------------ actions
 
   /** Perform an action for the local actor. Returns false if rejected. */
@@ -191,7 +192,7 @@ export class GameSession {
       this.undoStack.push({ state: this.draft, logIds });
       this.buffered = [...this.buffered, command];
       this.draft = r.newState;
-      this.notify(r.events, r.newState);
+      this.events.emit({ events: r.events, state: r.newState, provisional: true, own: true });
       return true;
     }
     // Locking commands are logged from the authoritative result, so an online
@@ -250,7 +251,8 @@ export class GameSession {
       this.draft = this.authoritative;
       this.buffered = [];
       this.undoStack = [];
-      this.notify(res.events, res.state);
+      const own = this.transport.kind === "online" || this.isHuman(batch[0]?.playerId);
+      this.events.emit({ events: res.events, state: res.state, provisional: false, own });
       this.afterStateChange(res.events);
     } finally {
       this.busy = false;
@@ -274,8 +276,8 @@ export class GameSession {
     if (!ownEcho) {
       this.appendLog(events, state);
       playForEvents(events);
+      this.events.emit({ events, state, provisional: false, own: false });
     }
-    this.notify(events, state);
     this.afterStateChange(events);
   }
 
@@ -288,23 +290,10 @@ export class GameSession {
     play("error");
   }
 
-  private notify(events: GameEvent[], state: GameState): void {
-    for (const fn of this.listeners) fn(events, state);
-  }
-
   /** Append formatted events; returns the ids of the new entries. */
   private appendLog(events: GameEvent[], state: GameState, provisional = false): number[] {
     const entries = formatEvents(events, state, this.map).map((e) => (provisional ? { ...e, provisional } : e));
     if (entries.length) this.log = [...this.log, ...entries].slice(-300);
-    for (const e of events) {
-      if (e.type === "resource_gained" && (e.reason === "harvest" || e.reason === "starting_resources")) {
-        const f: Floater = { id: floaterId++, playerId: e.playerId, text: `+${e.amount}`, resource: e.resource };
-        this.floaters = [...this.floaters, f];
-        setTimeout(() => {
-          if (!this.destroyed) this.floaters = this.floaters.filter((x) => x.id !== f.id);
-        }, 1600);
-      }
-    }
     return entries.map((e) => e.id);
   }
 
