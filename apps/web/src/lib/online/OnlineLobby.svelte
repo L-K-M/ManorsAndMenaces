@@ -4,9 +4,14 @@
   import { assignRivals, rivalName } from "../game/rivals.js";
   // Online lobby (spec §86): guest session, private invite links first,
   // your asynchronous matches, and joining by code.
-  import type { AiLevel, MatchView, SeatConfig } from "@manors-menaces/protocol";
+  import type { AiLevel, MatchHistoryResponse, MatchView, SeatConfig } from "@manors-menaces/protocol";
+  import { mapFor } from "../game/engine.js";
+  import { historyLog } from "../game/log.js";
+  import { ui } from "../stores/ui.svelte.js";
   import { GameSession } from "../game/session.svelte.js";
   import { ApiError, OnlineClient, onlineTransport } from "./client.js";
+  import { clearMatchRoute, matchRoute, setMatchRoute } from "./route.js";
+  import { lastSeenRevision, watchSeen } from "./seen.js";
   import ToolIcon from "../components/ToolIcon.svelte";
 
   let { onopen, onback }: { onopen: (s: GameSession) => void; onback: () => void } = $props();
@@ -25,10 +30,13 @@
   let aiLevel: AiLevel = $state("normal");
   let joinCode = $state(new URLSearchParams(location.hash.replace(/^#\/?join\/?/, "code=")).get("code") ?? "");
   let lobbyMatch: MatchView | null = $state(null);
+  /** The HTTP status of the last failed request, if the server answered. */
+  let errorStatus: number | null = null;
 
   async function guard<T>(fn: () => Promise<T>): Promise<T | undefined> {
     busy = true;
     error = null;
+    errorStatus = null;
     try {
       try {
         return await fn();
@@ -41,6 +49,7 @@
       }
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+      errorStatus = e instanceof ApiError ? e.status : null;
       return undefined;
     } finally {
       busy = false;
@@ -74,6 +83,16 @@
     if (signedIn) void refresh();
   });
 
+  // A reload (or a link) with #/match/ID reopens that match straight away.
+  const resumeId = matchRoute();
+  if (resumeId && client.token) void resume(resumeId);
+  async function resume(matchId: string) {
+    await openMatch(matchId);
+    // Not this guest's match (or gone): drop the link so the next reload opens
+    // the lobby instead of failing again. After a network error, keep it.
+    if (errorStatus === 403 || errorStatus === 404) clearMatchRoute();
+  }
+
   async function create() {
     // A random offset varies the line-up between matches, as in New Game.
     const rivalIds = assignRivals(
@@ -100,11 +119,11 @@
 
   let unsubscribeLobby: (() => void) | null = null;
   async function openMatch(matchId: string) {
-    const view = await guard(() => client.getMatch(matchId));
-    if (!view) return;
-    if (!view.state) {
+    const opened = await guard(() => client.history(matchId));
+    if (!opened) return;
+    if (!opened.match.state) {
       // Still in the lobby: wait for players, then open.
-      lobbyMatch = view;
+      lobbyMatch = opened.match;
       unsubscribeLobby?.();
       unsubscribeLobby = client.subscribe(
         matchId,
@@ -113,17 +132,18 @@
           if (m.state) {
             unsubscribeLobby?.();
             unsubscribeLobby = null;
-            launch(m);
+            // Fetch the history too: an AI seat may already have moved.
+            void openMatch(matchId);
           }
         },
         () => {},
       );
       return;
     }
-    launch(view);
+    launch(opened);
   }
 
-  function launch(view: MatchView) {
+  function launch({ match: view, entries, complete }: MatchHistoryResponse) {
     if (!view.state) return;
     const seats: SeatConfig[] = view.seats.map((s) => ({
       playerId: s.playerId,
@@ -132,6 +152,10 @@
       color: s.seat,
     }));
     let session: GameSession | null = null;
+    const revision = () => session?.authoritative.revision ?? view.revision;
+    // Read before this visit marks anything seen: the moves after it are new.
+    const lastSeen = lastSeenRevision(view.matchId);
+    const seen = watchSeen(view.matchId, revision);
     const unsubscribe = client.subscribe(
       view.matchId,
       (m, events) => {
@@ -140,15 +164,33 @@
         if (m.state) session.receiveRemote(m.state, events);
       },
       (connected) => (session ? (session.error = connected ? null : "Reconnecting…") : undefined),
+      // Each (re)connection asks for the moves made since what is on screen.
+      revision,
     );
+    const log = historyLog(entries, complete, lastSeen, view.state, mapFor(view.mapId));
+    // Moves were made while this player was away: open the Chronicle at them.
+    if (log.some((e) => e.kind === "divider")) ui.panel = "log";
     session = new GameSession({
       mapId: view.mapId,
       seats,
       initialState: view.state,
       state: view.state,
-      transport: onlineTransport(client, view.matchId, unsubscribe),
+      log,
+      transport: onlineTransport(client, view.matchId, () => {
+        unsubscribe();
+        stopSeen();
+        clearMatchRoute(view.matchId);
+      }),
       onlinePlayerId: view.youAre,
     });
+    const stopEvents = session.events.on(() => seen.update());
+    const stopSeen = () => {
+      stopEvents();
+      seen.stop();
+    };
+    seen.update();
+    // Keep the match in the address so a reload comes back to it.
+    setMatchRoute(view.matchId);
     onopen(session);
   }
 
