@@ -69,6 +69,9 @@ export function validateMap(map: MapDefinition, maxPlayers = 4): MapValidation {
     if (!isResourceType(r.resource)) errors.push(`region ${r.id} has unknown resource ${String(r.resource)}`);
     if (r.adjacentSiteIds.length === 0) errors.push(`region ${r.id} touches no Site`);
     // A Royal Writ needs a Holding next to the Region, so one Site's owner keeps it for good.
+    // A warning for now: Greenvale's Honeydew Pastures has one Site, and an error would
+    // make rulesContentFor refuse the shipped map. It becomes an error once the map
+    // generator stops leaving such Regions.
     else if (r.adjacentSiteIds.length === 1) warnings.push(`region ${r.id} touches only one Site, so no Writ can contest it`);
     for (const sid of r.adjacentSiteIds) {
       const site = sites.get(sid);

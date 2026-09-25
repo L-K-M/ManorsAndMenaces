@@ -89,7 +89,7 @@
           {o.amount}× <ResourceIcon resource={o.resource} /> {t(`resource.${o.resource}`)}{o.via ? " (Trading Post)" : ""}
         </button>
       {/each}
-      {#if giveOptions.length === 0}<p>{t("ui.you_need_3_of_one")}</p>{/if}
+      {#if giveOptions.length === 0}<p>{t("ui.you_need_3_of_one", { give: gs.ruleset.market.give })}</p>{/if}
     </div>
     {#if give}
       <h4>{t("ui.receive_1")}</h4>

@@ -30,7 +30,7 @@ export const BALANCE = {
   prophecyCards: 3,
 } as const;
 
-export const RULESET_VERSION = "0.2.0";
+export const RULESET_VERSION = "0.3.0";
 
 /** Fixed Menace sets by player count (spec §118). */
 export function standardMenaces(playerCount: number): MenaceType[] {

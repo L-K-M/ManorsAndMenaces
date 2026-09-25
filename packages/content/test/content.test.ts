@@ -6,8 +6,8 @@ import {
   RULESET_VERSION,
   clone,
   createRulesEngine,
+  enumerateCardTargets,
   evaluateQuestCondition,
-  isCardUsableInRuleset,
   standardRuleset,
   type CardType,
   type QuestConditionId,
@@ -72,17 +72,13 @@ describe("standard decks by player count", () => {
     expect(deck).toHaveLength(24);
     expect(deck.filter((c) => c === "teleportation_mishap")).toHaveLength(2);
   });
-  it("never deals a card that the ruleset makes unplayable", () => {
-    for (const players of [2, 3, 4]) {
-      const rs = standardRuleset(players);
-      for (const id of newGame(players).cardDeck)
-        expect(
-          isCardUsableInRuleset(
-            content.cards.find((c) => id.startsWith(`${c.id}#`))!,
-            rs,
-          ),
-        ).toBe(true);
-    }
+  // Checked through target enumeration, not the predicate setup uses. A
+  // Menace's kind of place never changes, so the opening board decides it.
+  it.each([2, 3, 4])("%i players: deals Teleportation Mishap only when it has a target", (players) => {
+    const s = newGame(players);
+    const dealt = s.cardDeck.some((c) => c.startsWith("teleportation_mishap#"));
+    const targets = enumerateCardTargets(engine.ctx, s, "P1", "teleportation_mishap#1");
+    expect(targets.length > 0).toBe(dealt);
   });
 });
 

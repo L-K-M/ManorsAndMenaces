@@ -289,7 +289,7 @@ export const EN: Record<string, string> = {
   "ui.state_hash": "State hash:",
   "ui.debug_tools": "Debug tools",
   "ui.give": "Give",
-  "ui.you_need_3_of_one": "You need 3 of one resource (or 2 at your Trading Post).",
+  "ui.you_need_3_of_one": "You need {give} of one resource, or the amount your Trading Post asks for.",
   "ui.receive_1": "Receive 1",
   "ui.choose_the_bribe": "Choose the bribe",
   "ui.give_1": "Give 1",

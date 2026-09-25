@@ -54,8 +54,18 @@ describe("validateMap", () => {
       r.adjacentSiteIds = [];
     });
     expect(errorsOf(empty)).toContainEqual(expect.stringMatching(/region_01 touches no Site/));
-    const lonely = GREENVALE_MAP.regions.find((r) => r.adjacentSiteIds.length === 1);
-    if (lonely) expect(validateMap(GREENVALE_MAP).warnings).toContainEqual(expect.stringContaining(`${lonely.id} touches only one Site`));
+    let lonelyId = "";
+    const lonely = mutate((m) => {
+      const r = m.regions.find((x) => x.adjacentSiteIds.length >= 2)!;
+      lonelyId = r.id;
+      for (const sid of r.adjacentSiteIds.slice(1)) {
+        const s = site(m, (x) => x.id === sid);
+        s.adjacentRegionIds = s.adjacentRegionIds.filter((id) => id !== r.id);
+      }
+      r.adjacentSiteIds = r.adjacentSiteIds.slice(0, 1);
+    });
+    expect(validateMap(lonely).warnings).toContainEqual(expect.stringContaining(`${lonelyId} touches only one Site`));
+    expect(errorsOf(lonely).filter((e) => e.includes(lonelyId))).toEqual([]);
   });
 
   it("rejects a Trading Post with an unknown resource or a bad rate", () => {
