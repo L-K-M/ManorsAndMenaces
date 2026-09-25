@@ -5,6 +5,7 @@
   import { RESOURCE_TYPES, type PlayerId } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { buildMatchReport, renownChart, type AwardId, type MatchStats } from "../game/matchReport.js";
+  import { planRematch } from "../game/rematch.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { animationScale } from "../stores/settings.svelte.js";
   import { MENACE_THEME, PLAYER_THEMES, RESOURCE_GLYPHS, emblemPath, type PlayerTheme } from "../theme.js";
@@ -31,7 +32,11 @@
       : null,
   );
   const barMax = $derived(Math.max(report.targetRenown, ...report.standings.map((r) => r.renown.total)));
-  const rematchLabel = $derived(session.transport.kind === "online" ? t("ui.back_to_lobby") : tutorial ? t("ui.play_real_game") : t("ui.play_again"));
+  // Label the button with what App's rematch() will actually do.
+  const rematchKind = $derived(
+    planRematch({ transport: session.transport.kind, tutorial, seats: session.seats, mapId: session.mapId, initialState: session.initialState }).kind,
+  );
+  const rematchLabel = $derived(rematchKind === "lobby" ? t("ui.back_to_lobby") : rematchKind === "new_game" ? t("ui.play_real_game") : t("ui.play_again"));
 
   let open = $state(true);
   let dialog: HTMLDivElement | undefined = $state();
@@ -44,13 +49,15 @@
 
   // Confetti of leaves: decorative, so plain Math.random is fine here.
   const LEAF_COUNT = 56;
-  const celebrate = $derived(animationScale() > 0);
+  // 0 when animations are off or reduced; 0.45 at "fast" shortens every beat.
+  const animScale = $derived(animationScale());
+  const celebrate = $derived(animScale > 0);
   const leaves = $derived.by(() => {
     const palette = [wt.color, wt.light, wt.color, "#6fae5a", "#d19a12", "#b8662a", "#8fbf5a"];
     return Array.from({ length: LEAF_COUNT }, (_, i) => ({
       left: Math.random() * 100,
-      delay: Math.random() * 1.6 + (i % 3) * 0.35,
-      duration: 3.2 + Math.random() * 2.6,
+      delay: (Math.random() * 1.6 + (i % 3) * 0.35) * animScale,
+      duration: (3.2 + Math.random() * 2.6) * animScale,
       drift: (Math.random() - 0.5) * 160,
       spin: 180 + Math.random() * 540,
       size: 12 + Math.random() * 11,
@@ -158,7 +165,7 @@
       aria-label={t("ui.victory")}
       tabindex="-1"
       onkeydown={keydown}
-      style="--pc: {wt.color}; --pl: {wt.light}; --pd: {wt.dark}"
+      style="--pc: {wt.color}; --pl: {wt.light}; --pd: {wt.dark}; --anim-scale: {animScale}"
     >
       <header class="hero">
         <svg class="pennant" viewBox="-30 -4 60 84" aria-hidden="true">
@@ -453,10 +460,10 @@
     background: #0004;
   }
   .celebrate .pennant {
-    animation: unfurl 0.9s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+    animation: unfurl calc(0.9s * var(--anim-scale, 1)) cubic-bezier(0.2, 1.4, 0.4, 1) both;
   }
   .celebrate .title {
-    animation: rise 0.6s 0.35s ease-out both;
+    animation: rise calc(0.6s * var(--anim-scale, 1)) calc(0.35s * var(--anim-scale, 1)) ease-out both;
   }
   @keyframes unfurl {
     from {

@@ -1,20 +1,21 @@
 import { describe, expect, it } from "vitest";
 import type { SeatConfig } from "@manors-menaces/protocol";
 import { mvpRuleset } from "@manors-menaces/rules";
-import { planRematch } from "../src/lib/game/rematch.js";
+import { TUTORIAL_SEED, planRematch } from "../src/lib/game/rematch.js";
 import { engine } from "./helpers.js";
 
 const seats: SeatConfig[] = [
   { playerId: "P1", displayName: "Ysolde", kind: "human", color: 2 },
   { playerId: "P2", displayName: "Wat", kind: "ai", aiLevel: "hard", color: 0 },
 ];
-const initialState = engine.createGame({
+const initialStateOptions = {
   matchId: "m",
   seed: "old-seed",
   rulesetVersion: "x",
   ruleset: mvpRuleset(),
   players: seats.map((s) => ({ id: s.playerId, displayName: s.displayName })),
-});
+};
+const initialState = engine.createGame(initialStateOptions);
 const finished = { seats, mapId: "greenvale", initialState };
 
 // Regression: "Play again" reused whatever local game the tab last started,
@@ -37,5 +38,10 @@ describe("planRematch", () => {
 
   it("sends tutorial players to a real game setup", () => {
     expect(planRematch({ ...finished, transport: "local", tutorial: true }).kind).toBe("new_game");
+  });
+
+  it("recognises a tutorial resumed from a save", () => {
+    const tutorialStart = engine.createGame({ ...initialStateOptions, seed: TUTORIAL_SEED });
+    expect(planRematch({ ...finished, initialState: tutorialStart, transport: "local", tutorial: false }).kind).toBe("new_game");
   });
 });

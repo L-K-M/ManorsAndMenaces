@@ -2,7 +2,7 @@
   import { isSaveFile, type SaveFile } from "@manors-menaces/protocol";
   import { mvpRuleset } from "@manors-menaces/rules";
   import { t } from "./lib/i18n.js";
-  import { planRematch } from "./lib/game/rematch.js";
+  import { TUTORIAL_SEED, planRematch } from "./lib/game/rematch.js";
   import { GameSession, type NewGameOptions } from "./lib/game/session.svelte.js";
   import { platform, type SaveSummary } from "./lib/platform/adapter.js";
   import { resetTool, ui } from "./lib/stores/ui.svelte.js";
@@ -46,7 +46,7 @@
           { playerId: "P2", displayName: "Lord Mumble", kind: "ai", aiLevel: "easy", color: 1 },
         ],
         ruleset: mvpRuleset(),
-        seed: "tutorial-1",
+        seed: TUTORIAL_SEED,
       },
       true,
     );

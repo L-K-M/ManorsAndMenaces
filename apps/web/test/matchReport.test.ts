@@ -74,6 +74,9 @@ describe("buildMatchReport", () => {
       expect(r.standings[0]?.stats.harvested).toBe(report.standings[0]?.stats.harvested);
       expect(r.awards.every((a) => a.id !== "trolls_best_customer")).toBe(true);
       expect(r.recap.at(-1)).toMatch(/was crowned/);
+      // Online games take this path, so the recap must still tell a story.
+      expect(r.recap.length).toBeGreaterThanOrEqual(3);
+      for (const line of r.recap) expect(line).not.toMatch(/\{\w+\}|recap\./);
     }
   });
 });

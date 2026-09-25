@@ -297,6 +297,22 @@ function buildRecap(state: GameState, standings: readonly PlayerResult[], events
     }
     const [restless, moved] = [...moves].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] ?? [null, 0];
     if (restless && moved >= 2) lines.push(t("recap.restless_menace", { menace: t(`menace.${restless}.name`), count: moved }));
+  } else {
+    // Without the history (online games), narrate from the final counters.
+    const harvester = maxBy(standings, (r) => r.stats.bestHarvest);
+    if (harvester && harvester.stats.bestHarvest > 1) {
+      lines.push(t("recap.best_harvest_any", { name: harvester.name, amount: harvester.stats.bestHarvest }));
+    }
+
+    const builder = soleLeader(standings, (r) => r.stats.routes + r.stats.manors + r.stats.strongholds);
+    if (builder) lines.push(t("recap.builder", { name: builder.name, count: builder.stats.routes + builder.stats.manors + builder.stats.strongholds }));
+
+    const herder = soleLeader(standings, (r) => r.stats.menacesMoved);
+    if (herder && herder.stats.menacesMoved >= 2) lines.push(t("recap.menace_herder", { name: herder.name, count: herder.stats.menacesMoved }));
+
+    const quester = soleLeader(standings, (r) => state.players[r.playerId]?.claimedQuestIds.length ?? 0);
+    const quests = quester ? (state.players[quester.playerId]?.claimedQuestIds.length ?? 0) : 0;
+    if (quester && quests > 0) lines.push(t(quests === 1 ? "recap.quest_leader_one" : "recap.quest_leader", { name: quester.name, count: quests }));
   }
 
   const worstLoss = maxBy(standings, (r) => r.stats.lostToMenaces ?? 0);
@@ -333,6 +349,14 @@ function maxBy<T>(items: readonly T[], score: (item: T) => number): T | null {
     }
   }
   return best;
+}
+
+/** Like maxBy, but null unless exactly one item has the highest score. */
+function soleLeader<T>(items: readonly T[], score: (item: T) => number): T | null {
+  const best = maxBy(items, score);
+  if (!best) return null;
+  const top = score(best);
+  return items.filter((item) => score(item) === top).length === 1 ? best : null;
 }
 
 // ------------------------------------------------------------------ chart
