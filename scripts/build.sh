@@ -128,11 +128,15 @@ detect_android_toolchain() {
   fi
   # Tauri's Android build needs JDK 17+; an older JDK fails cryptically
   # deep inside gradle. Best effort: accept when the version is unreadable.
-  local java_bin="$(command -v java 2>/dev/null || true)"
-  [[ -z "$java_bin" && -x "${JAVA_HOME:-/nonexistent}/bin/java" ]] && java_bin="$JAVA_HOME/bin/java"
+  local java_bin=""
+  if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/java" ]]; then
+    java_bin="$JAVA_HOME/bin/java"
+  else
+    java_bin="$(command -v java 2>/dev/null || true)"
+  fi
   if [[ -n "$java_bin" ]]; then
     local major
-    major="$($java_bin -version 2>&1 | head -1 | sed -nE 's/.*version "(1\.)?([0-9]+).*/\2/p')"
+    major="$("$java_bin" -version 2>&1 | head -1 | sed -nE 's/.*version "(1\.)?([0-9]+).*/\2/p')"
     if [[ -n "$major" && "$major" -lt 17 ]]; then
       ANDROID_FAIL="JDK $major is too old: the Android build needs JDK 17+ (set JAVA_HOME)"
       return 1
@@ -214,7 +218,7 @@ for target in "${TARGETS[@]}"; do
           # an already-installed app.
           TMP_APP="/Applications/.${NAME}.incoming"
           rm -rf "$TMP_APP"
-          if ditto "$APP" "$TMP_APP" 2>/dev/null || cp -R "$APP" "$TMP_APP"; then
+          if ditto "$APP" "$TMP_APP" 2>/dev/null || { rm -rf "$TMP_APP" && cp -R "$APP" "$TMP_APP"; }; then
             rm -rf "/Applications/$NAME"
             mv "$TMP_APP" "/Applications/$NAME"
           else
