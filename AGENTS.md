@@ -44,7 +44,7 @@
 
 ## Icons
 
-`media-sources/icon.svg` is the master. Regenerate all app icons with `pnpm tauri icon media-sources/icon.svg -o src-tauri/icons` and the web app manifest icons (including the maskable and Apple touch variants) with `node tools/generate-pwa-icons.mjs`; the derived icons are committed.
+`media-sources/icon.png` is the master; `media-sources/icon.json` adds the background colour for iOS, the Android adaptive icon and the web's full-bleed variants, and the Android foreground scale. Regenerate the desktop, iOS and Android icons with `pnpm tauri icon media-sources/icon.json -o src-tauri/icons` (the Android launcher icons land in `src-tauri/gen/android/app/src/main/res`), and the web favicon and manifest icons (including the maskable and Apple touch variants) with `node tools/generate-pwa-icons.mjs`; the derived icons are committed.
 
 ## Offline web app
 
