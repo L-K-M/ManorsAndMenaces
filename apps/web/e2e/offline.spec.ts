@@ -14,6 +14,9 @@ import { expect, test, type Page } from "@playwright/test";
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
 const viteBin = join(webRoot, "node_modules/vite/bin/vite.js");
 const STARTUP_TIMEOUT_MS = 30_000;
+// Installing and activating a new release's worker takes about 4 s locally
+// after a reload, close to expect.poll's 5 s default.
+const WORKER_ACTIVATION_TIMEOUT_MS = 20_000;
 
 let workDir = "";
 let preview: ChildProcess | null = null;
@@ -143,7 +146,7 @@ test.describe("installed web app", () => {
     await expect.poll(() => entryScript(page)).not.toBe(v1Script);
     await expect(page.getByRole("button", { name: "New game" })).toBeVisible();
     await expect(notice).toBeHidden();
-    await expect.poll(() => onlyCacheIsNewerThan(page, v1Caches)).toBe(true);
+    await expect.poll(() => onlyCacheIsNewerThan(page, v1Caches), { timeout: WORKER_ACTIVATION_TIMEOUT_MS }).toBe(true);
   });
 
   test("a page that already runs the new release updates its worker silently", async ({ page, context }) => {
@@ -156,7 +159,7 @@ test.describe("installed web app", () => {
     await serve(v2);
     await page.reload();
     await expect(page.getByRole("button", { name: "New game" })).toBeVisible();
-    await expect.poll(() => onlyCacheIsNewerThan(page, v1Caches)).toBe(true);
+    await expect.poll(() => onlyCacheIsNewerThan(page, v1Caches), { timeout: WORKER_ACTIVATION_TIMEOUT_MS }).toBe(true);
     await expect(page.getByRole("status").getByText("A new version")).toBeHidden();
 
     // The new release now starts offline.

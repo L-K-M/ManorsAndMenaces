@@ -14,6 +14,7 @@
 
 import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,6 +22,12 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const master = join(root, "media-sources/icon.svg");
 const outDir = join(root, "apps/web/public/icons");
+
+// The Tauri CLI's own entry point, run with this Node rather than through the
+// pnpm shim: Windows installs pnpm as a .cmd file, which Node spawns only via
+// a shell, and a shell would split the (temp) paths at spaces.
+const tauriPackage = createRequire(join(root, "package.json")).resolve("@tauri-apps/cli/package.json");
+const tauriCli = join(dirname(tauriPackage), JSON.parse(readFileSync(tauriPackage, "utf8")).bin.tauri);
 
 // The master's rounded background; the maskable variant replaces it with a square one.
 const ROUNDED_BACKGROUND = /<rect width="1024" height="1024" rx="\d+" fill="url\(#bg\)"\/>/;
@@ -33,7 +40,9 @@ function maskableSvg(svg) {
 }
 
 function render(svgPath, sizes, dir) {
-  const run = spawnSync("pnpm", ["exec", "tauri", "icon", svgPath, "-o", dir, "-p", sizes.join(",")], { cwd: root, encoding: "utf8" });
+  // -p is --png: render only these square sizes, each as NxN.png.
+  const run = spawnSync(process.execPath, [tauriCli, "icon", svgPath, "-o", dir, "-p", sizes.join(",")], { cwd: root, encoding: "utf8" });
+  if (run.error) throw new Error(`could not run the Tauri CLI: ${run.error.message}`);
   if (run.status !== 0) throw new Error(`tauri icon failed:\n${run.stdout}${run.stderr}`);
 }
 
