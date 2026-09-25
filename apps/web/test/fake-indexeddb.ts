@@ -69,8 +69,9 @@ class FakeTransaction {
     // Commit happens after the last request's success callback, as in IDB.
     setTimeout(() => {
       if (this.factory.failCommits) {
+        // A failed commit fires only "abort": no request failed, so no
+        // "error" event reaches the transaction.
         this.error = new Error("QuotaExceededError");
-        this.onerror?.({});
         this.onabort?.({});
         return;
       }
@@ -90,6 +91,7 @@ class FakeDatabase {
   constructor(private readonly factory: FakeIndexedDB) {}
   createObjectStore(_name: string, opts: { keyPath: string }) {
     this.keyPath = opts.keyPath;
+    this.factory.keyPath = opts.keyPath;
   }
   transaction(_store: string, _mode: string) {
     if (this.closed) throw new Error("InvalidStateError: the connection is closed");
@@ -103,6 +105,8 @@ class FakeDatabase {
 export class FakeIndexedDB {
   opens = 0;
   failCommits = false;
+  /** The store outlives connections, like its rows: reopening keeps it. */
+  keyPath = "id";
   private rows = new Map<string, unknown>();
   readonly connections: FakeDatabase[] = [];
 
@@ -112,6 +116,7 @@ export class FakeIndexedDB {
     setTimeout(() => {
       const db = new FakeDatabase(this);
       db.rows = this.rows;
+      db.keyPath = this.keyPath;
       const upgrade = this.connections.length === 0;
       this.connections.push(db);
       req.result = db;
