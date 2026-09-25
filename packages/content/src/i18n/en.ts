@@ -180,6 +180,7 @@ export const EN: Record<string, string> = {
   "error.INVALID_PAYMENT": "That payment isn't right.",
   "error.ROUTE_OCCUPIED": "That Route is already owned.",
   "error.SITE_OCCUPIED": "That Site is taken.",
+  "error.ALREADY_STRONGHOLD": "That Stronghold cannot be upgraded further.",
   "error.SITE_TOO_CLOSE": "Too close to another Holding.",
   "error.NOT_CONNECTED": "Not connected to your network.",
   "error.REGION_FULL": "That Region is full.",
