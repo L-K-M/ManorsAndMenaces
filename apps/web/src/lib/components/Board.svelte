@@ -586,7 +586,7 @@
           <path d={RESOURCE_GLYPHS[region.resource]} fill={region.resource === "grain" ? "none" : colors.dark} stroke={colors.dark} stroke-width={region.resource === "grain" ? 2 : 1} />
           <!-- capacity pips -->
           {#each Array.from({ length: region.capacity }) as _, i}
-            <circle cx={-6 + i * 12 - (region.capacity - 1) * 0} cy={LABEL.pipY} r="4" fill={i < occupants ? colors.dark : "#fffaf0"} stroke={colors.dark} stroke-width="1.5" opacity="0.8" />
+            <circle cx={(i - (region.capacity - 1) / 2) * 12} cy={LABEL.pipY} r="4" fill={i < occupants ? colors.dark : "#fffaf0"} stroke={colors.dark} stroke-width="1.5" opacity="0.8" />
           {/each}
         </g>
       </g>

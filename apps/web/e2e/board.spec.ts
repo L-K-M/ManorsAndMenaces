@@ -151,6 +151,20 @@ test.describe("labels", () => {
     expect(overlaps.flags).toBeGreaterThan(0);
     expect(overlaps.n).toBe(0);
   });
+
+  test("capacity pips are centred under the resource disc", async ({ page }) => {
+    await startHotseat(page);
+    const offsets = await page.evaluate(() =>
+      [...document.querySelectorAll(".region")].map((g) => {
+        const disc = g.querySelector('circle[r="17"]')!.getBoundingClientRect();
+        const pips = [...g.querySelectorAll('circle[r="4"]')].map((e) => e.getBoundingClientRect());
+        const pipsCentre = pips.reduce((sum, p) => sum + p.left + p.width / 2, 0) / pips.length;
+        return Math.abs(pipsCentre - (disc.left + disc.width / 2));
+      }),
+    );
+    expect(offsets.length).toBeGreaterThan(0);
+    expect(Math.max(...offsets)).toBeLessThan(0.5);
+  });
 });
 
 test.describe("labels on a phone", () => {
