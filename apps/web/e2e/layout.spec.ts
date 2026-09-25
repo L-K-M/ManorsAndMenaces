@@ -223,12 +223,12 @@ test.describe("touch tablet 1180x820", () => {
 
     // A pen is not captured by the card, so it leaves while still pressed.
     const cdp = await page.context().newCDPSession(page);
-    const pen = { button: "left", pointerType: "pen", clickCount: 1 } as const;
+    const pen = { button: "left", pointerType: "pen", clickCount: 1, buttons: 1 } as const;
     await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: box.x + box.width / 2, y: box.y + box.height / 2, ...pen });
     await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x + box.width / 2, y: box.y - 120, ...pen });
     await page.waitForTimeout(700);
     await expect(page.locator(".hand .peek")).toBeHidden();
-    await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: box.x + box.width / 2, y: box.y - 120, ...pen });
+    await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: box.x + box.width / 2, y: box.y - 120, ...pen, buttons: 0 });
   });
 });
 
