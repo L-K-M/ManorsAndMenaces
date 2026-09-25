@@ -57,6 +57,8 @@ let commandSeq = 0;
 
 /** How long a stuck AI seat waits before trying again (as on the server). */
 const AI_STUCK_RETRY_MS = 5000;
+/** How long an AI fallback notice stays up at least, so players can read it. */
+const AI_NOTICE_MIN_MS = 4000;
 
 /** Who must act next: reaction/prophecy decisions come before the active player. */
 export function currentActor(state: GameState): PlayerId | null {
@@ -104,7 +106,8 @@ export class GameSession {
   private aiInFlight = false;
   /** The last AI problem reported, so repeats in the same turn stay quiet. */
   private aiProblemKey = "";
-  private aiStuckNotice: string | null = null;
+  /** The AI problem shown as `error`, if any (the Chronicle keeps the record). */
+  private aiNotice: { text: string; stuck: boolean; shownAt: number } | null = null;
   private destroyed = false;
   private listeners = new Set<(events: GameEvent[], state: GameState) => void>();
 
@@ -341,6 +344,7 @@ export class GameSession {
         else this.viewerId = actor;
       }
       if (actor && !this.isHuman(actor)) this.scheduleAi();
+      else if (actor) this.expireAiNotice();
     } else if (events.some((e) => e.type === "turn_started" && e.playerId === this.onlinePlayerId)) {
       void platform.notify(t("app.title"), t("log.turn", { name: state.players[this.onlinePlayerId ?? ""]?.displayName ?? "" }));
     }
@@ -377,7 +381,7 @@ export class GameSession {
     // The game moved on while the AI was thinking (e.g. a debug command).
     if (this.authoritative !== state || this.busy) return this.scheduleAi();
     if (!step) return this.scheduleAi(AI_STUCK_RETRY_MS);
-    if (this.error !== null && this.error === this.aiStuckNotice) this.error = null;
+    if (!step.fellBack || this.aiNotice?.stuck) this.expireAiNotice();
     this.draft = step.newState;
     await this.flush([step.command]);
   }
@@ -423,9 +427,22 @@ export class GameSession {
     this.aiProblemKey = key;
     const name = state.players[actor]?.displayName ?? actor;
     const text = t(step ? "error.AI_FALLBACK" : "error.AI_STUCK", { name });
-    this.aiStuckNotice = step ? null : text;
+    this.aiNotice = { text, stuck: !step, shownAt: performance.now() };
     this.error = text;
     this.log = [...this.log, noticeEntry(text, actor)].slice(-300);
+  }
+
+  /**
+   * Take down the AI notice once play has moved on: a stuck notice as soon as
+   * the seat moves, a fallback notice once it has been up long enough to read.
+   * Otherwise the human's next action clears it, like any error.
+   */
+  private expireAiNotice(): void {
+    const notice = this.aiNotice;
+    if (!notice) return;
+    if (!notice.stuck && performance.now() - notice.shownAt < AI_NOTICE_MIN_MS) return;
+    this.aiNotice = null;
+    if (this.error === notice.text) this.error = null;
   }
 
   // ------------------------------------------------------------------ persistence
