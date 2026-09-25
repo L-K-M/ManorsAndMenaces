@@ -23,7 +23,7 @@ import { animationScale, settings } from "../stores/settings.svelte.js";
 import { AiClient } from "./aiClient.js";
 import { aiPaceDelayMs, aiStepPace, resolveAiStep, type AiStep } from "./aiStep.js";
 import { engineFor, mapFor } from "./engine.js";
-import { formatEvents, noticeEntry, type LogEntry } from "./log.js";
+import { formatEvents, noticeEntry, rebuildLog, type LogEntry } from "./log.js";
 import { initialView, nextView, privacyMode, revealView, type PrivacyMode, type PrivacyView } from "./privacy.js";
 import { autosavesToPrune, describeSave, exportFileName, manualSaveId, newAutosaveId, replayPending, saveLabel } from "./saves.js";
 import { recordGame } from "./telemetry.js";
@@ -133,6 +133,8 @@ export class GameSession {
     initialState: GameState;
     state: GameState;
     history?: GameCommand[];
+    /** The Chronicle so far, e.g. rebuilt from a save's history. */
+    log?: LogEntry[];
     /** Undoable actions of the turn in progress, from a save (see SaveFile). */
     pending?: GameCommand[];
     transport?: Transport;
@@ -154,6 +156,7 @@ export class GameSession {
     this.autosaveSlot = opts.autosaveSlot ?? newAutosaveId(opts.state.matchId);
     this.authoritative = opts.state;
     this.draft = opts.state;
+    this.log = (opts.log ?? []).slice(-300);
     for (const step of replayPending(this.engine, opts.state, opts.pending ?? [])) {
       this.undoStack.push({ state: step.before, logIds: this.appendLog(step.events, step.after, true) });
       // `buffered` is $state.raw: replace it, never mutate it.
@@ -187,12 +190,16 @@ export class GameSession {
    * continues in that row; otherwise the game autosaves to a new row.
    */
   static fromSave(save: SaveFile, opts: { autosave?: boolean; autosaveSlot?: string } = {}): GameSession {
+    // The Chronicle is not saved; rebuild it from the history. It goes in
+    // before the replayed pending actions so entry ids stay in log order.
+    const { entries } = rebuildLog(engineFor(save.mapId), mapFor(save.mapId), save.initialState, save.commandHistory, save.state);
     return new GameSession({
       mapId: save.mapId,
       seats: save.seats,
       initialState: save.initialState,
       state: save.state,
       history: save.commandHistory,
+      log: entries,
       pending: save.pendingCommands ?? [],
       fromSave: true,
       ...opts,

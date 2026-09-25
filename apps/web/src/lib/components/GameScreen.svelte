@@ -146,7 +146,7 @@
     {#each session.floaters.filter((f) => f.playerId === viewer) as f (f.id)}
       <div class="floater" style="--i: {f.id % 5}"><ResourceIcon resource={f.resource as never} size={22} /> {f.text}</div>
     {/each}
-    <Overlays {session} {onexit} {onrematch} />
+    <Overlays {session} {tutorial} {onexit} {onrematch} />
     {#if tutorial}<TutorialCoach {session} onfinish={onexit} />{/if}
   </main>
 
