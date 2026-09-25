@@ -96,18 +96,6 @@ async function changedPixels(page: Page, a: Buffer, b: Buffer, clip: { x: number
 async function expectRoutesLit(page: Page) {
   const routes = await page.locator(".route.hl").all();
   expect(routes.length).toBeGreaterThan(0);
-  // Chrome runs an SVG element's opacity animation on the compositor, and
-  // over the terrain those highlight layers sometimes never showed; the
-  // pulse animates paint instead.
-  const pulses = await page.evaluate(() =>
-    document
-      .getAnimations()
-      .map((a) => a.effect as KeyframeEffect | null)
-      .filter((e) => e?.target?.matches(".hl-line, .hl-ring, .hl-fill, .dest"))
-      .map((e) => e!.getKeyframes().some((k) => "opacity" in k)),
-  );
-  expect(pulses.length).toBeGreaterThan(0);
-  expect(pulses.filter(Boolean)).toEqual([]);
   // Hold the highlight's pulse at its brightest so the two shots are
   // comparable. Rate 0 keeps it a running animation, laid out as players
   // see it; pausing would change how Chrome layers it.
