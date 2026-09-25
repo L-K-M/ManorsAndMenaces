@@ -24,7 +24,7 @@ This is written for agents (human or LLM) picking up work.
 ## Status snapshot
 
 - Date: 2026-09-25.
-- `main` is at `65f4f89`.
+- `main` is at `7114d3a` (this document); the PR branches are based on `65f4f89` and merge cleanly with it.
 - 22 open PRs, none merged at the time of writing.
 - Baseline from the second review (do not redo it): the rules engine is solid. A 200-game random fuzzer (61k commands) found no invariant violations, no nondeterminism and no disagreement between the legal-action summary and the engine; the playout, replay and hash tests passed and CI was green on `main`. The problems sit around the engine: the online boundary, save safety, layout and readability, AI pacing and presentation. The written flavour (Lord Mumble, Grum, the goblins' invoice) is good, but almost none of it reaches the screen (see `delight-idea-menace-personality` and `delight-idea-town-crier`).
 
@@ -141,14 +141,30 @@ Items from the previous analysis that these PRs also cover (listed here, not in 
 
 ## Review gaps
 
-Automated review (GLM 5.3 via Z.ai) was heavily rate-limited (HTTP 429) during this round, because the Z.ai quota is shared with other agents' PRs on the same repository. Each failed run got one explanatory comment on its PR and at most one re-run (run one at a time); two consecutive failures were treated as a review gap and reported on the PR, never as approval. State as of 2026-09-25 03:30 UTC:
+Automated review (GLM 5.3 via Z.ai) was heavily rate-limited (HTTP 429) early on, because the Z.ai quota is shared with other agents' PRs on the same repository. Failed runs were re-run one at a time, at most once per head; two consecutive failures were treated as a review gap and reported on the PR, never as approval. Final state as of 2026-09-25 06:40 UTC (all PRs open and unmerged):
 
-- **No GLM review at all (gap reported on the PR):** #9 hotseat-privacy (head `2f8b2a9`) and #12 perf-stutter (head `d085e04`): the initial run and the one re-run both hit HTTP 429.
-- **Initial run rate-limited, one re-run pending or in progress:** #13 camera-input (re-run started 03:22), #14 responsive-layout, #16 ci-hardening, #17 server-robustness, #18 victory-screen, #20 offline-pwa, #21 ai-expansion, #22 content-fixes. Check each PR's conversation for the outcome; a second failure is reported there as a gap.
-- **Reviewed, but the latest head is not:** #8 (full review of `465a5a7`; its test-only fixes in `c2378eb` were rate-limited), #10 (full review of `9e3a66f`; the fixes in `57a8167` were rate-limited), #11 (partial review of `596823e`, chunk 4 of 4 failed; the fixes in `a172a5e` were rate-limited), #19 (full review of `d1a0c2e`; `b6bde1d` only adds a test guard and was rate-limited).
-- **Partial coverage, closed at steady state:** #15 board-readability (head `cabbca9`, GLM reviewed 1 of 4 chunks in both rounds) and #23 harvest-feedback (head `6e10165`, round 1 reviewed 1 of 4 chunks, round 2 4 of 5; a later round 3 passed).
-- **Fully reviewed:** #24 ai-rivals (two rounds, the second clean on `d8e3f9c`) and #25 terrain-art (a full round 1 on `5573259`, being addressed at the time of writing).
-- Every PR also went through an independent adversarial review by a separate agent before it was opened; its findings and triage are summarised in each PR body. Per-round decision records (applied, declined with reasons, refuted with evidence) are in the commit messages of the review-fix commits.
+| PR | Head | GLM review outcome |
+|---|---|---|
+| #8 online-spells | `c2378eb` | 2 rounds; steady state |
+| #9 hotseat-privacy | `2f8b2a9` | **No GLM review** (initial run and re-run both HTTP 429); gap reported on the PR |
+| #10 save-safety | `6dfef5f` | 2 rounds (round 1 found an important autosave-pruning bug, fixed); steady state |
+| #11 turn-flow | `497efe6` | 2 rounds; steady state |
+| #12 perf-stutter | `d085e04` | **No GLM review** (initial run and re-run both HTTP 429); gap reported on the PR |
+| #13 camera-input | `72052cc` | 2 rounds; steady state |
+| #14 responsive-layout | `0e1a572` | 3 rounds; steady state |
+| #15 board-readability | `cabbca9` | 2 partial rounds (1 of 4 chunks each); steady state |
+| #16 ci-hardening | `bdc51e4` | 2 rounds; steady state |
+| #17 server-robustness | `f5c3b8e` | 2 rounds; steady state |
+| #18 victory-screen | `efc6ff8` | 2 rounds (round 1 found an important load-path bug, fixed); steady state |
+| #19 storybook-look | `b6bde1d` | 2 rounds; steady state |
+| #20 offline-pwa | `ac46385` | 2 rounds (round 1 found the icon script broken on Windows, fixed); steady state |
+| #21 ai-expansion | `9a8cc3a` | 2 rounds; steady state |
+| #22 content-fixes | `2259a4b` | 3 rounds (round 1 found an important Quest-expiry bug, fixed); steady state |
+| #23 harvest-feedback | `6e10165` | 3 rounds (round 1 partial); steady state |
+| #24 ai-rivals | `d8e3f9c` | 2 rounds; steady state |
+| #25 terrain-art | `6f7d8c1` | 2 rounds; steady state |
+
+"Steady state" means two consecutive rounds without a confirmed important finding, or the reviewer re-raising items already declined with reasons. Every PR also went through an independent adversarial review by a separate agent before it was opened; its findings and triage are summarised in each PR body. Per-round decision records (applied, declined with reasons, refuted with evidence) are in the commit messages of the review-fix commits, and short evidence replies sit on the PR threads where a wrong claim was labelled major or blocker. #9 and #12 are the only PRs no automated reviewer has seen; review them by hand or re-run the GLM workflow before merging.
 
 ## Backlog
 
@@ -361,6 +377,9 @@ The previous analysis's build order, kept for reference and mapped to open PRs o
 - Proposal: a greedy MIS with the current result as a regression check; validate BFS results; accept 0 as a seed; expose tunables as options; write to a temp file and rename; fall back to the next candidate when no Goblin site fits. Do it as part of `content-single-map` step 1, which moves the generator into `packages/content`.
 - Tests: `--seed 0` produces a different map from 14; generation of seeds 1 to 50 finishes quickly with no NaN.
 - From the previous analysis: the root `vitest.config.ts` (`include` at line 5) collects only `packages/*/test`, `apps/server/test` and `tests/integration`, so nothing under `tools/**` (map generator, simulator) is ever tested. Put these tests under `tests/integration/` or add a `tools/test/**` include (the `apps/web/**` part of that note is handled by the open PRs; see `webstate-no-session-unit-tests`).
+- **#14, crowded wide top bar:** after the resource strip returned to the wide layout's top bar, 1280x720 with 1.5x text crowds the bar (names shortened, the third player shows a letter). Hide the title or round label in the wide layout when the bar is tight.
+- **#11, leftovers:** the ActionBar `.on` styling overrides `:disabled` when a Route or Manor tool stays selected after the player can no longer afford it (cosmetic); assert Buy Card is disabled before opening the Market in `turn-flow.spec.ts` (better failure message); add unit coverage for `missingAny`.
+- **#18, tutorial flag in saves:** the rematch plan recognises a tutorial by its fixed seed, so a normal game started with the custom seed "tutorial-1" gets "Play a real game". Store an explicit tutorial flag in the save file (a save-format change). Also cosmetic: `lostToMenaces` counts a Druid's Blessing Banner robbed by the dragon as 1 although it loses 2.
 
 ### Balance and rules design
 
@@ -1277,6 +1296,9 @@ Small leftovers that the open PRs disclosed or deferred, and declined review ite
 - **#8, online round trip:** online, a locking command now updates the board only after one server round trip, and if the server rejects it, undo-able actions buffered before it are dropped (as with any rejected batch). Consider re-applying the buffered prefix locally after a rejection.
 - **#22, content text:** the Fog flavour text still says "road" (flavour is exempt from the wording check); the i18n key `ui.you_need_3_of_one` keeps its old name although its text is now parameterised (rename when no branches touch it); the case for Patron of Heroes at 2 rests on the probability calculation (2 or more Heroes in 6 draws from 20 cards: about 20% against under 2% for 3), because the AI rarely buys cards.
 - **#21, board exhaustion in 4p Core:** 1 of 40 Normal games now reaches round 60 because every Site is taken and all four players hold only Strongholds below the 10 Renown target (Core has no Quests or cards). This is a rules or content dead end: consider a Core end condition (for example most Renown after N rounds) or a lower Core target in 4p.
+- **#22, `help.tradepost`:** the key hardcodes "2" and is unused; Trading Post rates vary per post in the map data. Remove the key, or have it take the post's rate once something shows it.
+- **#22, `questRoundsLeft` doc:** null means "not leaving at the coming round start" (permanent only while the deck is empty; a crowded due Quest can leave a round later). The return values are right; reword the doc comment in `packages/rules/src/quests.ts` and check the QuestPanel copy for null.
+- **#22, Patron of Heroes balance:** whether a target of 2 Heroes is too easy in 3 and 4 player games needs a simulation run (`pnpm simulate`) with card-buying AIs.
 
 ### Web client
 - **#10, AI while the menu is open:** AI turns keep running while the game menu is open. Pause AI stepping (the #12 scheduler in `session.svelte.ts`) while the menu or Settings is open in a local game.
@@ -1315,10 +1337,13 @@ Small leftovers that the open PRs disclosed or deferred, and declined review ite
 ### Online server
 - **#17, socket cap:** see `online-no-ws-heartbeat`. **Per-user rate bucket:** add a `u:${user.id}` bucket on authenticated routes (from `online-rate-limit-behind-proxy`). **Client command ids:** the client still uses predictable command ids; use `${playerId}-${random}` with a fallback where `crypto.randomUUID` is unavailable (non-HTTPS LAN origins), and when a retried batch returns ok with no events and a higher revision, keep the provisional log entries (from `online-command-id-idempotency-flaws`). **Real proxies:** `TRUST_PROXY` was not tested behind nginx, Caddy or Traefik.
 - **#16:** `eslint.config.js`, `svelte.config.js` and the `.mjs` scripts are still not type-checked; the smoke test requires `/sw.js`, so it must change if the service worker moves.
+- **#17, `aiFailures` cleanup:** entries are never removed once a match's AI is no longer due (one small entry per match whose AI step failed); clear them when the seat stops being due. **Concurrent 401s:** several requests failing with 401 at once could each start a guest-session renewal; share one in-flight renewal in the client.
 
 ### Tests and tooling
 - **Web tests environment:** several reviews asked for the Svelte plugin or a jsdom environment in the web vitest setup; declined as speculative while every web test is pure logic. Add them with the first test that imports a runes module (`webstate-no-session-unit-tests`).
 - **Shared e2e helpers:** #11's `turn-flow.spec.ts` duplicates helpers from `game.spec.ts` (declined in review as out of scope); extract an `apps/web/e2e/helpers.ts`.
+- **#21, expansion planner tests:** the test board has a single reachable Site, so nothing pins "nearest Site first" or the same-distance value tie-break. Add a board with a near low-value Site and a far rich one, and one with two equidistant Sites of different value.
+- **Windows:** #16's `build:check` and #20's icon generator were fixed for Windows (`pnpm.cmd` needs a shell; the icon script now runs the Tauri CLI entry through `process.execPath`), but neither was run on Windows.
 
 ## Refuted or already-implemented claims
 
@@ -1371,3 +1396,16 @@ From PR review rounds (claims an automated reviewer may raise again):
 - **"`GameMenu.leave` stays busy if `flushAutosave` rejects."** False: `flushAutosave` returns the autosave queue, which handles both outcomes (#10). **"`listSaves` now rejects."** Handled: its only UI caller catches and sets `savesUnavailable`; pruning is caught in `flushAutosave` (#10). **"`settingsFromMenu` goes stale."** False: Settings closes only through `onclose`, and the other `ui.dialog` writers are mutually exclusive (#10). **"The export file name embeds an unsanitized seed."** False: `exportFileName` uses the match id, slugified with `/[^\w-]+/g` (#10).
 - **"`button.suggested` is a Playwright strict-mode violation."** False: at most one receive button matches the suggestion, and trades are sequential (#11). **"The Claim button needs a double-click guard."** False: `perform()` returns false while busy, and the claimed button is removed before a second click (#11).
 - **"A rejected `flush()` may not set `this.error`."** False: `flush()` calls `showError(res.code)`, and the online transport maps `accepted: false` to the server's error code (#8).
+
+From the GLM rounds on PRs #8 to #25 (each checked against the code, a test or a probe):
+- **ESLint `no-restricted-imports` groups miss subpath imports** (`@manors-menaces/*`, `node:*`; #16). False: the groups use ignore-style matching, where a matched path also excludes everything below it; `node:*` matches `node:fs/promises`.
+- **A 4 KB WebSocket frame cap drops valid turns** (#17). False: commands travel over HTTP; the largest client socket message is a 71-byte subscribe.
+- **`commandsByIds` can exceed SQLite's parameter limit** (#17). False: batches over 50 commands are rejected before the query.
+- **Keyboard picks stop working after a board drag** (#13). False: the keyboard handler never goes through the drag-gated `pick()`.
+- **ActionBar toasts have no positioned parent** (#14). False: they anchor to `.dock` on purpose, measured on all three layouts.
+- **Rematch after a tutorial drops the coach; Master Builder counts Strongholds twice; the writs recap credits the leader with every writ** (#18). All false: a tutorial never offers "Play again"; founding and raising are separate builds; the recap names the realm total on purpose.
+- **`tauri icon -p` takes platform names** (#20). False for the pinned CLI 2.11.5: `-p, --png` takes pixel sizes, and the script reproduces the committed icons byte for byte.
+- **`passesSpacing` accepts held Sites** (#21). False: its first line rejects them.
+- **`session.undo()` must be awaited; a "dangerous function" in `turn-flow.spec.ts`** (#11). False: `undo()` is synchronous; the flagged line is a regex `.exec()`.
+- **`GameMenu.leave()` can leave the menu disabled** (#10). False: `flushAutosave()` never rejects; e2e probes with every IndexedDB call failing still exit.
+- **Awaiting `indexedDB.deleteDatabase` in e2e setup** (raised on most PRs). Not needed: every Playwright test runs in a fresh browser context.
