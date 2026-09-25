@@ -32,8 +32,10 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
-      - name: Map validation
-        run: node tools/generate-map.mjs --check
+      - name: Committed map matches the generator and validates
+        run: pnpm map:check
+      - name: Production web and server builds, server smoke test
+        run: pnpm build:check
 
   e2e:
     name: Playwright end-to-end
