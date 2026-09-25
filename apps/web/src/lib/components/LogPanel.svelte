@@ -8,10 +8,34 @@
   let showRaw = $state(false);
   const dev = import.meta.env.DEV;
 
+  // Follow mode: the list auto-scrolls only while it is pinned to the bottom,
+  // so reading older entries survives new ones arriving (spec §84).
+  const FOLLOW_THRESHOLD_PX = 40;
+  let following = $state(true);
+
+  function nearBottom(): boolean {
+    if (!listEl) return true;
+    return listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < FOLLOW_THRESHOLD_PX;
+  }
+
+  // Capture the scroll position before new entries render, then scroll in the
+  // next frame so the scrollHeight read does not force layout per append.
+  $effect.pre(() => {
+    void session.log.length;
+    following = nearBottom();
+  });
   $effect(() => {
     void session.log.length;
-    if (listEl) listEl.scrollTop = listEl.scrollHeight;
+    if (!following) return;
+    requestAnimationFrame(() => {
+      if (following && listEl) listEl.scrollTop = listEl.scrollHeight;
+    });
   });
+
+  function jumpToLatest(): void {
+    following = true;
+    if (listEl) listEl.scrollTop = listEl.scrollHeight;
+  }
 </script>
 
 <section class="log" aria-label={t("ui.game_log")}>
@@ -19,15 +43,18 @@
     <h3>{t("ui.chronicle")}</h3>
     {#if dev}<label><input type="checkbox" bind:checked={showRaw} /> {t("ui.details")}</label>{/if}
   </header>
-  <ol bind:this={listEl} aria-live="polite">
-    {#each session.log as entry (entry.id)}
-      {@const seat = session.seat(entry.playerId)}
-      <li class={entry.kind} style="--pc: {entry.playerId ? (PLAYER_THEMES[seat?.color ?? 0]?.color ?? '#555') : '#555'}">
-        {entry.text}
-        {#if showRaw && entry.raw}<code>{JSON.stringify(entry.raw)}</code>{/if}
-      </li>
-    {/each}
-  </ol>
+  <div class="list-wrap">
+    <ol bind:this={listEl} aria-live="polite" onscroll={() => (following = nearBottom())}>
+      {#each session.log as entry (entry.id)}
+        {@const seat = session.seat(entry.playerId)}
+        <li class={entry.kind} style="--pc: {entry.playerId ? (PLAYER_THEMES[seat?.color ?? 0]?.color ?? '#555') : '#555'}">
+          {entry.text}
+          {#if showRaw && entry.raw}<code>{JSON.stringify(entry.raw)}</code>{/if}
+        </li>
+      {/each}
+    </ol>
+    {#if !following}<button class="jump" onclick={jumpToLatest}>↓ {t("ui.jump_to_latest")}</button>{/if}
+  </div>
 </section>
 
 <style>
@@ -44,6 +71,9 @@
   }
   label {
     font-size: 0.75rem;
+  }
+  .list-wrap {
+    position: relative;
   }
   ol {
     list-style: none;
@@ -73,5 +103,16 @@
     font-size: 0.65rem;
     opacity: 0.6;
     word-break: break-all;
+  }
+  .jump {
+    position: sticky;
+    bottom: 0.3rem;
+    display: block;
+    margin: 0.3rem auto 0;
+    min-height: 34px;
+    padding: 0.15rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    box-shadow: 0 4px 12px #0003;
   }
 </style>
