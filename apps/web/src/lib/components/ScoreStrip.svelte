@@ -19,8 +19,10 @@
     if (!list || !li) return;
     const box = list.getBoundingClientRect();
     const r = li.getBoundingClientRect();
-    if (r.left < box.left) list.scrollLeft -= box.left - r.left;
-    else if (r.right > box.right) list.scrollLeft += r.right - box.right;
+    // Scroll offsets snap to whole pixels: round the distance up, or a
+    // fractional scroll can leave the chip a sliver short of the edge.
+    if (r.left < box.left) list.scrollLeft -= Math.ceil(box.left - r.left);
+    else if (r.right > box.right) list.scrollLeft += Math.ceil(r.right - box.right);
   }
   $effect(() => {
     void actor;

@@ -364,4 +364,18 @@ test.describe("small phone 360x740", () => {
     await expect(active).toBeInViewport({ ratio: 1 });
     expect(await pageFits(page)).toEqual({ scrollsX: false, scrollsY: false });
   });
+
+  test("the player to act is never clipped by a fraction of a pixel", async ({ page }) => {
+    // Scroll offsets snap to whole pixels, so scrolling the strip by a
+    // fractional distance can leave the active chip a sliver short of the
+    // edge. Which Text size hits that depends on the browser's font metrics
+    // (150% in CI's Chrome); scales past the slider's 150% stand in for them.
+    await startVsAi(page, 4);
+    await completeSetup(page);
+    const active = page.locator(".scoreboard [aria-current='true']");
+    for (let scale = 1.5; scale <= 2; scale += 0.05) {
+      await page.evaluate((s) => document.documentElement.style.setProperty("--text-scale", String(s)), scale);
+      await expect(active, `text scale ${scale.toFixed(2)}`).toBeInViewport({ ratio: 1 });
+    }
+  });
 });
