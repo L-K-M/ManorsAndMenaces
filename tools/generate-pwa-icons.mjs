@@ -24,6 +24,9 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const master = join(root, "media-sources/icon.png");
 const manifest = JSON.parse(readFileSync(join(root, "media-sources/icon.json"), "utf8"));
+if (typeof manifest.bg_color !== "string" || !/^#[0-9a-f]{3,8}$/i.test(manifest.bg_color)) {
+  throw new Error("media-sources/icon.json must set bg_color to a hex colour, e.g. #244a27.");
+}
 const publicDir = join(root, "apps/web/public");
 const outDir = join(publicDir, "icons");
 
