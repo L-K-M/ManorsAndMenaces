@@ -71,18 +71,20 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 VERSION=$(node -p "require('./package.json').version")
 
-version_at_least() { # have want: compares major.minor
-  local h1 h2 w1 w2 rest
-  IFS=. read -r h1 h2 rest <<<"$1"
-  IFS=. read -r w1 w2 rest <<<"$2"
-  (( h1 > w1 || (h1 == w1 && ${h2:-0} >= ${w2:-0}) ))
+version_at_least() { # have want: compares major.minor.patch; missing parts count as 0
+  local h1 h2 h3 w1 w2 w3 rest
+  IFS=. read -r h1 h2 h3 rest <<<"${1%%-*}"
+  IFS=. read -r w1 w2 w3 rest <<<"${2%%-*}"
+  (( ${h1:-0} != ${w1:-0} )) && { (( ${h1:-0} > ${w1:-0} )); return; }
+  (( ${h2:-0} != ${w2:-0} )) && { (( ${h2:-0} > ${w2:-0} )); return; }
+  (( ${h3:-0} >= ${w3:-0} ))
 }
 
 # Every target starts with `pnpm install`, so settle Node and pnpm first:
 # an older Node's corepack fails with "Cannot find matching keyid", and
 # Node 25 and later ship no corepack at all.
 NODE_HAVE="$(node -p process.versions.node)"
-NODE_WANT="$(node -p "require('./package.json').engines.node.match(/\d+(\.\d+)?/)[0]")"
+NODE_WANT="$(node -p "require('./package.json').engines.node.match(/\d+(\.\d+){0,2}/)[0]")"
 NODE_PROBLEM=""
 if ! version_at_least "$NODE_HAVE" "$NODE_WANT"; then
   NODE_PROBLEM="Node $NODE_HAVE is older than the $NODE_WANT this project needs (with nvm: nvm install && nvm use)"
@@ -181,6 +183,8 @@ detect_android_toolchain() {
 }
 
 ANDROID_RUST_TARGETS=(aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android)
+ANDROID_RUST_BIN=""
+ANDROID_RUST_NOTE=""
 
 missing_android_targets() { # rustc: prints the targets it has no std for
   local target libdir missing=""
@@ -304,8 +308,9 @@ for target in "${TARGETS[@]}"; do
       # means the .app is complete and bundle_dmg.sh failed after it. Its
       # usual cause is the AppleScript that lays out the DMG window: it
       # needs the terminal to have Automation access to Finder. Tauri skips
-      # that step when CI=true, so retry once without it.
-      if [[ $desktop_status -ne 0 && "$(uname)" == "Darwin" ]] &&
+      # that step when CI=true, so retry once without it (unless CI=true
+      # already skipped it).
+      if [[ $desktop_status -ne 0 && "$(uname)" == "Darwin" && "${CI:-}" != "true" ]] &&
         [[ -n "$(find src-tauri/target -maxdepth 7 -path "*/$BUNDLE_PROFILE/bundle/macos/*.app/Contents/Info.plist" -newer "$BUILD_MARK" -print -quit 2>/dev/null)" ]]; then
         echo ".. desktop: the .app was built but the DMG was not; retrying without the Finder window layout"
         CI=true $PNPM tauri build $DEBUG_FLAG

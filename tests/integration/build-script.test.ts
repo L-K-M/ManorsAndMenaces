@@ -63,11 +63,12 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
     writeScript(join(dir, "tauri-build.sh"), body);
   }
 
-  function run(...args: string[]): { status: number | null; output: string } {
+  function run(args: string[], extraEnv: Record<string, string> = {}): { status: number | null; output: string } {
     const result = spawnSync(join(bin, "bash"), [join(repo, "scripts", "build.sh"), ...args], {
       cwd: repo,
       encoding: "utf8",
       env: {
+        ...extraEnv,
         PATH: bin,
         HOME: join(dir, "home"),
         ANDROID_HOME: join(dir, "sdk"),
@@ -76,6 +77,11 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
       },
     });
     return { status: result.status, output: result.stdout + result.stderr };
+  }
+
+  function fakeNodeVersion(version: string): void {
+    rmSync(join(bin, "node"));
+    writeScript(join(bin, "node"), `if [ "$1" = -p ] && [ "$2" = process.versions.node ]; then echo ${version}; exit 0; fi\nexec "${process.execPath}" "$@"`);
   }
 
   function pnpmCalls(): string[] {
@@ -114,27 +120,35 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
 
   describe("Node and pnpm", () => {
     it("stops before installing when Node is older than package.json allows", () => {
-      rmSync(join(bin, "node"));
-      writeScript(join(bin, "node"), `if [ "$1" = -p ] && [ "$2" = process.versions.node ]; then echo 20.18.0; exit 0; fi\nexec "${process.execPath}" "$@"`);
+      fakeNodeVersion("20.18.0");
 
-      const { status, output } = run("web");
+      const { status, output } = run(["web"]);
 
       expect(output).toMatch(/Node 20\.18\.0 is older than the 22\.14/);
       expect(pnpmCalls()).toEqual([]);
       expect(status).toBe(1);
     });
 
+    it("holds Node to the patch level package.json names", () => {
+      writeFileSync(join(repo, "package.json"), JSON.stringify({ version: "0.0.0", engines: { node: ">=22.14.3" } }));
+      fakeNodeVersion("22.14.0");
+      expect(run(["web"]).status).toBe(1);
+
+      fakeNodeVersion("22.14.3");
+      expect(run(["web"]).status).toBe(0);
+    });
+
     it("explains how to get pnpm when Node ships without corepack", () => {
       rmSync(join(bin, "pnpm"));
 
-      const { status, output } = run("web");
+      const { status, output } = run(["web"]);
 
       expect(output).toContain("npm install -g corepack");
       expect(status).toBe(1);
     });
 
     it("keeps corepack from stopping to ask before it downloads pnpm", () => {
-      expect(run("web").status).toBe(0);
+      expect(run(["web"]).status).toBe(0);
       expect(pnpmCalls().every((call) => call.endsWith("PROMPT=0"))).toBe(true);
     });
   });
@@ -145,7 +159,7 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
       const rustup = rustToolchain("rustup", ANDROID_TARGETS);
       fakeRustup(rustup);
 
-      const { status, output } = run("android");
+      const { status, output } = run(["android"]);
 
       const androidBuild = pnpmCalls().find((call) => call.startsWith("tauri android build"));
       expect(androidBuild).toContain(`PATH=${rustup}:`);
@@ -156,7 +170,7 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
     it("builds with the rustc on PATH when it has the Android targets", () => {
       onPath(rustToolchain("rustup", ANDROID_TARGETS));
 
-      expect(run("android").status).toBe(0);
+      expect(run(["android"]).status).toBe(0);
       expect(pnpmCalls().find((call) => call.startsWith("tauri android build"))).toContain(`PATH=${bin}`);
     });
 
@@ -164,7 +178,7 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
       onPath(rustToolchain("homebrew", []));
       fakeRustup(rustToolchain("rustup", ["aarch64-linux-android"]));
 
-      const { status, output } = run("android");
+      const { status, output } = run(["android"]);
 
       expect(output).toContain("rustup target add armv7-linux-androideabi i686-linux-android x86_64-linux-android");
       expect(pnpmCalls().some((call) => call.startsWith("tauri android"))).toBe(false);
@@ -174,7 +188,7 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
     it("points to rustup when the only Rust has no Android targets", () => {
       onPath(rustToolchain("homebrew", []));
 
-      const { status, output } = run("android");
+      const { status, output } = run(["android"]);
 
       expect(output).toContain("https://rustup.rs");
       expect(pnpmCalls().some((call) => call.startsWith("tauri android"))).toBe(false);
@@ -186,7 +200,7 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
       const rustup = rustToolchain("rustup", ANDROID_TARGETS);
       fakeRustup(rustup);
 
-      const { status, output } = run("--check", "android");
+      const { status, output } = run(["--check", "android"]);
 
       expect(output).toMatch(new RegExp(`rust std: .*${rustup}`));
       expect(status).toBe(0);
@@ -203,7 +217,7 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
       // Tauri skips the Finder AppleScript when CI=true.
       fakeTauriBuild(`mkdir -p "${APP}" && : > "${APP}/Info.plist"\n[ "$CI" = true ] || exit 1\nmkdir -p "${DMG}" && : > "${DMG}/Test.dmg"`);
 
-      const { status, output } = run("desktop");
+      const { status, output } = run(["desktop"]);
 
       const builds = pnpmCalls().filter((call) => call.startsWith("tauri build"));
       expect(builds).toHaveLength(2);
@@ -213,10 +227,19 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
       expect(status).toBe(0);
     });
 
+    it("does not retry when CI=true already skipped the Finder layout", () => {
+      fakeTauriBuild(`mkdir -p "${APP}" && : > "${APP}/Info.plist"\nexit 1`);
+
+      const { status } = run(["desktop"], { CI: "true" });
+
+      expect(pnpmCalls().filter((call) => call.startsWith("tauri build"))).toHaveLength(1);
+      expect(status).toBe(1);
+    });
+
     it("does not retry a build that failed before the .app was bundled", () => {
       fakeTauriBuild("exit 1");
 
-      const { status } = run("desktop");
+      const { status } = run(["desktop"]);
 
       expect(pnpmCalls().filter((call) => call.startsWith("tauri build"))).toHaveLength(1);
       expect(status).toBe(1);
