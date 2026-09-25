@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { RESOURCE_TYPES, getHarvestPreview, getPlayerHoldings, getRenown } from "@manors-menaces/rules";
+  import { RESOURCE_TYPES, getHarvestPreview, getPlayerHoldings, getRenown, type HarvestNote } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { gainsText } from "../game/feed.js";
   import type { GameSession } from "../game/session.svelte.js";
@@ -11,6 +11,9 @@
   let { session }: { session: GameSession } = $props();
   const gs = $derived(session.draft);
   const actor = $derived(currentActor(gs));
+
+  /** Notes that cost a rival part of their Harvest; a Druid's Blessing is a bonus, not a warning. */
+  const MENACE_NOTES: ReadonlySet<HarvestNote> = new Set(["blocked_by_troll", "converted_by_witch", "taken_by_dragon"]);
 </script>
 
 <section class="players" aria-label={t("ui.players")}>
@@ -39,11 +42,14 @@
         {#if pid !== session.viewerId}
           <!-- A rival's committed Banners are public: what their next Harvest brings. -->
           {@const next = getHarvestPreview(session.ctx, gs, pid)}
-          {@const warned = next.banners.filter((b) => b.notes.length > 0)}
+          {@const warnings = next.banners.flatMap((b) => b.notes.filter((n) => MENACE_NOTES.has(n)).map((n) => t(`harvest.${n}`))).join("; ")}
+          {@const items = next.total ? gainsText(next.totals) : t("ui.next_harvest_nothing")}
           <div
             class="next"
             role="note"
-            aria-label={t("ui.next_harvest_of", { name: p.displayName, items: next.total ? gainsText(next.totals) : t("ui.next_harvest_nothing") })}
+            aria-label={warnings
+              ? t("ui.next_harvest_warned", { name: p.displayName, items, warnings })
+              : t("ui.next_harvest_of", { name: p.displayName, items })}
           >
             <span class="label" aria-hidden="true">{t("ui.next_harvest_short")}</span>
             {#each RESOURCE_TYPES.filter((r) => next.totals[r] > 0) as r}
@@ -51,8 +57,8 @@
             {:else}
               <span class="none" aria-hidden="true">—</span>
             {/each}
-            {#if warned.length}
-              <span class="warn" title={warned.flatMap((b) => b.notes.map((n) => t(`harvest.${n}`))).join("; ")}>!</span>
+            {#if warnings}
+              <span class="warn" title={warnings} aria-hidden="true">!</span>
             {/if}
           </div>
         {/if}

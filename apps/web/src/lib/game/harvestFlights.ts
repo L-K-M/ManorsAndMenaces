@@ -83,16 +83,6 @@ export function resourceKey(playerId: PlayerId, resource: ResourceType): string 
   return `${playerId}:${resource}`;
 }
 
-/** How many tokens of each resource are on their way to each player. */
-export function incomingCounts(flights: readonly Flight[]): Map<string, number> {
-  const out = new Map<string, number>();
-  for (const f of flights) {
-    const key = resourceKey(f.playerId, f.resource);
-    out.set(key, (out.get(key) ?? 0) + 1);
-  }
-  return out;
-}
-
 export interface ArcFrame {
   x: number;
   y: number;

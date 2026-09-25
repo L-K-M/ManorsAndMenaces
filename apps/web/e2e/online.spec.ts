@@ -21,19 +21,9 @@ async function status(page: Page): Promise<string> {
   return (await el.count()) ? ((await el.textContent()) ?? "") : "";
 }
 
-test("two players create, join and complete setup online", async ({ browser }) => {
-  const alice = await player(browser, "Alice");
-  await alice.getByRole("button", { name: /Create/ }).click();
-  const code = ((await alice.locator(".code").textContent()) ?? "").trim();
-  expect(code).toMatch(/^[A-Z0-9]{6}$/);
-  const bob = await player(browser, "Bob");
-  await bob.getByLabel("Invite code").fill(code);
-  await bob.getByRole("button", { name: "Join" }).click();
-  await expect(alice.locator(".board")).toBeVisible();
-  await expect(bob.locator(".board")).toBeVisible();
-
+async function playSetup(pages: Page[]) {
   for (let i = 0; i < 12; i++) {
-    for (const p of [alice, bob]) {
+    for (const p of pages) {
       const s = await status(p);
       if (/place a Manor/.test(s)) await p.locator(".site.hl").first().click();
       else if (/free Route/.test(s)) await p.locator(".route.hl").first().click();
@@ -48,6 +38,37 @@ test("two players create, join and complete setup online", async ({ browser }) =
       await p.waitForTimeout(150);
     }
   }
+}
+
+async function startMatch(browser: Browser): Promise<[Page, Page]> {
+  const alice = await player(browser, "Alice");
+  await alice.getByRole("button", { name: /Create/ }).click();
+  const code = ((await alice.locator(".code").textContent()) ?? "").trim();
+  const bob = await player(browser, "Bob");
+  await bob.getByLabel("Invite code").fill(code);
+  await bob.getByRole("button", { name: "Join" }).click();
+  await expect(alice.locator(".board")).toBeVisible();
+  await expect(bob.locator(".board")).toBeVisible();
+  return [alice, bob];
+}
+
+async function confirmBanners(page: Page) {
+  await page.getByRole("button", { name: /Assign Banners →/ }).click({ timeout: 20_000 });
+  await page.getByRole("button", { name: /Confirm Banners/ }).click();
+}
+
+test("two players create, join and complete setup online", async ({ browser }) => {
+  const alice = await player(browser, "Alice");
+  await alice.getByRole("button", { name: /Create/ }).click();
+  const code = ((await alice.locator(".code").textContent()) ?? "").trim();
+  expect(code).toMatch(/^[A-Z0-9]{6}$/);
+  const bob = await player(browser, "Bob");
+  await bob.getByLabel("Invite code").fill(code);
+  await bob.getByRole("button", { name: "Join" }).click();
+  await expect(alice.locator(".board")).toBeVisible();
+  await expect(bob.locator(".board")).toBeVisible();
+
+  await playSetup([alice, bob]);
   // Exactly one of them is now in the Main phase; the other waits for them.
   const mains = await Promise.all([alice, bob].map((p) => p.getByRole("button", { name: /Assign Banners →/ }).count()));
   expect([...mains].sort()).toEqual([0, 1]);
@@ -56,4 +77,37 @@ test("two players create, join and complete setup online", async ({ browser }) =
   // Both see 2 Holdings per player.
   await expect(alice.locator(".site .holding")).toHaveCount(4);
   await expect(bob.locator(".site .holding")).toHaveCount(4);
+});
+
+test("a rival's counters wait for the server to confirm your move", async ({ browser }) => {
+  const pages = await startMatch(browser);
+  await playSetup(pages);
+  const first = (await pages[0].getByRole("button", { name: /Assign Banners →/ }).count()) ? 0 : 1;
+  const [mover, rival] = [pages[first]!, pages[1 - first]!];
+
+  // Round one: nobody harvests on their first turn.
+  await confirmBanners(mover);
+  await mover.getByRole("button", { name: /End Turn/ }).click();
+  await confirmBanners(rival);
+  await rival.getByRole("button", { name: /End Turn/ }).click();
+  await confirmBanners(mover);
+
+  // Ending this turn starts the rival's, with a harvest from their Banners.
+  await expect(mover.getByRole("note", { name: /next Harvest: \d/ })).toBeVisible();
+  const counters = mover.locator("article.player:has(.next) > div.res");
+  const before = await counters.textContent();
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await mover.route("**/api/matches/*/commands", async (route) => {
+    await held;
+    await route.continue();
+  });
+  await mover.getByRole("button", { name: /End Turn/ }).click();
+
+  // The move is still on its way: the rival's counters stay as they were.
+  await mover.waitForTimeout(1500);
+  await expect(counters).toHaveText(before ?? "");
+
+  release();
+  await expect(counters).not.toHaveText(before ?? "");
 });

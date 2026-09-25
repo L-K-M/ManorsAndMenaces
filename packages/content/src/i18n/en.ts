@@ -259,7 +259,6 @@ export const EN: Record<string, string> = {
   "feed.market": "{name} traded {amount} {give} for 1 {receive}",
   "feed.quest": "{name} completed {quest} (+{renown} Renown)",
   "feed.paid_you": "{name} paid you {amount} {resource}",
-  "feed.you_paid": "You paid {name} {amount} {resource}",
   "feed.harvest": "{name} harvested {items}",
   "feed.your_harvest": "Your harvest: {items}",
   "feed.your_harvest_none": "Your harvest brought nothing",
@@ -275,8 +274,8 @@ export const EN: Record<string, string> = {
   "feed.badge.druids_blessing": "+1",
   "ui.next_harvest_short": "Next",
   "ui.next_harvest_of": "{name}'s next Harvest: {items}",
+  "ui.next_harvest_warned": "{name}'s next Harvest: {items} ({warnings})",
   "ui.next_harvest_nothing": "nothing",
-
 
   // ---------------------------------------------------------------- hints
   "hint.setup_manor": "Choose a highlighted Site for your Manor.",

@@ -4,6 +4,7 @@
   // turns. Neither ever blocks the board: only the digest's own buttons take
   // clicks. The Chronicle keeps the complete record.
   import { fade, fly } from "svelte/transition";
+  import { MediaQuery } from "svelte/reactivity";
   import { RESOURCE_TYPES, type PlayerId } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import type { FeedbackController } from "../game/feedback.svelte.js";
@@ -15,11 +16,15 @@
 
   let { session, feedback }: { session: GameSession; feedback: FeedbackController } = $props();
 
-  /** Lines the digest lists before summing up the rest. */
+  /** Lines the digest lists before summing up the rest (fewer when narrow). */
   const DIGEST_LINES = 8;
+  const DIGEST_LINES_NARROW = 5;
   /** Where the board is small, the digest starts folded to its title. */
   const COMPACT = "(max-width: 900px), (max-height: 760px)";
 
+  // Matches the narrow block in the styles below.
+  const narrow = new MediaQuery("(max-width: 900px)", false);
+  const lines = $derived(narrow.current ? DIGEST_LINES_NARROW : DIGEST_LINES);
   const scale = $derived(animationScale());
   const digest = $derived(feedback.digest && feedback.digest.viewerId === session.viewerId ? feedback.digest : null);
   let open = $state(true);
@@ -74,14 +79,14 @@
       </header>
       {#if open}
         <ol>
-          {#each digest.items.slice(-DIGEST_LINES) as item}
+          {#each digest.items.slice(-lines) as item}
             <li class:against={item.againstViewer} style="--pc: {theme(item.actorId)?.color ?? '#3b3b46'}">
               {@render emblem(item)}{@render body(item)}
             </li>
           {/each}
         </ol>
-        {#if digest.items.length > DIGEST_LINES}
-          <p class="more">{t("feed.earlier", { count: digest.items.length - DIGEST_LINES })}</p>
+        {#if digest.items.length > lines}
+          <p class="more">{t("feed.earlier", { count: digest.items.length - lines })}</p>
         {/if}
       {/if}
     </section>
@@ -249,12 +254,14 @@
   }
 
   /* Narrow screens: along the bottom of the board, beside the camera
-     buttons (the portrait board sits at the top), two toasts at most. */
+     buttons (the portrait board sits at the top), two toasts at most.
+     `--overlay-bottom` is a strip a layout reserves along the board's
+     bottom edge (a bottom sheet with the camera in a row); clear it. */
   @media (max-width: 900px) {
     .feed {
       left: calc(0.75rem + 44px + 0.5rem);
       right: 0.5rem;
-      bottom: 0.75rem;
+      bottom: calc(0.75rem + var(--overlay-bottom, 0px));
       width: auto;
     }
     .toast:nth-last-child(n + 3) {
@@ -268,9 +275,6 @@
     }
     .short {
       display: inline;
-    }
-    .digest li:nth-last-child(n + 6) {
-      display: none;
     }
     /* The tutorial coach has the bottom edge there. */
     :global(.board-wrap:has(> .coach)) .feed {

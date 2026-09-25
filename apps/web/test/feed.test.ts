@@ -88,6 +88,12 @@ describe("feedItemsFor", () => {
     expect(feedItemsFor([paid], state, map, "P1").map((i) => i.text)).toEqual(["Bertram paid you 1 Stone"]);
     expect(feedItemsFor([paid], state, map, "P3")).toEqual([]);
   });
+
+  it("leaves out the payer's own Writ bribe", () => {
+    const paid: GameEvent = { type: "resource_transferred", fromPlayerId: "P2", toPlayerId: "P1", resource: "stone", amount: 1, reason: "royal_writ" };
+
+    expect(feedItemsFor([paid], state, map, "P2")).toEqual([]);
+  });
 });
 
 describe("listText", () => {

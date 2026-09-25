@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GREENVALE_MAP as map } from "@manors-menaces/content";
 import type { GameEvent, HarvestNote, ResourceType } from "@manors-menaces/rules";
-import { arcFrames, incomingCounts, planHarvestFlights, regionPoint, resourceKey } from "../src/lib/game/harvestFlights.js";
+import { arcFrames, planHarvestFlights, regionPoint } from "../src/lib/game/harvestFlights.js";
 
 const [r1, r2, r3] = map.regions as [(typeof map.regions)[number], (typeof map.regions)[number], (typeof map.regions)[number]];
 
@@ -57,17 +57,6 @@ describe("planHarvestFlights", () => {
     );
 
     expect(plan.flights).toEqual([]);
-  });
-});
-
-describe("incomingCounts", () => {
-  it("counts tokens per player and resource", () => {
-    const plan = planHarvestFlights([harvested(r1.id, "grain", 2), harvested(r2.id, "grain", 1, [], "P2")], map);
-
-    const counts = incomingCounts(plan.flights);
-
-    expect(counts.get(resourceKey("P1", "grain"))).toBe(2);
-    expect(counts.get(resourceKey("P2", "grain"))).toBe(1);
   });
 });
 

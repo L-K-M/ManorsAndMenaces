@@ -11,7 +11,17 @@ export class EventBus<T> {
     return () => this.listeners.delete(listener);
   }
 
+  /**
+   * Deliver to every listener. A listener that throws is reported and
+   * skipped: presentation must never break the publisher's turn flow.
+   */
   emit(message: T): void {
-    for (const listener of [...this.listeners]) listener(message);
+    for (const listener of [...this.listeners]) {
+      try {
+        listener(message);
+      } catch (err) {
+        console.error("Event listener failed", err);
+      }
+    }
   }
 }

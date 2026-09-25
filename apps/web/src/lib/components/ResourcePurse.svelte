@@ -2,7 +2,7 @@
   // A player's resource counters. Each counter is a landing target for
   // harvest flights (`data-res-target`), holds back tokens still in flight,
   // and pops when its count goes up; with animation off it only flashes.
-  import { RESOURCE_TYPES, type PlayerId } from "@manors-menaces/rules";
+  import { RESOURCE_TYPES, type PlayerId, type Resources } from "@manors-menaces/rules";
   import type { GameSession } from "../game/session.svelte.js";
   import { resourceKey } from "../game/harvestFlights.js";
   import { shownCount } from "../stores/fx.svelte.js";
@@ -10,7 +10,18 @@
   import ResourceIcon from "./ResourceIcon.svelte";
 
   let { session, playerId, size = 18 }: { session: GameSession; playerId: PlayerId; size?: number } = $props();
-  const resources = $derived(session.draft.players[playerId]?.resources);
+  // While the viewer's own move is being submitted, the draft already holds
+  // its outcome, including the next player's harvest (online, for a network
+  // round trip). A rival's counters keep their settled values until the
+  // confirmed batch arrives and holds the harvest tokens back, so they never
+  // jump up, drop back and tick up again.
+  let settled: Resources | undefined;
+  const resources = $derived.by(() => {
+    const current = session.draft.players[playerId]?.resources;
+    if (session.busy && playerId !== session.viewerId) return settled ?? current;
+    settled = current;
+    return current;
+  });
 
   // Keyed by counter, so switching whose purse this is (hot-seat) never pops.
   function bump(node: HTMLElement, value: { key: string; n: number }) {

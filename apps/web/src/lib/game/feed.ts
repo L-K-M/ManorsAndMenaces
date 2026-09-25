@@ -189,9 +189,10 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
         add(e.playerId, t("feed.quest", { name: name(e.playerId), quest: t(`quest.${e.questId}.name`), renown: e.renown }));
         break;
       case "resource_transferred": {
-        const params = { amount: e.amount, resource: t(`resource.${e.resource}`) };
-        if (e.toPlayerId === viewerId) add(e.fromPlayerId, t("feed.paid_you", { ...params, name: name(e.fromPlayerId) }));
-        else if (e.fromPlayerId === viewerId) add(e.toPlayerId, t("feed.you_paid", { ...params, name: name(e.toPlayerId) }), null, true);
+        // The payer is the one acting (a Writ's bribe is paid by its issuer),
+        // so a payment is news only to the player it was paid to.
+        if (e.toPlayerId !== viewerId) break;
+        add(e.fromPlayerId, t("feed.paid_you", { amount: e.amount, resource: t(`resource.${e.resource}`), name: name(e.fromPlayerId) }));
         break;
       }
       case "harvest_completed": {
