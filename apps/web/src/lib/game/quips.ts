@@ -70,7 +70,8 @@ export function detectQuipCandidates(scene: QuipScene): QuipCandidate[] {
       case "holding_built":
         if (rivals[e.playerId]) {
           // A rival's very first Manor always gets a line: it introduces them.
-          const first = (after.players[e.playerId]?.holdingIds.length ?? 0) <= 1;
+          // Judged on the state before the batch, which may hold two builds.
+          const first = (before.players[e.playerId]?.holdingIds.length ?? 0) === 0;
           add(e.playerId, "own_build", first ? 1 : QUIP_CHANCE.own_build);
         } else if (isHuman(e.playerId) && !e.free) {
           for (const rivalPid of Object.keys(rivals)) if (sharesRegionWith(ctx, after, e.siteId, rivalPid)) add(rivalPid, "near_you");

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chooseAction } from "@manors-menaces/ai";
 import { EN } from "@manors-menaces/content";
-import { RULESET_VERSION, createRng, seedRng, standardRuleset, type GameEvent, type GameState, type PlayerId } from "@manors-menaces/rules";
+import { RULESET_VERSION, createRng, holdingAt, seedRng, standardRuleset, type GameEvent, type GameState, type PlayerId } from "@manors-menaces/rules";
 import { engineFor } from "../src/lib/game/engine.js";
 import { QuipDirector, detectQuipCandidates, type QuipCandidate } from "../src/lib/game/quips.js";
 
@@ -48,6 +48,20 @@ describe("detectQuipCandidates", () => {
     const steps = playUntil(newGame(), (s) => Object.values(s.holdings).some((h) => h.ownerId === "P2"));
     const last = steps.at(-1)!;
     const c = detectQuipCandidates({ ctx, ...last, rivals, isHuman });
+    expect(c).toEqual([{ playerId: "P2", rivalId: "grum", trigger: "own_build", chance: 1 }]);
+  });
+
+  it("still introduces a rival whose first two Manors land in one batch", () => {
+    const steps = playUntil(newGame(), (s) => Object.values(s.holdings).some((h) => h.ownerId === "P2"));
+    const { before } = steps.at(-1)!;
+    const [h1, h2] = ctx.board.topology.sites.filter((s) => !holdingAt(before, s.id));
+    const built = (holdingId: string, siteId: string): GameEvent => ({ type: "holding_built", playerId: "P2", holdingId, siteId, free: true });
+    const after = structuredClone(before);
+    for (const [id, site] of [["hA", h1!.id], ["hB", h2!.id]] as const) {
+      after.holdings[id] = { ...holdingOf(playing, "P2"), id, siteId: site, ownerId: "P2" };
+      after.players.P2!.holdingIds.push(id);
+    }
+    const c = detectQuipCandidates({ ctx, before, after, events: [built("hA", h1!.id), built("hB", h2!.id)], rivals, isHuman });
     expect(c).toEqual([{ playerId: "P2", rivalId: "grum", trigger: "own_build", chance: 1 }]);
   });
 
