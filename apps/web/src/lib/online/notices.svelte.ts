@@ -9,8 +9,15 @@ import { platform } from "../platform/adapter.js";
 import { OnlineClient } from "./client.js";
 import { withNotice } from "./noticeList.js";
 
-/** The notices waiting to be opened or dismissed, newest first. */
-export const notices: { list: MatchNotice[] } = $state({ list: [] });
+/** Lines kept for screen readers; only additions are read out, so this is just history. */
+const KEPT_ANNOUNCEMENTS = 3;
+
+/**
+ * The notices waiting to be opened or dismissed, newest first, and the
+ * lines NoticeBanner's always-mounted live region reads out as they arrive.
+ */
+export const notices: { list: MatchNotice[]; announcements: { id: number; text: string }[] } = $state({ list: [], announcements: [] });
+let nextAnnouncementId = 0;
 
 let watching: { token: string; stop: () => void } | null = null;
 let openMatchId: () => string | null = () => null;
@@ -36,6 +43,7 @@ function receive(notice: MatchNotice): void {
   const open = openMatchId();
   if (notice.matchId === open) return;
   notices.list = withNotice(notices.list, notice, open);
+  notices.announcements = [...notices.announcements, { id: nextAnnouncementId++, text: `${notice.title}. ${notice.body}` }].slice(-KEPT_ANNOUNCEMENTS);
   if (document.hidden) void platform.notify(notice.title, notice.body);
 }
 

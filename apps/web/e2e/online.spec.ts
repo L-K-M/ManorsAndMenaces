@@ -275,6 +275,9 @@ test("a player who left the match hears it is their turn and opens it from the n
   await alice.getByRole("dialog", { name: "Menu" }).getByRole("button", { name: "Exit to title" }).click();
   await alice.getByRole("dialog", { name: "Leave this game?" }).getByRole("button", { name: "Exit to title" }).click();
   await expect(alice.getByRole("button", { name: "Play online" })).toBeVisible();
+  // Screen readers reliably read a live region only if it was there before the news.
+  const spoken = alice.getByRole("log", { name: "Match notices" });
+  await expect(spoken).toBeAttached();
 
   await toBannerPhase(bob);
   await bob.getByRole("button", { name: /End Turn/ }).click();
@@ -282,6 +285,7 @@ test("a player who left the match hears it is their turn and opens it from the n
   const notices = alice.getByRole("region", { name: "Match notices" });
   await expect(notices).toContainText("Your turn");
   await expect(notices).toContainText("Your move in the match with Bob.");
+  await expect(spoken.locator("p").last()).toHaveText("Your turn. Your move in the match with Bob.");
   await notices.getByRole("button", { name: "Open" }).click();
   await expect(alice.locator(".board")).toBeVisible();
   await expect(alice.getByRole("button", { name: /Assign Banners →/ })).toBeVisible();

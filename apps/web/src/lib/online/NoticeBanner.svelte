@@ -12,7 +12,7 @@
 {#if notices.list.length}
   <section class="notices" aria-label={t("ui.notices")}>
     {#each notices.list as n (n.matchId)}
-      <div class="notice" role="status">
+      <div class="notice">
         <p><strong>{n.title}</strong> {n.body}</p>
         {#if canOpen}<button class="primary" onclick={() => onopen(n.matchId)}>{t("ui.notice_open")}</button>{/if}
         <button class="dismiss" aria-label={t("ui.notice_dismiss")} onclick={() => dismissNotice(n.matchId)}><ToolIcon name="close" size={18} /></button>
@@ -20,6 +20,11 @@
     {/each}
   </section>
 {/if}
+<!-- Screen readers reliably read only a live region that was already there
+     when the news arrived, so this one never unmounts; the banner is not live. -->
+<div class="sr-only" role="log" aria-live="polite" aria-relevant="additions" aria-label={t("ui.notices")}>
+  {#each notices.announcements as line (line.id)}<p>{line.text}</p>{/each}
+</div>
 
 <style>
   .notices {
@@ -46,6 +51,17 @@
     flex: 1;
     margin: 0;
     font-size: 0.9rem;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
   }
   .dismiss {
     min-width: 36px;

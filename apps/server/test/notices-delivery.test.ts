@@ -121,6 +121,7 @@ const settle = (ms = 200) => new Promise((r) => setTimeout(r, ms));
 /** For "this arrives": poll instead of guessing how long delivery takes. */
 async function waitFor(ok: () => boolean, ms = 3000): Promise<void> {
   for (const end = Date.now() + ms; !ok() && Date.now() < end; ) await new Promise((r) => setTimeout(r, 20));
+  if (!ok()) throw new Error(`waitFor: still not true after ${ms} ms`);
 }
 
 describe("turn notices", () => {
