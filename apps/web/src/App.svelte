@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { isSaveFile, type SaveFile, type SeatConfig } from "@manors-menaces/protocol";
-  import { mvpRuleset, type RulesetConfig } from "@manors-menaces/rules";
+  import { isSaveFile, type SaveFile } from "@manors-menaces/protocol";
+  import { mvpRuleset } from "@manors-menaces/rules";
   import { t } from "./lib/i18n.js";
-  import { GameSession } from "./lib/game/session.svelte.js";
+  import { planRematch } from "./lib/game/rematch.js";
+  import { GameSession, type NewGameOptions } from "./lib/game/session.svelte.js";
   import { platform, type SaveSummary } from "./lib/platform/adapter.js";
   import { resetTool, ui } from "./lib/stores/ui.svelte.js";
   import { settings } from "./lib/stores/settings.svelte.js";
@@ -20,7 +21,6 @@
   let saves: SaveSummary[] = $state([]);
   let showLoad = $state(false);
   let showRules = $state(false);
-  let lastConfig: { seats: SeatConfig[]; ruleset: RulesetConfig } | null = null;
   let loadError: string | null = $state(null);
 
   async function refreshSaves() {
@@ -30,11 +30,10 @@
     if (screen === "title") void refreshSaves();
   });
 
-  function start(opts: { seats: SeatConfig[]; ruleset: RulesetConfig; seed?: string }, isTutorial = false) {
+  function start(opts: NewGameOptions, isTutorial = false) {
     session?.destroy();
     resetTool();
     ui.bannerDraft = {};
-    lastConfig = { seats: opts.seats, ruleset: opts.ruleset };
     session = GameSession.create(opts);
     tutorial = isTutorial;
     screen = "game";
@@ -88,8 +87,13 @@
     screen = "title";
   }
   function rematch() {
-    if (lastConfig) start(lastConfig);
-    else exit();
+    if (!session) return exit();
+    const { seats, mapId, initialState } = session;
+    const plan = planRematch({ transport: session.transport.kind, tutorial, seats, mapId, initialState });
+    if (plan.kind === "local") return start(plan.options);
+
+    exit();
+    screen = plan.kind === "lobby" ? "online" : "new";
   }
   $effect(() => {
     document.documentElement.style.setProperty("--text-scale", String(settings.textScale));

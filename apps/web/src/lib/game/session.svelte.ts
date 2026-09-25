@@ -23,7 +23,7 @@ import { t } from "../i18n.js";
 import { platform } from "../platform/adapter.js";
 import { aiDelayMs, settings } from "../stores/settings.svelte.js";
 import { engineFor, mapFor } from "./engine.js";
-import { formatEvents, type LogEntry } from "./log.js";
+import { formatEvents, rebuildLog, type LogEntry } from "./log.js";
 import { recordGame } from "./telemetry.js";
 import { devlog } from "../devlog.js";
 
@@ -131,7 +131,11 @@ export class GameSession {
   }
 
   static fromSave(save: SaveFile): GameSession {
-    return new GameSession({ mapId: save.mapId, seats: save.seats, initialState: save.initialState, state: save.state, history: save.commandHistory });
+    const session = new GameSession({ mapId: save.mapId, seats: save.seats, initialState: save.initialState, state: save.state, history: save.commandHistory });
+    // The Chronicle is not saved; rebuild it from the history (no floaters).
+    const { entries } = rebuildLog(session.engine, session.map, save.initialState, save.commandHistory, save.state);
+    session.log = entries.slice(-300);
+    return session;
   }
 
   get map() {

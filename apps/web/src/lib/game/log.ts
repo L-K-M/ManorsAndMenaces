@@ -1,8 +1,9 @@
 // Turns engine events into concise, readable log lines (spec §84).
 
 import type { MapDefinition } from "@manors-menaces/content";
-import { cardDefIdOf, type GameEvent, type GameState, type MenaceLocation } from "@manors-menaces/rules";
+import { cardDefIdOf, type GameCommand, type GameEvent, type GameState, type MenaceLocation, type RulesEngine } from "@manors-menaces/rules";
 import { t } from "../i18n.js";
+import { replayHistory } from "./replay.js";
 
 export interface LogEntry {
   id: number;
@@ -152,4 +153,23 @@ export function formatEvents(events: GameEvent[], state: GameState, map: MapDefi
   }
   flushAssigned();
   return out;
+}
+
+/**
+ * Rebuilds the Chronicle of a saved game by replaying its history (the log
+ * itself is not saved). When the replay stops early or does not reach
+ * `saved` (unrecorded debug commands), the entries it could derive end with
+ * a note that some events are missing.
+ */
+export function rebuildLog(
+  engine: RulesEngine,
+  map: MapDefinition,
+  initial: GameState,
+  history: readonly GameCommand[],
+  saved: GameState,
+): { entries: LogEntry[]; complete: boolean } {
+  const entries: LogEntry[] = [];
+  const { complete } = replayHistory(engine, initial, history, (step) => entries.push(...formatEvents(step.events, step.after, map)), saved);
+  if (!complete) entries.push({ id: nextId++, text: t("log.history_unavailable"), playerId: null, kind: "info" });
+  return { entries, complete };
 }
