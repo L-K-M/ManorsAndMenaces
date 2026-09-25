@@ -1,6 +1,6 @@
 # Storybook visual refresh
 
-Last updated: 2026-09-25. Artwork complete; committing, pushing and syncing main.
+Last updated: 2026-09-25. Artwork committed and pushed; latest main included.
 
 ## User request and scope
 
@@ -401,3 +401,12 @@ lint, deterministic map check, production builds and server smoke test), plus
 the card and layout browser checks documented above. After merging, inspect
 the card roster against the illustration manifest and rerun the affected
 checks before pushing the reconciled result.
+
+Completed: artwork snapshot `5359885` was committed and pushed to
+`origin/codex/save-icon-concept`. A fresh fetch found `origin/main` still at
+`15640a5`; merging it returned "Already up to date." There were no incoming
+code or content changes and no conflicts. All 11 card definitions still have
+an original painting, a runtime WebP and a recorded prompt. The checks above
+apply to the unchanged implementation; no unnecessary rerun was needed.
+This checkpoint is committed and pushed separately. No PR was opened, no
+merge into main was performed, and there was no new CI/review round.
