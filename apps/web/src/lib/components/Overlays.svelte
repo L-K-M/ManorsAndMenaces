@@ -3,7 +3,7 @@
   // PrivacyCurtain.svelte, outside the game root that it makes inert.
   import { getPlayerHoldings, getRenown } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
-  import { regionName } from "../game/log.js";
+  import { describePick } from "../game/inspect.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { ui } from "../stores/ui.svelte.js";
   import Modal from "./Modal.svelte";
@@ -14,63 +14,7 @@
     [...gs.turnOrder].sort((a, b) => getRenown(session.ctx, gs, b) - getRenown(session.ctx, gs, a)),
   );
 
-  const inspectText = $derived.by(() => {
-    const p = ui.inspect;
-    if (!p) return null;
-    const s = session.draft;
-    switch (p.kind) {
-      case "region": {
-        const r = session.map.regions.find((x) => x.id === p.id);
-        if (!r) return null;
-        const occ = Object.values(s.banners).filter((b) => b.regionId === r.id);
-        const menace = Object.values(s.menaces).find((m) => m.location.kind === "region" && m.location.regionId === r.id);
-        return {
-          title: r.name,
-          lines: [
-            `${t(`resource.${r.resource}`)} · capacity ${r.capacity}${r.capacity > 1 ? " (rich)" : ""}`,
-            occ.length ? `Banners: ${occ.map((b) => `${s.players[b.ownerId]?.displayName}${b.settled ? "" : " (unsettled)"}`).join(", ")}` : "No Banners",
-            ...(menace ? [`${t(`menace.${menace.type}.name`)}: ${t(`menace.${menace.type}.rules`)}`] : []),
-          ],
-        };
-      }
-      case "site": {
-        const site = session.map.sites.find((x) => x.id === p.id);
-        if (!site) return null;
-        const h = Object.values(s.holdings).find((x) => x.siteId === site.id);
-        return {
-          title: site.landmarkId ? t(`landmark.${site.landmarkId}`) : h ? t(`holding.${h.type}`) : "Site",
-          lines: [
-            h ? `${t(`holding.${h.type}`)} of ${s.players[h.ownerId]?.displayName}` : "Empty site",
-            `Touches: ${site.adjacentRegionIds.map((r) => regionName(session.map, r)).join(", ")}`,
-            ...(site.tradePost ? [`Trading Post: 2 ${t(`resource.${site.tradePost.resource}`)} → 1 of anything`] : []),
-          ],
-        };
-      }
-      case "menace": {
-        const m = s.menaces[p.id];
-        if (!m) return null;
-        const hoard = Object.entries(m.state.hoard ?? {}).filter(([, n]) => (n ?? 0) > 0);
-        return {
-          title: t(`menace.${m.type}.name`),
-          lines: [t(`menace.${m.type}.rules`), `“${t(`menace.${m.type}.flavor`)}”`, ...(hoard.length ? [`Hoard: ${hoard.map(([r, n]) => `${n} ${t(`resource.${r}`)}`).join(", ")}`] : [])],
-        };
-      }
-      case "banner": {
-        const b = s.banners[p.id];
-        if (!b) return null;
-        return {
-          title: `${s.players[b.ownerId]?.displayName}'s Banner`,
-          lines: [b.regionId ? `In ${regionName(session.map, b.regionId)}` : "At home (unassigned)", b.settled ? "Settled — can be targeted by a Royal Writ" : "Unsettled — protected from Royal Writs until it harvests"],
-        };
-      }
-      case "route": {
-        const owner = s.routeOwners[p.id];
-        return { title: "Route", lines: [owner ? `Owned by ${s.players[owner]?.displayName}` : "Unowned", t("cost.route")] };
-      }
-      default:
-        return null;
-    }
-  });
+  const inspectText = $derived(ui.inspect ? describePick(session.map, session.draft, ui.inspect) : null);
 </script>
 
 {#if gs.status === "finished"}

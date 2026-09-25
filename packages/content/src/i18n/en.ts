@@ -260,6 +260,27 @@ export const EN: Record<string, string> = {
   "hint.card_location": "Choose a destination.",
   "hint.card_hoard": "Choose a resource from the Hoard.",
 
+  // ---------------------------------------------------------------- inspector and hover card
+  "inspect.region": "{resource} · capacity {capacity}",
+  "inspect.region_rich": "{resource} · capacity {capacity} (rich)",
+  "inspect.banners": "Banners: {list}",
+  "inspect.unsettled": "{name} (unsettled)",
+  "inspect.no_banners": "No Banners",
+  "inspect.site": "Site",
+  "inspect.holding_of": "{holding} of {name}",
+  "inspect.empty_site": "Empty site",
+  "inspect.touches": "Touches: {list}",
+  "inspect.trade_post": "Trading Post: 2 {resource} → 1 of anything",
+  "inspect.hoard": "Hoard: {list}",
+  "inspect.banner_title": "{name}'s Banner",
+  "inspect.banner_in": "In {region}",
+  "inspect.banner_home": "At home (unassigned)",
+  "inspect.banner_settled": "Settled — can be targeted by a Royal Writ",
+  "inspect.banner_unsettled": "Unsettled — protected from Royal Writs until it harvests",
+  "inspect.route": "Route",
+  "inspect.owned_by": "Owned by {name}",
+  "inspect.unowned": "Unowned",
+
   // ---------------------------------------------------------------- tutorial (§55)
   "tutorial.1": "Holdings (Manors and Strongholds) each raise Banners — flags you plant in neighbouring Regions.",
   "tutorial.2": "A Banner chooses what you'll harvest: plant it on a forest and you'll get Timber.",
