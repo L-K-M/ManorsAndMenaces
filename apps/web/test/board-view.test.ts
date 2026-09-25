@@ -25,6 +25,13 @@ describe("screenScale", () => {
     expect(screenScale({ w: 3200, h: 1000 }, MAP)).toBeCloseTo(1);
   });
 
+  it("falls back to 1 for a collapsed or unmeasured board", () => {
+    // A zero scale would divide into Infinity label and stroke sizes.
+    expect(screenScale({ w: 0, h: 0 }, MAP)).toBe(1);
+    expect(screenScale({ w: 930, h: 0 }, MAP)).toBe(1);
+    expect(screenScale({ w: Number.NaN, h: 440 }, MAP)).toBe(1);
+  });
+
   it("maps board points to screen pixels for both alignments", () => {
     const box = { x: 0, y: 0, ...MAP };
     const board = { w: 800, h: 1000 };

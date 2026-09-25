@@ -14,7 +14,9 @@ export interface Box extends Size {
 
 /** CSS px per board unit for an SVG drawn with preserveAspectRatio "meet". */
 export function screenScale(board: Size, box: Size): number {
-  if (box.w <= 0 || box.h <= 0) return 1;
+  // A board element that measures 0 (collapsed layout) would turn
+  // every px→board conversion into Infinity; the `> 0` form also rejects NaN.
+  if (!(board.w > 0 && board.h > 0 && box.w > 0 && box.h > 0)) return 1;
   return Math.min(board.w / box.w, board.h / box.h);
 }
 
