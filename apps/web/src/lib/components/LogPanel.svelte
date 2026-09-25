@@ -35,15 +35,13 @@
   $effect(() => {
     void session.log.length;
     if (!listEl) return;
-    if (!placedSessions.has(session)) {
+    // A returning player reads on from the moves they missed (see historyLog).
+    const divider = listEl.querySelector<HTMLElement>("li.divider");
+    if (divider && !placedSessions.has(session)) {
       placedSessions.add(session);
-      // A returning player reads on from the moves they missed (see historyLog).
-      const divider = listEl.querySelector<HTMLElement>("li.divider");
-      if (divider) {
-        listEl.scrollTop += divider.getBoundingClientRect().top - listEl.getBoundingClientRect().top;
-        following = nearBottom();
-        return;
-      }
+      listEl.scrollTop += divider.getBoundingClientRect().top - listEl.getBoundingClientRect().top;
+      following = nearBottom();
+      return;
     }
     if (untrack(() => following)) listEl.scrollTop = listEl.scrollHeight;
     // Undo can shrink the list until nothing is hidden: follow again.

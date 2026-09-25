@@ -156,6 +156,7 @@
     // Read before this visit marks anything seen: the moves after it are new.
     const lastSeen = lastSeenRevision(view.matchId);
     const seen = watchSeen(view.matchId, revision);
+    let stopEvents = () => {};
     const unsubscribe = client.subscribe(
       view.matchId,
       (m, events) => {
@@ -178,16 +179,13 @@
       log,
       transport: onlineTransport(client, view.matchId, () => {
         unsubscribe();
-        stopSeen();
+        stopEvents();
+        seen.stop();
         clearMatchRoute(view.matchId);
       }),
       onlinePlayerId: view.youAre,
     });
-    const stopEvents = session.events.on(() => seen.update());
-    const stopSeen = () => {
-      stopEvents();
-      seen.stop();
-    };
+    stopEvents = session.events.on(() => seen.update());
     seen.update();
     // Keep the match in the address so a reload comes back to it.
     setMatchRoute(view.matchId);

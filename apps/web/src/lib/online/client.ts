@@ -137,9 +137,9 @@ export class OnlineClient {
       return await this.call(`/api/matches/${encodeURIComponent(matchId)}/history`);
     } catch (e) {
       // A server from before the history endpoint: open the match without its
-      // Chronicle. A missing match is still reported by getMatch.
+      // Chronicle, which then says so. A missing match is still reported by getMatch.
       if (!(e instanceof ApiError && e.status === 404)) throw e;
-      return { match: await this.getMatch(matchId), entries: [], complete: true };
+      return { match: await this.getMatch(matchId), entries: [], complete: false };
     }
   }
   submit(matchId: string, expectedRevision: number, commands: GameCommand[]): Promise<SubmitCommandsResponse> {

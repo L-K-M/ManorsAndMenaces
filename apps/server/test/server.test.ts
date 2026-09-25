@@ -301,7 +301,8 @@ describe("catching up on missed moves", () => {
     const { alice, matchId, tokens } = await twoPlayers();
     const played = await play(matchId, tokens, 30);
     const history = (await api<MatchHistoryResponse>(`/api/matches/${matchId}/history`, alice.token)).data;
-    const since = played[10]?.to as number;
+    expect(played.length).toBeGreaterThan(11);
+    const since = played[10]!.to;
 
     const firstUpdate = async (subscribe: object): Promise<{ match: MatchView; events: GameEvent[] }> => {
       const ws = new WebSocket(`${base.replace("http", "ws")}/api/ws?token=${alice.token}`);

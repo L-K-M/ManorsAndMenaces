@@ -201,6 +201,8 @@ export function historyLog(entries: readonly HistoryEntry[], complete: boolean, 
   const out: LogEntry[] = [];
   let divided = false;
   for (const entry of entries) {
+    // Formatted against the latest state: the formatters read only what does
+    // not change during a match (names, menace kinds, the map).
     const lines = formatEvents(entry.events, state, map);
     if (!divided && lastSeen !== null && entry.revision > lastSeen && lines.length) {
       out.push({ id: nextId++, text: t("log.since_last_visit"), playerId: null, kind: "divider" });
