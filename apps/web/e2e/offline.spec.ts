@@ -134,15 +134,15 @@ test.describe("installed web app", () => {
 
     await serve(v2);
     await page.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r?.update()));
-    const prompt = page.getByRole("status").filter({ hasText: "A new version of the realm is ready." });
-    await expect(prompt).toBeVisible();
+    const notice = page.getByRole("status").getByText("A new version of the realm is ready.");
+    await expect(notice).toBeVisible();
     // Nothing changes until the player chooses to reload.
     expect(await entryScript(page)).toBe(v1Script);
 
-    await prompt.getByRole("button", { name: "Reload" }).click();
+    await page.getByRole("status").getByRole("button", { name: "Reload" }).click();
     await expect.poll(() => entryScript(page)).not.toBe(v1Script);
     await expect(page.getByRole("button", { name: "New game" })).toBeVisible();
-    await expect(prompt).toBeHidden();
+    await expect(notice).toBeHidden();
     await expect.poll(() => onlyCacheIsNewerThan(page, v1Caches)).toBe(true);
   });
 
@@ -157,7 +157,7 @@ test.describe("installed web app", () => {
     await page.reload();
     await expect(page.getByRole("button", { name: "New game" })).toBeVisible();
     await expect.poll(() => onlyCacheIsNewerThan(page, v1Caches)).toBe(true);
-    await expect(page.getByRole("status").filter({ hasText: "A new version" })).toBeHidden();
+    await expect(page.getByRole("status").getByText("A new version")).toBeHidden();
 
     // The new release now starts offline.
     await context.setOffline(true);

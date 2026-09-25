@@ -5,16 +5,20 @@
   import { settings } from "../stores/settings.svelte.js";
 </script>
 
-{#if appUpdate.ready}
-  <div class="update" role="status" transition:fly={{ y: -24, duration: settings.reducedMotion ? 0 : 220 }}>
-    <span class="seal" aria-hidden="true">✦</span>
-    <p>{t("app.update_ready")}</p>
-    <div class="buttons">
-      <button class="ghost" onclick={dismissUpdate}>{t("app.update_later")}</button>
-      <button class="primary" onclick={applyUpdate}>{t("app.update_reload")}</button>
+<!-- The live region exists from the start so screen readers announce the
+     notice when it appears; only its content comes and goes. -->
+<div role="status">
+  {#if appUpdate.ready}
+    <div class="update" transition:fly={{ y: -24, duration: settings.reducedMotion ? 0 : 220 }}>
+      <span class="seal" aria-hidden="true">✦</span>
+      <p>{t("app.update_ready")}</p>
+      <div class="buttons">
+        <button class="ghost" onclick={dismissUpdate}>{t("app.update_later")}</button>
+        <button class="primary" onclick={applyUpdate}>{t("app.update_reload")}</button>
+      </div>
     </div>
-  </div>
-{/if}
+  {/if}
+</div>
 
 <style>
   .update {
@@ -55,7 +59,10 @@
     flex: none;
   }
   @media (max-width: 30rem) {
+    /* Clear of the game's top bar, which holds the menu, Save and settings. */
     .update {
+      top: auto;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
       flex-wrap: wrap;
       justify-content: flex-end;
     }
