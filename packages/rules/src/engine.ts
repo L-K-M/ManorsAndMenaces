@@ -821,7 +821,7 @@ function revealTopQuest(tx: Tx, slot?: number, shownFrom = tx.s.round): void {
 }
 
 /**
- * Opt-in Quest expiry (§27.2), run as each new round begins. A Quest shown
+ * Quest expiry (§27.2), run as each new round begins. A Quest shown
  * for `questExpiryRounds` rounds without being claimed goes to the bottom of
  * the Quest deck, and the top Quest takes its slot. At most as many Quests
  * expire as the deck holds, so an expired Quest never returns at once; with

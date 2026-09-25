@@ -103,7 +103,7 @@ export function evaluateQuestCondition(ctx: RulesContext, state: GameState, play
 }
 
 /**
- * Under the opt-in expiry rule (§27.2), the rounds a revealed Quest has left
+ * Under the Quest expiry rule (§27.2), the rounds a revealed Quest has left
  * on offer: 1 means it leaves as the next round begins. Null when there is no
  * countdown to show: the rule is off, the Quest is not on display, or it is
  * due but the deck has no replacement for it as the coming round begins (a

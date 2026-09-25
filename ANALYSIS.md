@@ -125,7 +125,7 @@ Several agents worked in parallel and opened 28 PRs (#2, #4 to #30), with overla
 
 Decisions for the owner:
 - **Tool cost chips (#11 against #14), decided:** the have/need chips show whenever the tool row has room for them, Claim and Trade-to-afford buttons included. They fit a 1366 px laptop at the default Text size, except when those buttons crowd the row. Where they do not fit, and on icon tiles, costs stay in the tooltip and a red mark flags each tool that only lacks resources.
-- **Quest expiry (#22):** the rule is opt-in in New Game. Making it the default is still open.
+- **Quest expiry (#22), decided:** on by default in the Standard rules (`RULESET_VERSION` 0.4.0); New Game can turn it off.
 
 Follow-ups deferred from the merge reviews (all low severity):
 - i18n guard: also check string literals inside template expressions and a11y attributes, then externalise what that finds: the Region, Route and Holding aria-labels in `Board.svelte`, and the seat labels in `NewGame.svelte`.
@@ -228,7 +228,7 @@ Each work package (WP) is sized as one PR or a short series and can land on its 
 | 6 | Mobile board (rest of old WP22) | `resp-board-touch-targets-microscopic`, `resp-android-back-button`, `ux-targeting-locks-exploration` (rest: keep focus, inspect non-targets; the sea-click cancel is in WP1) | Phone targets are 5 to 16 px; Android back leaves the game | L | #13, #14 |
 | 7 | Accessibility (rest of old WP23) | `critic-sr-silent-game` (rest), `critic-cvd-player-colours`, `spec-a11y-board-accessible-names`, `critic-a11y-keyboard-focus` (rest), `vis-contrast-and-high-contrast-gaps` | §52 compliance | M | #9, #15 |
 | 8 | Online features (old WP28) | `online-no-absent-player-resolution`, `online-no-resume-after-reload`, `online-lobby-ux-gaps`, `spec-async-online-catchup`, `online-async-notifications-gap`, `online-guest-identity-device-bound` | One absent player blocks a match forever; async play has no notifications; split into 3 or 4 PRs | L | #17, WP3 |
-| 9 | Balance tooling and seat fairness (old WP26) | `ai-simulator-gaps`, `ai-seat-one-dominance`, `rules-ruleset-levers-missing`, `content-quest-slots-clog` (default decision) | Measure before tuning; #21 moved the baseline | L | #21, #22 |
+| 9 | Balance tooling and seat fairness (old WP26) | `ai-simulator-gaps`, `ai-seat-one-dominance`, `rules-ruleset-levers-missing`, `content-quest-slots-clog` (online toggle) | Measure before tuning; #21 moved the baseline | L | #21, #22 |
 | 10 | AI strength and card use (old WP27) | `ai-difficulty-not-distinct`, `ai-card-play-never`, `ai-idea-personalities-advisor` (rest), `og-steward-hint` | #21 made Easy much stronger; Hard is still not distinct; the AI rarely plays cards | L | #21, #24, WP2, WP9 |
 | 11 | Performance, second pass | `ai-latency-beam`, `ai-banner-search-cost`, `perf-server-ai-event-loop`, `perf-board-derived-churn`, `perf-token-transitions`, `perf-engine-singleton-audit` | Hard AI reaches 450 ms; the server runs AI on its only event loop | M | #12 |
 | 12 | Replays, saves and versions (old WP29) | `spec-replay-viewer-missing`, `spec-replay-fixtures-and-invariants`, `spec-debug-commands-break-replay`, `spec-versioning-never-enforced`, `webstate-save-import-no-validation`, `spec-state-hash-not-used-online` | Long-term save compatibility and review tools; #22 already bumped the ruleset version | L | #10, #18 |
@@ -443,11 +443,13 @@ The previous analysis's build order, kept for reference and mapped to open PRs o
 
 #### content-quest-slots-clog: Unclaimable Royal Quests sit in the revealed slots (default rule)
 - Partly done in #22: an opt-in `questExpiryRounds` rule (spec §27.2, off by default). A Quest nobody claims for N rounds swaps with the top of the Quest deck as a new round begins (no new randomness), with a `quest_expired` event, `GameState.revealedQuestRounds` (present only when the option is on), a "Leaves in N rounds" line in QuestPanel and a New Game checkbox under Advanced.
-- Severity: medium | Effort: S (once decided) | Delight: 4 | Status: confirmed; needs a decision
+- Done after the consolidation: the owner made expiry the Standard default. `standardRuleset()` sets `questExpiryRounds` to `BALANCE.questExpiryRounds` (4), so online matches use it too, `RULESET_VERSION` is 0.4.0, §27 and §27.2 say so, and the New Game checkbox is on by default. Saves and matches keep the ruleset they started with. Re-run on the merged code, 40 AI games per setting: Quests claimed per game 2.1 to 3.1 (2p), 3.3 to 4.1 (3p) and 2.8 to 4.3 (4p); average rounds 12.9 to 12.0, 14.0 to 13.3 and 14.6 to 13.5; longest game 18 to 19, 20 to 16 and 25 to 17.
+- Left: online matches cannot turn it off (step (2) below), and the AI ignores the countdown, so it does not hurry for a Quest about to leave.
+- Severity: medium | Effort: S | Delight: 4 | Status: done (default); online toggle open
 - Files: `packages/rules/src/engine.ts:496-500,786-796`, `packages/rules/src/types.ts:305`, `apps/server/src/service.ts:103`
 - Evidence (original): a slot is freed only when its quest is claimed. Revealed player-turns against claims: Patron of Heroes 1023/0, King's Highway 988/0, Friend of the Forest 877/3, Arcane Scholar 765/1, against Prosperous Estates 394/23. With expiry at 4 rounds (#22): Quests claimed per game 2.25 to 3.42 (2p) and 2.80 to 4.00 (3p); rounds 14.8 to 13.8 and 15.6 to 14.3; each Quest shown in 38 to 40 of 40 games against 9 to 27.
-- Proposal: (1) owner decision: should expiry become the default? §27 currently replaces only claimed Quests. If yes, set the default in `BALANCE`, bump `RULESET_VERSION` and update §27. (2) Online matches cannot use it yet because the server builds rulesets from fixed names; add it to the house-rules payload from `rules-random-menace-selection-missing` step 4.
-- Tests: if made default, the existing expiry tests plus updated seed-pinned fixtures.
+- Proposal: (1) done: expiry is the Standard default. (2) Online matches cannot turn it off, because the server builds rulesets from fixed names; add it to the house-rules payload from `rules-random-menace-selection-missing` step 4.
+- Tests: `card-quest-legality.test.ts` covers the default and the 0 setting; `game.spec.ts` covers the New Game checkbox. No seed-pinned fixture changed.
 
 #### content-kings-highway-unclaimable: King's Highway is almost never claimable on Greenvale
 - Severity: medium | Effort: M | Delight: 3 | Status: partially confirmed (the AI confounds the telemetry)
@@ -1033,7 +1035,7 @@ What already matches Kolonists: bank and Trading Post trades, a paid displacemen
 | Animated production, resources flying to players | In flight | #23 |
 | Opponent action feed | In flight (toasts, digest); log detail open | #23, `vis-opponent-actions-invisible` |
 | Longest Road / Largest Army race visibility | Rival quest progress hidden | `og-quest-race-visibility` |
-| House rules, points to win | Knobs exist, none exposed (Quest expiry opt-in in #22) | `rules-random-menace-selection-missing` |
+| House rules, points to win | Knobs exist; only Quest expiry is exposed (a New Game checkbox, on by default) | `rules-random-menace-selection-missing` |
 | Missing-resource badges, quick trade | In flight | #11 |
 | Replay and post-game review | Post-game review in flight; no replay viewer | #18, `spec-replay-viewer-missing` |
 | Turn timers, bots that replace leavers, emotes | None | `online-no-absent-player-resolution` |

@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { runAiUntilHuman } from "@manors-menaces/ai";
 import { rulesContentFor } from "@manors-menaces/content";
 import { SAVE_SCHEMA_VERSION, type SaveFile } from "@manors-menaces/protocol";
-import { RULESET_VERSION, createRng, createRulesEngine, mvpRuleset, seedRng, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
+import { BALANCE, RULESET_VERSION, createRng, createRulesEngine, mvpRuleset, seedRng, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
 import { TUTORIAL_SEED } from "../src/lib/game/saves.js";
 
 // Critical flows (spec §66.5): create game, initial placement, first turn,
@@ -229,6 +229,23 @@ test("an all-computer game can begin, with a note that you will watch", async ({
   await expect(page.getByRole("button", { name: "Begin" })).toBeEnabled();
   await page.getByRole("button", { name: "Begin" }).click();
   await expect(page.locator(".round")).toBeVisible();
+});
+
+test("Standard games retire unclaimed Quests unless New Game turns that off", async ({ page }) => {
+  const countdown = page.getByText(`Leaves in ${BALANCE.questExpiryRounds} rounds`);
+  for (const expiry of [true, false]) {
+    await page.goto("/");
+    await page.getByRole("button", { name: "New game" }).click();
+    await page.getByText("Advanced").click();
+    const option = page.getByRole("checkbox", { name: `Unclaimed Royal Quests leave after ${BALANCE.questExpiryRounds} rounds` });
+    await expect(option).toBeChecked();
+    if (!expiry) await option.uncheck();
+    await page.getByRole("button", { name: "Begin" }).click();
+    await page.getByRole("tab", { name: /Quests/ }).click();
+    await expect(page.getByRole("region", { name: "Royal Quests" }).getByRole("listitem")).toHaveCount(3);
+    if (expiry) await expect(countdown).toHaveCount(3);
+    else await expect(countdown).toHaveCount(0);
+  }
 });
 
 test("board is keyboard operable @mobile", async ({ page }) => {
