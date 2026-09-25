@@ -7,6 +7,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { chooseAction } from "@manors-menaces/ai";
 import { rulesContentFor } from "@manors-menaces/content";
 import type {
+  ApiErrorCode,
   CreateMatchRequest,
   GuestSessionResponse,
   MatchSeatInfo,
@@ -30,12 +31,13 @@ import {
   type PlayerId,
   type RulesEngine,
 } from "@manors-menaces/rules";
-import type { SeatRow, Store, UserRow } from "./store.js";
+import type { MatchRow, SeatRow, Store, UserRow } from "./store.js";
 
 export class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly code?: ApiErrorCode,
   ) {
     super(message);
   }
@@ -46,6 +48,8 @@ export interface MatchListener {
 }
 
 const MAP_ID = "greenvale";
+/** Pause before an AI seat that found no usable move tries again. */
+const AI_RETRY_MS = 5_000;
 
 export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -58,10 +62,24 @@ function cleanName(name: unknown): string {
   return s || "Guest";
 }
 
+/** JSON with object keys sorted, so equal commands compare equal whatever their key order. */
+function canonicalJson(x: unknown): string {
+  if (Array.isArray(x)) return `[${x.map(canonicalJson).join(",")}]`;
+  if (x && typeof x === "object") {
+    const entries = Object.entries(x as Record<string, unknown>).filter(([, v]) => v !== undefined);
+    return `{${entries
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(x) ?? "null";
+}
+
 export class MatchService {
   private readonly engine: RulesEngine;
   private readonly listeners = new Set<MatchListener>();
   private readonly aiTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private closed = false;
   /** Presence callback set by the transport layer (WebSocket connections). */
   isConnected: (userId: string) => boolean = () => false;
 
@@ -88,9 +106,9 @@ export class MatchService {
   }
 
   authenticate(token: string | null | undefined): UserRow {
-    if (!token || token.length > 200) throw new HttpError(401, "missing or invalid token");
+    if (!token || token.length > 200) throw new HttpError(401, "missing or invalid token", "INVALID_SESSION");
     const user = this.store.userByTokenHash(hashToken(token));
-    if (!user) throw new HttpError(401, "unknown session");
+    if (!user) throw new HttpError(401, "unknown session", "INVALID_SESSION");
     return user;
   }
 
@@ -206,9 +224,16 @@ export class MatchService {
     if (!playerId) throw new HttpError(403, "not a member of this match");
     // Commands may only be issued for the authenticated player's own seat.
     if (req.commands.some((c) => c.playerId !== playerId || c.matchId !== match.id)) throw new HttpError(403, "commands must be for your own seat");
-    // Idempotency: a retried batch whose commands were already applied.
-    if (req.commands.every((c) => this.store.hasCommand(match.id, c.commandId))) {
-      return { accepted: true, revision: match.revision, events: [], state: redactState(match.state, playerId) };
+    // Idempotency (§60): a retry of an applied batch gets its original
+    // result back; an applied id reused for anything else is a conflict.
+    const ids = req.commands.map((c) => c.commandId);
+    if (new Set(ids).size !== ids.length) throw new HttpError(400, "a batch must not repeat a command id", "DUPLICATE_COMMAND_ID");
+    const applied = this.store.commandsByIds(match.id, ids);
+    if (applied.size > 0) {
+      const identical = applied.size === ids.length && req.commands.every((c) => canonicalJson(applied.get(c.commandId)) === canonicalJson(c));
+      if (!identical) throw new HttpError(409, "command id already used for a different command", "COMMAND_ID_CONFLICT");
+      const events = this.committedEvents(match, new Set(ids)).map((e) => redactEvent(e, playerId));
+      return { accepted: true, revision: match.revision, events, state: redactState(match.state, playerId) };
     }
     if (req.expectedRevision !== match.revision) {
       return { accepted: false, revision: match.revision, events: [], state: redactState(match.state, playerId), error: { code: "REVISION_MISMATCH" } };
@@ -226,6 +251,34 @@ export class MatchService {
     return { accepted: true, revision: r.newState.revision, events: r.events.map((e) => redactEvent(e, playerId)), state: redactState(r.newState, playerId) };
   }
 
+  /**
+   * The events that already-committed commands produced, recomputed by
+   * replaying the history from the initial state (§62); events are not
+   * stored. Only idempotent retries after a lost response pay this cost.
+   */
+  private committedEvents(match: MatchRow, commandIds: Set<string>): GameEvent[] {
+    let state = match.initial_state;
+    if (!state) return [];
+    const events: GameEvent[] = [];
+    let remaining = commandIds.size;
+    for (const c of this.store.commandHistory(match.id)) {
+      if (remaining === 0) break;
+      const r = this.engine.applyCommand(state, c);
+      if (!r.accepted || !r.newState) {
+        // A history that no longer replays is a server bug; the retry still
+        // succeeds, only without its Chronicle entries.
+        console.error(`history of ${match.id} does not replay at ${c.commandId}`, r.error);
+        return [];
+      }
+      if (commandIds.has(c.commandId)) {
+        events.push(...r.events);
+        remaining--;
+      }
+      state = r.newState;
+    }
+    return events;
+  }
+
   // ------------------------------------------------------------------ AI seats
 
   private actorOf(state: GameState): PlayerId | null {
@@ -235,8 +288,16 @@ export class MatchService {
     return state.activePlayerId;
   }
 
+  /**
+   * Schedules every AI seat that is due to act. AI turns run on in-memory
+   * timers, so this must run at startup or matches stall after a restart.
+   */
+  resumeAll(): void {
+    for (const matchId of this.store.playingMatchIds()) this.scheduleAi(matchId);
+  }
+
   private scheduleAi(matchId: string): void {
-    if (this.aiTimers.has(matchId)) return;
+    if (this.closed || this.aiTimers.has(matchId)) return;
     const match = this.store.match(matchId);
     if (!match?.state) return;
     const actor = this.actorOf(match.state);
@@ -256,7 +317,11 @@ export class MatchService {
     if (!match?.state || this.actorOf(match.state) !== seat.player_id) return;
     const rng = createRng(seedRng(`${match.seed}:ai:${match.revision}`));
     const intent = chooseAction(this.engine, match.state, seat.player_id, { level: seat.ai_level ?? "normal", rng });
-    if (!intent) return;
+    if (!intent) {
+      console.error(`AI seat ${seat.player_id} in ${matchId} chose no action; retrying later`);
+      this.retryAiLater(matchId);
+      return;
+    }
     const make = (i: typeof intent): GameCommand =>
       ({ ...i, commandId: `ai-${match.revision}-${randomUUID()}`, matchId, playerId: seat.player_id }) as GameCommand;
     let command = make(intent);
@@ -279,11 +344,23 @@ export class MatchService {
     }
     if (!r.accepted || !r.newState) {
       console.error(`AI seat ${seat.player_id} in ${matchId} has no legal move; retrying later`, r.error);
-      setTimeout(() => this.scheduleAi(matchId), 5000).unref();
+      this.retryAiLater(matchId);
       return;
     }
     if (this.store.commitBatch(matchId, match.revision, r.newState, [command])) this.emit(matchId, r.events);
     this.scheduleAi(matchId);
+  }
+
+  /** Tracked like a normal AI step, so shutdown cancels it and it never doubles up. */
+  private retryAiLater(matchId: string): void {
+    if (this.closed || this.aiTimers.has(matchId)) return;
+    this.aiTimers.set(
+      matchId,
+      setTimeout(() => {
+        this.aiTimers.delete(matchId);
+        this.scheduleAi(matchId);
+      }, AI_RETRY_MS),
+    );
   }
 
   private emit(matchId: string, events: GameEvent[]): void {
@@ -298,6 +375,7 @@ export class MatchService {
   }
 
   shutdown(): void {
+    this.closed = true;
     for (const t of this.aiTimers.values()) clearTimeout(t);
     this.aiTimers.clear();
   }

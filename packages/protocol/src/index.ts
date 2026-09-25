@@ -117,6 +117,21 @@ export interface SubmitCommandsResponse {
   error?: RuleError;
 }
 
+/**
+ * Machine-readable reasons on HTTP error bodies. Older servers send only
+ * `error`, so clients must also handle a missing `code`.
+ * - INVALID_SESSION (401): the token is missing or unknown; start a new session.
+ * - COMMAND_ID_CONFLICT (409): a command id was already used for a different command.
+ * - DUPLICATE_COMMAND_ID (400): one batch repeats a command id.
+ */
+export type ApiErrorCode = "INVALID_SESSION" | "COMMAND_ID_CONFLICT" | "DUPLICATE_COMMAND_ID";
+
+/** Body of every non-2xx HTTP response. */
+export interface ApiErrorBody {
+  error: string;
+  code?: ApiErrorCode;
+}
+
 /** Server → client push messages over WebSocket. */
 export type ServerMessage =
   | { type: "hello"; userId: string }
