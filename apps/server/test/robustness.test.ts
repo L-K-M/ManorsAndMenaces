@@ -236,26 +236,28 @@ describe("WebSocket heartbeat", () => {
 });
 
 describe("rate limiting behind a reverse proxy", () => {
-  const health = (base: string, headers: Record<string, string>) => api(base, "/api/health", null, undefined, headers).then((r) => r.status);
+  // /api/health bypasses the limiter, so probe it through a limited route: an
+  // unauthenticated /api/me passes the limiter and then answers 401.
+  const probe = (base: string, headers: Record<string, string>) => api(base, "/api/me", null, undefined, headers).then((r) => r.status);
 
   it("keys buckets on the forwarded client address when trustProxy is set", async () => {
     // One request per second with a burst of five.
     const { base } = await start({ trustProxy: 1, rateLimitPerSecond: 1 });
-    for (let i = 0; i < 5; i++) expect(await health(base, { "x-forwarded-for": "203.0.113.1" })).toBe(200);
-    expect(await health(base, { "x-forwarded-for": "203.0.113.1" })).toBe(429);
+    for (let i = 0; i < 5; i++) expect(await probe(base, { "x-forwarded-for": "203.0.113.1" })).toBe(401);
+    expect(await probe(base, { "x-forwarded-for": "203.0.113.1" })).toBe(429);
     // A spoofed left-most entry does not escape the bucket the proxy appended.
-    expect(await health(base, { "x-forwarded-for": "198.51.100.9, 203.0.113.1" })).toBe(429);
-    expect(await health(base, { "x-forwarded-for": "203.0.113.2" })).toBe(200);
+    expect(await probe(base, { "x-forwarded-for": "198.51.100.9, 203.0.113.1" })).toBe(429);
+    expect(await probe(base, { "x-forwarded-for": "203.0.113.2" })).toBe(401);
     // Some load balancers append the client port; it must not open a fresh bucket.
-    for (let i = 0; i < 4; i++) expect(await health(base, { "x-forwarded-for": "203.0.113.2" })).toBe(200);
-    expect(await health(base, { "x-forwarded-for": "203.0.113.2:40000" })).toBe(429);
-    expect(await health(base, { forwarded: 'for="[2001:db8::1]:4711"' })).toBe(200);
+    for (let i = 0; i < 4; i++) expect(await probe(base, { "x-forwarded-for": "203.0.113.2" })).toBe(401);
+    expect(await probe(base, { "x-forwarded-for": "203.0.113.2:40000" })).toBe(429);
+    expect(await probe(base, { forwarded: 'for="[2001:db8::1]:4711"' })).toBe(401);
   });
 
   it("ignores forwarding headers by default", async () => {
     const { base } = await start({ rateLimitPerSecond: 1 });
-    for (let i = 0; i < 5; i++) expect(await health(base, { "x-forwarded-for": `203.0.113.${i}` })).toBe(200);
-    expect(await health(base, { "x-forwarded-for": "203.0.113.99" })).toBe(429);
+    for (let i = 0; i < 5; i++) expect(await probe(base, { "x-forwarded-for": `203.0.113.${i}` })).toBe(401);
+    expect(await probe(base, { "x-forwarded-for": "203.0.113.99" })).toBe(429);
   });
 });
 

@@ -93,7 +93,8 @@ test("a failed session renewal does not leave the renewal notice behind", async 
   await page.getByRole("button", { name: "Play online" }).click();
   // The first renewal succeeds, so the notice is accurate while the lobby stays open.
   await expect(page.locator(".notice")).toContainText("new guest");
-  await page.getByRole("button", { name: "↻" }).click();
+  // The refresh button is a "↻" glyph, or an icon labelled "Refresh" once the lobby uses icons.
+  await page.getByRole("button", { name: /^(↻|Refresh)$/ }).click();
   // The second renewal fails: back to the sign-in form, without claiming a new session.
   await expect(page.getByRole("button", { name: "Continue as guest" })).toBeVisible();
   await expect(page.getByRole("alert")).toContainText("internal error");
