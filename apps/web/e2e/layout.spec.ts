@@ -127,6 +127,21 @@ test.describe("laptop 1280x720", () => {
     expect(await pageFits(page)).toEqual({ scrollsX: false, scrollsY: false });
     await expectInViewport(page, /Confirm Banners/);
   });
+
+  test("your resources stay in view whichever panel tab is open", async ({ page }) => {
+    await startVsAi(page);
+    await completeSetup(page);
+    await fillHand(page, 1);
+    for (const tab of ["Quests", "Chronicle", "Players"]) {
+      await page.getByRole("tab", { name: tab }).click();
+      const mine = page.getByLabel("Your resources", { exact: true });
+      await expect(mine).toBeInViewport({ ratio: 1 });
+      const counts = await mine.locator("span").allTextContents();
+      expect(counts).toHaveLength(5);
+      // The debug grant gave at least 5 of each.
+      for (const c of counts) expect(Number(c)).toBeGreaterThanOrEqual(5);
+    }
+  });
 });
 
 test.describe("phone landscape", () => {

@@ -120,11 +120,22 @@
 
 <svelte:window onkeydown={keydown} />
 
+<!-- Your resources: in the top bar on wide screens (the dock holds the hand),
+     at the head of the dock in rail and sheet. -->
+{#snippet mine()}
+  {#if me}
+    <div class="mine" aria-label={t("ui.your_resources")}>
+      {#each RESOURCE_TYPES as r}<span><ResourceIcon resource={r} size={18} />{me.resources[r]}</span>{/each}
+    </div>
+  {/if}
+{/snippet}
+
 <div class="game" data-layout={layout} class:no-cards={!cardsEnabled} class:tray-open={trayOpen} style="--sheet-overlap: {sheetOverlap}px">
   <header class="topbar">
     <button class="ghost icon" onclick={onexit} aria-label={t("ui.main_menu")}>☰</button>
     <h1>{t("app.title")}</h1>
     <span class="round">Round {Math.max(1, gs.round)}</span>
+    {#if layout === "wide"}{@render mine()}{/if}
     <div class="score"><ScoreStrip {session} /></div>
     <span class="spacer"></span>
     {#if session.transport.kind === "local"}<button class="ghost" onclick={save}>{savedNote ?? "Save"}</button>{/if}
@@ -188,11 +199,7 @@
     <div class="dock" bind:clientHeight={dockHeight}>
       {#if layout !== "wide"}
         <div class="dock-head">
-          {#if me}
-            <div class="mine" aria-label={t("ui.your_resources")}>
-              {#each RESOURCE_TYPES as r}<span><ResourceIcon resource={r} size={18} />{me.resources[r]}</span>{/each}
-            </div>
-          {/if}
+          {@render mine()}
           {#if layout === "sheet"}
             <button class="ghost tray-toggle" bind:this={trayToggle} aria-expanded={trayOpen} aria-controls="dock-tray" onclick={() => (trayOpen = !trayOpen)}>
               {cardsEnabled && me ? t("ui.hand_tray", { count: me.hand.length, limit: gs.ruleset.handLimit }) : t("ui.harvest_tray")}
