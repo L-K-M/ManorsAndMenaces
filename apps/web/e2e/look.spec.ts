@@ -59,8 +59,11 @@ test("with an autosave, the whole title card fits short screens", async ({ page 
   await openTitle(page, { animationSpeed: "off", privacyCurtain: false });
   await page.getByRole("button", { name: "New game" }).click();
   await page.getByRole("button", { name: "Begin" }).click();
+  // Main menu opens the in-game menu (#10); leaving from there keeps the autosave.
   await page.getByRole("button", { name: "Main menu" }).click();
-  await expect(page.getByRole("button", { name: "Continue" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Menu" }).getByRole("button", { name: "Exit to title" }).click();
+  await page.getByRole("dialog", { name: "Leave this game?" }).getByRole("button", { name: "Exit to title" }).click();
+  await expect(page.getByRole("button", { name: /^Continue/ })).toBeVisible();
 
   for (const size of [
     { width: 1024, height: 600 },
