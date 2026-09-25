@@ -14,7 +14,12 @@ export function clone<T>(value: T): T {
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(value)) {
     const v = (value as Record<string, unknown>)[key];
-    if (v !== undefined) out[key] = clone(v);
+    if (v === undefined) continue;
+    // JSON.parse yields "__proto__" as an own key. Assigning it would set the
+    // copy's prototype, so untrusted fields could later be read as inherited
+    // ones; keep it as plain data instead.
+    if (key === "__proto__") Object.defineProperty(out, key, { value: clone(v), enumerable: true, writable: true, configurable: true });
+    else out[key] = clone(v);
   }
   return out as T;
 }

@@ -13,7 +13,7 @@ import { RESOURCE_TYPES, type CardEffectId, type CardId, type CardTarget, type G
 /** Throws a RuleViolation if the target is not valid for the card right now. */
 export function validateCardTarget(ctx: RulesContext, state: GameState, playerId: PlayerId, cardId: CardId, target: CardTarget): void {
   const def = ctx.cardOf(cardId);
-  check(target && target.effect === def.effectId, "INVALID_CARD_TARGET", "target does not match card");
+  check(target && typeof target === "object" && target.effect === def.effectId, "INVALID_CARD_TARGET", "target does not match card");
   if (def.requiresMenace) check(menaceOfType(state, def.requiresMenace), "INVALID_CARD_TARGET", `${def.requiresMenace} is not active`);
   switch (target.effect) {
     case "wizard_interference": {

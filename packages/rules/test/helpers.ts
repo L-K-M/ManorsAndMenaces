@@ -116,6 +116,13 @@ export function act(state: GameState, playerId: PlayerId, intent: CommandIntent)
   return { state: r.newState, events: r.events };
 }
 
+/** Debug-draws a card of definition `card` into `p`'s hand. */
+export function give(s: GameState, p: PlayerId, card: string): GameState {
+  const r = engine.applyDebugCommand(s, { type: "debug_draw_card", commandId: "d", matchId: s.matchId, playerId: p, targetPlayerId: p, cardDefId: card });
+  if (!r.newState) throw new Error(r.error?.code);
+  return r.newState;
+}
+
 /** Apply a command and assert that it was rejected with the given code. */
 export function reject(state: GameState, playerId: PlayerId, intent: CommandIntent, code: string): void {
   const r = engine.applyCommand(state, cmd(state, playerId, intent));
