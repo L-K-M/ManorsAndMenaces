@@ -269,6 +269,8 @@ export const EN: Record<string, string> = {
   "ui.rival_of_player": "Player {n} rival",
   "ui.rival_banter": "Rival banter",
   "log.quip": "{name}: “{quip}”",
+  "ui.rival_label": "{name}, {title}",
+  "ui.rival_portrait": "{name}, {title}: {motto}",
 
   "rival.lord_mumble.name": "Lord Mumble",
   "rival.lord_mumble.title": "the Cautious Builder",

@@ -6,6 +6,7 @@
   import { chatter, startChatter } from "../game/chatter.svelte.js";
   import { seatRival } from "../game/rivals.js";
   import type { GameSession } from "../game/session.svelte.js";
+  import { t } from "../i18n.js";
   import { ui } from "../stores/ui.svelte.js";
   import { PLAYER_THEMES } from "../theme.js";
   import QuipBubble from "./QuipBubble.svelte";
@@ -32,10 +33,13 @@
     </div>
   {/each}
 </div>
-<!-- One announcement per quip, whichever bubble is on screen. -->
-<div class="sr-only" role="status">
-  {#each chatter.shown as quip (quip.id)}<p>{session.authoritative.players[quip.playerId]?.displayName}: {quip.text}</p>{/each}
-</div>
+<!-- One announcement per quip, whichever bubble is on screen. An open
+     Chronicle already announces the quip's log line (aria-live). -->
+{#if ui.panel !== "log"}
+  <div class="sr-only" role="status">
+    {#each chatter.shown as quip (quip.id)}<p>{t("log.quip", { name: session.authoritative.players[quip.playerId]?.displayName ?? "", quip: quip.text })}</p>{/each}
+  </div>
+{/if}
 
 <style>
   .rival-quips {

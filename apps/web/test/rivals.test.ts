@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { RIVALS } from "@manors-menaces/content";
 import type { SeatConfig } from "@manors-menaces/protocol";
-import { assignRivals, freeRival, rivalName, seatRival } from "../src/lib/game/rivals.js";
+import { assignRivals, distinctRivals, freeRival, rivalName, rivalsTakenBy, seatRival } from "../src/lib/game/rivals.js";
 
 const ids = RIVALS.map((r) => r.id);
 
@@ -37,6 +37,35 @@ describe("freeRival", () => {
 
   it("returns undefined when all are taken", () => {
     expect(freeRival(ids)).toBeUndefined();
+  });
+});
+
+describe("rivalsTakenBy", () => {
+  const seats = [{ kind: "human" as const }, { kind: "ai" as const, rivalId: ids[0] }, { kind: "ai" as const, rivalId: ids[1] }, { kind: "ai" as const, rivalId: ids[2] }];
+
+  it("counts only the other AI seats in play", () => {
+    expect(rivalsTakenBy(seats, 1, 2)).toEqual([]);
+    expect(rivalsTakenBy(seats, 1, 3)).toEqual([ids[1]]);
+    expect(rivalsTakenBy(seats, 3, 4)).toEqual([ids[0], ids[1]]);
+  });
+});
+
+describe("distinctRivals", () => {
+  it("gives a seat brought back into play a rival no seat in play holds", () => {
+    // Seat 2 took seat 3's rival while seat 3 was out of the game.
+    const seats = [{ kind: "human" as const }, { kind: "ai" as const, rivalId: ids[1] }, { kind: "ai" as const, rivalId: ids[1] }, { kind: "ai" as const, rivalId: ids[2] }];
+    expect(distinctRivals(seats, 2)).toEqual(seats.map((s) => s.rivalId));
+    const out = distinctRivals(seats, 4);
+    expect(out[1]).toBe(ids[1]);
+    expect(new Set(out.slice(1)).size).toBe(3);
+  });
+
+  it("fills an AI seat without a rival and leaves humans alone", () => {
+    const out = distinctRivals([{ kind: "ai" }, { kind: "human", rivalId: ids[0] }, { kind: "ai", rivalId: ids[0] }], 3);
+    expect(out[1]).toBe(ids[0]);
+    expect(out[2]).toBe(ids[0]);
+    expect(out[0]).toBeDefined();
+    expect(out[0]).not.toBe(ids[0]);
   });
 });
 

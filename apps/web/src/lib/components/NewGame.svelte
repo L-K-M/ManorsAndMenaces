@@ -1,10 +1,11 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { t } from "../i18n.js";
   import type { AiLevel, SeatConfig } from "@manors-menaces/protocol";
   import { mvpRuleset, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
   import { PLAYER_THEMES, emblemPath } from "../theme.js";
   import { RIVALS, rivalById } from "@manors-menaces/content";
-  import { assignRivals, freeRival, rivalName } from "../game/rivals.js";
+  import { assignRivals, distinctRivals, freeRival, rivalName, rivalsTakenBy } from "../game/rivals.js";
   import RivalPicker from "./RivalPicker.svelte";
   import RivalPortrait from "./RivalPortrait.svelte";
 
@@ -24,10 +25,15 @@
     }),
   );
 
-  /** Rivals seated at the other AI seats (all four, so changing the count never duplicates one). */
+  /** Rivals seated at the other AI seats in play; seats left out do not hold theirs. */
   function rivalsOtherThan(i: number): (string | undefined)[] {
-    return seats.filter((s, j) => j !== i && s.kind === "ai").map((s) => s.rivalId);
+    return rivalsTakenBy(seats, i, count);
   }
+  // A seat brought back by raising the count may hold a rival picked since.
+  $effect(() => {
+    const ids = distinctRivals(seats, count);
+    untrack(() => ids.forEach((id, i) => id !== seats[i]?.rivalId && setRival(i, id)));
+  });
   /** A name nobody typed: blank, the seat's default, or its rival's name. */
   function isAutoName(i: number): boolean {
     const s = seats[i];

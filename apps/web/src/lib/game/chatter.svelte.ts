@@ -3,6 +3,7 @@
 // in the Chronicle. Owned by GameScreen, one instance per session.
 
 import type { PlayerId } from "@manors-menaces/rules";
+import { untrack } from "svelte";
 import { t } from "../i18n.js";
 import { settings } from "../stores/settings.svelte.js";
 import { quipEntry } from "./log.js";
@@ -38,7 +39,9 @@ export function startChatter(session: GameSession): () => void {
   if (Object.keys(rivals).length === 0) return () => undefined;
 
   const director = new QuipDirector(session.authoritative.matchId);
-  const timers = new Set<ReturnType<typeof setTimeout>>();
+  // Bubble expiry timers by quip id. They only run while the hot-seat privacy
+  // curtain is down: a quip said just before it rises waits for the reveal.
+  const timers = new Map<number, ReturnType<typeof setTimeout>>();
   let before = session.authoritative;
 
   const off = session.onEvents((events, state) => {
@@ -59,16 +62,35 @@ export function startChatter(session: GameSession): () => void {
     const shown: ShownQuip = { ...quip, id: nextId++, text: t(quip.key) };
     session.log = [...session.log, quipEntry(t("log.quip", { name, quip: shown.text }), quip.playerId)].slice(-300);
     chatter.shown = [...chatter.shown.filter((q) => q.playerId !== quip.playerId), shown];
-    const timer = setTimeout(() => {
-      timers.delete(timer);
-      chatter.shown = chatter.shown.filter((q) => q.id !== shown.id);
-    }, SHOW_MS);
-    timers.add(timer);
+    if (!session.curtainFor) arm(shown);
   }
+
+  function arm(quip: ShownQuip): void {
+    if (timers.has(quip.id)) return;
+    const timer = setTimeout(() => {
+      timers.delete(quip.id);
+      chatter.shown = chatter.shown.filter((q) => q.id !== quip.id);
+    }, SHOW_MS);
+    timers.set(quip.id, timer);
+  }
+
+  function clearTimers(): void {
+    for (const timer of timers.values()) clearTimeout(timer);
+    timers.clear();
+  }
+
+  // Curtain up: hold every bubble. Curtain down: give each its full time.
+  const stopCurtainWatch = $effect.root(() => {
+    $effect(() => {
+      const hidden = !!session.curtainFor;
+      untrack(() => (hidden ? clearTimers() : chatter.shown.forEach(arm)));
+    });
+  });
 
   return () => {
     off();
-    for (const timer of timers) clearTimeout(timer);
+    stopCurtainWatch();
+    clearTimers();
     chatter.shown = [];
   };
 }

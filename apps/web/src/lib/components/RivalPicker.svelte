@@ -12,7 +12,7 @@
 <div class="picker">
   <select aria-label={label} value={rivalId ?? ""} onchange={(e) => onpick((e.currentTarget as HTMLSelectElement).value)}>
     {#each RIVALS as r (r.id)}
-      <option value={r.id} disabled={r.id !== rivalId && taken.includes(r.id)}>{t(r.nameKey)}, {t(r.titleKey)}</option>
+      <option value={r.id} disabled={r.id !== rivalId && taken.includes(r.id)}>{t("ui.rival_label", { name: t(r.nameKey), title: t(r.titleKey) })}</option>
     {/each}
   </select>
   {#if rival}<q class="motto">{t(rival.mottoKey)}</q>{/if}

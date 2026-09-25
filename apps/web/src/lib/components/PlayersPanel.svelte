@@ -25,7 +25,7 @@
     {#if p}
       <article class="player" class:active={actor === pid} style="--pc: {theme.color}; --pl: {theme.light}">
         <header>
-          {#if rival}<RivalPortrait portrait={rival.portrait} {theme} size={30} title="{t(rival.nameKey)}, {t(rival.titleKey)}: {t(rival.mottoKey)}" />
+          {#if rival}<RivalPortrait portrait={rival.portrait} {theme} size={30} title={t("ui.rival_portrait", { name: t(rival.nameKey), title: t(rival.titleKey), motto: t(rival.mottoKey) })} />
           {:else}<svg width="22" height="22" viewBox="-11 -11 22 22" aria-hidden="true"><path d={emblemPath(theme.shape, 8)} fill={theme.color} stroke={theme.dark} stroke-width="1.5" /></svg>{/if}
           <strong>{p.displayName}</strong>
           {#if seat?.kind === "ai"}<span class="tag">AI · {seat.aiLevel}</span>{/if}
@@ -66,17 +66,11 @@
     border-radius: 10px;
     padding: 0.45rem 0.6rem;
     background: var(--paper);
-    position: relative;
   }
+  /* In the flow, so the rival's counts stay readable while it speaks. */
   .quip {
-    position: absolute;
-    top: 2.45rem;
-    left: 0.35rem;
-    right: 0.5rem;
-    /* Cover the card body entirely while the rival speaks. */
-    min-height: calc(100% - 2.8rem);
     display: grid;
-    z-index: 2;
+    margin: 0.5rem 0 0.35rem;
   }
   .player.active {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc) 55%, transparent);

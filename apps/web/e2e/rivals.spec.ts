@@ -61,3 +61,55 @@ test("computer seats are distinct named rivals who quip when they build", async 
   await expect(page.locator(".log li.quip").first()).toContainText(`${speaker}: “${line}”`);
   expect(errors).toEqual([]);
 });
+
+test("rivals on seats left out of the game stay free to pick", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New game" }).click();
+  await page.getByRole("radio", { name: "4", exact: true }).check({ force: true });
+  const heldBy3 = await page.getByLabel("Player 3 rival").inputValue();
+
+  // Seats 3 and 4 are not playing, so their rivals must not be greyed out.
+  await page.getByRole("radio", { name: "2", exact: true }).check({ force: true });
+  const picker = page.getByLabel("Player 2 rival");
+  await expect(picker.locator("option:disabled")).toHaveCount(0);
+
+  // Take seat 3's rival, then bring seat 3 back: it gets another rival
+  // rather than a duplicate.
+  await picker.selectOption(heldBy3);
+  await page.getByRole("radio", { name: "4", exact: true }).check({ force: true });
+  const ids = await Promise.all([2, 3, 4].map((n) => page.getByLabel(`Player ${n} rival`).inputValue()));
+  expect(ids[0]).toBe(heldBy3);
+  expect(new Set(ids).size).toBe(3);
+});
+
+test("a quip said just before the privacy curtain waits for the reveal", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true }));
+    indexedDB.deleteDatabase("manors-menaces");
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "New game" }).click();
+  await page.getByRole("radio", { name: "3", exact: true }).check({ force: true });
+  await page.getByLabel("Player 3 type").selectOption("human");
+  await page.getByText("Advanced").click();
+  await page.getByLabel(/Seed/).fill("rivals-curtain");
+  await page.getByRole("button", { name: "Begin" }).click();
+
+  // Player 1 places; the rival (player 2) introduces itself with its first
+  // Manor, then the curtain goes up for player 3.
+  const curtain = page.getByRole("dialog", { name: "Pass the device" });
+  for (let k = 0; k < 8 && !(await curtain.count()); k++) {
+    const status = (await page.locator(".actions .status").first().textContent()) ?? "";
+    if (/place a Manor/.test(status)) await page.locator(".site.hl").first().click();
+    else if (/free Route/.test(status)) await page.locator(".route.hl").first().click();
+    await page.waitForTimeout(400);
+  }
+  await expect(curtain).toBeVisible();
+
+  // Wait longer than a bubble stays up: nobody could read it behind the
+  // curtain, so it must still be there once player 3 looks.
+  await page.waitForTimeout(6500);
+  await curtain.getByRole("button", { name: "Tap to begin turn" }).click();
+  await expect(page.locator(".players .player .quip")).toHaveCount(1);
+});
