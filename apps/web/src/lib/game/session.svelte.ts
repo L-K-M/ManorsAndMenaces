@@ -408,10 +408,11 @@ export class GameSession {
     const state = this.authoritative;
     const actor = currentActor(state);
     if (this.transport.kind === "local") {
-      // A finished game has nothing to continue: drop its autosave so
-      // Continue never reopens a Victory screen.
-      if (state.status === "finished") this.discardAutosave();
-      else this.scheduleAutosave();
+      // A game that ends here has nothing to continue: drop its autosave so
+      // Continue never reopens a Victory screen. A finished save opened from
+      // the Load list is left alone, so its results can be viewed again.
+      if (events.some((e) => e.type === "game_won")) this.discardAutosave();
+      else if (state.status !== "finished") this.scheduleAutosave();
       if (events.some((e) => e.type === "game_won")) {
         recordGame(this.ctx, state, Object.fromEntries(this.seats.map((s) => [s.playerId, s.kind])));
       }

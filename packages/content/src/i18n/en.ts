@@ -426,6 +426,7 @@ export const EN: Record<string, string> = {
   "ui.leave_game": "Leave this game?",
   "ui.leave_autosaved": "Your game is saved automatically. Pick it up again with Continue on the title screen.",
   "ui.leave_tutorial": "Tutorial progress is not kept.",
+  "ui.leave_finished": "This game is over. To see these results again later, choose Save game first.",
   "ui.leave_online": "The match goes on without you. Rejoin it from Your matches.",
   "ui.leave_unsaved": "Your game could not be saved on this device. If you leave now, it is lost. Export save file first to keep it.",
   "ui.exit_without_saving": "Leave without saving",

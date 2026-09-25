@@ -43,8 +43,10 @@
     }, t("ui.save_failed"));
   const exportSave = () => run(async () => ((await session.exportSave()) ? t("ui.exported") : null), t("ui.export_failed"));
 
+  /** A finished game keeps no autosave (see GameSession.afterStateChange). */
+  const finished = $derived(session.authoritative.status === "finished");
   /** Leaving now would lose the game: the last autosave did not land. */
-  const unsaved = $derived(local && !tutorial && session.autosaveFailed);
+  const unsaved = $derived(local && !tutorial && !finished && session.autosaveFailed);
 
   async function leave() {
     const warned = unsaved;
@@ -53,12 +55,20 @@
     busy = false;
     // Never claim the game is kept when the final write failed: stay and
     // show the warning (with Export) so the player decides with the facts.
-    if (session.autosaveFailed && local && !tutorial && !warned) return;
+    if (session.autosaveFailed && local && !tutorial && !finished && !warned) return;
     onexit();
   }
 
   const leaveMessage = $derived(
-    !local ? t("ui.leave_online") : tutorial ? t("ui.leave_tutorial") : unsaved ? t("ui.leave_unsaved") : t("ui.leave_autosaved"),
+    !local
+      ? t("ui.leave_online")
+      : tutorial
+        ? t("ui.leave_tutorial")
+        : finished
+          ? t("ui.leave_finished")
+          : unsaved
+            ? t("ui.leave_unsaved")
+            : t("ui.leave_autosaved"),
   );
 </script>
 
@@ -83,7 +93,7 @@
       <button class="exit" onclick={() => (confirmingExit = true)}>{t("ui.exit_to_title")}</button>
     </nav>
     {#if note}<p class="note" class:bad={!note.ok} role="status">{note.text}</p>{/if}
-    {#if local && !tutorial && session.autosaveFailed}<p class="note bad" role="alert">{t("ui.autosave_failed")}</p>{/if}
+    {#if unsaved}<p class="note bad" role="alert">{t("ui.autosave_failed")}</p>{/if}
   {/if}
 </Modal>
 
