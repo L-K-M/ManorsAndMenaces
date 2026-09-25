@@ -29,13 +29,14 @@ const apply = (s: GameState, playerId: string, intent: CommandIntent): GameState
 /** A stand-in worker that answers through structured clones, like the real one. */
 class FakeWorker extends EventTarget implements AiWorkerLike {
   terminated = false;
-  constructor(private readonly answer: (req: AiWorkerRequest) => AiWorkerResponse | "crash" = (m) => ({ id: m.id, ok: true, decision: decideAi(m.req) })) {
+  constructor(private readonly answer: (req: AiWorkerRequest) => AiWorkerResponse | "crash" | "silent" = (m) => ({ id: m.id, ok: true, decision: decideAi(m.req) })) {
     super();
   }
   postMessage(message: AiWorkerRequest): void {
     const copy = structuredClone(message);
     setTimeout(() => {
       const res = this.answer(copy);
+      if (res === "silent") return;
       if (res === "crash") this.dispatchEvent(new Event("error"));
       else this.dispatchEvent(new MessageEvent("message", { data: structuredClone(res) }));
     }, 0);
@@ -86,6 +87,30 @@ describe("AiClient", () => {
     const client = new AiClient(() => new FakeWorker((m) => ({ id: m.id, ok: false, message: "boom" })));
     const s = newGame();
     await expect(client.choose({ mapId: "greenvale", state: s, playerId: currentActorOf(s) as string, level: "normal", rngState: seedRng("x") })).rejects.toThrow("boom");
+  });
+
+  it("decides in-thread when the worker never answers at all", async () => {
+    const silent = new FakeWorker(() => "silent");
+    const client = new AiClient(() => silent, 50);
+    await compare(client, 2);
+    expect(silent.terminated).toBe(true);
+    expect(client.runtime).toBe(AiRuntime.Inline);
+  });
+
+  it("gives up on a decision the worker gets stuck on and starts a fresh worker", async () => {
+    let calls = 0;
+    const stuck = new FakeWorker((m) => (++calls === 1 ? { id: m.id, ok: true, decision: decideAi(m.req) } : "silent"));
+    const workers: FakeWorker[] = [stuck];
+    const client = new AiClient(() => workers.shift() ?? new FakeWorker(), 50);
+    const s = newGame();
+    const req = { mapId: "greenvale", state: s, playerId: currentActorOf(s) as string, level: "normal" as const, rngState: seedRng("x") };
+    await expect(client.choose(req)).resolves.toEqual(decideAi(req));
+    await expect(client.choose(req)).rejects.toThrow("did not answer");
+    expect(stuck.terminated).toBe(true);
+    // A hung worker is replaced, not abandoned for in-thread decisions that
+    // could freeze the page the same way.
+    await expect(client.choose(req)).resolves.toEqual(decideAi(req));
+    expect(client.runtime).toBe(AiRuntime.Worker);
   });
 
   it("rejects requests after it is disposed", async () => {
