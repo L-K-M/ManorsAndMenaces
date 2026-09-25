@@ -13,6 +13,8 @@
 //                 absent) instead of on the proxy's own address. Set it only when
 //                 every request passes through exactly that many proxies, each
 //                 appending the address it saw; otherwise clients can spoof it.
+//                 X-Forwarded-For is read first when present, so a proxy that
+//                 sets only Forwarded must still strip or overwrite it.
 //
 // Fatal errors (the port is taken, an uncaught exception) exit with status 1
 // so a supervisor such as Docker restarts the server; AI seats resume then.
@@ -44,8 +46,12 @@ const app = createApp({
 });
 const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? "0.0.0.0";
-app.server.on("error", (e: NodeJS.ErrnoException) => fail(`Cannot listen on ${host}:${port} (${e.code ?? e.message})`, e.code ? undefined : e));
+const listenFailed = (e: NodeJS.ErrnoException) => fail(`Cannot listen on ${host}:${port} (${e.code ?? e.message})`, e.code ? undefined : e);
+app.server.once("error", listenFailed);
 app.server.listen(port, host, () => {
+  // Later server errors (say EMFILE on accept) are not listen failures: they
+  // reach the uncaught exception handler below with their own message.
+  app.server.off("error", listenFailed);
   console.log(`Manors & Menaces server listening on :${port} (db ${dbPath})`);
 });
 // A process in an unknown state could corrupt matches: log and exit, and let

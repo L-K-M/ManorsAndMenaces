@@ -82,10 +82,18 @@ class TokenBucket {
   }
 }
 
+/** An address without its port: `[2001:db8::17]:4711` and `192.0.2.60:4711` both carry one. */
+function withoutPort(value: string): string {
+  if (value.startsWith("[")) return value.slice(1, value.indexOf("]"));
+  const parts = value.split(":");
+  return parts.length === 2 ? (parts[0] as string) : value; // IPv4 with a port; bare IPv6 has more colons
+}
+
 /** Client addresses listed by forwarding headers, nearest proxy last. */
 function forwardedChain(req: IncomingMessage): string[] {
   const xff = req.headers["x-forwarded-for"];
-  if (xff) return String(xff).split(",").map((a) => a.trim());
+  // Some load balancers append the client port, which would give every connection its own bucket.
+  if (xff) return String(xff).split(",").map((a) => withoutPort(a.trim()));
   const forwarded = req.headers.forwarded;
   if (!forwarded) return [];
   // RFC 7239: `for=192.0.2.60;proto=http, for="[2001:db8::17]:4711"`.
@@ -93,10 +101,7 @@ function forwardedChain(req: IncomingMessage): string[] {
     .split(",")
     .map((element) => {
       const pair = element.split(";").find((p) => p.trim().toLowerCase().startsWith("for="));
-      const value = (pair?.trim().slice(4) ?? "").replace(/^"|"$/g, "");
-      if (value.startsWith("[")) return value.slice(1, value.indexOf("]"));
-      const parts = value.split(":");
-      return parts.length === 2 ? (parts[0] as string) : value; // IPv4 with a port
+      return withoutPort((pair?.trim().slice(4) ?? "").replace(/^"|"$/g, ""));
     });
 }
 
@@ -338,7 +343,15 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         if (msg.type === "subscribe" && typeof msg.matchId === "string") {
           // Repeats are ignored: the socket already receives every update.
           if (sub.matches.has(msg.matchId) || sub.matches.size >= WS_MAX_SUBSCRIPTIONS) return;
-          if (!service.memberPlayerId(msg.matchId, sub.userId)) return;
+          let member: string | null;
+          try {
+            member = service.memberPlayerId(msg.matchId, sub.userId);
+          } catch (e) {
+            // main.ts exits on uncaught exceptions: a failed lookup must not take the server down.
+            console.error(e);
+            return;
+          }
+          if (!member) return;
           sub.matches.add(msg.matchId);
           const update = updateFor(sub.userId, msg.matchId, []);
           if (update) ws.send(update);

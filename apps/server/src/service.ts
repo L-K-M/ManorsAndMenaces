@@ -48,8 +48,10 @@ export interface MatchListener {
 }
 
 const MAP_ID = "greenvale";
-/** Pause before an AI seat that found no usable move tries again. */
+/** Pause before an AI seat that found no usable move tries again; it doubles on each failure in a row. */
 const AI_RETRY_MS = 5_000;
+/** Cap on that growing pause, so a match stuck on a bug does not flood the log. */
+const AI_RETRY_MAX_MS = 5 * 60_000;
 
 export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -79,6 +81,8 @@ export class MatchService {
   private readonly engine: RulesEngine;
   private readonly listeners = new Set<MatchListener>();
   private readonly aiTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** AI steps in a row that failed, per match; sets the retry delay. */
+  private readonly aiFailures = new Map<string, number>();
   private closed = false;
   /** Presence callback set by the transport layer (WebSocket connections). */
   isConnected: (userId: string) => boolean = () => false;
@@ -307,7 +311,7 @@ export class MatchService {
       matchId,
       setTimeout(() => {
         this.aiTimers.delete(matchId);
-        this.runAiStep(matchId, seat);
+        this.guardAi(matchId, () => this.runAiStep(matchId, seat));
       }, this.opts.aiDelayMs),
     );
   }
@@ -347,19 +351,41 @@ export class MatchService {
       this.retryAiLater(matchId);
       return;
     }
-    if (this.store.commitBatch(matchId, match.revision, r.newState, [command])) this.emit(matchId, r.events);
+    if (this.store.commitBatch(matchId, match.revision, r.newState, [command])) {
+      this.aiFailures.delete(matchId);
+      this.emit(matchId, r.events);
+    }
     this.scheduleAi(matchId);
+  }
+
+  /**
+   * Runs the body of an AI timer. main.ts exits on uncaught exceptions, and
+   * resumeAll() would replay the same seeded step after the restart, so a bug
+   * in the engine or AI must stall only its own match, never the server.
+   */
+  private guardAi(matchId: string, step: () => void): void {
+    try {
+      step();
+    } catch (e) {
+      console.error(`AI step in ${matchId} failed; retrying later`, e);
+      this.retryAiLater(matchId);
+    }
   }
 
   /** Tracked like a normal AI step, so shutdown cancels it and it never doubles up. */
   private retryAiLater(matchId: string): void {
     if (this.closed || this.aiTimers.has(matchId)) return;
+    const failures = this.aiFailures.get(matchId) ?? 0;
+    this.aiFailures.set(matchId, failures + 1);
     this.aiTimers.set(
       matchId,
-      setTimeout(() => {
-        this.aiTimers.delete(matchId);
-        this.scheduleAi(matchId);
-      }, AI_RETRY_MS),
+      setTimeout(
+        () => {
+          this.aiTimers.delete(matchId);
+          this.guardAi(matchId, () => this.scheduleAi(matchId));
+        },
+        Math.min(AI_RETRY_MS * 2 ** failures, AI_RETRY_MAX_MS),
+      ),
     );
   }
 

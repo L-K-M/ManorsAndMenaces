@@ -84,6 +84,23 @@ function openSocket(base: string, token: string, opts: WebSocket.ClientOptions =
 
 const closeCode = (ws: WebSocket): Promise<number> => new Promise((r) => ws.once("close", (code) => r(code)));
 
+/** Plays the human's setup moves until the match's AI seat is the one to act. */
+async function playUntilAiTurn(base: string, token: string, matchId: string): Promise<void> {
+  const rng = createRng(seedRng("restart"));
+  for (let i = 0; i < 10; i++) {
+    const v = (await api<MatchView>(base, `/api/matches/${matchId}`, token)).data;
+    const s = v.state as GameState;
+    if (actorOf(s) !== v.youAre) return;
+    const intent = chooseAction(engine, s, v.youAre, { level: "easy", rng }) as CommandIntent;
+    const res = await api<SubmitCommandsResponse>(base, `/api/matches/${matchId}/commands`, token, {
+      matchId,
+      expectedRevision: s.revision,
+      commands: [command(s, v.youAre, intent)],
+    });
+    expect(res.data.accepted).toBe(true);
+  }
+}
+
 describe("AI seats after a restart", () => {
   it("resumes an AI seat that was due to move when the server stopped", async () => {
     const dbPath = join(mkdtempSync(join(tmpdir(), "mm-restart-")), "manors.sqlite");
@@ -98,20 +115,7 @@ describe("AI seats after a restart", () => {
     });
     const matchId = created.data.matchId;
     const view = async (base: string) => (await api<MatchView>(base, `/api/matches/${matchId}`, alice.token)).data;
-    // Play Alice's setup moves until the AI seat is the one to act.
-    const rng = createRng(seedRng("restart"));
-    for (let i = 0; i < 10; i++) {
-      const v = await view(first.base);
-      const s = v.state as GameState;
-      if (actorOf(s) !== v.youAre) break;
-      const intent = chooseAction(engine, s, v.youAre, { level: "easy", rng }) as CommandIntent;
-      const res = await api<SubmitCommandsResponse>(first.base, `/api/matches/${matchId}/commands`, alice.token, {
-        matchId,
-        expectedRevision: s.revision,
-        commands: [command(s, v.youAre, intent)],
-      });
-      expect(res.data.accepted).toBe(true);
-    }
+    await playUntilAiTurn(first.base, alice.token, matchId);
     const before = await view(first.base);
     expect(actorOf(before.state as GameState)).not.toBe(before.youAre);
     await stop(first.app);
@@ -119,6 +123,41 @@ describe("AI seats after a restart", () => {
     const second = await start({ dbPath, aiDelayMs: 5 });
     const moved = await until(async () => (await view(second.base)).revision > before.revision, 2_000);
     expect(moved).toBe(true);
+  });
+
+  it("keeps the server up and retries when an AI step throws", async () => {
+    const { app, base } = await start({ aiDelayMs: 5 });
+    // A latent rules or AI bug: every AI command blows up in the engine.
+    const aiEngine = (app.service as unknown as { engine: { applyCommand: (s: GameState, c: GameCommand) => unknown } }).engine;
+    const apply = aiEngine.applyCommand.bind(aiEngine);
+    let aiAttempts = 0;
+    aiEngine.applyCommand = (s, c) => {
+      if (!c.commandId.startsWith("ai-")) return apply(s, c);
+      aiAttempts++;
+      throw new TypeError("simulated engine bug");
+    };
+    const uncaught: unknown[] = [];
+    const onUncaught = (e: unknown) => uncaught.push(e);
+    process.on("uncaughtException", onUncaught);
+    try {
+      const alice = await guest(base, "Alice");
+      const created = await api<{ matchId: string }>(base, "/api/matches", alice.token, {
+        displayName: "Alice",
+        seatCount: 2,
+        rulesetName: "standard",
+        aiSeats: [{ displayName: "Robo", level: "easy" }],
+      });
+      const matchId = created.data.matchId;
+      await playUntilAiTurn(base, alice.token, matchId);
+      expect(await until(async () => aiAttempts > 0, 2_000)).toBe(true);
+      await sleep(50);
+      expect(uncaught).toEqual([]);
+      expect((await api(base, "/api/health", null)).status).toBe(200);
+      // The failed step is queued for a retry rather than dropped.
+      expect((app.service as unknown as { aiTimers: Map<string, unknown> }).aiTimers.has(matchId)).toBe(true);
+    } finally {
+      process.off("uncaughtException", onUncaught);
+    }
   });
 });
 
@@ -138,6 +177,27 @@ describe("WebSocket abuse limits", () => {
     expect(updates).toBeGreaterThan(0);
     expect(updates).toBeLessThanOrEqual(2);
     expect((await api(base, "/api/health", null)).status).toBe(200);
+  });
+
+  it("survives a failing lookup while handling a message", async () => {
+    const { app, base } = await start();
+    const alice = await guest(base, "Alice");
+    app.service.memberPlayerId = () => {
+      throw new Error("simulated database error");
+    };
+    const uncaught: unknown[] = [];
+    const onUncaught = (e: unknown) => uncaught.push(e);
+    process.on("uncaughtException", onUncaught);
+    try {
+      const ws = await openSocket(base, alice.token);
+      ws.send(JSON.stringify({ type: "subscribe", matchId: "m-1" }));
+      await sleep(100);
+      expect(uncaught).toEqual([]);
+      expect(ws.readyState).toBe(WebSocket.OPEN);
+      ws.close();
+    } finally {
+      process.off("uncaughtException", onUncaught);
+    }
   });
 
   it("closes a socket that sends an oversized frame", async () => {
@@ -186,6 +246,9 @@ describe("rate limiting behind a reverse proxy", () => {
     // A spoofed left-most entry does not escape the bucket the proxy appended.
     expect(await health(base, { "x-forwarded-for": "198.51.100.9, 203.0.113.1" })).toBe(429);
     expect(await health(base, { "x-forwarded-for": "203.0.113.2" })).toBe(200);
+    // Some load balancers append the client port; it must not open a fresh bucket.
+    for (let i = 0; i < 4; i++) expect(await health(base, { "x-forwarded-for": "203.0.113.2" })).toBe(200);
+    expect(await health(base, { "x-forwarded-for": "203.0.113.2:40000" })).toBe(429);
     expect(await health(base, { forwarded: 'for="[2001:db8::1]:4711"' })).toBe(200);
   });
 
