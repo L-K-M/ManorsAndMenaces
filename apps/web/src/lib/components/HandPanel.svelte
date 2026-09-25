@@ -28,9 +28,9 @@
 
 {#if session.draft.ruleset.enableCards}
   <section class="hand" aria-label={t("ui.your_hand")}>
-    <h3>{viewer ? `${session.draft.players[viewer]?.displayName}'s hand` : "Hand"} <small>({hand.length}/{session.draft.ruleset.handLimit})</small></h3>
+    <h3>{viewer ? t("hand.title", { name: session.draft.players[viewer]?.displayName ?? "" }) : t("ui.your_hand")} <small>({hand.length}/{session.draft.ruleset.handLimit})</small></h3>
     {#if hand.length === 0}
-      <p class="empty">No cards. {t("action.buy_card")}: {t("cost.card")}</p>
+      <p class="empty">{t("hand.empty", { action: t("action.buy_card"), cost: t("cost.card") })}</p>
     {/if}
     <ul>
       {#each hand as cardId (cardId)}

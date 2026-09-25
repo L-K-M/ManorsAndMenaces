@@ -27,7 +27,9 @@
           title: r.name,
           lines: [
             `${t(`resource.${r.resource}`)} · capacity ${r.capacity}${r.capacity > 1 ? " (rich)" : ""}`,
-            occ.length ? `Banners: ${occ.map((b) => `${s.players[b.ownerId]?.displayName}${b.settled ? "" : " (unsettled)"}`).join(", ")}` : "No Banners",
+            occ.length
+              ? t("tip.banners", { banners: occ.map((b) => `${s.players[b.ownerId]?.displayName}${b.settled ? "" : " (unsettled)"}`).join(", ") })
+              : t("tip.no_banners"),
             ...(menace ? [`${t(`menace.${menace.type}.name`)}: ${t(`menace.${menace.type}.rules`)}`] : []),
           ],
         };
@@ -39,9 +41,9 @@
         return {
           title: site.landmarkId ? t(`landmark.${site.landmarkId}`) : h ? t(`holding.${h.type}`) : "Site",
           lines: [
-            h ? `${t(`holding.${h.type}`)} of ${s.players[h.ownerId]?.displayName}` : "Empty site",
-            `Touches: ${site.adjacentRegionIds.map((r) => regionName(session.map, r)).join(", ")}`,
-            ...(site.tradePost ? [`Trading Post: 2 ${t(`resource.${site.tradePost.resource}`)} → 1 of anything`] : []),
+            h ? `${t(`holding.${h.type}`)} of ${s.players[h.ownerId]?.displayName}` : t("tip.empty_site"),
+            t("tip.touches", { regions: site.adjacentRegionIds.map((r) => regionName(session.map, r)).join(", ") }),
+            ...(site.tradePost ? [t("tip.trade_post", { resource: t(`resource.${site.tradePost.resource}`) })] : []),
           ],
         };
       }
@@ -51,7 +53,11 @@
         const hoard = Object.entries(m.state.hoard ?? {}).filter(([, n]) => (n ?? 0) > 0);
         return {
           title: t(`menace.${m.type}.name`),
-          lines: [t(`menace.${m.type}.rules`), `“${t(`menace.${m.type}.flavor`)}”`, ...(hoard.length ? [`Hoard: ${hoard.map(([r, n]) => `${n} ${t(`resource.${r}`)}`).join(", ")}`] : [])],
+          lines: [
+            t(`menace.${m.type}.rules`),
+            `“${t(`menace.${m.type}.flavor`)}”`,
+            ...(hoard.length ? [t("tip.hoard", { hoard: hoard.map(([r, n]) => `${n} ${t(`resource.${r}`)}`).join(", ") })] : []),
+          ],
         };
       }
       case "banner": {
@@ -59,12 +65,18 @@
         if (!b) return null;
         return {
           title: `${s.players[b.ownerId]?.displayName}'s Banner`,
-          lines: [b.regionId ? `In ${regionName(session.map, b.regionId)}` : "At home (unassigned)", b.settled ? "Settled — can be targeted by a Royal Writ" : "Unsettled — protected from Royal Writs until it harvests"],
+          lines: [
+            b.regionId ? t("tip.in_region", { region: regionName(session.map, b.regionId) }) : t("tip.at_home"),
+            b.settled ? t("tip.settled") : t("tip.unsettled"),
+          ],
         };
       }
       case "route": {
         const owner = s.routeOwners[p.id];
-        return { title: "Route", lines: [owner ? `Owned by ${s.players[owner]?.displayName}` : "Unowned", t("cost.route")] };
+        return {
+          title: t("route.road"),
+          lines: [owner ? t("tip.owned_by", { name: s.players[owner]?.displayName ?? "" }) : t("tip.unowned"), t("cost.route")],
+        };
       }
       default:
         return null;
@@ -85,13 +97,20 @@
 {#if gs.status === "finished"}
   <Modal title={t("ui.victory")}>
     <p class="winner">
-      <b>{gs.players[gs.winnerId ?? ""]?.displayName}</b> wins with {getRenown(session.ctx, gs, gs.winnerId ?? "")} Renown in round {gs.round}.
+      {t("victory.wins", {
+        name: gs.players[gs.winnerId ?? ""]?.displayName ?? "",
+        renown: getRenown(session.ctx, gs, gs.winnerId ?? ""),
+        round: gs.round,
+      })}
     </p>
     <ol class="standings">
       {#each standings as pid}
         <li>
-          {gs.players[pid]?.displayName} — {getRenown(session.ctx, gs, pid)} Renown,
-          {getPlayerHoldings(gs, pid).length} Holdings, {gs.players[pid]?.claimedQuestIds.length} Quests
+          {t("victory.standing_line", {
+            name: gs.players[pid]?.displayName ?? "",
+            renown: getRenown(session.ctx, gs, pid),
+            standing: t("victory.standing", { holdings: getPlayerHoldings(gs, pid).length, quests: gs.players[pid]?.claimedQuestIds.length ?? 0 }),
+          })}
         </li>
       {/each}
     </ol>

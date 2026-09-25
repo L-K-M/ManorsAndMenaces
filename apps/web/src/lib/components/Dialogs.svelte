@@ -65,9 +65,16 @@
     const tg = p.target;
     switch (tg.effect) {
       case "wizard_interference":
-        return `${gs.players[gs.banners[tg.bannerId]?.ownerId ?? ""]?.displayName}'s Banner → ${regionName(session.map, tg.regionId)}`;
-      case "fog_of_confusion":
-        return `a Route ${gs.routeOwners[tg.routeId] ? `of ${gs.players[gs.routeOwners[tg.routeId] ?? ""]?.displayName}` : ""}`;
+        return t("tip.spell_target_banner", {
+          owner: gs.players[gs.banners[tg.bannerId]?.ownerId ?? ""]?.displayName ?? "",
+          region: regionName(session.map, tg.regionId),
+        });
+      case "fog_of_confusion": {
+        const routeOwner = gs.routeOwners[tg.routeId];
+        return routeOwner
+          ? t("tip.spell_target_route", { owner: gs.players[routeOwner]?.displayName ?? "" })
+          : t("tip.spell_target_route_unowned");
+      }
       default:
         return "";
     }
@@ -86,7 +93,7 @@
     <div class="grid">
       {#each giveOptions as o}
         <button class:on={give === o.resource && via === o.via} onclick={() => ((give = o.resource), (via = o.via))}>
-          {o.amount}× <ResourceIcon resource={o.resource} /> {t(`resource.${o.resource}`)}{o.via ? " (Trading Post)" : ""}
+          {o.amount}× <ResourceIcon resource={o.resource} /> {t(`resource.${o.resource}`)}{o.via ? ` ${t("ui.trading_post_short")}` : ""}
         </button>
       {/each}
       {#if giveOptions.length === 0}<p>{t("ui.you_need_3_of_one")}</p>{/if}
@@ -105,8 +112,10 @@
 {#if ui.dialog === "writ" && writBanner}
   <Modal title={t("action.royal_writ")} onclose={() => ((ui.dialog = null), (ui.writTargetId = null))}>
     <p class="help">
-      Send {gs.players[writBanner.ownerId]?.displayName}'s Banner in <b>{regionName(session.map, writBanner.regionId)}</b> home.
-      You pay 1 Essence to the Crown and a bribe of 1 resource to {gs.players[writBanner.ownerId]?.displayName}.
+      {t("writ.help", {
+        owner: gs.players[writBanner.ownerId]?.displayName ?? "",
+        region: regionName(session.map, writBanner.regionId),
+      })}
     </p>
     <h4>{t("ui.choose_the_bribe")}</h4>
     <div class="grid">
@@ -151,8 +160,8 @@
 {#if legal?.mode === "reaction" && pendingReaction}
   <Modal title={t("ui.counterspell")}>
     <p class="help">
-      {gs.players[pendingReaction.sourcePlayerId]?.displayName} plays
-      <b>{t(`card.${cardDefIdOf(pendingReaction.cardId)}.name`)}</b>{describeTarget() ? ` on ${describeTarget()}` : ""}.
+      {t("ui.reaction_intro", { name: gs.players[pendingReaction.sourcePlayerId]?.displayName ?? "" })}
+      <b>{t(`card.${cardDefIdOf(pendingReaction.cardId)}.name`)}</b>{describeTarget() ? ` ${t("ui.reaction_on", { target: describeTarget() })}` : ""}.
     </p>
     <div class="grid">
       {#each legal.reactionCards as c}

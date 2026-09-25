@@ -66,7 +66,7 @@
     if (data && isSaveFile(data)) {
       showLoad = false;
       openSession(GameSession.fromSave(data));
-    } else loadError = "That save could not be read.";
+    } else loadError = t("ui.save_unreadable");
   }
   async function importFile(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0];
@@ -77,7 +77,7 @@
       showLoad = false;
       openSession(GameSession.fromSave(data));
     } catch {
-      loadError = "That file is not a Manors & Menaces save.";
+      loadError = t("ui.save_invalid_file");
     }
   }
   function exit() {
@@ -136,7 +136,7 @@
     <ul class="saves">
       {#each saves as s (s.id)}
         <li>
-          <button onclick={() => loadSave(s.id)}>{s.id === "autosave" ? "Autosave" : s.label}<small>{new Date(s.savedAt).toLocaleString()}</small></button>
+          <button onclick={() => loadSave(s.id)}>{s.id === "autosave" ? t("ui.autosave") : s.label}<small>{new Date(s.savedAt).toLocaleString()}</small></button>
           {#if s.id !== "autosave"}<button class="ghost" aria-label={t("ui.delete_save")} onclick={() => platform.remove(s.id).then(refreshSaves)}>✕</button>{/if}
         </li>
       {/each}

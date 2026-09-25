@@ -39,8 +39,8 @@
         <div class="meta">
           <span>{getPlayerHoldings(gs, pid).filter((h) => h.type === "manor").length} {t("holding.manor")}</span>
           <span>{getPlayerHoldings(gs, pid).filter((h) => h.type === "stronghold").length} {t("holding.stronghold")}</span>
-          <span>{p.routeIds.length} routes</span>
-          {#if gs.ruleset.enableCards}<span>{p.hand.length} cards</span>{/if}
+          <span>{t("ui.routes_count", { count: p.routeIds.length })}</span>
+          {#if gs.ruleset.enableCards}<span>{t("ui.cards_count", { count: p.hand.length })}</span>{/if}
         </div>
       </article>
     {/if}

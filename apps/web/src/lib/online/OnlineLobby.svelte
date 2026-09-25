@@ -145,7 +145,7 @@
     <p class="code">{lobbyMatch.inviteCode}</p>
     <input class="link" readonly value={inviteLink} onfocus={(e) => (e.target as HTMLInputElement).select()} aria-label={t("ui.invite_link")} />
     <ul>
-      {#each lobbyMatch.seats as s}<li>{s.displayName} — {s.kind === "open" ? "waiting" : s.kind}</li>{/each}
+      {#each lobbyMatch.seats as s}<li>{s.displayName} — {s.kind === "open" ? t("ui.seat_waiting") : s.kind}</li>{/each}
     </ul>
     <button onclick={() => ((lobbyMatch = null), unsubscribeLobby?.())}>{t("ui.back_to_lobby")}</button>
   {:else}
@@ -180,7 +180,7 @@
         <li>
           <button onclick={() => openMatch(m.matchId)}>
             {m.seats.map((s) => s.displayName).join(" · ")}
-            <small>{m.status}{yourTurn ? " — your turn!" : ""} · code {m.inviteCode}</small>
+            <small>{m.status}{yourTurn ? t("ui.your_turn_suffix") : ""} · {t("ui.match_code", { code: m.inviteCode })}</small>
           </button>
         </li>
       {/each}

@@ -56,7 +56,7 @@
     const data = session.toSaveFile();
     const id = `save-${Date.now()}`;
     await platform.save(id, `${gs.turnOrder.map((p) => gs.players[p]?.displayName).join(" vs ")} · round ${gs.round}`, data);
-    savedNote = "Saved.";
+    savedNote = t("ui.saved_note");
     setTimeout(() => (savedNote = null), 1800);
   }
   function keydown(e: KeyboardEvent) {
@@ -79,14 +79,14 @@
   <header class="topbar">
     <button class="ghost" onclick={onexit} aria-label={t("ui.main_menu")}>☰</button>
     <h1>{t("app.title")}</h1>
-    <span class="round">Round {Math.max(1, gs.round)}</span>
+    <span class="round">{t("ui.round", { round: Math.max(1, gs.round) })}</span>
     {#if me}
       <div class="mine" aria-label={t("ui.your_resources")}>
         {#each RESOURCE_TYPES as r}<span><ResourceIcon resource={r} size={18} />{me.resources[r]}</span>{/each}
       </div>
     {/if}
     <span class="spacer"></span>
-    {#if session.transport.kind === "local"}<button class="ghost" onclick={save}>{savedNote ?? "Save"}</button>{/if}
+    {#if session.transport.kind === "local"}<button class="ghost" onclick={save}>{savedNote ?? t("ui.save")}</button>{/if}
     <button class="ghost" onclick={() => (ui.dialog = "settings")} aria-label={t("ui.settings")}>⚙</button>
     {#if import.meta.env.DEV}<button class="ghost" onclick={() => (ui.showDebug = true)}>{t("ui.debug")}</button>{/if}
     <button class="ghost panel-toggle" onclick={() => (panelOpen = !panelOpen)} aria-expanded={panelOpen}>{t("ui.panels")}</button>
