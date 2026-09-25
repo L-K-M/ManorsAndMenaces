@@ -8,8 +8,20 @@ const rootVersion = (JSON.parse(readFileSync(new URL("../../package.json", impor
 // A bundler warning in the production build (an externalized Node module, a
 // missing export, an unresolved import) means a broken bundle, so the build
 // fails instead of shipping it. Rolldown ignores errors thrown from `onwarn`,
-// so the warnings are collected there and raised once the bundle is rendered.
+// so the warnings are collected there and raised once the bundle is rendered,
+// or at close for warnings that plugins emit while writing it.
 const buildWarnings: string[] = [];
+// Warnings Vite's default handler drops as noise; failing on them would make
+// the build stricter than Vite intends.
+const IGNORED_WARNING_CODES = new Set(["CIRCULAR_DEPENDENCY", "THIS_IS_UNDEFINED"]);
+const IGNORED_DYNAMIC_IMPORT_WARNINGS = ["Unsupported expression", "statically analyzed"];
+const isIgnoredWarning = (warning: { code?: string; plugin?: string; message: string }) =>
+  (warning.code !== undefined && IGNORED_WARNING_CODES.has(warning.code)) ||
+  (warning.plugin === "rollup-plugin-dynamic-import-variables" && IGNORED_DYNAMIC_IMPORT_WARNINGS.some((text) => warning.message.includes(text)));
+function raiseBuildWarnings(error: (message: string) => never) {
+  const pending = buildWarnings.splice(0);
+  if (pending.length > 0) error(`Production build warnings:\n${pending.join("\n")}`);
+}
 const failOnBuildWarnings: Plugin = {
   name: "fail-on-build-warnings",
   apply: "build",
@@ -17,7 +29,10 @@ const failOnBuildWarnings: Plugin = {
     buildWarnings.length = 0;
   },
   generateBundle() {
-    if (buildWarnings.length > 0) this.error(`Production build warnings:\n${buildWarnings.join("\n")}`);
+    raiseBuildWarnings((message) => this.error(message));
+  },
+  closeBundle() {
+    raiseBuildWarnings((message) => this.error(message));
   },
 };
 
@@ -32,8 +47,10 @@ export default defineConfig({
     target: "es2022",
     sourcemap: true,
     rolldownOptions: {
-      onwarn(warning) {
-        buildWarnings.push(warning.message);
+      onwarn(warning, defaultHandler) {
+        // The default handler prints the warning and applies Vite's own filters.
+        defaultHandler(warning);
+        if (!isIgnoredWarning(warning)) buildWarnings.push(warning.message);
       },
     },
   },

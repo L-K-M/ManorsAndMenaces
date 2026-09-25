@@ -11,6 +11,13 @@ const nodeBuiltins = (message) => ({
   patterns: [{ group: ["node:*"], message }],
 });
 const FRAMEWORK_FREE = "Shared packages stay framework-free: no Svelte, Tauri, Node or server code (spec §33, §103).";
+// A relative path into another package's sources would bypass the
+// package-name groups, so packages must import each other by name.
+const WORKSPACE_PACKAGES = ["rules", "content", "ai", "protocol"];
+const RELATIVE_PACKAGE_SOURCES = {
+  group: WORKSPACE_PACKAGES.map((name) => `**/${name}/src`),
+  message: "Import other packages by name (@manors-menaces/...), not by a relative path into their sources.",
+};
 const frameworkFreeImports = (...extraPatterns) => {
   const node = nodeBuiltins(FRAMEWORK_FREE);
   return [
@@ -21,6 +28,7 @@ const frameworkFreeImports = (...extraPatterns) => {
         ...node.patterns,
         { group: ["svelte", "svelte/*", "@tauri-apps/*", "@sveltejs/*", "ws/*"], message: FRAMEWORK_FREE },
         { group: ["@manors-menaces/web", "@manors-menaces/server", "**/apps/**"], message: "Packages must not depend on apps." },
+        RELATIVE_PACKAGE_SOURCES,
         ...extraPatterns,
       ],
     },
