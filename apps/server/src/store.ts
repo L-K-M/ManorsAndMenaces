@@ -199,6 +199,13 @@ export class Store {
     );
   }
 
+  /** The committed commands with the revision each brought the match to, oldest first. */
+  commandRows(id: string): { revision: number; command: GameCommand }[] {
+    return (this.db.prepare("SELECT revision, payload FROM match_events WHERE match_id = ? ORDER BY revision").all(id) as { revision: number; payload: string }[]).map(
+      (r) => ({ revision: r.revision, command: JSON.parse(r.payload) as GameCommand }),
+    );
+  }
+
   /** Already-committed commands among `commandIds`, keyed by id. */
   commandsByIds(matchId: string, commandIds: string[]): Map<string, GameCommand> {
     if (commandIds.length === 0) return new Map();

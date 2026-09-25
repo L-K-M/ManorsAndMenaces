@@ -1,7 +1,17 @@
+<script module lang="ts">
+  import type { GameSession } from "../game/session.svelte.js";
+
+  /**
+   * Sessions whose Chronicle has been placed once. Only the first time it is
+   * shown does it open at the "since your last visit" divider; switching tabs
+   * back later follows the latest entries as usual.
+   */
+  const placedSessions = new WeakSet<GameSession>();
+</script>
+
 <script lang="ts">
   import { untrack } from "svelte";
   import { t } from "../i18n.js";
-  import type { GameSession } from "../game/session.svelte.js";
   import { PLAYER_THEMES } from "../theme.js";
 
   let { session }: { session: GameSession } = $props();
@@ -25,6 +35,14 @@
   $effect(() => {
     void session.log.length;
     if (!listEl) return;
+    // A returning player reads on from the moves they missed (see historyLog).
+    const divider = listEl.querySelector<HTMLElement>("li.divider");
+    if (divider && !placedSessions.has(session)) {
+      placedSessions.add(session);
+      listEl.scrollTop += divider.getBoundingClientRect().top - listEl.getBoundingClientRect().top;
+      following = nearBottom();
+      return;
+    }
     if (untrack(() => following)) listEl.scrollTop = listEl.scrollHeight;
     // Undo can shrink the list until nothing is hidden: follow again.
     else if (nearBottom()) following = true;
@@ -95,6 +113,25 @@
   }
   li.important {
     font-weight: 600;
+  }
+  li.divider {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.5rem 0 0.3rem;
+    padding: 0;
+    border-left: 0;
+    font: 700 0.72rem/1.2 var(--font-body);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #a3190c;
+  }
+  li.divider::before,
+  li.divider::after {
+    content: "";
+    flex: 1;
+    border-top: 1px solid currentColor;
+    opacity: 0.6;
   }
   li.quip {
     font-style: italic;

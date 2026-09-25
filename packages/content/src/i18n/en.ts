@@ -769,6 +769,8 @@ export const EN: Record<string, string> = {
 
   // ---------------------------------------------------------------- end of game
   "log.history_unavailable": "Some events of this game could not be restored from the save.",
+  "log.since_last_visit": "Since your last visit",
+  "log.history_incomplete": "Some earlier events of this match could not be loaded.",
   "ui.final_standings": "Final standings",
   "ui.victory_subtitle": "wins with {renown} Renown in round {round}",
   "ui.game_over_results": "Game over · Results",

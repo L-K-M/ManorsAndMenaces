@@ -1,6 +1,7 @@
 // Turns engine events into concise, readable log lines (spec §84).
 
 import type { MapDefinition } from "@manors-menaces/content";
+import type { HistoryEntry } from "@manors-menaces/protocol";
 import { cardDefIdOf, type GameCommand, type GameEvent, type GameState, type MenaceLocation, type RulesEngine } from "@manors-menaces/rules";
 import { t } from "../i18n.js";
 import { replayHistory } from "./replay.js";
@@ -9,7 +10,8 @@ export interface LogEntry {
   id: number;
   text: string;
   playerId: string | null;
-  kind: "turn" | "info" | "important" | "quip";
+  /** `divider` marks where the moves a returning player missed begin. */
+  kind: "turn" | "info" | "important" | "quip" | "divider";
   /** Raw event for the expandable debug view. */
   raw?: GameEvent;
   /** Logged locally for a buffered (not yet submitted) action. */
@@ -187,4 +189,27 @@ export function rebuildLog(
   const { complete } = replayHistory(engine, initial, history, (step) => entries.push(...formatEvents(step.events, step.after, map)), saved);
   if (!complete) entries.push({ id: nextId++, text: t("log.history_unavailable"), playerId: null, kind: "info" });
   return { entries, complete };
+}
+
+/**
+ * The Chronicle of an online match from the server's history (the client
+ * keeps no log between visits). The moves made after `lastSeen`, the revision
+ * this device last showed, follow a "since your last visit" divider; there is
+ * none on a first visit or when nothing new happened.
+ */
+export function historyLog(entries: readonly HistoryEntry[], complete: boolean, lastSeen: number | null, state: GameState, map: MapDefinition): LogEntry[] {
+  const out: LogEntry[] = [];
+  let divided = false;
+  for (const entry of entries) {
+    // Formatted against the latest state: the formatters read only what does
+    // not change during a match (names, menace kinds, the map).
+    const lines = formatEvents(entry.events, state, map);
+    if (!divided && lastSeen !== null && entry.revision > lastSeen && lines.length) {
+      out.push({ id: nextId++, text: t("log.since_last_visit"), playerId: null, kind: "divider" });
+      divided = true;
+    }
+    out.push(...lines);
+  }
+  if (!complete) out.push({ id: nextId++, text: t("log.history_incomplete"), playerId: null, kind: "info" });
+  return out;
 }
