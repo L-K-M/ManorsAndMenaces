@@ -7,14 +7,17 @@ import {
   checkBuildRoute,
   checkUpgrade,
   enumerateCardTargets,
+  getActionAvailability,
   getLegalActions,
   getLegalBannerRegions,
   getLegalMenaceDestinations,
   getPlayerBanners,
+  type ActionAvailability,
   type CardTarget,
   type CommandIntent,
   type LegalActionSummary,
   type MenaceLocation,
+  type PlayerAction,
   type ResourceType,
 } from "@manors-menaces/rules";
 import { CARD_STEPS, locationKey, remainingTargets, resetTool, ui, valueKey, type Pick } from "../stores/ui.svelte.js";
@@ -37,6 +40,50 @@ const empty = (): Highlights => ({ sites: new Set(), routes: new Set(), regions:
 export function legalFor(session: GameSession): LegalActionSummary | null {
   const actor = session.localActor;
   return actor ? getLegalActions(session.ctx, session.draft, actor) : null;
+}
+
+/** Label keys of the Main-phase actions. */
+export const ACTION_LABEL: Record<PlayerAction, string> = {
+  route: "action.build_route",
+  manor: "action.build_manor",
+  upgrade: "action.upgrade",
+  market: "action.trade",
+  writ: "action.royal_writ",
+  warden: "action.warden",
+  card: "action.buy_card",
+};
+
+/** Why each Main-phase action is (un)available, or null outside the Main phase. */
+export function availabilityFor(session: GameSession, legal: LegalActionSummary | null): Record<PlayerAction, ActionAvailability> | null {
+  if (legal?.mode !== "main") return null;
+  return getActionAvailability(session.ctx, session.draft, legal.playerId);
+}
+
+/**
+ * Start an action from the action bar: board tools are armed for picking,
+ * the Market opens and a card is bought straight away.
+ */
+export async function startAction(session: GameSession, action: PlayerAction): Promise<void> {
+  if (action === "market") {
+    resetTool();
+    ui.marketGoal = null;
+    ui.dialog = "market";
+    return;
+  }
+  if (action === "card") {
+    await session.perform({ type: "buy_card" });
+    return;
+  }
+  if (ui.tool === action) return resetTool();
+  resetTool();
+  ui.tool = action;
+}
+
+/** Open the Market set up for the trades that make `action` affordable. */
+export function tradeToAfford(action: PlayerAction): void {
+  resetTool();
+  ui.marketGoal = action;
+  ui.dialog = "market";
 }
 
 export function computeHighlights(session: GameSession, legal: LegalActionSummary | null): Highlights {
@@ -321,7 +368,7 @@ function pickValue(kind: string, pick: Pick): unknown {
 }
 
 /** Confirm the Banner draft (setup or Banner Assignment phase). */
-export async function confirmBanners(session: GameSession, legal: LegalActionSummary): Promise<void> {
+export async function confirmBanners(session: GameSession, legal: LegalActionSummary): Promise<boolean> {
   const changes: Record<string, string | null> = {};
   for (const [b, r] of Object.entries(ui.bannerDraft)) {
     const banner = session.draft.banners[b];
@@ -334,4 +381,15 @@ export async function confirmBanners(session: GameSession, legal: LegalActionSum
     ui.bannerDraft = {};
     ui.selectedBannerId = null;
   }
+  return ok;
+}
+
+/**
+ * Banner Assignment fast path: confirm the draft and end the turn in one step.
+ * Stops in the End phase when cards must be discarded first.
+ */
+export async function confirmBannersAndEndTurn(session: GameSession, legal: LegalActionSummary): Promise<void> {
+  if (!(await confirmBanners(session, legal))) return;
+  const next = legalFor(session);
+  if (next?.mode === "end" && next.mustDiscard === 0) await session.perform({ type: "end_turn" });
 }

@@ -82,7 +82,6 @@ async function completeSetup(page: Page) {
 
 async function endTurn(page: Page) {
   await page.getByRole("button", { name: /Assign Banners →/ }).click();
-  await page.getByRole("button", { name: /Confirm Banners/ }).click();
   await page.getByRole("button", { name: /End Turn/ }).click();
 }
 
@@ -100,7 +99,7 @@ test("setup, first turn, build, harvest, warden, save and reload, victory", asyn
 
   // Build a Route with debug-granted resources.
   await debugGrant(page);
-  await page.getByRole("button", { name: /Build Route/ }).click();
+  await page.getByRole("button", { name: /^Build Route/ }).click();
   const routesBefore = await page.locator(".route.hl").count();
   expect(routesBefore).toBeGreaterThan(0);
   await page.locator(".route.hl").first().click();
@@ -111,11 +110,11 @@ test("setup, first turn, build, harvest, warden, save and reload, victory", asyn
   await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
 
   // Buy a card.
-  await page.getByRole("button", { name: /Buy Card/ }).click();
+  await page.getByRole("button", { name: /^Buy Card/ }).click();
   await expect(page.getByText(/bought a card/)).toBeVisible();
 
   // Hire a Warden to move a Menace.
-  await page.getByRole("button", { name: /Hire a Warden/ }).click();
+  await page.getByRole("button", { name: /^Hire a Warden/ }).click();
   await page.locator(".menace.hl").first().click();
   await page.locator(".region.hl, .route.hl, .site.hl").first().click();
   await expect(page.getByText(/hired a Warden/)).toBeVisible();

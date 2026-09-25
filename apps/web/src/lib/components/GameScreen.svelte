@@ -220,7 +220,9 @@
   <aside id="side-panel" class="side" class:open={panelOpen} inert={slideOver && !panelOpen} bind:this={sidePanel}>
     <div class="tabs" role="tablist">
       <button role="tab" aria-selected={ui.panel === "players"} onclick={() => (ui.panel = "players")}>{t("ui.players")}</button>
-      <button role="tab" aria-selected={ui.panel === "quests"} onclick={() => (ui.panel = "quests")}>{t("ui.quests")}</button>
+      <button role="tab" aria-selected={ui.panel === "quests"} onclick={() => (ui.panel = "quests")}>
+        {t("ui.quests")}{#if legal?.claimableQuests.length}<span class="badge" title={t("status.claimable_quests", { count: legal.claimableQuests.length })}>{legal.claimableQuests.length}</span>{/if}
+      </button>
       <button role="tab" aria-selected={ui.panel === "log"} onclick={() => (ui.panel = "log")}>{t("ui.chronicle")}</button>
     </div>
     <div class="tabpanel">
@@ -280,9 +282,10 @@
      They are in rem, so the Text size setting scales them; the dock is still
      capped so large text cannot starve the board. */
   .game {
-    --bar-h: 3.4rem;
+    /* The action bar's two rows: the turn status (#11) and the tools. */
+    --bar-h: 5.1rem;
     --tray-h: 8.75rem;
-    --peek-h: 10.25rem;
+    --peek-h: 12rem;
     --dock-rule: 3px solid #8a7650;
     position: relative;
     height: 100dvh;
@@ -427,6 +430,20 @@
   .tabs button[aria-selected="true"] {
     background: var(--accent);
     color: #fff;
+  }
+  .badge {
+    display: inline-grid;
+    place-items: center;
+    min-width: 1.3em;
+    height: 1.3em;
+    margin-left: 0.35em;
+    padding: 0 0.3em;
+    border-radius: 999px;
+    background: #d19a12;
+    color: #2b1f00;
+    font-size: 0.75em;
+    font-weight: 700;
+    vertical-align: 0.1em;
   }
 
   /* ------------------------------------------------------------ dock */
@@ -650,7 +667,7 @@
   /* Tablets fit the action bar on one row, so the peek can be lower. */
   @media (min-width: 600px) {
     .game[data-layout="sheet"] {
-      --peek-h: 7.5rem;
+      --peek-h: 9.25rem;
     }
   }
   /* Top bar: buttons on the first row, the scoreboard on its own row. */
