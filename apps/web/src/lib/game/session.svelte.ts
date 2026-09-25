@@ -24,7 +24,7 @@ import { platform } from "../platform/adapter.js";
 import { aiDelayMs, settings } from "../stores/settings.svelte.js";
 import { engineFor, mapFor } from "./engine.js";
 import { formatEvents, type LogEntry } from "./log.js";
-import { autosaveId, autosavesToPrune, describeSave, exportFileName, manualSaveId, replayPending, saveLabel } from "./saves.js";
+import { autosavesToPrune, describeSave, exportFileName, manualSaveId, newAutosaveId, replayPending, saveLabel } from "./saves.js";
 import { recordGame } from "./telemetry.js";
 import { devlog } from "../devlog.js";
 
@@ -101,6 +101,8 @@ export class GameSession {
   private destroyed = false;
   private listeners = new Set<(events: GameEvent[], state: GameState) => void>();
   private readonly autosaveEnabled: boolean;
+  /** This line of play's autosave row (see saves.ts). */
+  private readonly autosaveSlot: string;
   private autosaveTimer: ReturnType<typeof setTimeout> | null = null;
   /** Autosave writes run one after another, so an older snapshot never lands last. */
   private autosaveQueue: Promise<void> = Promise.resolve();
@@ -117,6 +119,10 @@ export class GameSession {
     transport?: Transport;
     onlinePlayerId?: PlayerId | null;
     autosave?: boolean;
+    /** Keep writing this autosave slot (resuming it); default: a new slot. */
+    autosaveSlot?: string;
+    /** Opened from a stored save: nothing to autosave until play changes it. */
+    fromSave?: boolean;
   }) {
     this.engine = engineFor(opts.mapId);
     this.mapId = opts.mapId;
@@ -126,6 +132,7 @@ export class GameSession {
     this.onlinePlayerId = opts.onlinePlayerId ?? null;
     this.transport = opts.transport ?? this.localTransport();
     this.autosaveEnabled = this.transport.kind === "local" && opts.autosave !== false;
+    this.autosaveSlot = opts.autosaveSlot ?? newAutosaveId(opts.state.matchId);
     this.authoritative = opts.state;
     this.draft = opts.state;
     for (const step of replayPending(this.engine, opts.state, opts.pending ?? [])) {
@@ -136,6 +143,9 @@ export class GameSession {
     this.aiRng = createRng(seedRng(`${opts.state.matchId}:ai:${opts.state.revision}`));
     this.viewerId = this.onlinePlayerId ?? this.firstHuman();
     this.afterStateChange([]);
+    // Writing an unchanged save back would let merely opening an older
+    // position replace newer progress; the first change writes it instead.
+    if (opts.fromSave) this.cancelScheduledAutosave();
   }
 
   static create(opts: NewGameOptions): GameSession {
@@ -152,7 +162,11 @@ export class GameSession {
     return new GameSession({ mapId, seats: opts.seats, initialState, state: initialState, ...(opts.autosave === false ? { autosave: false } : {}) });
   }
 
-  static fromSave(save: SaveFile, opts: { autosave?: boolean } = {}): GameSession {
+  /**
+   * Open a stored save. Pass `autosaveSlot` when resuming an autosave so play
+   * continues in that row; otherwise the game autosaves to a new row.
+   */
+  static fromSave(save: SaveFile, opts: { autosave?: boolean; autosaveSlot?: string } = {}): GameSession {
     return new GameSession({
       mapId: save.mapId,
       seats: save.seats,
@@ -160,6 +174,7 @@ export class GameSession {
       state: save.state,
       history: save.commandHistory,
       pending: save.pendingCommands ?? [],
+      fromSave: true,
       ...opts,
     });
   }
@@ -448,27 +463,33 @@ export class GameSession {
   }
 
   /**
-   * Write a scheduled autosave now (leaving the game, page hidden). Resolves
-   * when every queued autosave write has settled.
+   * Write a scheduled autosave now (leaving the game, page hidden), or retry
+   * one that failed. Resolves when every queued autosave write has settled;
+   * `autosaveFailed` then tells whether the game is stored.
    */
   flushAutosave(): Promise<void> {
-    if (this.autosaveTimer) {
-      clearTimeout(this.autosaveTimer);
-      this.autosaveTimer = null;
+    const retry = this.autosaveFailed && this.authoritative.status !== "finished";
+    if (this.autosaveTimer || retry) {
+      this.cancelScheduledAutosave();
       const data = this.toSaveFile();
       this.enqueueAutosave(async () => {
-        await platform.save(autosaveId(data.state.matchId), saveLabel(describeSave(data)), data);
-        if (!this.autosavesPruned) await this.pruneAutosaves();
+        await platform.save(this.autosaveSlot, saveLabel(describeSave(data)), data);
+        // Pruning is housekeeping: the game itself is stored at this point.
+        if (!this.autosavesPruned) await this.pruneAutosaves().catch((e: unknown) => console.warn("Pruning autosaves failed", e));
       });
     }
     return this.autosaveQueue;
   }
 
-  private discardAutosave(): void {
-    if (!this.autosaveEnabled) return;
+  private cancelScheduledAutosave(): void {
     if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
     this.autosaveTimer = null;
-    const id = autosaveId(this.authoritative.matchId);
+  }
+
+  private discardAutosave(): void {
+    if (!this.autosaveEnabled) return;
+    this.cancelScheduledAutosave();
+    const id = this.autosaveSlot;
     this.enqueueAutosave(() => platform.remove(id));
   }
 

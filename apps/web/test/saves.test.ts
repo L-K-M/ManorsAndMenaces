@@ -7,14 +7,15 @@ import {
   LEGACY_AUTOSAVE_ID,
   MAX_AUTOSAVES,
   TUTORIAL_SEED,
-  autosaveId,
   autosavesToPrune,
   describeSave,
+  describeSaves,
   exportFileName,
   isAutosave,
   isTutorialSave,
   latestAutosave,
   manualSaveId,
+  newAutosaveId,
   relativeTime,
   replayPending,
 } from "../src/lib/game/saves.js";
@@ -62,9 +63,13 @@ function firstPlacement(state: GameState): GameCommand {
 describe("autosave slots", () => {
   const at = (id: string, minute: number) => ({ id, savedAt: new Date(Date.UTC(2026, 0, 1, 0, minute)).toISOString() });
 
-  it("gives every match its own autosave and recognises the legacy slot", () => {
+  const autosaveId = (m: string) => newAutosaveId(m, "n");
+
+  it("gives every game its own autosave, even with the same seed, and recognises the legacy slot", () => {
+    // Custom seeds repeat, and the local match id is derived from the seed.
+    expect(newAutosaveId("local-castle")).not.toBe(newAutosaveId("local-castle"));
     expect(autosaveId("local-a")).not.toBe(autosaveId("local-b"));
-    expect(isAutosave(autosaveId("local-a"))).toBe(true);
+    expect(isAutosave(newAutosaveId("local-a"))).toBe(true);
     expect(isAutosave(LEGACY_AUTOSAVE_ID)).toBe(true);
     expect(isAutosave("save:local-a:r4")).toBe(false);
   });
@@ -91,6 +96,15 @@ describe("manual save ids", () => {
     expect(manualSaveId(saveOf(state, [cmd]))).not.toBe(manualSaveId(saveOf(state)));
     expect(manualSaveId(saveOf(state, [cmd]))).not.toBe(manualSaveId(saveOf(state, [{ ...cmd, commandId: "other" }])));
   });
+
+  it("separates different positions at the same revision", () => {
+    // Loading an earlier save and playing another line reaches the same revision.
+    const state = newGame();
+    const a = engine.applyCommand(state, firstPlacement(state)).newState!;
+    const b = { ...a, holdings: {} } as GameState;
+    expect(b.revision).toBe(a.revision);
+    expect(manualSaveId(saveOf(a))).not.toBe(manualSaveId(saveOf(b)));
+  });
 });
 
 describe("save descriptions", () => {
@@ -104,6 +118,20 @@ describe("save descriptions", () => {
     expect(alice?.color).toBe(2);
     expect(meta.rulesetName).toBe("mvp");
     expect(meta.winner).toBeNull();
+  });
+
+  it("marks unreadable stored saves instead of failing the whole list", () => {
+    const good = saveOf(newGame());
+    const rows = [
+      { id: "a", savedAt: good.savedAt, label: "A", data: good },
+      { id: "b", savedAt: good.savedAt, label: "B", data: { nonsense: true } },
+      { id: "c", savedAt: good.savedAt, label: "C", data: { ...good, state: { ...good.state, turnOrder: null } } },
+    ];
+    const entries = describeSaves(rows);
+    expect(entries.map((e) => e.id)).toEqual(["a", "b", "c"]);
+    expect(entries[0]?.meta?.players).toHaveLength(2);
+    expect(entries[1]?.meta).toBeNull();
+    expect(entries[2]?.meta).toBeNull();
   });
 
   it("recognises tutorial saves and builds a safe export file name", () => {

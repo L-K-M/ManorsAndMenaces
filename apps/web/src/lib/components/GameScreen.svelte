@@ -31,6 +31,8 @@
   const me = $derived(viewer ? gs.players[viewer] : undefined);
   let panelOpen = $state(false);
   let savedNote: string | null = $state(null);
+  /** Settings opened from the game menu return to it when closed. */
+  let settingsFromMenu = false;
 
   // Reset transient UI gs when the acting mode changes.
   let lastMode = "";
@@ -86,7 +88,7 @@
   <header class="topbar">
     <button class="ghost" onclick={() => (ui.dialog = "menu")} aria-label={t("ui.main_menu")} aria-haspopup="dialog">☰</button>
     <h1>{t("app.title")}</h1>
-    <span class="round">Round {Math.max(1, gs.round)}</span>
+    <span class="round">{t("ui.round_n", { n: Math.max(1, gs.round) })}</span>
     {#if me}
       <div class="mine" aria-label={t("ui.your_resources")}>
         {#each RESOURCE_TYPES as r}<span><ResourceIcon resource={r} size={18} />{me.resources[r]}</span>{/each}
@@ -141,8 +143,8 @@
 </div>
 
 <Dialogs {session} {legal} />
-{#if ui.dialog === "menu"}<GameMenu {session} {tutorial} {onexit} onclose={() => (ui.dialog = null)} />{/if}
-{#if ui.dialog === "settings"}<SettingsDialog onclose={() => (ui.dialog = null)} />{/if}
+{#if ui.dialog === "menu"}<GameMenu {session} {tutorial} {onexit} onsettings={() => ((settingsFromMenu = true), (ui.dialog = "settings"))} onclose={() => (ui.dialog = null)} />{/if}
+{#if ui.dialog === "settings"}<SettingsDialog onclose={() => ((ui.dialog = settingsFromMenu ? "menu" : null), (settingsFromMenu = false))} />{/if}
 {#if ui.showDebug}<DebugPanel {session} onclose={() => (ui.showDebug = false)} />{/if}
 
 <style>

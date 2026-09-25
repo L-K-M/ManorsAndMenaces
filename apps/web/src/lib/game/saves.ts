@@ -2,16 +2,24 @@
 // platform adapter stores saves, GameSession decides when to write them.
 //
 // Slots:
-//   autosave:<matchId>        one per local match, rewritten as it is played;
+//   autosave:<matchId>:<n>    one per line of play, rewritten as it is played;
 //                             at most MAX_AUTOSAVES are kept, oldest pruned
-//   save:<matchId>:r<rev>…    a manual save; saving the same position twice
-//                             rewrites one row instead of adding a duplicate
+//   save:<matchId>:r<rev>:<h> a manual save; <h> hashes the position, so
+//                             saving the same position twice rewrites one row
+//                             while any different position gets its own
 //   autosave                  the single shared slot of older builds, still
 //                             listed and resumable as an autosave
+//
+// A new game gets a fresh autosave slot (<n> is a per-game nonce: custom seeds
+// repeat, so the match id alone is not unique). Continuing an autosave keeps
+// writing its slot. Opening a manual save or an imported file starts a new
+// slot, so playing on from an older position never overwrites the newer
+// progress of the line it came from.
 
-import type { SaveFile } from "@manors-menaces/protocol";
+import { isSaveFile, type SaveFile } from "@manors-menaces/protocol";
 import { UNDO_SAFE_COMMANDS, hashState, type GameCommand, type GameEvent, type GameState, type RulesEngine } from "@manors-menaces/rules";
 import { t } from "../i18n.js";
+import type { SaveSummary } from "../platform/adapter.js";
 
 export const LEGACY_AUTOSAVE_ID = "autosave";
 const AUTOSAVE_PREFIX = "autosave:";
@@ -27,8 +35,9 @@ export interface SlotRef {
   savedAt: string;
 }
 
-export function autosaveId(matchId: string): string {
-  return `${AUTOSAVE_PREFIX}${matchId}`;
+/** A fresh autosave slot for a new line of play of `matchId`. */
+export function newAutosaveId(matchId: string, nonce = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`): string {
+  return `${AUTOSAVE_PREFIX}${matchId}:${nonce}`;
 }
 
 export function isAutosave(id: string): boolean {
@@ -36,14 +45,13 @@ export function isAutosave(id: string): boolean {
 }
 
 /**
- * Manual save id. It is derived from the position (committed revision plus
- * the ids of this turn's undoable actions), so repeated saves of one position
- * share a row while any different position gets its own.
+ * Manual save id. It is derived from the position (committed state plus this
+ * turn's undoable actions), so repeated saves of one position share a row
+ * while any different position, even at the same revision, gets its own.
  */
 export function manualSaveId(save: SaveFile): string {
-  const pending = save.pendingCommands ?? [];
-  const suffix = pending.length ? `:${hashState(pending.map((c) => c.commandId))}` : "";
-  return `${MANUAL_PREFIX}${save.state.matchId}:r${save.state.revision}${suffix}`;
+  const position = hashState({ state: save.state, pending: save.pendingCommands ?? [] });
+  return `${MANUAL_PREFIX}${save.state.matchId}:r${save.state.revision}:${position}`;
 }
 
 function newestFirst<T extends SlotRef>(slots: readonly T[]): T[] {
@@ -78,6 +86,31 @@ export interface SaveMeta {
   winner: string | null;
 }
 
+/** A listed save with its description, or `meta: null` if it cannot be read. */
+export interface SaveEntry {
+  id: string;
+  savedAt: string;
+  label: string;
+  meta: SaveMeta | null;
+}
+
+/**
+ * Describe stored saves for the Load list. Stored data is untrusted (older
+ * builds, other tabs, manual edits): an unreadable row is kept and marked
+ * rather than hiding every other save.
+ */
+export function describeSaves(rows: readonly SaveSummary[]): SaveEntry[] {
+  return rows.map(({ id, savedAt, label, data }) => {
+    let meta: SaveMeta | null = null;
+    try {
+      if (isSaveFile(data)) meta = describeSave(data);
+    } catch {
+      // Well-formed at the top level but not inside: reported as unreadable.
+    }
+    return { id, savedAt, label, meta };
+  });
+}
+
 export function describeSave(save: SaveFile): SaveMeta {
   const { state, seats } = save;
   const seatOf = (id: string) => seats.find((s) => s.playerId === id);
@@ -99,8 +132,12 @@ export function rulesetLabel(name: string): string {
   return name;
 }
 
+function playerNames(meta: SaveMeta): string {
+  return meta.players.map((p) => p.name).join(t("ui.players_joiner"));
+}
+
 export function saveLabel(meta: SaveMeta): string {
-  return t("ui.save_label", { players: meta.players.map((p) => p.name).join(" vs "), round: meta.round });
+  return t("ui.save_label", { players: playerNames(meta), round: meta.round });
 }
 
 /** A file name that sorts by game and round, e.g. `manors-local-abc-r4.json`. */

@@ -71,12 +71,11 @@ describe("BrowserPlatformAdapter (IndexedDB)", () => {
     expect((await adapter.listSaves()).map((s) => s.id).sort()).toEqual(["a", "b"]);
   });
 
-  it("lists saves newest first with a description of each game", async () => {
+  it("lists saves newest first with their stored data", async () => {
     await adapter.save("old", "label", saveFile("2026-01-01T00:00:00.000Z"));
     await adapter.save("new", "label", saveFile("2026-02-01T00:00:00.000Z"));
     const saves = await adapter.listSaves();
     expect(saves.map((s) => s.id)).toEqual(["new", "old"]);
-    expect(saves[0]?.meta.players.map((p) => p.name).sort()).toEqual(["Alice", "Bertram"]);
-    expect(saves[0]?.meta.round).toBe(1);
+    expect(saves[0]?.data).toEqual(saveFile("2026-02-01T00:00:00.000Z"));
   });
 });

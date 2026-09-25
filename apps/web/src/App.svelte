@@ -3,9 +3,9 @@
   import { mvpRuleset, type RulesetConfig } from "@manors-menaces/rules";
   import { t } from "./lib/i18n.js";
   import { GameSession } from "./lib/game/session.svelte.js";
-  import { TUTORIAL_SEED, exportFileName, isAutosave, isTutorialSave, latestAutosave, relativeTime, rulesetLabel } from "./lib/game/saves.js";
+  import { TUTORIAL_SEED, describeSaves, exportFileName, isAutosave, isTutorialSave, latestAutosave, relativeTime, rulesetLabel, saveLabel, type SaveEntry } from "./lib/game/saves.js";
   import { PLAYER_THEMES, emblemPath } from "./lib/theme.js";
-  import { platform, type SaveSummary } from "./lib/platform/adapter.js";
+  import { platform } from "./lib/platform/adapter.js";
   import { resetTool, ui } from "./lib/stores/ui.svelte.js";
   import { settings } from "./lib/stores/settings.svelte.js";
   import GameScreen from "./lib/components/GameScreen.svelte";
@@ -19,13 +19,13 @@
   let screen: Screen = $state(location.hash.startsWith("#/join/") ? "online" : "title");
   let session: GameSession | null = $state(null);
   let tutorial = $state(false);
-  let saves: SaveSummary[] = $state([]);
+  let saves: SaveEntry[] = $state([]);
   let savesListedAt = $state(Date.now());
   let savesUnavailable = $state(false);
   /** The Load list row awaiting "Delete this save?" confirmation. */
   let confirmDelete: string | null = $state(null);
   // Finished games are not continued (an older build's shared slot may hold one).
-  const continueSave = $derived(latestAutosave(saves.filter((s) => s.meta.status !== "finished")));
+  const continueSave = $derived(latestAutosave(saves.filter((s) => s.meta && s.meta.status !== "finished")));
   let showLoad = $state(false);
   let showRules = $state(false);
   let lastConfig: { seats: SeatConfig[]; ruleset: RulesetConfig } | null = null;
@@ -33,7 +33,7 @@
 
   async function refreshSaves() {
     try {
-      saves = await platform.listSaves();
+      saves = describeSaves(await platform.listSaves());
       savesUnavailable = false;
     } catch {
       saves = [];
@@ -77,12 +77,16 @@
     tutorial = isTutorial;
     screen = "game";
   }
-  /** Tutorial saves (e.g. an older build's shared autosave) reopen with the coach. */
-  function openSave(data: SaveFile) {
+  /**
+   * Tutorial saves (e.g. an older build's shared autosave) reopen with the
+   * coach. `autosaveSlot` is the autosave being resumed, if any; any other
+   * save continues in a new autosave row (see saves.ts).
+   */
+  function openSave(data: SaveFile, autosaveSlot?: string) {
     showLoad = false;
     confirmDelete = null;
     const isTutorial = isTutorialSave(data);
-    openSession(GameSession.fromSave(data, isTutorial ? { autosave: false } : {}), isTutorial);
+    openSession(GameSession.fromSave(data, isTutorial ? { autosave: false } : autosaveSlot ? { autosaveSlot } : {}), isTutorial);
   }
   async function readSave(id: string): Promise<SaveFile | null> {
     try {
@@ -96,7 +100,7 @@
   }
   async function loadSave(id: string) {
     const data = await readSave(id);
-    if (data) openSave(data);
+    if (data) openSave(data, isAutosave(id) ? id : undefined);
   }
   async function exportSave(id: string) {
     const data = await readSave(id);
@@ -116,7 +120,7 @@
     try {
       await platform.remove(id);
     } catch {
-      loadError = t("ui.save_failed");
+      loadError = t("ui.delete_failed");
     }
     await refreshSaves();
   }
@@ -163,7 +167,7 @@
           {#if continueSave}
             {@const c = continueSave}
             <button class="primary continue" onclick={() => loadSave(c.id)}>
-              {t("ui.continue")}<small>{c.meta.players.map((p) => p.name).join(" vs ")} · {t("ui.round_n", { n: c.meta.round })}</small>
+              {t("ui.continue")}{#if c.meta}<small>{saveLabel(c.meta)}</small>{/if}
             </button>
           {/if}
           <button class="primary" onclick={() => (screen = "new")}>{t("ui.new_game")}</button>
@@ -194,18 +198,27 @@
         {@const auto = isAutosave(s.id)}
         <li class:confirming={confirmDelete === s.id}>
           <button class="open" onclick={() => loadSave(s.id)} title={new Date(s.savedAt).toLocaleString()}>
-            <span class="who">
-              {#each s.meta.players as p}
-                {@const theme = PLAYER_THEMES[p.color] ?? PLAYER_THEMES[0]!}
-                <span class="player" class:winner={s.meta.winner === p.name}>
-                  <svg width="14" height="14" viewBox="-7 -7 14 14" aria-hidden="true"><path d={emblemPath(theme.shape, 5.5)} fill={theme.color} stroke={theme.dark} stroke-width="1.2" /></svg>{p.name}
-                </span>
-              {/each}
-            </span>
+            {#if s.meta}
+              {@const meta = s.meta}
+              <span class="who">
+                {#each meta.players as p}
+                  {@const theme = PLAYER_THEMES[p.color] ?? PLAYER_THEMES[0]!}
+                  <span class="player" class:winner={meta.winner === p.name}>
+                    <svg width="14" height="14" viewBox="-7 -7 14 14" aria-hidden="true"><path d={emblemPath(theme.shape, 5.5)} fill={theme.color} stroke={theme.dark} stroke-width="1.2" /></svg>{p.name}
+                  </span>
+                {/each}
+              </span>
+            {:else}
+              <span class="who">{s.label}</span>
+            {/if}
             <span class="facts">
               <span class="kind" class:auto>{auto ? t("ui.autosave") : t("ui.manual_save")}</span>
-              <span>{s.meta.winner ? t("ui.won_by", { name: s.meta.winner }) : t("ui.round_n", { n: s.meta.round })}</span>
-              <span>{rulesetLabel(s.meta.rulesetName)}</span>
+              {#if s.meta}
+                <span>{s.meta.winner ? t("ui.won_by", { name: s.meta.winner }) : t("ui.round_n", { n: s.meta.round })}</span>
+                <span>{rulesetLabel(s.meta.rulesetName)}</span>
+              {:else}
+                <span class="error">{t("ui.save_unreadable_short")}</span>
+              {/if}
               <span class="when">{relativeTime(s.savedAt, savesListedAt)}</span>
             </span>
           </button>

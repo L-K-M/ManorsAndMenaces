@@ -1,13 +1,13 @@
 // Platform adapters (spec §74): game code never imports Tauri APIs directly.
 
 import type { SaveFile } from "@manors-menaces/protocol";
-import { describeSave, type SaveMeta } from "../game/saves.js";
 
+/** A stored save. `data` is as stored and must be validated before use. */
 export interface SaveSummary {
   id: string;
   savedAt: string;
   label: string;
-  meta: SaveMeta;
+  data: unknown;
 }
 
 export interface PlatformAdapter {
@@ -85,7 +85,7 @@ interface Row {
   id: string;
   label: string;
   savedAt: string;
-  data: SaveFile;
+  data: unknown;
 }
 
 export class BrowserPlatformAdapter implements PlatformAdapter {
@@ -95,7 +95,7 @@ export class BrowserPlatformAdapter implements PlatformAdapter {
   async listSaves(): Promise<SaveSummary[]> {
     const rows = await this.store.run<Row[]>("readonly", (s) => s.getAll() as IDBRequest<Row[]>);
     return rows
-      .map((r) => ({ id: r.id, label: r.label, savedAt: r.savedAt, meta: describeSave(r.data) }))
+      .map((r) => ({ id: r.id, label: r.label, savedAt: r.savedAt, data: r.data }))
       .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
   }
   async save(id: string, label: string, data: SaveFile): Promise<void> {
@@ -105,7 +105,7 @@ export class BrowserPlatformAdapter implements PlatformAdapter {
   }
   async load(id: string): Promise<SaveFile | null> {
     const row = await this.store.run<Row | undefined>("readonly", (s) => s.get(id) as IDBRequest<Row | undefined>);
-    return row?.data ?? null;
+    return (row?.data as SaveFile | undefined) ?? null;
   }
   async remove(id: string): Promise<void> {
     await this.store.run("readwrite", (s) => s.delete(id));
