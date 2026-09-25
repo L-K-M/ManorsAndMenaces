@@ -94,9 +94,9 @@ export function siteValue(
 }
 
 /**
- * The most attractive Site the player can reach within `MAX_PLAN_ROUTES`
- * unbuilt Routes, trading value against distance (see `ExpansionPlan.score`),
- * or null when no free Site is in reach.
+ * The nearest free Site the player can reach within `MAX_PLAN_ROUTES`
+ * unbuilt Routes, with value breaking ties between Sites at the same
+ * distance (see `ExpansionPlan.score`), or null when none is in reach.
  *
  * Distances come from a 0-1 shortest-path search: the player's own Routes
  * cost nothing, unbuilt Routes cost one, and opponents' Routes and Holdings
