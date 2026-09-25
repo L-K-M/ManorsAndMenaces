@@ -15,8 +15,9 @@
   let count = $state(3);
   let mode: "standard" | "mvp" = $state("standard");
   let seed = $state("");
-  // Opt-in Quest expiry (§27.2); off by default, as in the spec's base rules.
-  let questExpiry = $state(false);
+  // Quest expiry (§27.2) is part of the Standard rules; unchecking it keeps
+  // every Quest on offer until claimed.
+  let questExpiry = $state(true);
   const KINDS = NAMES.map((_, i) => (i === 0 ? "human" : "ai") as "human" | "ai");
   // Start the line-up at a random rival so new games meet different faces.
   const initialRivals = assignRivals(KINDS, Math.floor(Math.random() * RIVALS.length));
@@ -68,7 +69,7 @@
       color: i,
     }));
     const ruleset: RulesetConfig =
-      mode === "mvp" ? mvpRuleset() : { ...standardRuleset(count), ...(questExpiry ? { questExpiryRounds: BALANCE.questExpiryRounds } : {}) };
+      mode === "mvp" ? mvpRuleset() : { ...standardRuleset(count), questExpiryRounds: questExpiry ? BALANCE.questExpiryRounds : 0 };
     onstart({ seats: chosen, ruleset, ...(seed.trim() ? { seed: seed.trim() } : {}) });
   }
 

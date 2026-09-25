@@ -1163,7 +1163,8 @@ Unless the Quest says otherwise:
 - each Quest may be claimed by only one player;
 - claiming is immediate during the Main Action phase;
 - claimed Quests remain visible in the claimant's area;
-- at the End Turn phase, each claimed Quest is replaced by the top card of the Quest deck, so 3 unclaimed Quests stay available until the deck runs out.
+- at the End Turn phase, each claimed Quest is replaced by the top card of the Quest deck, so 3 unclaimed Quests stay available until the deck runs out;
+- in the Standard rules, a Quest nobody claims leaves after 4 rounds (§27.2).
 
 Terms used in Quest conditions:
 
@@ -1230,11 +1231,11 @@ Own Holdings at two Sites whose graph distance is at least 6.
 
 Twice during the match, move a Menace away from a location that affects you: a Region holding one of your Banners, a Route you own, or a Site holding your Holding.
 
-## 27.2 Optional rule: Quest expiry
+## 27.2 Quest expiry
 
-Off by default (`RulesetConfig.questExpiryRounds`, absent or 0). The base rules above replace a Quest only when it is claimed, so a Quest nobody can realistically complete can hold one of the 3 slots for the whole match (simulation: King's Highway and Patron of Heroes were on show for hundreds of player-turns without a claim).
+On in the Standard rules (`RulesetConfig.questExpiryRounds` is `BALANCE.questExpiryRounds`, 4). Absent or 0 turns it off; the New Game screen has a checkbox for that, and online matches always use it. Without it a Quest is replaced only when claimed, so a Quest nobody can realistically complete can hold one of the 3 slots for the whole match (simulation: King's Highway and Patron of Heroes were on show for hundreds of player-turns without a claim). With it, 40 AI games per setting claimed more Quests per game (2.1 to 3.1 with 2 players, 3.3 to 4.1 with 3, 2.8 to 4.3 with 4) and cut the longest game from 20 to 16 rounds with 3 players and from 25 to 17 with 4.
 
-With the option set to N (the New Game screen offers `BALANCE.questExpiryRounds`, 4):
+With the rule set to N rounds:
 
 - each revealed Quest remembers the first round it can be claimed in: the round it was revealed in, or the next round when it is revealed at the end of the last seat's turn; the opening Quests count from round 1;
 - when a new round begins, each Quest that has been on show for N rounds without being claimed goes to the bottom of the Quest deck, and the top Quest of the deck takes its slot;

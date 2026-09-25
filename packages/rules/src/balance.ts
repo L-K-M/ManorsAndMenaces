@@ -24,13 +24,13 @@ export const BALANCE = {
   handLimit: 7,
   maxNonReactionCardsPerTurn: 1,
   revealedQuestCount: 3,
-  /** Rounds an unclaimed Quest stays on offer when the opt-in expiry rule is chosen (§27.2). */
+  /** Rounds an unclaimed Quest stays on offer in the Standard rules (§27.2). */
   questExpiryRounds: 4,
   initialManors: 2,
   prophecyCards: 3,
 } as const;
 
-export const RULESET_VERSION = "0.3.0";
+export const RULESET_VERSION = "0.4.0";
 
 /** Fixed Menace sets by player count (spec §118). */
 export function standardMenaces(playerCount: number): MenaceType[] {
@@ -77,6 +77,7 @@ export function standardRuleset(playerCount: number): RulesetConfig {
     enableCards: true,
     enableReactionCards: true,
     enableQuests: true,
+    questExpiryRounds: BALANCE.questExpiryRounds,
   };
 }
 

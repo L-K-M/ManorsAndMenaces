@@ -161,9 +161,9 @@ export interface RulesetConfig {
    */
   seatBonus?: ResourceCost[];
   /**
-   * Opt-in (§27.2): a revealed Quest nobody claims for this many rounds is
-   * swapped with the top of the Quest deck at the start of a round. Absent
-   * or 0: Quests stay until claimed, as §27 describes.
+   * Quest expiry (§27.2, on in the Standard rules): a revealed Quest nobody
+   * claims for this many rounds is swapped with the top of the Quest deck at
+   * the start of a round. Absent or 0: Quests stay until claimed.
    */
   questExpiryRounds?: number;
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BALANCE,
   enumerateCardTargets,
   evaluateQuestCondition,
   questRoundsLeft,
@@ -8,6 +9,7 @@ import {
   type GameEvent,
   type GameState,
   type PlayerId,
+  type RulesetConfig,
 } from "../src/index.js";
 import { act, cmd, engine, grant, newGame, passTurn, reject, setupGame, standardRuleset, TEST_BOARD } from "./helpers.js";
 
@@ -126,7 +128,7 @@ describe("Patron of Heroes (§27.1)", () => {
   });
 });
 
-describe("Royal Quest expiry (ruleset option questExpiryRounds)", () => {
+describe("Royal Quest expiry (ruleset option questExpiryRounds, §27.2)", () => {
   const withExpiry = (rounds: number) => ({ ...standardRuleset(2), questExpiryRounds: rounds });
   const passRound = (s: GameState): { state: GameState; events: GameEvent[] } => {
     const events: GameEvent[] = [];
@@ -142,8 +144,28 @@ describe("Royal Quest expiry (ruleset option questExpiryRounds)", () => {
     return { state: cur, events };
   };
 
-  it("is off by default: unclaimed Quests stay and no extra state is kept", () => {
+  it("is on in the Standard rules: an unclaimed Quest leaves after BALANCE.questExpiryRounds rounds", () => {
     let s = setupGame(standardRuleset(2)).state;
+    const [first] = s.revealedQuestIds as [string];
+    for (let i = 1; i < BALANCE.questExpiryRounds; i++) s = passRound(s).state;
+    expect(s.revealedQuestIds).toContain(first);
+    const r = passRound(s);
+    expect(r.events).toContainEqual({ type: "quest_expired", questId: first });
+    expect(r.state.revealedQuestIds).not.toContain(first);
+  });
+
+  it("can be turned off: with 0, unclaimed Quests stay and no extra state is kept", () => {
+    let s = setupGame(withExpiry(0)).state;
+    const revealed = [...s.revealedQuestIds];
+    for (let i = 0; i < 6; i++) s = passRound(s).state;
+    expect(s.revealedQuestIds).toEqual(revealed);
+    expect(s.revealedQuestRounds).toBeUndefined();
+  });
+
+  it("stays off for a ruleset without the setting, like one saved before 0.4.0", () => {
+    const before: RulesetConfig = { ...standardRuleset(2) };
+    delete before.questExpiryRounds;
+    let s = setupGame(before).state;
     const revealed = [...s.revealedQuestIds];
     for (let i = 0; i < 6; i++) s = passRound(s).state;
     expect(s.revealedQuestIds).toEqual(revealed);
@@ -183,7 +205,9 @@ describe("Royal Quest expiry (ruleset option questExpiryRounds)", () => {
     s = passRound(s).state;
     // All three are due, but the deck holds only two replacements.
     expect([q1, q2, q3].map((q) => questRoundsLeft(s, q))).toEqual([1, 1, null]);
-    expect(questRoundsLeft(setupGame(standardRuleset(2)).state, q1)).toBeNull();
+    // With the rule off there is no countdown.
+    const off = setupGame(withExpiry(0)).state;
+    expect(questRoundsLeft(off, off.revealedQuestIds[0] as string)).toBeNull();
     // During setup (round 0) the opening Quests still show the full count.
     const inSetup = newGame(withExpiry(2));
     expect(inSetup.round).toBe(0);
