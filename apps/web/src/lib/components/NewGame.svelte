@@ -71,6 +71,10 @@
       mode === "mvp" ? mvpRuleset() : { ...standardRuleset(count), ...(questExpiry ? { questExpiryRounds: BALANCE.questExpiryRounds } : {}) };
     onstart({ seats: chosen, ruleset, ...(seed.trim() ? { seed: seed.trim() } : {}) });
   }
+
+  // With no human seat the computers play the whole game; say so, but allow it
+  // (a watchable demo, and the harness for the all-computer e2e tests).
+  const humanCount = $derived(seats.slice(0, count).filter((s) => s.kind === "human").length);
 </script>
 
 <section class="panel">
@@ -121,8 +125,9 @@
     </details>
     <div class="row">
       <button type="button" onclick={onback}>{t("ui.back")}</button>
-      <button type="submit" class="primary">{t("ui.begin")}</button>
+      <button type="submit" class="primary" aria-describedby={humanCount === 0 ? "no-humans-note" : undefined}>{t("ui.begin")}</button>
     </div>
+    {#if humanCount === 0}<p class="hint" id="no-humans-note">{t("ui.no_human_seats")}</p>{/if}
   </form>
 </section>
 
@@ -206,5 +211,9 @@
     display: flex;
     justify-content: space-between;
     margin-top: 0.8rem;
+  }
+  .hint {
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
   }
 </style>

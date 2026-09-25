@@ -679,6 +679,8 @@ export const EN: Record<string, string> = {
   "ui.quest_expiry_option": "Unclaimed Royal Quests leave after {rounds} rounds",
   "ui.back": "Back",
   "ui.begin": "Begin",
+  "ui.finish_tutorial": "Finish tutorial and keep playing",
+  "ui.no_human_seats": "Every seat is a computer, so you will watch them play.",
   "ui.number_of_players": "Number of players",
   "ui.random": "random",
   "ui.pass_to": "Pass to",

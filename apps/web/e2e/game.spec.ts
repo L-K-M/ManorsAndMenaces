@@ -221,6 +221,16 @@ test("tutorial starts and coaches the first placement", async ({ page }) => {
   await expect(page.getByText(/Place your first Manor/)).toBeVisible();
 });
 
+test("an all-computer game can begin, with a note that you will watch", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New game" }).click();
+  await page.getByLabel("Player 1 type").selectOption("ai");
+  await expect(page.getByText("Every seat is a computer")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Begin" })).toBeEnabled();
+  await page.getByRole("button", { name: "Begin" }).click();
+  await expect(page.locator(".round")).toBeVisible();
+});
+
 test("board is keyboard operable @mobile", async ({ page }) => {
   await startHotseat(page, "mvp");
   await passCurtain(page);
