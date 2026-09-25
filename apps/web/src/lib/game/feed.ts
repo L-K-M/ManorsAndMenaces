@@ -111,7 +111,8 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
       if (b.regions.length) {
         const key = b.regions.length === 1 ? "feed.banner_planted" : "feed.banners_planted";
         add(pid, t(key, { name: name(pid), regions: listText(b.regions) }), b.at);
-      } else if (b.home) {
+      }
+      if (b.home) {
         add(pid, t(b.home === 1 ? "feed.banner_home" : "feed.banners_home", { name: name(pid), count: b.home }));
       }
     }

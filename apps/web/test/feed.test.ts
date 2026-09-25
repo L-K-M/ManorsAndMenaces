@@ -69,6 +69,17 @@ describe("feedItemsFor", () => {
     expect(items.map((i) => i.text)).toEqual([`Bertram planted Banners in ${r1.name} and ${r2.name}`]);
   });
 
+  it("tells both the planted and the recalled Banners of one reassignment", () => {
+    const events: GameEvent[] = [
+      { type: "banner_assigned", playerId: "P2", bannerId: "b1", fromRegionId: null, toRegionId: r1.id },
+      { type: "banner_assigned", playerId: "P2", bannerId: "b2", fromRegionId: r2.id, toRegionId: null },
+    ];
+
+    const items = feedItemsFor(events, state, map, "P1");
+
+    expect(items.map((i) => i.text)).toEqual([`Bertram planted a Banner in ${r1.name}`, "Bertram brought a Banner home"]);
+  });
+
   it("shows a rival's harvest and the viewer's own harvest", () => {
     const events = (playerId: string): GameEvent[] => [
       { type: "banner_harvested", playerId, bannerId: "b1", regionId: r1.id, produced: "grain", amount: 2, notes: [] },
