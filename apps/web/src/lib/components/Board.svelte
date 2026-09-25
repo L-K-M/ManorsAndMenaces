@@ -7,7 +7,7 @@
   import { t } from "../i18n.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { computeHighlights, legalFor, onPick } from "../game/interaction.js";
-  import { BoardAlign, LABEL, bannerSlot, boardToScreen, labelLod, nameLineLength, screenScale, strokeWidth, wrapLabel } from "../game/board-view.js";
+  import { BoardAlign, LABEL, bannerSlot, boardToScreen, labelLod, nameLineLength, noteSlots, placeNote, screenScale, strokeWidth, wrapLabel, type Circle, type Rect, type Segment } from "../game/board-view.js";
   import { describePick } from "../game/inspect.js";
   import { regionName } from "../game/log.js";
   import { ui, type Pick } from "../stores/ui.svelte.js";
@@ -147,11 +147,14 @@
 
   function pick(p: Pick) {
     if (dragMoved) return;
+    // The inspector (or the move itself) takes over from the hover card.
+    clearHover();
     void onPick(session, legal, p);
   }
   function key(e: KeyboardEvent, p: Pick) {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
+      clearHover();
       void onPick(session, legal, p);
     }
   }
@@ -207,6 +210,64 @@
     const fewTargets = hlRegions.length <= MAX_NAMED_TARGETS && hlRegions.some((r) => r.id === regionId);
     return fewTargets || focusRegionId === regionId ? lod.nameCapped : 0;
   }
+  type Region = (typeof map.regions)[number];
+  /** Approximate box of a Region's name in board units, or null when hidden. */
+  function nameBox(region: Region): Rect | null {
+    const size = nameSize(region.id);
+    if (!size) return null;
+    const lines = wrapLabel(region.name, nameLineLength(size));
+    const w = Math.max(...lines.map((l) => l.length)) * size * 0.6;
+    const bottom = region.labelY + LABEL.nameBaseline + 0.25 * size;
+    const h = (lines.length - 1 + 1.05) * size;
+    return { x: region.labelX - w / 2, y: bottom - h, w, h };
+  }
+
+  // ------------------------------------------------------------------ harvest notes
+  // A note is a pill in the first slot around its Region label that is clear
+  // of every piece, name and earlier note; with no clear slot, or when zoomed
+  // too far out for text, it shrinks to a badge on the resource disc (the
+  // hover card and the harvest panel still spell it out).
+  const NOTE_CHARS = 20;
+  const notes = $derived.by(() => {
+    const out: { region: Region; lines: string[]; box: Rect | null }[] = [];
+    const noted = map.regions.filter((r) => previewByRegion.get(r.id)?.notes.length);
+    if (noted.length === 0) return out;
+
+    const m = lod.minor;
+    const obstacles = { circles: [] as Circle[], segments: [] as Segment[], rects: [] as Rect[] };
+    if (m) {
+      for (const s of map.sites) {
+        obstacles.circles.push(holdingSites.has(s.id) ? { x: s.x, y: s.y - 8, r: 26 } : { x: s.x, y: s.y, r: 14 });
+        if (s.tradePost) obstacles.circles.push({ x: s.x - 22 - (postScale - 1) * 8, y: s.y - 18 - (postScale - 1) * 8, r: 10 * postScale });
+      }
+      for (const menace of Object.values(gs.menaces)) obstacles.circles.push({ ...menacePos(menace), r: 22 });
+      for (const pos of bannerPositions.values()) obstacles.circles.push({ x: pos.x + 3, y: pos.y - 11, r: 16 });
+      for (const route of map.routes) {
+        const a = sitesById.get(route.siteA);
+        const b = sitesById.get(route.siteB);
+        if (a && b) obstacles.segments.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y, r: 7 });
+      }
+      for (const r of map.regions) {
+        obstacles.rects.push({ x: r.labelX - 20, y: r.labelY - 20, w: 40, h: LABEL.pipY + 26 });
+        const name = nameBox(r);
+        if (name) obstacles.rects.push(name);
+      }
+    }
+
+    for (const region of noted) {
+      const lines = wrapLabel((previewByRegion.get(region.id)?.notes ?? []).map((n) => t(`harvest.${n}`)).join(" · "), NOTE_CHARS);
+      if (!m) {
+        out.push({ region, lines, box: null });
+        continue;
+      }
+      const size = { w: Math.max(...lines.map((l) => l.length)) * m * 0.62 + m, h: (lines.length + 0.5) * m * 1.1 };
+      const nameTop = (nameBox(region)?.y ?? region.labelY - 20) - region.labelY;
+      const box = placeNote(noteSlots({ x: region.labelX, y: region.labelY }, size, nameTop), obstacles);
+      if (box) obstacles.rects.push(box);
+      out.push({ region, lines, box });
+    }
+    return out;
+  });
 
   // ------------------------------------------------------------------ hover
   // Mouse and pen only: touch has no hover, and taps already open the
@@ -215,10 +276,12 @@
   let hover: Pick | null = $state(null);
   let tipReady = $state(false);
   let tipTimer: ReturnType<typeof setTimeout> | undefined;
+  let hoverEl: Element | null = null;
   const samePick = (a: Pick | null, b: Pick) => !!a && JSON.stringify(a) === JSON.stringify(b);
   function hoverIn(e: PointerEvent, p: Pick) {
     if (e.pointerType === "touch" || e.buttons !== 0) return;
     hover = p;
+    hoverEl = e.currentTarget as Element;
     if (p.kind === "region") ui.hoverRegionId = p.id;
     tipReady = false;
     clearTimeout(tipTimer);
@@ -226,6 +289,7 @@
   }
   function clearHover() {
     hover = null;
+    hoverEl = null;
     tipReady = false;
     clearTimeout(tipTimer);
   }
@@ -233,13 +297,15 @@
     if (p.kind === "region" && ui.hoverRegionId === p.id) ui.hoverRegionId = null;
     if (samePick(hover, p)) clearHover();
   }
-  // A pick re-renders the hovered piece, and browsers do not reliably send
-  // pointerleave for replaced nodes, so every state or mode change drops the
-  // hover card (it returns on the next pointerenter).
+  // The card follows state changes (AI and online moves arrive every few
+  // hundred ms) while the hovered piece's node lives. Browsers send no
+  // pointerleave for a node that was removed, so a state or mode change that
+  // removed it drops the card (it returns on the next pointerenter).
   $effect(() => {
     void gs;
     void hl;
     untrack(() => {
+      if (hoverEl?.isConnected) return;
       clearHover();
       ui.hoverRegionId = null;
     });
@@ -247,47 +313,60 @@
   $effect(() => () => clearTimeout(tipTimer));
   const hoverRegion = $derived(ui.hoverRegionId ? regionsById.get(ui.hoverRegionId) : undefined);
 
-  function anchorOf(p: Pick): { x: number; y: number } | null {
+  /** The hovered piece's extent in board units: the card goes above `top` or below `bottom`. */
+  function anchorOf(p: Pick): { x: number; top: number; bottom: number } | null {
     switch (p.kind) {
       case "region": {
         const r = regionsById.get(p.id);
-        // Above the name, so the card never hides it.
-        return r ? { x: r.labelX, y: r.labelY + LABEL.nameBaseline - 2 * nameSize(r.id) } : null;
+        // Clear of the name above and the Banners below.
+        return r ? { x: r.labelX, top: nameBox(r)?.y ?? r.labelY - 20, bottom: r.labelY + LABEL.bannerY + 6 } : null;
       }
       case "site": {
         const s = sitesById.get(p.id);
-        return s ? { x: s.x, y: s.y - 16 } : null;
+        return s ? { x: s.x, top: s.y - (holdingSites.has(s.id) ? 32 : 16), bottom: s.y + 16 } : null;
       }
       case "route": {
         const route = map.routes.find((r) => r.id === p.id);
         const a = route && sitesById.get(route.siteA);
         const b = route && sitesById.get(route.siteB);
-        return a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null;
+        return a && b ? { x: (a.x + b.x) / 2, top: (a.y + b.y) / 2 - 10, bottom: (a.y + b.y) / 2 + 10 } : null;
       }
       case "banner": {
         const pos = bannerPositions.get(p.id);
-        return pos ? { x: pos.x, y: pos.y - 26 } : null;
+        return pos ? { x: pos.x, top: pos.y - 26, bottom: pos.y + 6 } : null;
       }
       case "menace": {
         const m = gs.menaces[p.id];
         if (!m) return null;
         const pos = menacePos(m);
-        return { x: pos.x, y: pos.y - 20 };
+        return { x: pos.x, top: pos.y - 22, bottom: pos.y + 22 };
       }
       default:
         return null;
     }
   }
-  const TIP_HALF_WIDTH = 130;
+  // The card's measured size (it follows the Text size setting) keeps it on
+  // the board: above the piece when it fits, else below, else on the roomier
+  // side, clamped to the board's edges.
+  const TIP_GAP_PX = 10;
+  const TIP_MARGIN_PX = 4;
+  let tipW = $state(0);
+  let tipH = $state(0);
   const tip = $derived.by(() => {
     if (!hover || !tipReady) return null;
     const text = describePick(map, gs, hover, bannerRegion);
     const anchor = anchorOf(hover);
     if (!text || !anchor) return null;
-    const notes = hover.kind === "region" ? (previewByRegion.get(hover.id)?.notes ?? []).map((n) => t(`harvest.${n}`)) : [];
-    const at = boardToScreen(anchor, viewport.box, { w: boardW, h: boardH }, align);
-    const x = boardW > TIP_HALF_WIDTH * 2 ? Math.min(boardW - TIP_HALF_WIDTH, Math.max(TIP_HALF_WIDTH, at.x)) : boardW / 2;
-    return { ...text, lines: [...text.lines, ...notes], x, y: at.y, below: at.y < 140 };
+    const noteLines = hover.kind === "region" ? (previewByRegion.get(hover.id)?.notes ?? []).map((n) => t(`harvest.${n}`)) : [];
+    const board = { w: boardW, h: boardH };
+    const top = boardToScreen({ x: anchor.x, y: anchor.top }, viewport.box, board, align);
+    const bottom = boardToScreen({ x: anchor.x, y: anchor.bottom }, viewport.box, board, align).y;
+    const roomAbove = top.y - TIP_GAP_PX - TIP_MARGIN_PX;
+    const roomBelow = boardH - bottom - TIP_GAP_PX - TIP_MARGIN_PX;
+    const above = roomAbove >= tipH || (roomBelow < tipH && roomAbove >= roomBelow);
+    const y = above ? top.y - TIP_GAP_PX - tipH : bottom + TIP_GAP_PX;
+    const clamp = (v: number, max: number) => Math.max(TIP_MARGIN_PX, Math.min(max - TIP_MARGIN_PX, v));
+    return { ...text, lines: [...text.lines, ...noteLines], x: clamp(top.x - tipW / 2, boardW - tipW), y: clamp(y, boardH - tipH) };
   });
 </script>
 
@@ -576,24 +655,20 @@
       {/each}
     {/if}
     <!-- harvest notes after every name and landmark, so a neighbour's name never covers one -->
-    {#each map.regions as region (region.id)}
-      {@const pv = previewByRegion.get(region.id)}
-      {#if pv && pv.notes.length}
-        {#if lod.minor}
-          {@const noteLines = wrapLabel(pv.notes.map((n) => t(`harvest.${n}`)).join(" · "), 20)}
-          {@const w = Math.max(...noteLines.map((l) => l.length)) * lod.minor * 0.62 + lod.minor}
-          <g class="note" transform="translate({region.labelX},{region.labelY + LABEL.noteY})">
-            <rect x={-w / 2} y={-lod.minor * 0.25} width={w} height={(noteLines.length + 0.5) * lod.minor * 1.1} rx={lod.minor * 0.6} />
-            <text text-anchor="middle" style="font-size: {lod.minor}px">
-              {#each noteLines as line, i}<tspan x="0" y={(i + 1) * lod.minor * 1.1}>{line}</tspan>{/each}
-            </text>
-          </g>
-        {:else}
-          <g class="note-badge" transform="translate({region.labelX - 17},{region.labelY - 17}) scale({lod.badge / 16})">
-            <circle r="8" />
-            <path d="M0,-4.5 L0,1 M0,3.6 L0,3.8" />
-          </g>
-        {/if}
+    {#each notes as { region, lines, box } (region.id)}
+      {#if box}
+        <g class="note" transform="translate({box.x},{box.y})">
+          <rect width={box.w} height={box.h} rx={lod.minor * 0.6} />
+          <text text-anchor="middle" style="font-size: {lod.minor}px">
+            {#each lines as line, i}<tspan x={box.w / 2} y={(0.25 + (i + 1) * 1.1) * lod.minor}>{line}</tspan>{/each}
+          </text>
+        </g>
+      {:else}
+        <!-- on the disc's left edge, clear of the name above and the pips below -->
+        <g class="note-badge" transform="translate({region.labelX - 17},{region.labelY}) scale({lod.badge / 16})">
+          <circle r="8" />
+          <path d="M0,-4.5 L0,1 M0,3.6 L0,3.8" />
+        </g>
       {/if}
     {/each}
   </g>
@@ -640,7 +715,7 @@
 {/if}
 
 {#if tip}
-  <div class="tip" class:below={tip.below} role="tooltip" style="left: {tip.x}px; top: {tip.y}px">
+  <div class="tip" role="tooltip" bind:offsetWidth={tipW} bind:offsetHeight={tipH} style="left: {tip.x}px; top: {tip.y}px">
     <strong>{tip.title}</strong>
     {#each tip.lines as line}<span>{line}</span>{/each}
   </div>
@@ -776,8 +851,8 @@
   .tip {
     position: absolute;
     z-index: 4;
-    max-width: 16rem;
-    transform: translate(-50%, calc(-100% - 10px));
+    width: max-content;
+    max-width: min(16rem, calc(100% - 8px));
     display: grid;
     gap: 0.1rem;
     padding: 0.35rem 0.6rem;
@@ -788,9 +863,6 @@
     font-size: 0.85rem;
     line-height: 1.3;
     pointer-events: none;
-  }
-  .tip.below {
-    transform: translate(-50%, 14px);
   }
   .tip strong {
     font-family: var(--font-display);

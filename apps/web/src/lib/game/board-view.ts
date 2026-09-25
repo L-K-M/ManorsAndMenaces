@@ -136,3 +136,126 @@ export const LABEL = {
 export function bannerSlot(label: { x: number; y: number }, i: number, n: number): { x: number; y: number } {
   return { x: label.x - 3 + (i - (n - 1) / 2) * LABEL.bannerGap, y: label.y + LABEL.bannerY };
 }
+
+// ------------------------------------------------------------------ note placement
+// Harvest notes are drawn above every piece, so they must not land on one.
+// Each note tries a few slots around its Region label and falls back to the
+// warning badge on the resource disc when none is clear.
+
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface Circle {
+  x: number;
+  y: number;
+  r: number;
+}
+
+/** A thick line from a to b, `r` wide on each side. */
+export interface Segment {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  r: number;
+}
+
+export interface Obstacles {
+  /** Round pieces: Sites, Holdings, Menaces, Banners, Trading Posts. */
+  circles: readonly Circle[];
+  /** Routes. */
+  segments: readonly Segment[];
+  /** Region label blocks and names, and notes already placed. */
+  rects: readonly Rect[];
+}
+
+/** Space kept between a note and anything it avoids, in board units. */
+const NOTE_CLEARANCE = 3;
+
+function pointRectDistance(px: number, py: number, r: Rect): number {
+  return Math.hypot(Math.max(r.x - px, 0, px - (r.x + r.w)), Math.max(r.y - py, 0, py - (r.y + r.h)));
+}
+
+function pointSegmentDistance(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+/** Whether the segment a→b crosses the rectangle (Liang-Barsky clipping). */
+function segmentCrossesRect(ax: number, ay: number, bx: number, by: number, r: Rect): boolean {
+  const dx = bx - ax;
+  const dy = by - ay;
+  let t0 = 0;
+  let t1 = 1;
+  const edges: [number, number][] = [
+    [-dx, ax - r.x],
+    [dx, r.x + r.w - ax],
+    [-dy, ay - r.y],
+    [dy, r.y + r.h - ay],
+  ];
+  for (const [p, q] of edges) {
+    if (p === 0) {
+      if (q < 0) return false;
+      continue;
+    }
+    const t = q / p;
+    if (p < 0) t0 = Math.max(t0, t);
+    else t1 = Math.min(t1, t);
+    if (t0 > t1) return false;
+  }
+  return true;
+}
+
+function segmentRectDistance(s: Segment, r: Rect): number {
+  if (segmentCrossesRect(s.ax, s.ay, s.bx, s.by, r)) return 0;
+  const corners = [
+    [r.x, r.y],
+    [r.x + r.w, r.y],
+    [r.x, r.y + r.h],
+    [r.x + r.w, r.y + r.h],
+  ] as const;
+  return Math.min(
+    pointRectDistance(s.ax, s.ay, r),
+    pointRectDistance(s.bx, s.by, r),
+    ...corners.map(([x, y]) => pointSegmentDistance(x, y, s.ax, s.ay, s.bx, s.by)),
+  );
+}
+
+/** Whether `r` keeps clear of every obstacle. */
+export function isClear(r: Rect, obstacles: Obstacles): boolean {
+  if (obstacles.circles.some((c) => pointRectDistance(c.x, c.y, r) < c.r + NOTE_CLEARANCE)) return false;
+  if (obstacles.segments.some((s) => segmentRectDistance(s, r) < s.r + NOTE_CLEARANCE)) return false;
+  return !obstacles.rects.some(
+    (o) => r.x < o.x + o.w + NOTE_CLEARANCE && o.x < r.x + r.w + NOTE_CLEARANCE && r.y < o.y + o.h + NOTE_CLEARANCE && o.y < r.y + r.h + NOTE_CLEARANCE,
+  );
+}
+
+/** Half-width of the resource disc plus its ring, which notes keep clear of. */
+const DISC_CLEARANCE = 24;
+
+/**
+ * Candidate boxes for a note of `size` at a Region label point, in order of
+ * preference: under the Banners, above the name (`nameTop`, relative to the
+ * label point), then left and right of the resource disc.
+ */
+export function noteSlots(label: { x: number; y: number }, size: Size, nameTop: number): Rect[] {
+  const at = (x: number, y: number): Rect => ({ x: label.x + x, y: label.y + y, w: size.w, h: size.h });
+  return [
+    at(-size.w / 2, LABEL.noteY),
+    at(-size.w / 2, nameTop - NOTE_CLEARANCE - size.h),
+    at(-DISC_CLEARANCE - size.w, -size.h / 2),
+    at(DISC_CLEARANCE, -size.h / 2),
+  ];
+}
+
+/** The first slot clear of every obstacle, or null when the note should become a badge. */
+export function placeNote(slots: readonly Rect[], obstacles: Obstacles): Rect | null {
+  return slots.find((r) => isClear(r, obstacles)) ?? null;
+}

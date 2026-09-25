@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { BoardAlign, LABEL, bannerSlot, boardToScreen, labelLod, screenScale, strokeWidth, wrapLabel } from "../src/lib/game/board-view.js";
+import {
+  BoardAlign,
+  LABEL,
+  bannerSlot,
+  boardToScreen,
+  isClear,
+  labelLod,
+  noteSlots,
+  placeNote,
+  screenScale,
+  strokeWidth,
+  wrapLabel,
+  type Obstacles,
+} from "../src/lib/game/board-view.js";
 
 const MAP = { w: 1600, h: 1000 };
 // Board element sizes measured in the current layout.
@@ -102,5 +115,37 @@ describe("bannerSlot", () => {
     const right = flag(bannerSlot({ x: 0, y: 0 }, 2, 3));
     const menaceBottom = 4 + 19;
     expect(right.top).toBeGreaterThan(menaceBottom);
+  });
+});
+
+describe("note placement", () => {
+  const none: Obstacles = { circles: [], segments: [], rects: [] };
+  const box = { x: 0, y: 0, w: 100, h: 20 };
+
+  it("detects Sites, Routes and labels near a note", () => {
+    expect(isClear(box, none)).toBe(true);
+    expect(isClear(box, { ...none, circles: [{ x: 50, y: 30, r: 14 }] })).toBe(false);
+    expect(isClear(box, { ...none, circles: [{ x: 50, y: 60, r: 14 }] })).toBe(true);
+    // A Route crossing the note with both ends outside it.
+    expect(isClear(box, { ...none, segments: [{ ax: -50, ay: -50, bx: 150, by: 70, r: 7 }] })).toBe(false);
+    // A Route passing just beside it.
+    expect(isClear(box, { ...none, segments: [{ ax: -50, ay: 28, bx: 150, by: 28, r: 7 }] })).toBe(false);
+    expect(isClear(box, { ...none, segments: [{ ax: -50, ay: 40, bx: 150, by: 40, r: 7 }] })).toBe(true);
+    expect(isClear(box, { ...none, rects: [{ x: 90, y: 10, w: 40, h: 40 }] })).toBe(false);
+  });
+
+  it("prefers the slot under the Banners, then above the name", () => {
+    const slots = noteSlots({ x: 500, y: 300 }, { w: 100, h: 20 }, -40);
+    expect(slots[0]).toEqual({ x: 450, y: 300 + LABEL.noteY, w: 100, h: 20 });
+    expect(slots[1]!.y + slots[1]!.h).toBeLessThan(300 - 40);
+    expect(placeNote(slots, none)).toEqual(slots[0]);
+
+    const siteBelow = { ...none, circles: [{ x: 500, y: 300 + LABEL.noteY + 10, r: 14 }] };
+    expect(placeNote(slots, siteBelow)).toEqual(slots[1]);
+  });
+
+  it("gives up (badge) when every slot is taken", () => {
+    const slots = noteSlots({ x: 500, y: 300 }, { w: 100, h: 20 }, -40);
+    expect(placeNote(slots, { ...none, rects: slots })).toBeNull();
   });
 });
