@@ -5,6 +5,7 @@
   import { currentActor } from "../game/session.svelte.js";
   import { PLAYER_THEMES, emblemPath } from "../theme.js";
   import ResourceIcon from "./ResourceIcon.svelte";
+  import ToolIcon from "./ToolIcon.svelte";
 
   let { session }: { session: GameSession } = $props();
   const gs = $derived(session.draft);
@@ -28,7 +29,7 @@
             </span>
           {/if}
           <span class="renown" title={t("ui.renown")}>
-            <span class="crown" aria-hidden="true">♛</span>{getRenown(session.ctx, gs, pid)}<small>/{gs.ruleset.targetRenown}</small>
+            <span class="crown" aria-hidden="true"><ToolIcon name="crown" size={15} /></span>{getRenown(session.ctx, gs, pid)}<small>/{gs.ruleset.targetRenown}</small>
           </span>
         </header>
         <div class="res" aria-label={t("ui.resources")}>

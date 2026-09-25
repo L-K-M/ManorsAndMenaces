@@ -313,6 +313,7 @@ export const EN: Record<string, string> = {
   "ui.details": "details",
   "ui.game_log": "Game log",
   "ui.close": "Close",
+  "ui.refresh": "Refresh",
   "ui.human": "Human",
   "ui.computer": "Computer",
   "ui.easy": "Easy",

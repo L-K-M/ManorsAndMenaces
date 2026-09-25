@@ -5,6 +5,7 @@
   import type { AiLevel, MatchView, SeatConfig } from "@manors-menaces/protocol";
   import { GameSession } from "../game/session.svelte.js";
   import { OnlineClient, onlineTransport } from "./client.js";
+  import ToolIcon from "../components/ToolIcon.svelte";
 
   let { onopen, onback }: { onopen: (s: GameSession) => void; onback: () => void } = $props();
 
@@ -172,7 +173,7 @@
         <button class="primary" disabled={busy}>{t("ui.join")}</button>
       </form>
     </div>
-    <h3>{t("ui.your_matches")} <button class="ghost" onclick={refresh}>↻</button></h3>
+    <h3>{t("ui.your_matches")} <button class="ghost" onclick={refresh} aria-label={t("ui.refresh")}><ToolIcon name="refresh" size={20} /></button></h3>
     {#if matches.length === 0}<p class="muted">{t("ui.no_matches_yet")}</p>{/if}
     <ul class="matches">
       {#each matches as m (m.matchId)}

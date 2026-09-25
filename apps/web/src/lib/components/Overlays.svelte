@@ -2,6 +2,7 @@
   // Privacy curtain (§56.1), victory screen, and the entity inspector.
   import { getPlayerHoldings, getRenown } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
+  import ToolIcon from "./ToolIcon.svelte";
   import { regionName } from "../game/log.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { ui } from "../stores/ui.svelte.js";
@@ -106,7 +107,7 @@
   <aside class="inspect" aria-live="polite">
     <header>
       <strong>{inspectText.title}</strong>
-      <button class="close" aria-label={t("ui.close")} onclick={() => (ui.inspect = null)}>✕</button>
+      <button class="close" aria-label={t("ui.close")} onclick={() => (ui.inspect = null)}><ToolIcon name="close" size={20} /></button>
     </header>
     {#each inspectText.lines as line}<p>{line}</p>{/each}
   </aside>

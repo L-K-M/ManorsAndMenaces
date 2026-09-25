@@ -54,16 +54,16 @@
     </p>
   {:else if legal.mode === "setup_manor" || legal.mode === "setup_route"}
     <p class="status">{t(legal.mode === "setup_manor" ? "setup.place_manor" : "setup.place_route", { name: gs.players[legal.playerId]?.displayName ?? "" })}</p>
-    <button class="ghost" disabled={!session.canUndo} onclick={() => session.undo()}>↶ {t("action.undo")}</button>
+    <button class="ghost" disabled={!session.canUndo} onclick={() => session.undo()}><ToolIcon name="undo" size={18} /> {t("action.undo")}</button>
   {:else if legal.mode === "setup_banners" || legal.mode === "banner_assignment"}
     <p class="status">
       {legal.mode === "setup_banners" ? t("setup.assign_banners", { name: gs.players[legal.playerId]?.displayName ?? "" }) : t("phase.banner_assignment")}
       — {hints.hint ? t(hints.hint) : ""}
     </p>
-    <button class="ghost" disabled={!ui.selectedBannerId} onclick={sendHome}>⌂ {t("action.send_home")}</button>
+    <button class="ghost" disabled={!ui.selectedBannerId} onclick={sendHome}><ToolIcon name="home" size={18} /> {t("action.send_home")}</button>
     <button class="ghost" disabled={draftChanges === 0} onclick={resetBanners}>{t("action.reset")}</button>
     <button class="primary" onclick={() => legal && confirmBanners(session, legal)}>
-      ✓ {t("action.confirm_banners")}{draftChanges ? ` (${draftChanges})` : ""}
+      <ToolIcon name="check" size={18} /> {t("action.confirm_banners")}{draftChanges ? ` (${draftChanges})` : ""}
     </button>
   {:else if legal.mode === "main"}
     <div class="tools">
@@ -97,14 +97,14 @@
     </div>
     <div class="end">
       {#if hints.hint && ui.tool !== "none"}<p class="hint">{t(hints.hint)} <button class="link" onclick={resetTool}>{t("action.cancel")}</button></p>{/if}
-      <button class="ghost" disabled={!session.canUndo} onclick={() => session.undo()} aria-label={t("action.undo")}>↶ {t("action.undo")}</button>
+      <button class="ghost" disabled={!session.canUndo} onclick={() => session.undo()} aria-label={t("action.undo")}><ToolIcon name="undo" size={18} /> {t("action.undo")}</button>
       <button class="primary" onclick={endMain}>{t("action.end_main")} →</button>
     </div>
   {:else if legal.mode === "end"}
     <p class="status">
       {#if legal.mustDiscard > 0}{t("error.HAND_OVER_LIMIT", { limit: gs.ruleset.handLimit })}{:else}{t("phase.end")}{/if}
     </p>
-    <button class="ghost" disabled={!session.canUndo} onclick={() => session.undo()}>↶ {t("action.undo")}</button>
+    <button class="ghost" disabled={!session.canUndo} onclick={() => session.undo()}><ToolIcon name="undo" size={18} /> {t("action.undo")}</button>
     <button class="primary" disabled={legal.mustDiscard > 0} onclick={endTurn}>{t("action.end_turn")} ⏎</button>
   {:else if legal.mode === "reaction" || legal.mode === "prophecy"}
     <p class="status">{t("status.decision")}</p>

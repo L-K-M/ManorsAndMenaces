@@ -7,6 +7,7 @@
   import { resetTool, ui } from "../stores/ui.svelte.js";
   import Modal from "./Modal.svelte";
   import ResourceIcon from "./ResourceIcon.svelte";
+  import ToolIcon from "./ToolIcon.svelte";
 
   let { session, legal }: { session: GameSession; legal: LegalActionSummary | null } = $props();
   const gs = $derived(session.draft);
@@ -170,8 +171,8 @@
       {#each order as c, i (c)}
         <li>
           <span>{t(`card.${cardDefIdOf(c)}.name`)}</span>
-          <button aria-label={t("ui.move_up")} disabled={i === 0} onclick={() => move(i, -1)}>↑</button>
-          <button aria-label={t("ui.move_down")} disabled={i === order.length - 1} onclick={() => move(i, 1)}>↓</button>
+          <button aria-label={t("ui.move_up")} disabled={i === 0} onclick={() => move(i, -1)}><ToolIcon name="arrow-up" size={20} /></button>
+          <button aria-label={t("ui.move_down")} disabled={i === order.length - 1} onclick={() => move(i, 1)}><ToolIcon name="arrow-down" size={20} /></button>
         </li>
       {/each}
     </ol>

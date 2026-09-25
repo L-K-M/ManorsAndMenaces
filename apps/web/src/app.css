@@ -1,16 +1,98 @@
+/* Storybook look: self-hosted OFL fonts from @fontsource (latin subset, only
+   the faces used here). Vite bundles the woff2 files same-origin, so they
+   work offline, under the Tauri CSP and from the PWA cache. Alegreya Sans has
+   a small x-height (0.47 em against DejaVu Sans' 0.55), so it is scaled up
+   8% to keep small UI labels readable. */
+@font-face {
+  font-family: "Alegreya SC";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("@fontsource/alegreya-sc/files/alegreya-sc-latin-700-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Alegreya SC";
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url("@fontsource/alegreya-sc/files/alegreya-sc-latin-700-italic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Alegreya";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("@fontsource/alegreya/files/alegreya-latin-400-italic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Alegreya Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("@fontsource/alegreya-sans/files/alegreya-sans-latin-400-normal.woff2") format("woff2");
+  size-adjust: 108%;
+}
+@font-face {
+  font-family: "Alegreya Sans";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("@fontsource/alegreya-sans/files/alegreya-sans-latin-400-italic.woff2") format("woff2");
+  size-adjust: 108%;
+}
+@font-face {
+  font-family: "Alegreya Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("@fontsource/alegreya-sans/files/alegreya-sans-latin-500-normal.woff2") format("woff2");
+  size-adjust: 108%;
+}
+@font-face {
+  font-family: "Alegreya Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("@fontsource/alegreya-sans/files/alegreya-sans-latin-700-normal.woff2") format("woff2");
+  size-adjust: 108%;
+}
 :root {
-  --font-display: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Alegreya SC", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --font-label: "Alegreya", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-body: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --paper: #fffaf0;
   --parchment: #f2e6c8;
   --wood: #5a3e22;
   --ink: #2b2115;
   --accent: #2f6b3a;
   --accent-dark: #1d4524;
+  /* Parchment UI kit. Surfaces are small gradients plus a 160 px noise tile
+     drawn by an inline SVG filter, never large images. */
+  --ink-soft: #5a4a32;
+  --edge: #8a7650;
+  --gilt: #b8892b;
+  --wax: #8e2b22;
+  --radius-m: 10px;
+  --radius-l: 16px;
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .36 0 0 0 0 .26 0 0 0 0 .13 .55 0 0 0 -.2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
+  --paper-sheet: var(--paper-grain), radial-gradient(ellipse at 50% 0%, #fffdf7 0%, #fbf3e0 60%, #f1e2bf 100%);
+  --button-face: linear-gradient(#fffdf7, #f3e6c6);
+  --button-face-hover: linear-gradient(#fffaf0, #f7e2b0);
+  --primary-face: linear-gradient(color-mix(in srgb, var(--accent) 88%, #fff), var(--accent) 55%, color-mix(in srgb, var(--accent) 88%, #000));
+  --primary-face-hover: linear-gradient(color-mix(in srgb, var(--accent) 86%, #fff), color-mix(in srgb, var(--accent) 96%, #fff));
+  --field-face: #fffdf7;
+  --shadow-raised: inset 0 1px 0 #ffffffc0, inset 0 -2px 0 #5a3e2224, 0 1px 2px #2b211533;
+  --shadow-pressed: inset 0 2px 4px #2b211547;
+  --shadow-card: 0 2px 6px #2b211526, 0 16px 40px #2b211547;
+  /* A thin gilt rule just inside the edge of paper sheets (cards, dialogs). */
+  --sheet-rule: inset 0 0 0 4px var(--paper), inset 0 0 0 5px color-mix(in srgb, var(--gilt) 55%, transparent);
   --text-scale: 1;
   color: var(--ink);
+  accent-color: var(--accent);
   font-family: var(--font-body);
   font-size: calc(16px * var(--text-scale));
+  /* Alegreya defaults to old-style figures; counters read better lining. */
+  font-variant-numeric: lining-nums;
   line-height: 1.35;
   -webkit-font-smoothing: antialiased;
 }
@@ -19,7 +101,7 @@
 }
 body {
   margin: 0;
-  background: var(--parchment);
+  background: var(--paper-grain), var(--parchment);
   overscroll-behavior: none;
 }
 button,
@@ -28,44 +110,128 @@ input {
   font: inherit;
   color: inherit;
 }
+h1,
+h2,
+h3,
+legend {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+em,
+blockquote {
+  font-family: var(--font-label);
+}
 button {
   min-height: 44px;
   padding: 0.35rem 0.8rem;
   border-radius: 9px;
-  border: 2px solid #8a7650;
-  background: #fffdf6;
+  border: 2px solid var(--edge);
+  background: var(--button-face);
+  box-shadow: var(--shadow-raised);
+  font-weight: 500;
   cursor: pointer;
+  transition:
+    box-shadow 120ms,
+    transform 80ms;
 }
 button:hover:not(:disabled) {
-  background: #fff4d6;
+  background: var(--button-face-hover);
+}
+/* Pressed: the face sinks into the page instead of changing colour. */
+button:active:not(:disabled) {
+  box-shadow: var(--shadow-pressed);
+  transform: translateY(1px);
 }
 button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+  box-shadow: none;
 }
 button.primary {
-  background: var(--accent);
+  background: var(--primary-face);
   border-color: var(--accent-dark);
   color: #fff;
-  font-weight: 600;
+  font-weight: 700;
+  text-shadow: 0 1px 0 #0000004d;
+  box-shadow: inset 0 1px 0 #ffffff47, inset 0 -2px 0 #00000033, 0 1px 2px #2b211540;
 }
 button.primary:hover:not(:disabled) {
-  background: #3a8047;
+  background: var(--primary-face-hover);
 }
 button.ghost {
   background: transparent;
+  box-shadow: none;
 }
 :focus-visible {
   outline: 3px solid #1b5fd1;
   outline-offset: 2px;
 }
-input,
+/* Text fields and selects only: radios, checkboxes and sliders keep their
+   intrinsic size (a global min-height used to break the rule options). */
+input:not([type="radio"], [type="checkbox"], [type="range"], [type="file"]),
 select {
   min-height: 40px;
-  padding: 0.2rem 0.4rem;
-  border: 2px solid #8a7650;
+  padding: 0.2rem 0.5rem;
+  border: 2px solid var(--edge);
   border-radius: 7px;
-  background: #fffdf6;
+  background: var(--field-face);
+  box-shadow: inset 0 2px 3px #5a3e221f;
+}
+select {
+  appearance: none;
+  padding-right: 1.9rem;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1.5 1.5 6 6.2l4.5-4.7' fill='none' stroke='%235a4a32' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      no-repeat right 0.6rem center / 0.7rem auto,
+    var(--field-face);
+  cursor: pointer;
+}
+input::placeholder {
+  color: #7d6c50;
+}
+input[type="file"]::file-selector-button {
+  font: inherit;
+  margin-right: 0.6rem;
+  padding: 0.35rem 0.8rem;
+  border: 2px solid var(--edge);
+  border-radius: 9px;
+  background: var(--button-face);
+  box-shadow: var(--shadow-raised);
+  color: var(--ink);
+  cursor: pointer;
+}
+fieldset {
+  border: 1px solid #8a765066;
+  border-radius: var(--radius-m);
+  background: #fffdf766;
+}
+legend {
+  padding: 0 0.35rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+/* A label wrapping a radio is a selectable card; the checked one is inked. */
+label:has(> input[type="radio"]) {
+  padding: 0.45rem 0.7rem;
+  border: 2px solid #8a765055;
+  border-radius: var(--radius-m);
+  background: #fffdf799;
+  cursor: pointer;
+}
+label:has(> input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--paper));
+}
+label:has(> input:focus-visible) {
+  outline: 3px solid #1b5fd1;
+  outline-offset: 2px;
+}
+::selection {
+  background: #b8892b59;
 }
 .high-contrast {
   --paper: #ffffff;
@@ -73,6 +239,15 @@ select {
   --ink: #000000;
   --accent: #0036a3;
   --accent-dark: #001f5c;
+  --ink-soft: #000000;
+  --edge: #000000;
+  --paper-grain: none;
+  --paper-sheet: #ffffff;
+  --button-face: #ffffff;
+  --button-face-hover: #fff1c2;
+  --primary-face: var(--accent);
+  --primary-face-hover: var(--accent-dark);
+  --field-face: #ffffff;
 }
 .high-contrast button {
   border-color: #000;

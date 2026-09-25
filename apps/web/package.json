@@ -11,6 +11,9 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@fontsource/alegreya": "^5.3.0",
+    "@fontsource/alegreya-sans": "^5.3.0",
+    "@fontsource/alegreya-sc": "^5.3.0",
     "@manors-menaces/ai": "workspace:*",
     "@manors-menaces/content": "workspace:*",
     "@manors-menaces/protocol": "workspace:*",
