@@ -164,6 +164,7 @@ export function resolveCardEffect(tx: Tx, playerId: PlayerId, target: CardTarget
       const take = target.take ?? RESOURCE_TYPES.find((r) => (hoard[r] ?? 0) > 0);
       if (take && (hoard[take] ?? 0) > 0) {
         hoard[take] = (hoard[take] ?? 0) - 1;
+        if ((hoard[take] ?? 0) === 0) delete hoard[take];
         tx.emit({ type: "hoard_changed", menaceId: dragon.id, resource: take, delta: -1 });
         tx.gain(playerId, take, 1, "card_effect");
       }

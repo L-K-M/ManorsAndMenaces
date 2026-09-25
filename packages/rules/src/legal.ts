@@ -17,9 +17,11 @@ import {
   getPlayerHoldings,
   getWritTargets,
   holdingAt,
+  menaceOfType,
 } from "./selectors.js";
 import type { CardId, CardTarget, GameState, PlayerId, QuestId, ResourceType, RouteId, SiteId } from "./types.js";
 import { HIDDEN_CARD } from "./views.js";
+import { RESOURCE_TYPES } from "./types.js";
 
 export type ActionMode =
   | "none"
@@ -225,9 +227,17 @@ export function enumerateCardTargets(ctx: RulesContext, state: GameState, player
     case "fog_of_confusion":
       for (const r of ctx.board.topology.routes) candidates.push({ effect: "fog_of_confusion", routeId: r.id });
       break;
-    case "dragon_whisperer":
-      for (const d of regionDests) candidates.push({ effect: "dragon_whisperer", destination: d });
+    case "dragon_whisperer": {
+      // With a mixed Hoard the player chooses what to take: one variant per
+      // resource type. A single-type (or empty) Hoard needs no choice.
+      const dragon = menaceOfType(state, "young_dragon");
+      const hoardTypes = RESOURCE_TYPES.filter((r) => (dragon?.state.hoard?.[r] ?? 0) > 0);
+      for (const d of regionDests) {
+        if (hoardTypes.length > 1) for (const take of hoardTypes) candidates.push({ effect: "dragon_whisperer", destination: d, take });
+        else candidates.push({ effect: "dragon_whisperer", destination: d });
+      }
       break;
+    }
     case "counterspell":
       return [];
   }

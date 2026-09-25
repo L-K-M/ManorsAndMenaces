@@ -143,7 +143,10 @@ export function currentCardStep(session: GameSession): { field: string; pick: st
       const v = (c as unknown as Record<string, unknown>)[s.field];
       seen.set(valueKey(v), v);
     }
-    return { field: s.field, pick: s.pick, options: [...seen.values()] };
+    // An optional field (e.g. Dragon Whisperer's `take`) is skipped when no
+    // candidate offers it: a single-type or empty Hoard needs no choice.
+    if ([...seen.values()].every((v) => v === undefined)) continue;
+    return { field: s.field, pick: s.pick, options: [...seen.values()].filter((v) => v !== undefined) };
   }
   return null;
 }
@@ -161,6 +164,10 @@ async function maybeFinishCard(session: GameSession): Promise<void> {
   if (step?.pick === "dialog") {
     const effect = session.ctx.cardOf(ui.cardId ?? "").effectId;
     ui.dialog = effect === "arcane_exchange" ? "arcane" : "festival";
+    return;
+  }
+  if (step?.pick === "hoard") {
+    ui.dialog = "hoard";
     return;
   }
   if (step) return;
