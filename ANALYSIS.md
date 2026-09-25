@@ -4,6 +4,7 @@ This document merges two reviews of the whole monorepo (rules engine, content, A
 
 - The previous `ANALYSIS.md` (another agent's review of 2026-09-24, spec v0.2, which produced PRs #4 to #7).
 - A second, independent review of 2026-09-24 with 226 verified findings (distinct ids: 160 entries plus 66 duplicates merged into them under "Also covers"), most reproduced with scripts, Playwright runs, screenshots or measurements, which produced PRs #8 to #25. Its repro scripts and screenshots lived in a session scratchpad and are not committed.
+- A third pass (2026-09-25, this edit) reviewed the merged tree against the spec, produced PRs #26 to #30 (dragon-hoard choice, ALREADY_STRONGHOLD, Chronicle stickiness, health-check exemption, i18n hardcoding), refuted two backlog entries on re-verification (`web-prophecy-order-reset`, the bug claim of `web-actionbar-draft-diff-null`), and recorded that `rules-far-reaches-distance-definition` matches the spec as written.
 
 Work that an open PR already covers is listed only under [Done or in flight](#done-or-in-flight-do-not-redo). Everything under [Backlog](#backlog) is open.
 
@@ -23,7 +24,7 @@ This is written for agents (human or LLM) picking up work.
 
 ## Status snapshot
 
-- Date: 2026-09-25.
+- Date: 2026-09-25 (third-pass consolidation edit).
 - The open PRs of 2026-09-24 and 2026-09-25 were consolidated; see [Consolidation](#consolidation-2026-09-25). The per-PR notes below describe each PR as it was opened.
 - Baseline from the second review (do not redo it): the rules engine is solid. A 200-game random fuzzer (61k commands) found no invariant violations, no nondeterminism and no disagreement between the legal-action summary and the engine; the playout, replay and hash tests passed and CI was green on `main`. The problems sit around the engine: the online boundary, save safety, layout and readability, AI pacing and presentation. The written flavour (Lord Mumble, Grum, the goblins' invoice) is good, but almost none of it reaches the screen (see `delight-idea-menace-personality` and `delight-idea-town-crier`).
 
@@ -145,6 +146,14 @@ Entries fully covered by an open PR are listed only here. Small leftovers of an 
 - **#6:** New Game blocks 0-human seats (disabled Begin, hint, `ui.at_least_one_human_required`); the tutorial's final step has an explicit `ui.finish_tutorial` Finish button instead of a silent exit. Files: `NewGame.svelte`, `TutorialCoach.svelte`, `packages/content/src/i18n/en.ts`. Overlaps #12's all-AI e2e test and `critic-newgame-validation`.
 - **#7:** `holdingBySite` and `bannerCountByRegion` derived maps replace O(S×H) per-frame scans in the Board's Site and Region loops. File: `Board.svelte`.
 
+### PRs #26 to #30 (third pass, merged via #31)
+
+- **#26** fully covers `rules-dragon-whisperer-take-choice`: enumeration offers one `take` variant per Hoard resource type when the Hoard holds more than one; the web client asks via a dialog step (skipped for single-type or empty Hoards); the AI picks by evaluation; taking the last resource of a type deletes the zero entry. Leftovers live on: the "Dragon hoard viewer/glint" presentation idea and `content-dragon-hoard-sink`.
+- **#27** fully covers `rules-already-stronghold-error-code` (`ALREADY_STRONGHOLD` + message + tests).
+- **#28** fully covers `web-log-autoscroll-stickiness`: the Chronicle follows only while pinned to the bottom, with a "Jump to latest" pill. The consolidation simplified the scroll into one effect without rAF; the e2e guard (`chronicle.spec.ts`) remains.
+- **#29** fully covers `server-options-and-health-limiter`: `/api/health` bypasses the limiter (limiter still applies elsewhere), `OPTIONS` answers via a dedicated no-content writer with shared CORS headers.
+- **#30** mostly covers `content-i18n-hardcoded-ui`: ~45 strings moved to `en.ts` (inspector, victory, writ/reaction dialogs, tutorial tasks, lobby statuses, aria-labels), `placeName` uses the Route's real kind, and a guard test enforces key existence and bare-literal absence (DebugPanel exempt as dev-only). Plurals and map region names remain open in `content-i18n-plurals` and `content-i18n-region-names`; the consolidation dropped 24 duplicate/dead keys from the merge with #10 and #15's own string work. One tracked leftover survives: `help.tradepost` in `en.ts` is still defined and unused (#30 used `tip.trade_post` instead) — drop it with the next `en.ts` touch.
+
 ### PRs #8 to #25 (second review)
 
 | PR | Fully covers | Partly covers (entry stays in the backlog) |
@@ -172,7 +181,7 @@ Items from the previous analysis that these PRs also cover (listed here, not in 
 - Menace anchor colliding with the Banner row (`Board.svelte:68`, `labelX+40,+4` against `+26`): #15's Banner slots and label layer, and #25's grounded figures (`vis-label-occlusion`, `vis-menace-tokens-indistinct`). The hoard-text overlap in small Regions stays with `vis-menace-tokens-indistinct`.
 - AI delay of 550 ms on every step (`settings:56-59`): #12's paced steps.
 - `TutorialCoach` 32 px header buttons and phone placement (`TutorialCoach:92-99` against `GameScreen:197-203`): #14 (44 px, placement follows the layout). The coach still covering the board is in `spec-tutorial-incomplete`.
-- Topbar "Save" and "Saved." hard-coded in English (`GameScreen.svelte:89`, `session.svelte.ts:59`): #10 moves the topbar round, Save and "Not saved" text to `t()`. Verify "Saved." after merge; the rest is `content-i18n-hardcoded-ui`.
+- Topbar "Save" and "Saved." hard-coded in English (`GameScreen.svelte:89`, `session.svelte.ts:59`): #10 moved the topbar text to `t()`; the remaining hardcoded strings landed in #30.
 - Overdraw and blur: sea overdraw repainting on pan (`Board:187-189,213-214`) and the infinite pulse (`531-539`): #13 (transform camera, sea sized to reach) and #15 (glow overlay, motion settings).
 - Unthrottled camera (`panBy`/`zoomAt` per pointermove, `getScreenCTM().inverse()` per move): #13.
 - Floater churn (`GameScreen.svelte:103` filter per render; `session:299-306` spread plus a 1600 ms timer per gain): #23 removes floaters.
@@ -186,7 +195,7 @@ Items from the previous analysis that these PRs also cover (listed here, not in 
 
 ## Review gaps
 
-Automated review (GLM 5.3 via Z.ai) was heavily rate-limited (HTTP 429) early on, because the Z.ai quota is shared with other agents' PRs on the same repository. Failed runs were re-run one at a time, at most once per head; two consecutive failures were treated as a review gap and reported on the PR, never as approval. Final state as of 2026-09-25 06:40 UTC (all PRs open and unmerged):
+Automated review (GLM 5.3 via Z.ai) was heavily rate-limited (HTTP 429) early on, because the Z.ai quota is shared with other agents' PRs on the same repository. Failed runs were re-run one at a time, at most once per head; two consecutive failures were treated as a review gap and reported on the PR, never as approval. Final state as of 2026-09-25 06:40 UTC (the table below is historical; every PR listed was subsequently merged or folded by the consolidation PR #31, and #26 to #30 each had at least one completed GLM review round plus a fix round before merging):
 
 | PR | Head | GLM review outcome |
 |---|---|---|
@@ -220,7 +229,7 @@ Each work package (WP) is sized as one PR or a short series and can land on its 
 | WP | Work package | Ids | Rationale | Effort | Depends on |
 |---|---|---|---|---|---|
 | 0 | Merge the open PRs | #4 to #25 | Most of the highest-value work is done but unmerged; conflicts grow with every new branch | M | see [Merge order](#merge-order-and-conflicts) |
-| 1 | Small correctness and friction fixes (the previous analysis's P0) | `web-log-autoscroll-stickiness`, `web-prophecy-order-reset`, `web-actionbar-draft-diff-null`, `server-options-and-health-limiter`, `ux-targeting-locks-exploration` (sea-click cancel), `rules-already-stronghold-error-code`, `webstate-online-submit-errors-and-busy` | Cheap, visible annoyances and a Docker health check that can fail | S | WP0 for the web items |
+| 1 | Small correctness and friction fixes (the previous analysis's P0); `web-log-autoscroll-stickiness`, `rules-already-stronghold-error-code` and `server-options-and-health-limiter` were done in #26–#30, `web-prophecy-order-reset` was refuted | `web-actionbar-draft-diff-null` (cosmetic re-check only), `ux-targeting-locks-exploration` (sea-click cancel), `webstate-online-submit-errors-and-busy` | Cheap, visible annoyances | S | WP0 for the web items |
 | 2 | Hidden-information fixes (old WP16) | `rules-reaction-window-leaks-counterspell`, `ai-peeks-hidden-counterspell` | §83/§105 compliance: the reaction window and the AI both leak who holds a Counterspell | M | #8 |
 | 3 | Server robustness, second pass | `online-ai-scheduler-stale-seat`, `online-no-ws-heartbeat` (rest), `server-sqlite-busy-timeout-migrations`, `server-replay-auth-callee-check`, `server-config-validation-and-static-hardening`, `server-pushto-fake-userrow`, `online-tauri-android-default-server` | Multi-AI stalls, `SQLITE_BUSY`, insecure defaults, desktop and Android builds with no usable server | M | #17 |
 | 4 | Web unit tests and engine regression guards (old WP15) | `webstate-no-session-unit-tests`, `tooling-rules-untested-paths`, `tooling-ai-modes-untested`, `tooling-server-test-gaps`, `tooling-fastcheck-unused-fuzz`, `tooling-e2e-coverage-gaps`, `protocol-command-field-caps` | Safety net for the refactors that follow; many PRs already added an `apps/web/test` harness | M | WP0 |
@@ -237,10 +246,10 @@ Each work package (WP) is sized as one PR or a short series and can land on its 
 | 15 | Art direction, remaining steps (old WP24) | `vis-art-direction` (rest), `vis-menace-tokens-indistinct` (rest), `delight-aes-parchment-ui-kit` (rest) | From prototype to storybook; one PR per step | L | #19, #25 |
 | 16 | Motion and audio (old WP25) | `delight-idea-build-juice`, `spec-audio-music-and-menace-cues` | Built on #23's event bus; coordinate with WP11's `perf-token-transitions`, which owns the transition changes | M | #23 |
 | 17 | Harvest, opponent and AI-turn feedback, remaining parts | `vis-opponent-actions-invisible` (rest), `vis-harvest-feedback-weak` (rest), `vis-own-resources-hud` (rest), `ai-turn-pacing-dead-time` (rest) | Chronicle lines are still vague and do not pan to the board; no persistent harvest summary; no "Skip to my turn"; your own card is not pinned | M | #12, #23 |
-| 18 | Localisation hygiene (old WP32) | `content-i18n-hardcoded-ui`, `content-i18n-plurals`, `content-i18n-region-names` | Readies the codebase for a second locale | M | WP0 |
+| 18 | Localisation hygiene (old WP32) | `content-i18n-plurals`, `content-i18n-region-names` | Readies the codebase for a second locale (the hardcoded-string sweep landed in #30) | M | WP0 |
 | 19 | Rules design decisions, spec first (old WP33) | `rules-safer-road-swap-double-count`, `rules-warden-guard-survives-card-move`, `rules-highwayman-quest-connectivity`, `rules-far-reaches-distance-definition`, `rules-react-hardcodes-counterspell`, `rules-2p-deck-drops-dragon-whisperer` | Small code changes, each needing a spec decision | S each | |
 | 20 | CI, release and desktop hardening (old WP14 rest and WP34) | `tooling-ci-no-production-build` (rest), `tooling-prettier-not-enforced`, `tooling-rust-checks-and-build-sh`, `tooling-ci-playouts-slow`, `tooling-desktop-release-profile`, `tooling-release-cargo-lock-drift`, `tooling-tauri-fs-scope-home`, `tooling-release-hardening`, `tooling-macos-signing-min-version`, `tooling-idea-pages-deploy`, `tooling-idea-tauri-updater` | Distribution quality; catch Docker and Rust breakage before release | M | #16, #20 |
-| 21 | Content expansion, needs design and playtests (old WP36) | `content-landmark-abilities`, `content-card-pool-thin`, `content-dragon-hoard-sink`, `rules-dragon-whisperer-take-choice`, `content-prophecy-weak`, `og-transferable-titles`, `og-optional-player-trade`, `idea-omen-track` | Opt-in rules gated by simulator results | L | WP9 |
+| 21 | Content expansion, needs design and playtests (old WP36) | `content-landmark-abilities`, `content-card-pool-thin`, `content-dragon-hoard-sink`, `content-prophecy-weak`, `og-transferable-titles`, `og-optional-player-trade`, `idea-omen-track` | Opt-in rules gated by simulator results (`rules-dragon-whisperer-take-choice` landed in #26) | L | WP9 |
 | 22 | Delight backlog (old WP35) | `delight-idea-menace-personality`, `delight-idea-town-crier`, `delight-idea-living-board`, `delight-idea-heraldry`, `delight-idea-photo-mode`, `critic-idea-daily-realm`, `og-hall-of-records`, `resp-idea-target-first-radial-menu`, `resp-idea-haptics-and-press-feedback`, and the `idea-*` entries | Personality and retention; pick freely once the core is solid, one per PR | M each | varies |
 
 Dependencies in short:
@@ -255,7 +264,7 @@ The previous analysis ranked its "biggest wins" as: (1) board readability and ae
 
 The previous analysis's build order, kept for reference and mapped to open PRs or work packages:
 - P0: log stickiness, Menace anchor, busy reasons, sea-click cancel, health-check and OPTIONS fixes. Menace anchor is in #15 and #25; the rest is WP1.
-- P1: dragon-hoard choice and viewer (`rules-dragon-whisperer-take-choice`, `content-dragon-hoard-sink`, WP21); Omen track (`idea-omen-track`, WP21); server AI stall, invite retry and validation (`online-ai-scheduler-stale-seat`, `online-lobby-ux-gaps`, `server-config-validation-and-static-hardening`, WP3 and WP8); rate-limit and static hardening (#17 for the proxy limiter, rest WP3); Charter decision (`content-card-pool-thin`, WP21); Menace rotation (`rules-random-menace-selection-missing`, WP13). The roadmap above places these later than P1 because the second review ranked hidden-information, tests and UI explanation higher; if the owner prefers the old priority, WP3 and the Menace rotation part of WP13 can move up (they need only #17, #16 and #22); the P1 parts of WP21 still need WP9's simulator baseline first.
+- P1: dragon-hoard choice (`rules-dragon-whisperer-take-choice`, done in #26) and viewer (`content-dragon-hoard-sink`, WP21); Omen track (`idea-omen-track`, WP21); server AI stall, invite retry and validation (`online-ai-scheduler-stale-seat`, `online-lobby-ux-gaps`, `server-config-validation-and-static-hardening`, WP3 and WP8); rate-limit and static hardening (#17 for the proxy limiter, rest WP3); Charter decision (`content-card-pool-thin`, WP21); Menace rotation (`rules-random-menace-selection-missing`, WP13). The roadmap above places these later than P1 because the second review ranked hidden-information, tests and UI explanation higher; if the owner prefers the old priority, WP3 and the Menace rotation part of WP13 can move up (they need only #17, #16 and #22); the P1 parts of WP21 still need WP9's simulator baseline first.
 - P2: trade offers (`og-optional-player-trade`); crown (`og-transferable-titles`); harvest comets (#23) and postcard (`idea-harvest-postcard`); gossip log (`delight-idea-menace-personality`); lantern guard (`idea-warden-lantern`); quest stamps (`og-quest-race-visibility`, `delight-idea-build-juice`); post pennants (`idea-trading-post-pennants`); replay viewer (`spec-replay-viewer-missing`); stats screen (#18); mid-breakpoint and mobile sheet (#14).
 
 ### Bugs
@@ -283,20 +292,6 @@ The previous analysis's build order, kept for reference and mapped to open PRs o
   1. For `play_card` on a Spell while reactions are enabled, always score `(1-p)*evaluate(resolved) + p*evaluate(countered)`. `resolved` is obtained by applying `pass_reaction` repeatedly if a window opened. `countered` is `evaluate(state) - WEIGHTS.cardValue`. `p = min(1, unseenCounters/unseenCards * sum(opponent hand sizes))`, where `unseenCounters` is total counterspell copies minus copies in the discard pile minus copies in the AI's own hand.
   2. Test `packages/ai/test/hidden-info.test.ts`, ported from `leak.ts`: two states that differ only in an opponent's Counterspell produce the same intent under the same rng seed.
   3. Optional follow-up: `determinize(ctx, state, viewer, rng)` built on `redactState`, so future evaluation terms cannot read hidden cards.
-
-##### rules-dragon-whisperer-take-choice: Dragon Whisperer never lets the player choose which hoard resource to take
-- From the previous analysis. Severity: medium (est.) | Effort: M | Delight: 3 | Status: reported, not re-verified
-- Files: `packages/rules/src/legal.ts:222-223`, `packages/rules/src/cards.ts:142-153` (auto-pick at `:147`)
-- Evidence: enumeration offers only `{destination}`, never `{destination, take}`. The resolver takes the first resource type in the hoard, so a player can never aim for the resource they need.
-- Proposal: enumerate one `take` variant per resource type when the hoard holds more than one type. In the UI, offer the choice as a small dialog or by dragging one resource out of the hoard (see the "Dragon hoard viewer" idea: clicking the Dragon shows a glinting peek of the hoard, and the whisper becomes drag-one-resource-out). The AI picks the resource with the highest value to it (`resourceNeeds`). Pairs with `content-dragon-hoard-sink`.
-- Tests: a hoard with 2 types, whisper with `take`, assert the chosen resource moved; enumeration lists one variant per type; the AI picks its most-needed type.
-
-##### rules-already-stronghold-error-code: Upgrading a Stronghold reports "That Site is taken"
-- From the previous analysis. Severity: low (est.) | Effort: S | Delight: 1 | Status: reported, not re-verified
-- Files: `packages/rules/src/selectors.ts:163`, `packages/content/src/i18n/en.ts`
-- Evidence: the upgrade check returns `SITE_OCCUPIED` for a Site that already holds a Stronghold, which surfaces as the wrong message.
-- Proposal: add a distinct `ALREADY_STRONGHOLD` error code, an `error.ALREADY_STRONGHOLD` string and the UI message. Check how #11's `getActionAvailability` reports the upgrade tool so both agree.
-- Tests: a rules test that upgrading a Stronghold is rejected with `ALREADY_STRONGHOLD`.
 
 ##### rules-react-hardcodes-counterspell: The react command only understands Counterspell
 - From the previous analysis. Severity: low (est.) | Effort: S | Delight: 0 | Status: reported, not re-verified (latent until a second reaction card exists)
@@ -336,20 +331,6 @@ The previous analysis's build order, kept for reference and mapped to open PRs o
 - From the previous analysis: "silent busy": `session.svelte.ts:176` returns false with no feedback and the only spinner is in ActionBar. Add a global busy indicator and disabled-state reasons on tools.
 - #17 follow-up: the in-game transport still treats every HTTP error, including #17's new 409 `COMMAND_ID_CONFLICT` and 400 `DUPLICATE_COMMAND_ID`, as a network error and retries it. #17's `ApiError` type in `apps/web/src/lib/online/client.ts` is the natural base for the typed HttpError.
 
-##### web-log-autoscroll-stickiness: The Chronicle jumps to the bottom on every new entry
-- From the previous analysis. Severity: medium (est.) | Effort: S | Delight: 3 | Status: reported, not re-verified
-- Files: `apps/web/src/lib/components/LogPanel.svelte:11-14` (synchronous `scrollHeight` read at `:13`)
-- Evidence: every append forces the list to the bottom, so a player reading earlier entries loses their place during an AI turn. The synchronous `scrollHeight` read per append (up to 300 entries) also forces layout.
-- Proposal: auto-scroll only when the list is already within about 40 px of the bottom; otherwise show a "Jump to latest" pill. Batch the scroll in `requestAnimationFrame`.
-- Tests: e2e: scroll the Chronicle up, let the AI act, `scrollTop` is unchanged and the pill is visible; clicking it scrolls to the end.
-
-##### web-prophecy-order-reset: Reordering the Prophecy with the keyboard is wiped
-- From the previous analysis. Severity: low (est.) | Effort: S | Delight: 1 | Status: reported, not re-verified
-- Files: `apps/web/src/lib/components/Dialogs.svelte:50-52`
-- Evidence: an `$effect` re-initialises the prophecy `order` whenever `pending` changes, which discards the player's keyboard reordering.
-- Proposal: initialise `order` once when the dialog opens (keyed by the pending prophecy's identity), not on every reactive change. See also the "Prophecy fan" idea.
-- Tests: e2e: open a prophecy, move a card with the keyboard, trigger an unrelated state update, and the order is kept.
-
 ##### web-actionbar-draft-diff-null: The Banner draft diff miscounts null and undefined
 - From the previous analysis. Severity: low (est.) | Effort: S | Delight: 1 | Status: reported, not re-verified; #11 and #14 rewrote ActionBar, so check it still applies
 - Files: `apps/web/src/lib/components/ActionBar.svelte:36-38`
@@ -381,13 +362,6 @@ The previous analysis's build order, kept for reference and mapped to open PRs o
 - Files: `apps/web/src/lib/online/client.ts:26-31`, `src-tauri/gen/android/app/build.gradle.kts:19-20,29`, `src-tauri/gen/android/app/src/main/AndroidManifest.xml:12`, `docker-compose.yml:8`, `src-tauri/tauri.conf.json:25`
 - Evidence: `defaultServer()` returns `location.origin`, which is `http://tauri.localhost` on Windows and Android and falls back to `http://localhost:8787` on macOS and Linux. The release APK sets `usesCleartextTraffic=false`, while the documented docker server serves plain HTTP. The server field is hidden in a collapsed `<details>`. Network errors appear as a raw "Failed to fetch".
 - Proposal: in a Tauri context (`__TAURI__`, `tauri.localhost` or the `tauri:` protocol), default to `import.meta.env.VITE_SERVER_URL ?? ''` and show the server field expanded and required. Map fetch TypeErrors to `error.server_unreachable`. Set cleartext to `true` in `defaultConfig` (the file is committed), or keep it blocked and show `online.https_required` on Android. Document the choice in AGENTS.md. Unit-test `defaultServer()` with stubbed locations; test a release APK against `http://10.0.2.2:8787`.
-
-##### server-options-and-health-limiter: OPTIONS returns a body with 204, and the health check is rate-limited
-- From the previous analysis. Severity: medium (est.) | Effort: S | Delight: 0 | Status: reported, not re-verified
-- Files: `apps/server/src/app.ts:71-80,140,149`, `Dockerfile:23`
-- Evidence: `OPTIONS` answers 204 with a JSON body. `GET /api/health` goes through the rate limiter, so the Docker HEALTHCHECK can get 429 under load and mark a healthy container unhealthy.
-- Proposal: send an empty body with 204; exempt `/api/health` from the limiter. Re-check after #17, which changes how rate-limit keys are computed.
-- Tests: `OPTIONS` has an empty body; with `rateLimitPerSecond: 1`, 20 health requests all return 200.
 
 ##### server-sqlite-busy-timeout-migrations: No busy timeout, no migrations and a missing index
 - From the previous analysis. Severity: medium (est.) | Effort: M | Delight: 0 | Status: reported, not re-verified
@@ -565,13 +539,13 @@ Common constraint: regenerating `greenvale` renumbers every id, and `isSaveFile`
 - Severity: low | Effort: M | Delight: 4 | Status: partially confirmed (a hoard badge already exists)
 - Files: `packages/rules/src/engine.ts:163-167,463`, `packages/rules/src/cards.ts:142-153`, `packages/content/src/cards.ts:33`, `apps/web/src/lib/components/Board.svelte:384-400`
 - Proposal: a new Hero card `dragons_bane` (×1, requires the young_dragon): "Move the Young Dragon. Take up to 3 resources from its Hoard." Target `{destination, take: ResourceType[] (≤3, available)}`; reuse the Whisperer path in a loop and enumerate greedily. Flavour: 'Some say slain. The dragon says "relocated".' Add a quest `hoard_breaker` (1 Renown, take 4 in total, player stat `hoardTaken`) with `requiresMenace` on quest definitions and filtering in `createGame`. Tests: validation limits, stats, and exclusion in 2p.
-- See `rules-dragon-whisperer-take-choice`: letting the Whisperer choose what to take is the cheaper first step.
+- The cheaper first step landed in #26 (`rules-dragon-whisperer-take-choice`): the Whisperer now chooses what to take.
 
 #### content-prophecy-weak: Very Minor Prophecy barely affects the game
 - Severity: low | Effort: M | Delight: 3 | Status: partially confirmed ("never played" is an artifact of how the AI evaluates)
 - Files: `packages/rules/src/cards.ts:125-136`, `packages/rules/src/engine.ts:757-770`, `packages/rules/src/commands.ts:114`, `packages/rules/src/views.ts:30,47`, `apps/server/src/service.ts:269`, `packages/ai/src/index.ts:70-72`, `packages/content/src/i18n/en.ts:61`
 - Proposal: "Look at the top 3, put 1 into your hand, return the rest in any order." Add `keep: CardId` to `ResolveProphecyCommand`, validate it and move the card to the hand. `prophecy_resolved` must not reveal the kept card. The hand limit applies at end of turn. Update the Dialogs keep choice, the server auto-resolve and the AI (worth about 0.8 of a purchase; keep the best card). Test: hand +1, deck -1, and the remaining order applies.
-- See also `web-prophecy-order-reset` and the "Prophecy fan" idea.
+- See also the "Prophecy fan" idea. (`web-prophecy-order-reset` was refuted: the keyboard reorder survives.)
 
 ### AI
 
@@ -597,6 +571,7 @@ AI performance entries (`ai-latency-beam`, `ai-banner-search-cost`) are under [P
 - Evidence: A flat 0.8 per card in hand means every play starts at -0.8. Interference pays only 0.12 × threat × raw harvest. Fog and Prophecy are not modelled at all. Cards bought against played: 2.7 vs 1.3 (Normal 3p), 6.7 vs 2.2 (Easy). The AI discards the oldest cards, even a Counterspell, keeps the Prophecy order, and only counters Spells that target itself. Simply not charging the 0.8 did not change strength.
 - Proposal: add `cardHeuristics.ts` with per-card values (wizard 1.0, knight 0.8, druid 0.9, counterspell 1.2, fog 0.4, prophecy 0.2) and set `handValue = Σ heuristic` (no add-back). Weight denial by need (0.35). For Fog, target the leader's path. Order the Prophecy by heuristic and discard the lowest cards. Counter a Spell when its source is the leader and it is worth at least 1 to them. Fix `ai-peeks-hidden-counterspell` first. Tests: Interference goes to the leader's 2-yield Banner; a discard keeps the Counterspell. Acceptance: cards played ≥80% of cards bought.
 - #22 note: after #22 the AI can no longer fog unowned Routes, so its Fog plays in 2p fell from 2 to 0; `cardHeuristics.ts` should target opponents' Routes only.
+- Third-pass note (from #26's AI test): `potentialHarvest` values production by *current* need, so taking a resource the AI already produces lowers the apparent value of its own output — a mixed Hoard's "Iron" take scored *below* "Grain" for a player with an Iron banner and no Iron stock. Any `cardHeuristics` work should value takes by absolute scarcity, not post-take need, or the AI will keep skipping takes it wants.
 
 #### ai-idea-personalities-advisor: AI rivals play identically (personality weights)
 - Also covers: `og-ai-personalities`, `delight-idea-ai-personalities`
@@ -644,7 +619,7 @@ AI performance entries (`ai-latency-beam`, `ai-banner-search-cost`) are under [P
   2. Prepare statements once, add `matchState(id)` without `initial_state`, keep a per-match revision cache, and keep a `connectedCount` map.
   3. A `worker_threads` AI worker that is compatible with the single-file bundle (`new Worker(new URL(import.meta.url), {workerData:{role:'ai'}})` with an `isMainThread` switch in `main.ts`). The step becomes async and re-checks the revision.
   Tests: the 11th match returns 409; 4 concurrent Hard matches keep event-loop delay p99 under 50 ms; `node dist/server.mjs` runs an AI match.
-- From the previous analysis: server fan-out is O(S×(DB + redact + stringify)) per move; `presenceChanged` is O(M×S); `listMatches` is N+1 (about 100 queries); `DatabaseSync` is synchronous with a full-snapshot stringify on every read and write; the rate-bucket sweep has gaps. Its suggested order: exempt health and trust the proxy IP (done or covered by #17 and `server-options-and-health-limiter`), a per-match view cache per revision, batched `seats()` for the list, `busy_timeout` (`server-sqlite-busy-timeout-migrations`), and snapshot diffing or compression later. #17 already builds each member's view once per broadcast.
+- From the previous analysis: server fan-out is O(S×(DB + redact + stringify)) per move; `presenceChanged` is O(M×S); `listMatches` is N+1 (about 100 queries); `DatabaseSync` is synchronous with a full-snapshot stringify on every read and write; the rate-bucket sweep has gaps. Its suggested order: exempt health and trust the proxy IP (done in #17 and #29), a per-match view cache per revision, batched `seats()` for the list, `busy_timeout` (`server-sqlite-busy-timeout-migrations`), and snapshot diffing or compression later. #17 already builds each member's view once per broadcast.
 
 #### ai-banner-search-cost: optimizeBanners recomputes values at every DFS node; Easy's noise breaks the bound
 - Severity: low | Effort: S | Delight: 1 | Status: partially confirmed (costs are usually under 1 ms; 28.7 ms at 12 Banners)
@@ -1141,8 +1116,8 @@ Pick one per PR. Ideas from both analyses; the previous analysis's "Harvest come
 #### idea-prophecy-fan: Reorder the Prophecy as a fan of cards
 - From the previous analysis. Severity: low | Effort: S | Delight: 3 | Status: idea
 - Files: `apps/web/src/lib/components/Dialogs.svelte:48-51,166-180` (prophecy order and dialog), `packages/rules/src/engine.ts` (`resolve_prophecy` permutation check)
-- Proposal: the top 3 cards fan out and the player drags them into order, replacing the modal list; keep keyboard reordering (see `web-prophecy-order-reset`) and the `content-prophecy-weak` "keep one" choice.
-- Tests: e2e: dragging the third card to the front sends that order in `resolve_prophecy`; keyboard reordering still works (`web-prophecy-order-reset` regression).
+- Proposal: the top 3 cards fan out and the player drags them into order, replacing the modal list; keep keyboard reordering and the `content-prophecy-weak` "keep one" choice.
+- Tests: e2e: dragging the third card to the front sends that order in `resolve_prophecy`; keyboard reordering still works.
 
 #### idea-festival-bread: Festival confetti and shared bread
 - From the previous analysis. Severity: low | Effort: S | Delight: 3 | Status: idea
@@ -1313,15 +1288,6 @@ Baseline at review time: `pnpm typecheck`, `lint` and `test` pass (50 tests in a
 
 ### Localisation
 
-#### content-i18n-hardcoded-ui: About 30 or more user-facing strings bypass t()
-- Also covers: `spec-i18n-hardcoded-strings`
-- Severity: low | Effort: M | Delight: 1 | Status: confirmed
-- Files: `apps/web/src/lib/components/Overlays.svelte:29-67,88-95`, `apps/web/src/lib/components/Board.svelte:160-164,229,271,308-310`, `apps/web/src/lib/components/Dialogs.svelte:68,70,108`, `apps/web/src/lib/components/PlayersPanel.svelte:42-43`, `apps/web/src/lib/components/HandPanel.svelte:31-33,52`, `apps/web/src/lib/components/TutorialCoach.svelte:17-25,36-38`, `apps/web/src/lib/components/GameScreen.svelte:59,82,89`, `apps/web/src/App.svelte:69,80`, `apps/web/src/lib/game/log.ts:32-36`, `packages/content/src/i18n/en.ts:155`
-- Evidence: Hard-coded strings include the inspector text ("No Banners", "Settled - can be targeted…"), aria-labels, the victory line, "Saved.", "Round", tutorial tasks and load errors. `placeName` logs every Route as "road #NN" even for bridges and passes (a user-visible inaccuracy). `help.tradepost` is unused, while Overlays hard-codes "2".
-- Proposal: move the strings to `tip.*`, `aria.*`, `ui.*`, `tutorial.task.*`, `victory.*` and `hand.*` keys. Fix `placeName` to use the Route's kind. Add a guard test at `tests/integration/i18n-literals.test.ts` (reads `.svelte` files, strips script and style, fails on bare English text or aria/title literals outside an allowlist).
-- From the previous analysis: `GameScreen.svelte:89` "Save" and `session.svelte.ts:59` "Saved." (#10 moves the topbar Save, round and "Not saved" text to `t()`; verify "Saved."). Several PRs moved their own new strings into `en.ts` (#9 hand title, #15 `inspect.*`, #18 victory strings), so re-run the guard test after they merge.
-- #15 follow-up: `apps/web/src/lib/game/inspect.ts:63` wraps Menace flavour text in hard-coded typographic quotes; move them into an i18n key such as `"inspect.flavor": "“{text}”"`.
-
 #### content-i18n-plurals: "Banner(s)" everywhere, and t() has no plural support
 - Severity: low | Effort: S | Delight: 1 | Status: confirmed
 - Files: `packages/content/src/i18n/en.ts:172,218`, `apps/web/src/lib/i18n.ts:12-15`, `apps/web/src/lib/components/HarvestPreview.svelte:37`, `apps/web/src/lib/game/log.ts:52`, `apps/web/src/lib/components/PlayersPanel.svelte:42-43`
@@ -1367,7 +1333,7 @@ Small leftovers that the open PRs disclosed or deferred, and declined review ite
 - **#14, native insets:** safe-area padding is CSS only and was not checked on a device; if the Android WebView does not report system-bar insets, apply `systemBars()|displayCutout()` insets in `MainActivity.kt` (see `resp-safe-area-edge-to-edge`). Verify on an Android 15 emulator with gesture and three-button navigation.
 - **#14, tablets:** on 600 to 900 px wide portrait tablets a little empty space can remain in the sheet's bottom row.
 - **#14, scoreboard leftovers:** #14's `ScoreStrip` shows emblem, name and Renown and marks the player to act. The rest of the `resp-no-opponent-scoreboard-on-small` proposal is not done: a card count on each chip and tapping a chip to open the Players tab (e2e at 412x915: a tap opens the panel).
-- **#15, `inspect.ts`:** the Region inspector lists only the first Menace in a Region (`find`, `apps/web/src/lib/game/inspect.ts:27`) and the Site branch never lists Menaces; verify whether Menaces can share a Region, then use `filter` and list them all. An unknown Route id (`inspect.ts:81`) renders a generic "Route / Unowned" card instead of returning null like the other branches. The quote marks at `inspect.ts:63` are in `content-i18n-hardcoded-ui`.
+- **#15, `inspect.ts`:** the Region inspector lists only the first Menace in a Region (`find`, `apps/web/src/lib/game/inspect.ts:27`) and the Site branch never lists Menaces; verify whether Menaces can share a Region, then use `filter` and list them all. An unknown Route id (`inspect.ts:81`) renders a generic "Route / Unowned" card instead of returning null like the other branches. The quote marks at `inspect.ts:63` belong to the i18n sweep that landed in #30.
 - **#15, hover card:** the "If you plant here: +1 Timber" line (via `computeBannerHarvest`) was deferred; long-press to open the hover card on touch (§47.2, from `vis-no-hover-feedback`) was not done, because #15 keeps hover off touch devices (combine it with the long-press in `vis-disabled-no-reason` and `ux-targeting-locks-exploration`); a hover card can stay open briefly after its piece stops accepting the pointer (for example when targeting starts from the keyboard) and closes on the next mouse move.
 - **#15, animation speed:** scaling the spinner (and any remaining floater) durations with the Fast animation setting via `--anim-scale` was deferred.
 - **#15, #13, #25, WebKit:** none of the board changes were measured on WebKit (Tauri, iOS).
@@ -1393,6 +1359,11 @@ Small leftovers that the open PRs disclosed or deferred, and declined review ite
 - **Windows:** #16's `build:check` and #20's icon generator were fixed for Windows (`pnpm.cmd` needs a shell; the icon script now runs the Tauri CLI entry through `process.execPath`), but neither was run on Windows.
 
 ## Refuted or already-implemented claims
+
+From the third pass (2026-09-25):
+- **"Reordering the Prophecy with the keyboard is wiped" (`web-prophecy-order-reset`).** Refuted on `main` at `65f4f89`. The `$effect` in `Dialogs.svelte` reads `gs.pending` (object identity), `gs.pending.cardIds` and `legal?.mode`; a keyboard reorder mutates only the local `order` state, none of those, so the effect never re-runs and the order survives. Nothing else can touch the draft during a prophecy window (no other player can act, the AI cannot act, `legal` recomputes only when `session.draft` changes). The remaining nice-to-have is keying the dialog by pending identity; that is belt-and-braces, not a bug fix.
+- **"The Banner draft diff miscounts null and undefined" (`web-actionbar-draft-diff-null`) as a bug.** Partially refuted on `main` at `65f4f89`: only the count badge can over-report (a stale banner id in `ui.bannerDraft` counts as a change); `confirmBanners` filters every entry through `banner?.ownerId === legal.playerId`, so no command is ever mis-sent. Downgraded to cosmetic; re-check against the merged ActionBar before doing anything.
+- **"`far_reaches` ignores ownership, unlike other connectivity checks."** Not a discrepancy: spec §27 explicitly defines graph distance as "the length of the shortest path between two Sites over **all** Routes, regardless of ownership". The implementation matches the spec as written; `rules-far-reaches-distance-definition` stays in the backlog purely as a "should the spec change?" design question.
 
 These came up during review or in PR review rounds and were ruled out or corrected. Do not re-investigate them without new evidence.
 
