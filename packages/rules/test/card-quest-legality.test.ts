@@ -9,7 +9,7 @@ import {
   type GameState,
   type PlayerId,
 } from "../src/index.js";
-import { act, cmd, engine, newGame, passTurn, reject, setupGame, standardRuleset } from "./helpers.js";
+import { act, cmd, engine, grant, newGame, passTurn, reject, setupGame, standardRuleset, TEST_BOARD } from "./helpers.js";
 
 const ctx = engine.ctx;
 
@@ -46,10 +46,13 @@ describe("Fog of Confusion targets (§19.10)", () => {
   }
   const fogOn = (routeId: string) => ({ effect: "fog_of_confusion" as const, routeId });
 
-  it("rejects an unowned Route", () => {
-    const { s, p1, fog } = fogReady();
-    expect(s.routeOwners["r45"]).toBeUndefined();
-    reject(s, p1, { type: "play_card", cardId: fog, target: fogOn("r45") }, "INVALID_CARD_TARGET");
+  it("accepts an unowned Route, which a rival who builds it cannot connect through", () => {
+    const { s, p1, p2, fog } = fogReady();
+    expect(s.routeOwners["r47"]).toBeUndefined();
+    let next = act(s, p1, { type: "play_card", cardId: fog, target: fogOn("r47") }).state;
+    next = grant(passTurn(next), p2, { timber: 2, stone: 2 });
+    next = act(next, p2, { type: "build_route", routeId: "r47" }).state;
+    reject(next, p2, { type: "build_route", routeId: "r45" }, "NOT_CONNECTED");
   });
   it("rejects the caster's own Route", () => {
     const { s, p1, fog } = fogReady();
@@ -67,11 +70,14 @@ describe("Fog of Confusion targets (§19.10)", () => {
     const next = act(fogged, p1, { type: "play_card", cardId: fog, target: fogOn("r36") }).state;
     expect(next.activeEffects).toContainEqual({ kind: "fog", routeId: "r36", sourcePlayerId: p1 });
   });
-  it("offers exactly the opponents' Routes that the caster has not fogged", () => {
+  it("offers every Route that is not the caster's own and not already fogged by the caster", () => {
     const { s, p1, fog } = fogReady();
     const fogged: GameState = { ...s, activeEffects: [{ kind: "fog", routeId: "r78", sourcePlayerId: p1 }] };
     const routes = enumerateCardTargets(ctx, fogged, p1, fog).map((t) => (t.effect === "fog_of_confusion" ? t.routeId : ""));
-    expect(routes).toEqual(["r36"]);
+    const expected = TEST_BOARD.routes.map((r) => r.id).filter((id) => s.routeOwners[id] !== p1 && id !== "r78");
+    expect(routes).toContain("r36");
+    expect(routes).toContain("r45");
+    expect([...routes].sort()).toEqual([...expected].sort());
   });
 });
 
@@ -178,6 +184,10 @@ describe("Royal Quest expiry (ruleset option questExpiryRounds)", () => {
     // All three are due, but the deck holds only two replacements.
     expect([q1, q2, q3].map((q) => questRoundsLeft(s, q))).toEqual([1, 1, null]);
     expect(questRoundsLeft(setupGame(standardRuleset(2)).state, q1)).toBeNull();
+    // During setup (round 0) the opening Quests still show the full count.
+    const inSetup = newGame(withExpiry(2));
+    expect(inSetup.round).toBe(0);
+    expect(questRoundsLeft(inSetup, inSetup.revealedQuestIds[0] as string)).toBe(2);
     expect(questRoundsLeft({ ...s, questDeck: [] }, q1)).toBeNull();
     // A Quest that is not on display has no countdown.
     expect(questRoundsLeft(s, s.questDeck[0] as string)).toBeNull();

@@ -67,10 +67,10 @@ export function validateCardTarget(ctx: RulesContext, state: GameState, playerId
       return;
     case "fog_of_confusion": {
       check(ctx.board.hasRoute(target.routeId), "INVALID_CARD_TARGET", "unknown Route");
-      // §19.10: the Route "remains owned", so the target is someone else's
-      // Route. Fogging your own or an unowned one only wastes the card.
-      const owner = state.routeOwners[target.routeId];
-      check(owner !== undefined && owner !== playerId, "INVALID_CARD_TARGET", "needs an opponent's Route");
+      // §19.10: any Route but your own. Fogging your own only hurts you. An
+      // unowned Route is a real play: a rival who builds it before the fog
+      // lifts cannot connect through it.
+      check(state.routeOwners[target.routeId] !== playerId, "INVALID_CARD_TARGET", "can't fog your own Route");
       // Re-fogging another player's fog extends it; re-fogging your own changes nothing.
       const mine = state.activeEffects.some((e) => e.kind === "fog" && e.routeId === target.routeId && e.sourcePlayerId === playerId);
       check(!mine, "INVALID_CARD_TARGET", "already fogged by you");

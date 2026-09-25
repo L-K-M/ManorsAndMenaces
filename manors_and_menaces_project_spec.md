@@ -946,8 +946,8 @@ Recommended copies are shown.
 
 **Type:** Spell  
 **Timing:** Main Action  
-**Effect:** Choose one Route owned by an opponent. Until the start of your next turn, that Route cannot be used for network connectivity. It remains owned.  
-**Note:** Fogging an unowned Route or your own would only waste the card. Fogging a Route that another player has already fogged is allowed and extends the fog to your next turn; fogging one you have already fogged is not.
+**Effect:** Choose one Route you do not own. Until the start of your next turn, that Route cannot be used for network connectivity. It remains owned.  
+**Note:** Fogging your own Route would only hurt you, so it is not allowed. Fogging an unowned Route is: a player who builds it before the fog lifts cannot connect through it. Fogging a Route that another player has already fogged is allowed and extends the fog to your next turn; fogging one you have already fogged is not.
 
 ## 19.11 Dragon Whisperer ×2
 

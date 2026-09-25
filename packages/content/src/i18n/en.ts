@@ -61,7 +61,7 @@ export const EN: Record<string, string> = {
   "card.very_minor_prophecy.rules": "Look at the top 3 cards of the draw pile and put them back in any order.",
   "card.very_minor_prophecy.flavor": "You receive a vision of events approximately six minutes in the future.",
   "card.fog_of_confusion.name": "Fog of Confusion",
-  "card.fog_of_confusion.rules": "Choose an opponent's Route. Until the start of your next turn it cannot be used to connect a network. Its owner keeps it.",
+  "card.fog_of_confusion.rules": "Choose a Route you don't own. Until the start of your next turn it cannot be used to connect a network. Its owner keeps it.",
   "card.fog_of_confusion.flavor": "Several travellers are still looking for the road. It is right where they left it.",
   "card.dragon_whisperer.name": "Dragon Whisperer",
   "card.dragon_whisperer.rules": "Requires the Young Dragon. Move it. If its Hoard is not empty, take 1 resource from it.",
