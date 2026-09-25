@@ -3,12 +3,14 @@
   // Routes, Sites/Holdings, Banners, Menaces, highlights. Every interactive
   // entity is a focusable button with an accessible name (spec §52).
   import { getPlayerBanners, type Banner, type HarvestPreview, type LegalActionSummary, type MenaceInstance } from "@manors-menaces/rules";
+  import { onMount, untrack } from "svelte";
   import { t } from "../i18n.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { onPick, type Highlights } from "../game/interaction.js";
   import { regionName } from "../game/log.js";
   import { ui, type Pick } from "../stores/ui.svelte.js";
-  import { viewport, setFull, zoomAt, panBy } from "../stores/viewport.svelte.js";
+  import { addedTargets, boundsOf, isDoubleTap, isDrag, pathPoints, wheelIntent, type Point, type Tap } from "../stores/camera.js";
+  import { viewport, frameIfHidden, panScreen, pinch, resetView, setContainer, setWorld, zoomAtScreen } from "../stores/viewport.svelte.js";
   import { settings, animationScale } from "../stores/settings.svelte.js";
   import { MENACE_THEME, PLAYER_THEMES, RESOURCE_COLORS, RESOURCE_GLYPHS, emblemPath } from "../theme.js";
 
@@ -25,9 +27,12 @@
   const sitesById = $derived(new Map(map.sites.map((s) => [s.id, s])));
   const regionsById = $derived(new Map(map.regions.map((r) => [r.id, r])));
 
-  $effect(() => {
-    if (viewport.full.w !== map.width || viewport.full.h !== map.height) setFull(map.width, map.height);
-  });
+  // The camera keeps the island (its coastline and extent) in view.
+  const coast = $derived(pathPoints(map.coastline));
+  const island = $derived(boundsOf(coast) ?? { x: 0, y: 0, w: map.width, h: map.height });
+  $effect(() => setWorld(island, coast));
+  // Every game opens on the whole island, not wherever the last one left off.
+  onMount(() => resetView("instant"));
 
   function playerTheme(playerId: string | null | undefined) {
     const seat = session.seat(playerId);
@@ -98,69 +103,169 @@
   let svgEl: SVGSVGElement | undefined = $state();
   let boardW = $state(1);
   let boardH = $state(1);
-  // On tall screens, pin the map to the top and leave room below for panels.
-  const portrait = $derived(boardH > boardW * 1.1);
-  const pointers = new Map<number, { x: number; y: number }>();
-  let dragMoved = false;
-  let pinchDist = 0;
+  $effect(() => setContainer(boardW, boardH));
+  // The SVG has no viewBox, so its user units are CSS px; this maps the
+  // camera's box (board units, same aspect as the board) onto them.
+  const cameraTransform = $derived.by(() => {
+    const { x, y, w } = viewport.box;
+    const k = boardW / w;
+    return `matrix(${k} 0 0 ${k} ${-x * k} ${-y * k})`;
+  });
 
-  // Screen ↔ board coordinates via the SVG's own transform, so any
-  // preserveAspectRatio alignment works.
-  function toBoard(clientX: number, clientY: number): { x: number; y: number } {
-    const m = svgEl?.getScreenCTM();
-    if (!m) return { x: 0, y: 0 };
-    const p = new DOMPoint(clientX, clientY).matrixTransform(m.inverse());
-    return { x: p.x, y: p.y };
+  // Active pointers in container px: where each went down and where it was
+  // last seen. A press only becomes a drag once it has moved past a small
+  // threshold from where it went down; until then it may still be a pick.
+  const pointers = new Map<number, { down: Point; last: Point }>();
+  /** The current gesture moved the camera, so it must not also pick. */
+  let dragMoved = false;
+  let lastTap: Tap | null = null;
+  // The board's top-left in client px, measured once per gesture. Input
+  // events arrive before the frame's camera write, so this read does not
+  // force a layout.
+  let origin: Point = { x: 0, y: 0 };
+
+  function measure() {
+    const r = svgEl?.getBoundingClientRect();
+    if (r) origin = { x: r.left, y: r.top };
   }
-  function scaleFactor(): number {
-    return svgEl?.getScreenCTM()?.a ?? 1;
+  function local(e: MouseEvent): Point {
+    return { x: e.clientX - origin.x, y: e.clientY - origin.y };
   }
+  function capture(id: number) {
+    try {
+      svgEl?.setPointerCapture(id);
+    } catch {
+      // The pointer is already gone (released between events); nothing to capture.
+    }
+  }
+
   function onWheel(e: WheelEvent) {
     e.preventDefault();
-    const p = toBoard(e.clientX, e.clientY);
-    zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, p.x, p.y);
+    const intent = wheelIntent(e);
+    if (intent.kind === "pan") return panScreen(intent.dx, intent.dy);
+    measure();
+    zoomAtScreen(intent.factor, local(e));
   }
   function onPointerDown(e: PointerEvent) {
-    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    dragMoved = false;
-    if (pointers.size === 2) {
-      const [a, b] = [...pointers.values()] as [{ x: number; y: number }, { x: number; y: number }];
-      pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
-    }
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (pointers.size === 0) dragMoved = false;
+    measure();
+    const p = local(e);
+    pointers.set(e.pointerId, { down: p, last: p });
+    if (pointers.size < 2) return;
+    // A second finger turns the press into a pinch: never a pick. Capture
+    // both so the gesture keeps working when fingers leave the board.
+    dragMoved = true;
+    for (const id of pointers.keys()) capture(id);
   }
   function onPointerMove(e: PointerEvent) {
-    const prev = pointers.get(e.pointerId);
-    if (!prev) return;
-    const cur = { x: e.clientX, y: e.clientY };
-    pointers.set(e.pointerId, cur);
-    if (pointers.size === 2) {
-      const [a, b] = [...pointers.values()] as [{ x: number; y: number }, { x: number; y: number }];
-      const d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinchDist > 0) {
-        const mid = toBoard((a.x + b.x) / 2, (a.y + b.y) / 2);
-        zoomAt(d / pinchDist, mid.x, mid.y);
-      }
-      pinchDist = d;
-      dragMoved = true;
+    const tracked = pointers.get(e.pointerId);
+    if (!tracked) return;
+    // A mouse or pen released outside the window never sent pointerup here.
+    if (e.pointerType !== "touch" && e.buttons === 0) return release(e.pointerId);
+    const cur = local(e);
+    const other = [...pointers].find(([id]) => id !== e.pointerId)?.[1];
+    if (other) {
+      pinch([tracked.last, other.last], [cur, other.last]);
+      tracked.last = cur;
       return;
     }
-    const dx = cur.x - prev.x;
-    const dy = cur.y - prev.y;
-    if (!dragMoved && Math.hypot(dx, dy) < 4) return;
-    if (!dragMoved) svgEl?.setPointerCapture(e.pointerId);
-    dragMoved = true;
-    const s = scaleFactor();
-    panBy(dx / s, dy / s);
+    if (!dragMoved) {
+      if (!isDrag(tracked.down, cur, e.pointerType)) return;
+      // Capture only now, so a plain click still reaches the piece under it.
+      dragMoved = true;
+      capture(e.pointerId);
+    }
+    // On the first drag move `last` is still the press point, so the view
+    // catches up with the whole distance moved so far.
+    panScreen(cur.x - tracked.last.x, cur.y - tracked.last.y);
+    tracked.last = cur;
   }
+  function release(id: number) {
+    pointers.delete(id);
+  }
+  // Listened for on the window: a press that crept off the board before it
+  // became a drag was never captured, so its pointerup lands elsewhere.
   function onPointerUp(e: PointerEvent) {
-    pointers.delete(e.pointerId);
-    if (pointers.size < 2) pinchDist = 0;
+    const tracked = pointers.get(e.pointerId);
+    if (!tracked) return;
+    release(e.pointerId);
+    if (e.type !== "pointerup" || dragMoved || pointers.size > 0) return;
+    // A tap on a highlighted target is a pick; it never starts a double tap.
+    if ((e.target as Element | null)?.closest?.(".hl")) {
+      lastTap = null;
+      return;
+    }
+    const tap = { at: e.timeStamp, x: tracked.last.x, y: tracked.last.y };
+    if (!isDoubleTap(lastTap, tap)) {
+      lastTap = tap;
+      return;
+    }
+    lastTap = null;
+    zoomAtScreen(2, tracked.last, "animate");
   }
 
   function pick(p: Pick) {
     if (dragMoved) return;
     void onPick(session, legal, p);
   }
+
+  // When new targets appear (a tool, a card step, the next setup placement)
+  // and most of them are off-screen, glide to show them (spec §48). Targets
+  // are keyed `kind:id`.
+  function targetKeys(): string[] {
+    const keyed = (kind: string, ids: Iterable<string>) => [...ids].map((id) => `${kind}:${id}`);
+    return [
+      ...keyed("site", hl.sites),
+      ...keyed("route", hl.routes),
+      ...keyed("region", hl.regions),
+      ...keyed("banner", hl.banners),
+      ...keyed("menace", hl.menaces),
+      ...keyed("location", hl.locations),
+    ];
+  }
+  function targetPoints(keys: readonly string[]): Point[] {
+    const pts: Point[] = [];
+    const site = (id: string) => sitesById.get(id);
+    const routeMid = (id: string) => {
+      const r = map.routes.find((x) => x.id === id);
+      const a = r && site(r.siteA);
+      const b = r && site(r.siteB);
+      return a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : undefined;
+    };
+    const region = (id: string) => {
+      const r = regionsById.get(id);
+      return r && { x: r.labelX, y: r.labelY };
+    };
+    const point = (kind: string, id: string): Point | undefined => {
+      if (kind === "site") return site(id);
+      if (kind === "route") return routeMid(id);
+      if (kind === "region") return region(id);
+      if (kind === "banner") return bannerPositions.get(id);
+      if (kind === "menace") {
+        const m = gs.menaces[id];
+        return m && menacePos(m);
+      }
+      if (kind === "location") {
+        const [where = "", whereId = ""] = id.split(":");
+        return point(where, whereId);
+      }
+      return undefined;
+    };
+    for (const k of keys) {
+      const cut = k.indexOf(":");
+      const p = point(k.slice(0, cut), k.slice(cut + 1));
+      if (p) pts.push(p);
+    }
+    return pts;
+  }
+  let framed = new Set<string>();
+  $effect(() => {
+    const keys = targetKeys();
+    const added = addedTargets(framed, keys);
+    framed = new Set(keys);
+    if (added.length) untrack(() => frameIfHidden(targetPoints(added)));
+  });
   function key(e: KeyboardEvent, p: Pick) {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -180,6 +285,8 @@
   const myBanners = $derived(new Set(session.localActor ? getPlayerBanners(gs, session.localActor).map((b) => b.id) : []));
 </script>
 
+<svelte:window onpointerup={onPointerUp} onpointercancel={onPointerUp} />
+
 <svg
   bind:this={svgEl}
   bind:clientWidth={boardW}
@@ -187,16 +294,14 @@
   class="board"
   class:hc={settings.highContrast}
   class:targeting
-  viewBox="{viewport.box.x} {viewport.box.y} {viewport.box.w} {viewport.box.h}"
-  preserveAspectRatio={portrait ? "xMidYMin meet" : "xMidYMid meet"}
+  data-camera="{viewport.box.x} {viewport.box.y} {viewport.box.w} {viewport.box.h}"
   role="application"
   aria-label={t("app.title")}
   style="--dur: {dur}"
   onwheel={onWheel}
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
-  onpointerup={onPointerUp}
-  onpointercancel={onPointerUp}
+  onlostpointercapture={(e) => e.target === svgEl && release(e.pointerId)}
 >
   <defs>
     <pattern id="waves" width="60" height="30" patternUnits="userSpaceOnUse">
@@ -224,9 +329,13 @@
     </filter>
   </defs>
 
+  <!-- The camera: one transform on this group rather than a viewBox, because
+       changing the viewBox relayouts the whole board every frame of a pan or
+       zoom. The layers below are deliberately not indented under it. -->
+  <g class="camera" transform={cameraTransform}>
   <!-- sea -->
-  <rect x={-800} y={-600} width={map.width + 1600} height={map.height + 1200} fill="#bfe0f2" />
-  <rect x={-800} y={-600} width={map.width + 1600} height={map.height + 1200} fill="url(#waves)" />
+  <rect x={viewport.sea.x} y={viewport.sea.y} width={viewport.sea.w} height={viewport.sea.h} fill="#bfe0f2" />
+  <rect x={viewport.sea.x} y={viewport.sea.y} width={viewport.sea.w} height={viewport.sea.h} fill="url(#waves)" />
   <path d={map.coastline} fill="#e9dcb4" stroke="#b69e6a" stroke-width="18" transform="translate(0,0)" />
 
   <!-- terrain / regions -->
@@ -430,6 +539,7 @@
       {/each}
     </g>
   {/if}
+  </g>
 </svg>
 
 <style>
