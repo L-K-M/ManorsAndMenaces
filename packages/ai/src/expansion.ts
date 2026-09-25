@@ -7,6 +7,7 @@
 
 import {
   getNetworkSites,
+  isRouteUsable,
   menaceInRegion,
   passesSpacing,
   type GameState,
@@ -99,10 +100,13 @@ export function siteValue(
  *
  * Distances come from a 0-1 shortest-path search: the player's own Routes
  * cost nothing, unbuilt Routes cost one, and opponents' Routes and Holdings
- * block the way, exactly as they block building (§13).
+ * block the way, exactly as they block building (§13). An own Route under
+ * Fog blocks too while it lasts; a Highwayman only charges a toll, so it
+ * does not (the same `allowHighwayman` view `checkBuildManor` takes).
  */
 export function planExpansion(ctx: RulesContext, state: GameState, playerId: PlayerId): ExpansionPlan | null {
-  const sources = getNetworkSites(ctx, state, playerId);
+  const network = { allowHighwayman: true };
+  const sources = getNetworkSites(ctx, state, playerId, network);
   if (sources.length === 0) return null;
 
   const holdingAtSite = new Map<SiteId, Holding>();
@@ -140,6 +144,7 @@ export function planExpansion(ctx: RulesContext, state: GameState, playerId: Pla
       for (const route of ctx.board.routesAt(x)) {
         const owner = state.routeOwners[route.id];
         if (owner !== undefined && owner !== playerId) continue;
+        if (owner === playerId && !isRouteUsable(state, route.id, network)) continue;
         const y = ctx.board.otherEnd(route, x);
         const nd = d + (owner === playerId ? 0 : 1);
         if (nd > MAX_PLAN_ROUTES || nd >= (dist.get(y) ?? Infinity)) continue;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  checkBuildManor,
   createRng,
   createRulesEngine,
   mvpRuleset,
@@ -141,6 +142,26 @@ describe("expansion planning", () => {
         { type: "build_manor", siteId: "s5" },
       ]);
     }
+  });
+
+  it("does not count a Site behind the player's own Fogged Route as ready", () => {
+    let { state, me } = position({ timber: 2, stone: 2 });
+    state = act(state, me, { type: "build_route", routeId: routeId(2, 3) });
+    state = act(state, me, { type: "build_route", routeId: routeId(3, 5) });
+    expect(planExpansion(engine.ctx, state, me)).toMatchObject({ siteId: "s5", routes: 0 });
+
+    // Fog of Confusion on s3–s5 cuts s5 off from the network until it lifts.
+    const other = state.turnOrder.find((id) => id !== me) as PlayerId;
+    const fogged: GameState = { ...state, activeEffects: [...state.activeEffects, { kind: "fog", routeId: routeId(3, 5), sourcePlayerId: other }] };
+    expect(checkBuildManor(engine.ctx, fogged, me, "s5").legal).toBe(false);
+    expect(planExpansion(engine.ctx, fogged, me)).toBeNull();
+
+    // A Highwayman only charges a toll, so s5 stays ready behind one.
+    const [menace] = Object.values(state.menaces);
+    if (!menace) throw new Error("no menace");
+    const robbed: GameState = { ...state, menaces: { [menace.id]: { ...menace, type: "highwayman", location: { kind: "route", routeId: routeId(3, 5) } } } };
+    expect(checkBuildManor(engine.ctx, robbed, me, "s5").legal).toBe(true);
+    expect(planExpansion(engine.ctx, robbed, me)).toMatchObject({ siteId: "s5", routes: 0 });
   });
 
   it("takes the first step with only enough for one Route", () => {
