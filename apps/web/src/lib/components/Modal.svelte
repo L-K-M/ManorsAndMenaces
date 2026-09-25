@@ -51,7 +51,8 @@
     display: grid;
     place-items: center;
     z-index: 50;
-    padding: 1rem;
+    padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+      max(1rem, env(safe-area-inset-left));
   }
   .modal {
     background: var(--paper);

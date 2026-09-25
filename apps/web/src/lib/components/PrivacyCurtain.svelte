@@ -67,7 +67,7 @@
     display: grid;
     place-items: center;
     z-index: 60;
-    padding: 1rem;
+    padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
     outline: none;
   }
   .card {

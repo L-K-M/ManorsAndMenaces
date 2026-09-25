@@ -50,8 +50,8 @@
     margin: 0.2rem 0;
   }
   .close {
-    min-height: 32px;
-    min-width: 32px;
+    min-height: 44px;
+    min-width: 44px;
     padding: 0;
   }
 </style>

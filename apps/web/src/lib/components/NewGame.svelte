@@ -96,12 +96,19 @@
     margin: 0 0 0.8rem;
     display: grid;
     gap: 0.45rem;
+    /* Fieldsets default to min-width: min-content, which pushed the form
+       past the edge of small phones. */
+    min-width: 0;
   }
   .count {
     display: flex;
     gap: 0.4rem;
   }
   .count label {
+    display: grid;
+    place-items: center;
+    min-width: 44px;
+    min-height: 44px;
     border: 2px solid #8a7650;
     border-radius: 8px;
     padding: 0.3rem 0.9rem;
@@ -117,11 +124,16 @@
   }
   .seat {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.4rem;
     align-items: center;
   }
   .seat input {
-    flex: 1;
+    flex: 1 1 9rem;
+    min-width: 0;
+  }
+  .seat select {
+    flex: 1 1 6.5rem;
     min-width: 0;
   }
   .rule {

@@ -67,7 +67,7 @@
     flex: 1;
   }
   header button {
-    min-height: 32px;
+    min-height: 44px;
     font-size: 0.75rem;
   }
   .lesson {
@@ -89,13 +89,13 @@
   .dots span.on {
     background: #d19a12;
   }
-  @media (max-width: 900px) {
-    .coach {
-      top: auto;
-      bottom: 0.75rem;
-      left: 4.5rem;
-      right: 0.75rem;
-      width: auto;
-    }
+  /* Rail and sheet boards are small: dock the coach along the bottom, clear
+     of the camera, instead of over the middle of the island. */
+  :global(.game:not([data-layout="wide"])) .coach {
+    top: auto;
+    bottom: calc(0.75rem + var(--overlay-bottom, 0px));
+    left: 4.5rem;
+    right: 0.75rem;
+    width: auto;
   }
 </style>
