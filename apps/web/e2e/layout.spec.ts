@@ -142,6 +142,17 @@ test.describe("laptop 1280x720", () => {
       for (const c of counts) expect(Number(c)).toBeGreaterThanOrEqual(5);
     }
   });
+
+  test("tool costs stay in the buttons' accessible names when hidden", async ({ page }) => {
+    await startVsAi(page);
+    await completeSetup(page);
+    const tools = page.getByRole("toolbar", { name: "Actions" });
+    await expect(tools.getByRole("button", { name: /^Build Route\s*1 Timber \+ 1 Stone$/ })).toBeVisible();
+    await expect(tools.getByRole("button", { name: /^Market\s*\d+ left$/ })).toBeVisible();
+    // Visually the cost moves to the tooltip at this width.
+    const cost = tools.getByText("1 Timber + 1 Stone", { exact: true });
+    expect(await cost.evaluate((e) => e.getBoundingClientRect().width)).toBeLessThanOrEqual(1);
+  });
 });
 
 test.describe("phone landscape", () => {

@@ -221,10 +221,15 @@
     font-weight: 600;
   }
 
-  /* Laptop widths: the costs move to the tooltip. */
+  /* Laptop widths: the costs move to the tooltip, and stay in the DOM
+     (visually hidden) as part of the accessible name. */
   @container actionbar (max-width: 105rem) {
     .tools small {
-      display: none;
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
     }
   }
   /* Tablets and small laptops: short tool labels. The full label stays in
