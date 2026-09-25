@@ -11,7 +11,6 @@ import {
   getLegalInitialManorSites,
   getLegalInitialRoutes,
   holdingAt,
-  menaceInRegion,
   passesSpacing,
   type BannerId,
   type CommandIntent,
@@ -26,8 +25,10 @@ import {
 } from "@manors-menaces/rules";
 import { mainPhaseCandidates } from "./candidates.js";
 import { evaluate, resourceNeeds } from "./evaluate.js";
+import { regionOccupancy, siteValue } from "./expansion.js";
 
 export { evaluate, resourceNeeds, WEIGHTS } from "./evaluate.js";
+export { planExpansion, type ExpansionPlan } from "./expansion.js";
 export { mainPhaseCandidates, spareResource } from "./candidates.js";
 
 export type AiLevel = "easy" | "normal" | "hard";
@@ -137,33 +138,16 @@ function chooseReaction(state: GameState, playerId: PlayerId, reactionCards: str
 
 // ------------------------------------------------------------------ setup
 
-function siteValue(ctx: RulesContext, state: GameState, playerId: PlayerId, siteId: SiteId): number {
-  const need = resourceNeeds(ctx, state, playerId);
-  const site = ctx.board.site(siteId);
-  let v = 0;
-  const seen = new Set<string>();
-  for (const regionId of site.adjacentRegionIds) {
-    const region = ctx.board.region(regionId);
-    const occupied = Object.values(state.banners).filter((b) => b.regionId === regionId).length;
-    const free = region.capacity - occupied;
-    const troll = menaceInRegion(state, regionId)?.type === "toll_troll";
-    let rv = need[region.resource] * (free > 0 ? 1 : 0.35) * (troll ? 0.2 : 1) * (region.capacity > 1 ? 1.25 : 1);
-    if (!seen.has(region.resource)) rv += 0.3;
-    seen.add(region.resource);
-    v += rv;
-  }
-  if (site.tradePost) v += 0.6;
-  if (site.landmarkId) v += 0.2;
-  return v;
-}
-
 function pickInitialSite(ctx: RulesContext, state: GameState, playerId: PlayerId, sites: SiteId[], opts: AiOptions): SiteId {
+  const need = resourceNeeds(ctx, state, playerId);
+  const occupied = regionOccupancy(state);
+  const siteWorth = (siteId: SiteId): number => siteValue(ctx, state, siteId, need, occupied);
   const scored = sites.map((s) => {
     // Look ahead: good expansion sites two routes away.
     let expansion = 0;
     for (const n of ctx.board.neighbours(s))
-      for (const m of ctx.board.neighbours(n)) if (m !== s && passesSpacing(ctx, state, m)) expansion = Math.max(expansion, siteValue(ctx, state, playerId, m));
-    return { s, v: siteValue(ctx, state, playerId, s) + 0.3 * expansion };
+      for (const m of ctx.board.neighbours(n)) if (m !== s && passesSpacing(ctx, state, m)) expansion = Math.max(expansion, siteWorth(m));
+    return { s, v: siteWorth(s) + 0.3 * expansion };
   });
   scored.sort((a, b) => b.v - a.v);
   const pool = opts.level === "easy" ? scored.slice(0, 5) : opts.level === "normal" ? scored.slice(0, 2) : scored.slice(0, 1);
@@ -172,11 +156,13 @@ function pickInitialSite(ctx: RulesContext, state: GameState, playerId: PlayerId
 
 function pickInitialRoute(ctx: RulesContext, state: GameState, playerId: PlayerId, routes: string[], opts: AiOptions): string {
   const from = state.setup?.lastPlacedSiteId;
+  const need = resourceNeeds(ctx, state, playerId);
+  const occupied = regionOccupancy(state);
   const scored = routes.map((routeId) => {
     const r = ctx.board.route(routeId);
     const end = from ? ctx.board.otherEnd(r, from) : r.siteB;
     let v = 0;
-    for (const n of ctx.board.neighbours(end)) if (n !== from && !holdingAt(state, n) && passesSpacing(ctx, state, n)) v = Math.max(v, siteValue(ctx, state, playerId, n));
+    for (const n of ctx.board.neighbours(end)) if (n !== from && !holdingAt(state, n) && passesSpacing(ctx, state, n)) v = Math.max(v, siteValue(ctx, state, n, need, occupied));
     return { routeId, v };
   });
   scored.sort((a, b) => b.v - a.v);
