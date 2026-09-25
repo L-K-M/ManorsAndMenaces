@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { t } from "../i18n.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { PLAYER_THEMES } from "../theme.js";
@@ -9,7 +10,10 @@
   const dev = import.meta.env.DEV;
 
   // Follow mode: the list auto-scrolls only while it is pinned to the bottom,
-  // so reading older entries survives new ones arriving (spec §84).
+  // so reading older entries survives new ones arriving (spec §84). Only the
+  // reader switches it off (scrolling up); appends never re-measure it, so a
+  // list that has not scrolled yet (just mounted, or a background tab) keeps
+  // following.
   const FOLLOW_THRESHOLD_PX = 40;
   let following = $state(true);
 
@@ -18,18 +22,12 @@
     return listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < FOLLOW_THRESHOLD_PX;
   }
 
-  // Capture the scroll position before new entries render, then scroll in the
-  // next frame so the scrollHeight read does not force layout per append.
-  $effect.pre(() => {
-    void session.log.length;
-    following = nearBottom();
-  });
   $effect(() => {
     void session.log.length;
-    if (!following) return;
-    requestAnimationFrame(() => {
-      if (following && listEl) listEl.scrollTop = listEl.scrollHeight;
-    });
+    if (!listEl) return;
+    if (untrack(() => following)) listEl.scrollTop = listEl.scrollHeight;
+    // Undo can shrink the list until nothing is hidden: follow again.
+    else if (nearBottom()) following = true;
   });
 
   function jumpToLatest(): void {

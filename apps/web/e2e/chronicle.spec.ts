@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 async function startVsAi(page: Page) {
   await page.goto("/");
   await page.evaluate(() => {
-    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false }));
+    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, rivalChatter: false }));
     indexedDB.deleteDatabase("manors-menaces");
   });
   await page.reload();
@@ -65,11 +65,18 @@ test("the Chronicle keeps the reader's scroll position and offers a jump pill", 
   }
   await page.getByRole("tab", { name: "Chronicle" }).click();
   const list = page.locator(".log ol");
+  const gap = () => list.evaluate((el) => el.scrollHeight - el.clientHeight - el.scrollTop);
+  const pill = page.locator(".log .jump");
   await expect(list.locator("li").last()).toContainText(/harvest|turn/i);
+
+  // Opening the tab mounts the list at the latest entry, without the pill.
+  await page.getByRole("tab", { name: "Players" }).click();
+  await page.getByRole("tab", { name: "Chronicle" }).click();
+  await expect.poll(gap).toBeLessThan(40);
+  await expect(pill).toBeHidden();
 
   // Scroll up to read history. The list must overflow for this to mean anything.
   await list.evaluate((el) => (el.scrollTop = 0));
-  const pill = page.locator(".log .jump");
   await expect(pill).toBeVisible();
   expect(await list.evaluate((el) => el.scrollTop)).toBe(0);
   expect(await list.evaluate((el) => el.scrollHeight > el.clientHeight + 40)).toBe(true);
@@ -87,5 +94,23 @@ test("the Chronicle keeps the reader's scroll position and offers a jump pill", 
   // The pill jumps back to the latest entry.
   await pill.click();
   await expect.poll(() => list.evaluate((el) => Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop))).toBeLessThan(40);
+  await expect(pill).toBeHidden();
+
+  // Pinned again: a whole round of new entries keeps the list at the bottom.
+  const before = await list.locator("li").count();
+  await endFullTurn(page);
+  await expect.poll(() => list.locator("li").count()).toBeGreaterThan(before);
+  await expect.poll(gap).toBeLessThan(40);
+  await expect(pill).toBeHidden();
+
+  // A background tab pauses animation frames while AI turns keep appending
+  // on timers: the list must still follow (no frame-deferred scroll).
+  await page.evaluate(() => {
+    const held: FrameRequestCallback[] = [];
+    Object.assign(window, { heldFrames: held });
+    window.requestAnimationFrame = (cb) => held.push(cb);
+  });
+  await endFullTurn(page);
+  await expect.poll(gap).toBeLessThan(40);
   await expect(pill).toBeHidden();
 });
