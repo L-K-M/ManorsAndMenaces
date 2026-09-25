@@ -251,6 +251,7 @@ export const EN: Record<string, string> = {
   "hint.card_menace": "Choose a Menace.",
   "hint.card_route": "Choose a Route.",
   "hint.card_location": "Choose a destination.",
+  "hint.card_hoard": "Choose a resource from the Hoard.",
 
   // ---------------------------------------------------------------- tutorial (§55)
   "tutorial.1": "Holdings (Manors and Strongholds) each raise Banners — flags you plant in neighbouring Regions.",
@@ -292,6 +293,7 @@ export const EN: Record<string, string> = {
   "ui.receive_1": "Receive 1",
   "ui.choose_the_bribe": "Choose the bribe",
   "ui.give_1": "Give 1",
+  "ui.choose_hoard_take": "The Hoard holds more than one treasure. Take one:",
   "ui.the_top_of_the_draw": "The top of the draw pile, first card on top. Reorder them.",
   "ui.counterspell": "Counterspell?",
   "ui.move_up": "Move up",

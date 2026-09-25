@@ -45,6 +45,12 @@
   // ---------------------------------------------------------------- arcane / festival
   let arcaneGive: ResourceType | null = $state(null);
 
+  // ---------------------------------------------------------------- dragon hoard
+  const dragonHoard = $derived.by(() => {
+    const dragon = Object.values(gs.menaces).find((m) => m.type === "young_dragon");
+    return Object.entries(dragon?.state.hoard ?? {}).filter(([, n]) => (n ?? 0) > 0) as [ResourceType, number][];
+  });
+
   // ---------------------------------------------------------------- prophecy
   let order: string[] = $state([]);
   $effect(() => {
@@ -143,6 +149,19 @@
     <div class="grid">
       {#each RESOURCE_TYPES as r}
         <button onclick={() => finishCardWith(session, { choice: r })}><ResourceIcon resource={r} /> {t(`resource.${r}`)}</button>
+      {/each}
+    </div>
+  </Modal>
+{/if}
+
+{#if ui.dialog === "hoard"}
+  <Modal title={t("card.dragon_whisperer.name")} onclose={() => ((ui.dialog = null), resetTool())}>
+    <p class="help">{t("ui.choose_hoard_take")}</p>
+    <div class="grid">
+      {#each dragonHoard as [r, n] (r)}
+        <button onclick={() => finishCardWith(session, { take: r })}>
+          <ResourceIcon resource={r} /> {t(`resource.${r}`)} ×{n}
+        </button>
       {/each}
     </div>
   </Modal>
