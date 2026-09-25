@@ -105,11 +105,12 @@ export function evaluateQuestCondition(ctx: RulesContext, state: GameState, play
 /**
  * Under the opt-in expiry rule (§27.2), the rounds a revealed Quest has left
  * on offer: 1 means it leaves as the next round begins. Null when it is not
- * going to leave: the rule is off, or no Quest in the deck can replace it.
+ * going to leave: the rule is off, no Quest in the deck can replace it, or
+ * it is not on display.
  */
 export function questRoundsLeft(state: GameState, questId: QuestId): number | null {
   const rounds = state.ruleset.questExpiryRounds ?? 0;
-  if (!state.ruleset.enableQuests || rounds <= 0) return null;
+  if (!state.ruleset.enableQuests || rounds <= 0 || !state.revealedQuestIds.includes(questId)) return null;
   const left = (q: QuestId): number => Math.max(1, rounds - (state.round - (state.revealedQuestRounds?.[q] ?? state.round)));
   // Quests due next round leave in slot order while the deck has replacements.
   const due = state.revealedQuestIds.filter((q) => left(q) === 1);

@@ -494,8 +494,10 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   const s = tx.s;
   const p = tx.player(playerId);
   check(p.hand.length <= s.ruleset.handLimit, "HAND_OVER_LIMIT");
-  // Refill revealed Quests.
-  while (s.ruleset.enableQuests && s.revealedQuestIds.length < s.ruleset.revealedQuestCount && s.questDeck.length > 0) revealTopQuest(tx);
+  // Refill revealed Quests. After the last seat's turn they are first
+  // claimable next round, so their expiry clock (§27.2) starts there.
+  const claimableFrom = s.turnOrder.indexOf(playerId) === s.turnOrder.length - 1 ? s.round + 1 : s.round;
+  while (s.ruleset.enableQuests && s.revealedQuestIds.length < s.ruleset.revealedQuestCount && s.questDeck.length > 0) revealTopQuest(tx, undefined, claimableFrom);
   p.marketTradesThisTurn = 0;
   p.nonReactionCardsPlayedThisTurn = 0;
   p.writsIssuedThisTurn = 0;
@@ -798,13 +800,16 @@ function claimQuest(tx: Tx, playerId: PlayerId, questId: string): void {
   tx.emit({ type: "quest_claimed", playerId, questId, renown: tx.ctx.quest(questId).renown });
 }
 
-/** Moves the top of the Quest deck into the display: into `slot`, or appended. */
-function revealTopQuest(tx: Tx, slot?: number): void {
+/**
+ * Moves the top of the Quest deck into the display: into `slot`, or appended.
+ * `shownFrom` is the first round it can be claimed in, for Quest expiry.
+ */
+function revealTopQuest(tx: Tx, slot?: number, shownFrom = tx.s.round): void {
   const s = tx.s;
   const q = s.questDeck.shift() as QuestId;
   if (slot === undefined) s.revealedQuestIds.push(q);
   else s.revealedQuestIds[slot] = q;
-  if (s.ruleset.questExpiryRounds) (s.revealedQuestRounds ??= {})[q] = s.round;
+  if (s.ruleset.questExpiryRounds) (s.revealedQuestRounds ??= {})[q] = shownFrom;
   tx.emit({ type: "quest_revealed", questId: q });
 }
 

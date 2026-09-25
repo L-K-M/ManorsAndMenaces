@@ -179,6 +179,8 @@ describe("Royal Quest expiry (ruleset option questExpiryRounds)", () => {
     expect([q1, q2, q3].map((q) => questRoundsLeft(s, q))).toEqual([1, 1, null]);
     expect(questRoundsLeft(setupGame(standardRuleset(2)).state, q1)).toBeNull();
     expect(questRoundsLeft({ ...s, questDeck: [] }, q1)).toBeNull();
+    // A Quest that is not on display has no countdown.
+    expect(questRoundsLeft(s, s.questDeck[0] as string)).toBeNull();
   });
 
   it("keeps Quests when the Quest deck is empty", () => {
@@ -211,6 +213,32 @@ describe("Royal Quest expiry (ruleset option questExpiryRounds)", () => {
     s = passTurn(s);
     expect(s.revealedQuestIds).toContain("prosperous_estates");
     expect(s.revealedQuestRounds?.["prosperous_estates"]).toBe(2);
+  });
+
+  it("starts the clock of a Quest refilled by the last seat with the next round", () => {
+    const g = setupGame(withExpiry(1));
+    let s: GameState = {
+      ...g.state,
+      revealedQuestIds: ["monster_problems", "kings_highway", "stone_and_timber"],
+      revealedQuestRounds: { monster_problems: 1, kings_highway: 1, stone_and_timber: 1 },
+      // Enough replacements that every Quest due as round 2 begins can leave.
+      questDeck: ["prosperous_estates", "the_safer_road", "grand_tour", "far_reaches", "diverse_realm"],
+    };
+    s = passTurn(s);
+    const p = s.activePlayerId;
+    expect(s.turnOrder.indexOf(p)).toBe(s.turnOrder.length - 1);
+    const player = s.players[p] as GameState["players"][string];
+    s = { ...s, players: { ...s.players, [p]: { ...player, stats: { ...player.stats, menacesMoved: 3 } } } };
+    s = act(s, p, { type: "claim_quest", questId: "monster_problems" }).state;
+    s = act(s, p, { type: "end_main_phase" }).state;
+    s = act(s, p, { type: "assign_banners", assignments: {} }).state;
+    const r = act(s, p, { type: "end_turn" });
+    expect(r.state.round).toBe(2);
+    // Claimable from round 2 on, so it is not expired as round 2 begins.
+    expect(r.events).not.toContainEqual({ type: "quest_expired", questId: "prosperous_estates" });
+    expect(r.state.revealedQuestIds).toContain("prosperous_estates");
+    expect(r.state.revealedQuestRounds?.["prosperous_estates"]).toBe(2);
+    expect(questRoundsLeft(r.state, "prosperous_estates")).toBe(1);
   });
 
   it("replays deterministically", () => {
