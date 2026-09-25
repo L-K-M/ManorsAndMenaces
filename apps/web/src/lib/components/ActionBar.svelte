@@ -1,16 +1,15 @@
 <script lang="ts">
   import { getPlayerBanners, type LegalActionSummary } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
-  import { confirmBanners, computeHighlights } from "../game/interaction.js";
+  import { confirmBanners, type Highlights } from "../game/interaction.js";
   import { currentActor, type GameSession } from "../game/session.svelte.js";
   import { resetTool, ui, type Tool } from "../stores/ui.svelte.js";
   import ToolIcon from "./ToolIcon.svelte";
 
-  let { session, legal }: { session: GameSession; legal: LegalActionSummary | null } = $props();
+  let { session, legal, hints }: { session: GameSession; legal: LegalActionSummary | null; hints: Highlights } = $props();
 
   const gs = $derived(session.draft);
   const actor = $derived(currentActor(gs));
-  const hints = $derived(computeHighlights(session, legal));
 
   function tool(t_: Tool) {
     if (ui.tool === t_) return resetTool();

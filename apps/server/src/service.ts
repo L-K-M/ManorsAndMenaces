@@ -4,7 +4,7 @@
 // their own hidden information (§105).
 
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { chooseAction } from "@manors-menaces/ai";
+import { chooseAction, fallbackIntents } from "@manors-menaces/ai";
 import { rulesContentFor } from "@manors-menaces/content";
 import type {
   ApiErrorCode,
@@ -332,16 +332,7 @@ export class MatchService {
     let r = this.engine.applyCommand(match.state, command);
     // Never let a rejected AI move stall the match: try each progression move.
     const s = match.state;
-    const hand = s.players[seat.player_id]?.hand ?? [];
-    const fallbacks: typeof intent[] = [
-      { type: "pass_reaction" },
-      ...(s.pending?.kind === "prophecy" ? [{ type: "resolve_prophecy" as const, order: [...s.pending.cardIds] }] : []),
-      { type: "end_main_phase" },
-      { type: "assign_banners", assignments: {} },
-      ...(hand.length > s.ruleset.handLimit ? [{ type: "discard_cards" as const, cardIds: hand.slice(0, hand.length - s.ruleset.handLimit) }] : []),
-      { type: "end_turn" },
-    ];
-    for (const f of fallbacks) {
+    for (const f of fallbackIntents(this.engine.ctx, s, seat.player_id)) {
       if (r.accepted) break;
       command = make(f);
       r = this.engine.applyCommand(s, command);

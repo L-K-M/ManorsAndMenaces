@@ -211,6 +211,8 @@ export const EN: Record<string, string> = {
   "error.INVALID_COMMAND": "Invalid action.",
   "error.REVISION_MISMATCH": "The game moved on — reloading.",
   "error.NETWORK": "Could not reach the server. Check your connection.",
+  "error.AI_FALLBACK": "{name} couldn't settle on a move, so they moved on.",
+  "error.AI_STUCK": "{name} can't find a legal move. Trying again in a few seconds…",
 
   // ---------------------------------------------------------------- log
   "log.harvest": "{name} harvested {items}.",

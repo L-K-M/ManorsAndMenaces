@@ -56,6 +56,8 @@ export default defineConfig({
       },
     },
   },
+  // The AI runs in a module worker (lib/game/ai.worker.ts).
+  worker: { format: "es" },
   define: {
     __APP_VERSION__: JSON.stringify(rootVersion),
   },

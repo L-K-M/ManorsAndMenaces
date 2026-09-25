@@ -35,10 +35,28 @@ export function getPlayerRoutes(state: GameState, playerId: PlayerId): RouteId[]
   return state.players[playerId]?.routeIds ?? [];
 }
 
+/** The numeric suffix of an engine id such as `banner_12`, or NaN if it has none. */
+function idNumber(id: string): number {
+  const n = Number(id.slice(id.lastIndexOf("_") + 1));
+  return Number.isInteger(n) ? n : Number.NaN;
+}
+
+/**
+ * Orders `banner_2` before `banner_10`, the same order as a numeric `en`
+ * collation for engine ids. Locale-free on purpose: it is deterministic on
+ * every platform (§30), and `localeCompare` with options built an ICU
+ * collator per call, which made this sort dominate AI decision time.
+ */
+function compareIds(a: string, b: string): number {
+  const d = idNumber(a) - idNumber(b);
+  if (d) return d;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export function getPlayerBanners(state: GameState, playerId: PlayerId): Banner[] {
   return Object.values(state.banners)
     .filter((b) => b.ownerId === playerId)
-    .sort((a, b) => a.id.localeCompare(b.id, "en", { numeric: true }));
+    .sort((a, b) => compareIds(a.id, b.id));
 }
 
 export function holdingAt(state: GameState, siteId: SiteId): Holding | undefined {
