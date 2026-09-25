@@ -23,17 +23,25 @@ import { animationScale, settings } from "../stores/settings.svelte.js";
 import { AiClient } from "./aiClient.js";
 import { aiPaceDelayMs, aiStepPace, resolveAiStep, type AiStep } from "./aiStep.js";
 import { engineFor, mapFor } from "./engine.js";
+import { EventBus } from "./eventBus.js";
 import { formatEvents, noticeEntry, rebuildLog, type LogEntry } from "./log.js";
 import { initialView, nextView, privacyMode, revealView, type PrivacyMode, type PrivacyView } from "./privacy.js";
 import { autosavesToPrune, describeSave, exportFileName, manualSaveId, newAutosaveId, replayPending, saveLabel } from "./saves.js";
 import { recordGame } from "./telemetry.js";
 import { devlog } from "../devlog.js";
 
-export interface Floater {
-  id: number;
-  playerId: PlayerId;
-  text: string;
-  resource: string;
+/** One batch of engine events, published once on `GameSession.events`. */
+export interface SessionEvents {
+  events: GameEvent[];
+  state: GameState;
+  /** A buffered local action, shown before it is submitted (it may be undone). */
+  provisional: boolean;
+  /**
+   * The batch was sent by this client for one of its human seats. Only its
+   * buffered commands were published before, provisionally; the locking
+   * command that ended it was not, so subscribers must still show it.
+   */
+  own: boolean;
 }
 
 /** Transport for submitting command batches (local engine or online server). */
@@ -58,8 +66,6 @@ export interface NewGameOptions {
 
 /** Coalesces bursts of changes (an AI turn, several builds) into one write. */
 const AUTOSAVE_DELAY_MS = 250;
-
-let floaterId = 1;
 let commandSeq = 0;
 
 /** How long a stuck AI seat waits before trying again (as on the server). */
@@ -91,7 +97,6 @@ export class GameSession {
   draft: GameState = $state.raw() as GameState;
   buffered: GameCommand[] = $state.raw([]);
   log: LogEntry[] = $state.raw([]);
-  floaters: Floater[] = $state.raw([]);
   error: string | null = $state(null);
   busy = $state(false);
   /** Player whose private information (hand) the UI shows; see privacy.ts. */
@@ -118,7 +123,8 @@ export class GameSession {
   /** The AI problem shown as `error`, if any (the Chronicle keeps the record). */
   private aiNotice: { text: string; stuck: boolean; shownAt: number } | null = null;
   private destroyed = false;
-  private listeners = new Set<(events: GameEvent[], state: GameState) => void>();
+  /** Every batch of events, for animation and feedback layers. */
+  readonly events = new EventBus<SessionEvents>();
   private readonly autosaveEnabled: boolean;
   /** This line of play's autosave row (see saves.ts). */
   private readonly autosaveSlot: string;
@@ -245,11 +251,6 @@ export class GameSession {
     return actor;
   }
 
-  onEvents(fn: (events: GameEvent[], state: GameState) => void): () => void {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
-  }
-
   // ------------------------------------------------------------------ actions
 
   /** Perform an action for the local actor. Returns false if rejected. */
@@ -282,7 +283,7 @@ export class GameSession {
       this.undoStack.push({ state: this.draft, logIds });
       this.buffered = [...this.buffered, command];
       this.draft = r.newState;
-      this.notify(r.events, r.newState);
+      this.events.emit({ events: r.events, state: r.newState, provisional: true, own: true });
       this.scheduleAutosave();
       return true;
     }
@@ -342,7 +343,8 @@ export class GameSession {
       this.draft = this.authoritative;
       this.buffered = [];
       this.undoStack = [];
-      this.notify(res.events, res.state);
+      const own = this.transport.kind === "online" || this.isHuman(batch[0]?.playerId);
+      this.events.emit({ events: res.events, state: res.state, provisional: false, own });
       this.afterStateChange(res.events);
       return true;
     } finally {
@@ -367,8 +369,8 @@ export class GameSession {
     if (!ownEcho) {
       this.appendLog(events, state);
       playForEvents(events);
+      this.events.emit({ events, state, provisional: false, own: false });
     }
-    this.notify(events, state);
     this.afterStateChange(events);
   }
 
@@ -381,23 +383,10 @@ export class GameSession {
     play("error");
   }
 
-  private notify(events: GameEvent[], state: GameState): void {
-    for (const fn of this.listeners) fn(events, state);
-  }
-
   /** Append formatted events; returns the ids of the new entries. */
   private appendLog(events: GameEvent[], state: GameState, provisional = false): number[] {
     const entries = formatEvents(events, state, this.map).map((e) => (provisional ? { ...e, provisional } : e));
     if (entries.length) this.log = [...this.log, ...entries].slice(-300);
-    for (const e of events) {
-      if (e.type === "resource_gained" && (e.reason === "harvest" || e.reason === "starting_resources")) {
-        const f: Floater = { id: floaterId++, playerId: e.playerId, text: `+${e.amount}`, resource: e.resource };
-        this.floaters = [...this.floaters, f];
-        setTimeout(() => {
-          if (!this.destroyed) this.floaters = this.floaters.filter((x) => x.id !== f.id);
-        }, 1600);
-      }
-    }
     return entries.map((e) => e.id);
   }
 

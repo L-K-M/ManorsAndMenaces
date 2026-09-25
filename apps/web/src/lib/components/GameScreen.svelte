@@ -5,7 +5,7 @@
   // never rescales between phases or as the hand grows.
   import { tick } from "svelte";
   import { innerHeight, innerWidth } from "svelte/reactivity/window";
-  import { RESOURCE_TYPES, getHarvestPreview } from "@manors-menaces/rules";
+  import { getHarvestPreview } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { computeHighlights, legalFor } from "../game/interaction.js";
   import { hasSlideOverPanel, layoutFor } from "../layout.js";
@@ -15,6 +15,7 @@
   import ActionBar from "./ActionBar.svelte";
   import Announcer from "./Announcer.svelte";
   import Board from "./Board.svelte";
+  import BoardHud from "./BoardHud.svelte";
   import DebugPanel from "./DebugPanel.svelte";
   import Dialogs from "./Dialogs.svelte";
   import GameMenu from "./GameMenu.svelte";
@@ -25,7 +26,7 @@
   import PlayersPanel from "./PlayersPanel.svelte";
   import PrivacyCurtain from "./PrivacyCurtain.svelte";
   import QuestPanel from "./QuestPanel.svelte";
-  import ResourceIcon from "./ResourceIcon.svelte";
+  import ResourcePurse from "./ResourcePurse.svelte";
   import ScoreStrip from "./ScoreStrip.svelte";
   import ToolIcon from "./ToolIcon.svelte";
   import SettingsDialog from "./SettingsDialog.svelte";
@@ -163,12 +164,12 @@
 <svelte:window onkeydown={keydown} onpagehide={() => void session.flushAutosave()} onpointerdowncapture={(e) => (lastPressed = e.target as Element | null)} />
 <svelte:document onvisibilitychange={onhidden} />
 
-<!-- Your resources: in the top bar on wide screens (the dock holds the hand),
-     at the head of the dock in rail and sheet. -->
+<!-- Your resources: over the board on wide screens (BoardHud), at the head
+     of the dock in rail and sheet. -->
 {#snippet mine()}
   {#if me}
     <div class="mine" aria-label={t("ui.your_resources")}>
-      {#each RESOURCE_TYPES as r}<span><ResourceIcon resource={r} size={18} />{me.resources[r]}</span>{/each}
+      <ResourcePurse {session} playerId={viewer ?? ""} />
     </div>
   {/if}
 {/snippet}
@@ -178,7 +179,6 @@
     <button class="ghost icon" onclick={() => (ui.dialog = "menu")} aria-label={t("ui.main_menu")} aria-haspopup="dialog"><ToolIcon name="menu" /></button>
     <h1>{t("app.title")}</h1>
     <span class="round">{t("ui.round_n", { n: Math.max(1, gs.round) })}</span>
-    {#if layout === "wide"}{@render mine()}{/if}
     <div class="score"><ScoreStrip {session} /></div>
     <span class="spacer"></span>
     {#if session.transport.kind === "local" && !tutorial}<button class="ghost" onclick={save}>{savedNote ?? t("ui.save")}</button>{/if}
@@ -211,9 +211,7 @@
       <button onclick={() => resetView()} aria-label={t("ui.reset_view")}><ToolIcon name="fit" /></button>
       <button onclick={zoomToMine} aria-label={t("ui.zoom_to_my_holdings")}><ToolIcon name="locate" /></button>
     </div>
-    {#each session.floaters.filter((f) => f.playerId === viewer) as f (f.id)}
-      <div class="floater" style="--i: {f.id % 5}"><ResourceIcon resource={f.resource as never} size={22} /> {f.text}</div>
-    {/each}
+    <BoardHud {session} />
     <Overlays {session} {tutorial} {onexit} {onrematch} />
     {#if tutorial}<TutorialCoach {session} onfinish={onexit} />{/if}
   </main>
@@ -349,11 +347,6 @@
     gap: 0.5rem;
     font-variant-numeric: tabular-nums;
   }
-  .mine span {
-    display: inline-flex;
-    gap: 0.15rem;
-    align-items: center;
-  }
   .spacer {
     display: none;
     flex: 1;
@@ -376,41 +369,6 @@
     height: 44px;
     padding: 0;
     font-size: 1.2rem;
-  }
-  .floater {
-    position: absolute;
-    left: 50%;
-    bottom: 1rem;
-    transform: translateX(calc(var(--i) * 60px - 120px));
-    background: var(--paper);
-    border-radius: 999px;
-    padding: 0.2rem 0.6rem;
-    font-weight: 700;
-    animation: float 1.5s ease-out forwards;
-    pointer-events: none;
-  }
-  @keyframes float {
-    from {
-      opacity: 0;
-      translate: 0 20px;
-    }
-    20% {
-      opacity: 1;
-    }
-    to {
-      opacity: 0;
-      translate: 0 -80px;
-    }
-  }
-  /* Without motion the float would end invisible; show floaters still until
-     the session removes them. */
-  :global(.reduce-motion) .floater {
-    animation: none;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .floater {
-      animation: none;
-    }
   }
   .side {
     grid-area: side;
@@ -496,6 +454,11 @@
     grid-area: hand;
     min-width: 0;
     min-height: 0;
+  }
+  /* Instructions float above BoardHud's purse (bottom centre of the board)
+     rather than over it. */
+  [data-layout="wide"] .dock {
+    --toast-inset: auto auto calc(100% + 4.1rem) 50%;
   }
   [data-layout="wide"] .hand {
     --cards-container: size;
@@ -703,9 +666,6 @@
   [data-layout="sheet"] .camera {
     bottom: calc(0.6rem + var(--sheet-overlap));
     grid-auto-flow: column;
-  }
-  [data-layout="sheet"] .floater {
-    bottom: calc(1rem + var(--overlay-bottom));
   }
   [data-layout="sheet"] .dock {
     position: absolute;
