@@ -124,7 +124,7 @@ Several agents worked in parallel and opened 28 PRs (#2, #4 to #30), with overla
 | | #2 Node 25 image | Closed | Node 25 is past end-of-life and ships without Corepack, so `corepack enable` fails. Stay on Node 22 LTS (`.nvmrc`) |
 
 Decisions for the owner:
-- **Tool cost chips (#11 against #14):** #11's have/need chips are hidden below 105rem, where #14 moves costs into tooltips and accessible names. Revisit if laptop players miss them.
+- **Tool cost chips (#11 against #14), decided:** the have/need chips show whenever the tool row has room for them, Claim and Trade-to-afford buttons included. They fit a 1366 px laptop at the default Text size, except when those buttons crowd the row. Where they do not fit, and on icon tiles, costs stay in the tooltip and a red mark flags each tool that only lacks resources.
 - **Quest expiry (#22):** the rule is opt-in in New Game. Making it the default is still open.
 
 Follow-ups deferred from the merge reviews (all low severity):
@@ -832,7 +832,7 @@ AI performance entries (`ai-latency-beam`, `ai-banner-search-cost`) are under [P
 - Partly done in #11: `getActionAvailability(ctx, state, playerId)` in `legal.ts` with reason codes (`WRONG_PHASE`, `FEATURE_DISABLED`, `LIMIT_REACHED`, `NO_TARGET`, `DECK_EMPTY`, `NO_TRADE_GIVE`, `NEED_RESOURCES`), missing resources and the shortest trade fix; have/need cost chips; a one-line reason under each disabled action; a Trade button that opens the Market with the trade preselected.
 - Severity: medium | Effort: S | Delight: 3 | Status: confirmed
 - Files: `apps/web/src/lib/components/ActionBar.svelte`, `apps/web/src/lib/components/HandPanel.svelte:107-109`, `apps/web/src/lib/components/Board.svelte:396`
-- Evidence: the previous analysis called this "tool-first discovery": disabled tools explain themselves only through `title=`, with no touch help. #11 added visible reason lines, but its PR left out the long-press popover and hover gating, and HandPanel still shows the Buy Card cost as plain text. #14 shows tool costs only in tooltips below 1920 px wide.
+- Evidence: the previous analysis called this "tool-first discovery": disabled tools explain themselves only through `title=`, with no touch help. #11 added visible reason lines, but its PR left out the long-press popover and hover gating, and HandPanel still shows the Buy Card cost as plain text. The reason lines show only from 105rem; below that they are in the tooltip. Cost chips show whenever the tool row has room, and a red mark flags tools short of resources where it does not.
 - Proposal: (1) a long-press action (`longpress.ts`, 450 ms, cancelled by movement over 8 px) that opens a help popover with the reason and cost on touch; reuse #14's press-and-hold card preview mechanics. (2) Wrap hover lifts in `@media (hover:hover)`. (3) Cost chips for Buy Card in HandPanel. (4) After #11 and #14 merge, make sure the reason line survives #14's compact tool row. (5) Add the `GUARDED` reason code from the original proposal: #11's codes do not include it, so "every Menace is Warden-guarded" has no specific reason; return it from `getActionAvailability` when every Menace the player could move has `guardedBy` set (`packages/rules/src/types.ts:200`), with a unit case in `availability.test.ts`.
 - Tests: e2e on the phone project: long-pressing Build Manor shows the reason; no hover lift on touch.
 

@@ -124,6 +124,38 @@
     await claim(questId);
   }
 
+  // ------------------------------------------------------------ cost chips
+  // The tools show their cost chips whenever the row has room for them.
+  // A width threshold cannot know about Claim and Trade-to-afford buttons,
+  // so the row is measured with the chips on, before the browser paints,
+  // and turns them off if it would scroll. Their costs then stay in the
+  // tooltip and the accessible name.
+  let toolRow: HTMLDivElement | undefined = $state();
+  function fitChips() {
+    if (!toolRow) return;
+    toolRow.dataset.chips = "on";
+    // Icon tiles never show chips (see the styles).
+    const chips = toolRow.querySelector(".chips");
+    const room = !!chips && getComputedStyle(chips).display !== "none" && toolRow.scrollWidth <= toolRow.clientWidth;
+    toolRow.dataset.chips = room ? "on" : "off";
+  }
+  $effect(() => {
+    void avail;
+    void claimable;
+    fitChips();
+  });
+  // The bar's width, and through the buttons beside the tools the Text size
+  // and web fonts. Neither element changes size when the chips do, so the
+  // observer never feeds itself.
+  $effect(() => {
+    const end = toolRow?.parentElement?.querySelector(".end");
+    if (!bar || !end) return;
+    const observer = new ResizeObserver(fitChips);
+    observer.observe(bar);
+    observer.observe(end);
+    return () => observer.disconnect();
+  });
+
   // ------------------------------------------------------------ phase actions
   function sendHome() {
     if (!ui.selectedBannerId) return;
@@ -240,7 +272,7 @@
         <button class="ghost" class:arming disabled={arming || !session.canUndo} onclick={once(() => session.undo())} data-refocus>← {t("action.back_to_main")}</button>
       </div>
     {:else if legal.mode === "main" && avail}
-      <div class="tools">
+      <div class="tools" bind:this={toolRow}>
         {#each shownTools as tool (tool.action)}
           {@const a = avail[tool.action]}
           {@const detail = toolDetail(tool.action, a)}
@@ -433,6 +465,7 @@
     align-items: stretch;
   }
   .tools button:not(.fix) {
+    position: relative;
     display: grid;
     grid-template-columns: auto 1fr;
     grid-template-rows: auto auto;
@@ -694,12 +727,26 @@
     color: inherit;
   }
 
-  /* Laptop widths: resource chips and reasons move to the tooltip, and stay
-     in the DOM (visually hidden) as part of the accessible name. */
+  /* A row with no room for the cost chips (fitChips) drops them, and a tool
+     that only lacks resources gets a red mark instead, so it reads apart
+     from one blocked for another reason. */
+  .tools:global([data-chips="off"]) .chips {
+    display: none;
+  }
+  .tools:global([data-chips="off"]) button.need::after {
+    content: "";
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: #a3190c;
+    box-shadow: 0 0 0 1.5px #f6eedb;
+  }
+  /* Laptop widths: reasons move to the tooltip, and stay in the DOM
+     (visually hidden) as part of the accessible name. */
   @container actionbar (max-width: 105rem) {
-    .tools .chips {
-      display: none;
-    }
     .tools .why {
       position: absolute;
       width: 1px;
@@ -726,10 +773,14 @@
       display: inline;
     }
   }
-  /* Small laptops, tablets and phones: tools become icon tiles. */
+  /* Small laptops, tablets and phones: tools become icon tiles, which keep
+     their costs in the tooltip. */
   @container actionbar (max-width: 68rem) {
     .tools {
       gap: 0.25rem;
+    }
+    .tools .chips {
+      display: none;
     }
     .tools button:not(.fix) {
       grid-template-columns: 1fr;

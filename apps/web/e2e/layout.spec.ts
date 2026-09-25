@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { BALANCE } from "@manors-menaces/rules";
 
 // Responsive game layout (spec §53): the board stays the hero on every screen,
 // never rescales while you play, and every HUD control is reachable.
@@ -166,9 +167,105 @@ test.describe("laptop 1280x720", () => {
     const tools = page.getByRole("toolbar", { name: "Actions" });
     await expect(tools.getByRole("button", { name: /^Build Route\s*1 Timber, 1 Stone$/ })).toBeVisible();
     await expect(tools.getByRole("button", { name: /^Market\s*\d+ trades left$/ })).toBeVisible();
-    // Visually the cost moves to the tooltip at this width.
+    // The cost's text is for screen readers: sighted players get the chips or the tooltip.
     const cost = tools.getByText("1 Timber, 1 Stone", { exact: true });
     expect(await cost.evaluate((e) => e.getBoundingClientRect().width)).toBeLessThanOrEqual(1);
+  });
+});
+
+/**
+ * Each tool's text, whether its cost chips show, and whether it wears the
+ * short-of-resources mark.
+ */
+async function toolStates(page: Page) {
+  return page
+    .getByRole("toolbar", { name: "Actions" })
+    .locator(".tool > button:first-child")
+    .evaluateAll((els) =>
+      els.map((b) => {
+        const chips = b.querySelector(".chips");
+        return {
+          name: (b.textContent ?? "").replace(/\s+/g, " ").trim(),
+          chips: !!chips && getComputedStyle(chips).display !== "none",
+          marked: getComputedStyle(b, "::after").content !== "none",
+        };
+      }),
+    );
+}
+
+/** Every tool that lacks resources shows it: its chips when the row has room, the mark when not. */
+function expectShortfallShown(tools: Awaited<ReturnType<typeof toolStates>>) {
+  // "Need 1 Stone" is a shortfall; the Market's "Need 3 of one resource" is not.
+  const short = /Need \d+ (Grain|Timber|Stone|Iron|Essence|more of any kind)/;
+  for (const x of tools) expect(x.marked, x.name).toBe(short.test(x.name) && !x.chips);
+}
+
+const toolsFit = (page: Page) =>
+  page
+    .getByRole("toolbar", { name: "Actions" })
+    .locator(".tools")
+    .evaluate((el) => el.scrollWidth <= el.clientWidth);
+
+test.describe("laptop 1366x768", () => {
+  test.use({ viewport: { width: 1366, height: 768 } });
+
+  test("tools show their cost chips whenever the row has room", async ({ page }) => {
+    await startVsAi(page);
+    await expect(page.locator(".site.hl").first()).toBeVisible();
+    const setup = await boardBox(page);
+    await completeSetup(page);
+    // This seed opens with a Quest to claim, and the chips fit beside it.
+    await expect(page.getByRole("button", { name: /^Claim / })).toBeVisible();
+    let tools = await toolStates(page);
+    expect(tools.some((x) => x.chips)).toBe(true);
+    expectShortfallShown(tools);
+    expect(await toolsFit(page)).toBe(true);
+    // The chips' second line fits the bar: the board keeps its size.
+    expect(Math.abs((await boardBox(page)).height - setup.height)).toBeLessThanOrEqual(1);
+
+    // The widest the row gets: every tool but the Market shows a chip per
+    // resource in its cost, each with a two-digit count.
+    const chips = {
+      "Build Route": Object.keys(BALANCE.costs.route).length,
+      "Build Manor": Object.keys(BALANCE.costs.manor).length,
+      "Upgrade to Stronghold": Object.keys(BALANCE.costs.stronghold).length,
+      "Royal Writ": Object.keys(BALANCE.costs.royalWrit).length + (BALANCE.costs.royalWritBribe ? 1 : 0),
+      "Hire a Warden": Object.keys(BALANCE.costs.warden).length,
+      "Buy Card": Object.keys(BALANCE.costs.card).length,
+    };
+    await page
+      .getByRole("toolbar", { name: "Actions" })
+      .locator(".tools")
+      .evaluate((el, chips) => {
+        const row = el.querySelector(".chips")!;
+        const chip = row.querySelector(".chip")!;
+        for (const b of el.querySelectorAll<HTMLElement>(".tool > button:first-child")) {
+          const n = Object.entries(chips).find(([name]) => b.textContent?.includes(name))?.[1];
+          if (!n) continue;
+          const worst = row.cloneNode(false) as HTMLElement;
+          for (let i = 0; i < n; i++) {
+            const c = chip.cloneNode(true) as HTMLElement;
+            for (const t of [...c.childNodes]) if (t.nodeType === Node.TEXT_NODE) t.remove();
+            c.append("10/2");
+            worst.append(c);
+          }
+          b.querySelector(".chips")?.remove();
+          b.querySelector(".why")?.remove();
+          b.append(worst);
+        }
+      }, chips);
+    // A resize measures the row again, as a new game state does. Beside the
+    // Claim button there is no room, so the chips give way to the mark.
+    await page.setViewportSize({ width: 1360, height: 768 });
+    await expect.poll(async () => (await toolStates(page)).some((x) => x.chips)).toBe(false);
+    expectShortfallShown(await toolStates(page));
+    expect(await toolsFit(page)).toBe(true);
+    // A wide screen has room for all of them.
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await expect.poll(async () => (await toolStates(page)).every((x) => x.chips || x.name.startsWith("Market"))).toBe(true);
+    tools = await toolStates(page);
+    expectShortfallShown(tools);
+    expect(await toolsFit(page)).toBe(true);
   });
 });
 
@@ -326,6 +423,17 @@ test.describe("phone portrait 412x915", () => {
     await expect(side).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(side).toBeHidden();
+  });
+
+  test("tools short of resources are marked, as tiles have no room for costs", async ({ page }) => {
+    await startVsAi(page);
+    await completeSetup(page);
+    const tools = await toolStates(page);
+    expect(tools.some((x) => x.marked)).toBe(true);
+    expectShortfallShown(tools);
+
+    await fillHand(page, 0);
+    await expect.poll(async () => (await toolStates(page)).some((x) => x.marked)).toBe(false);
   });
 });
 
