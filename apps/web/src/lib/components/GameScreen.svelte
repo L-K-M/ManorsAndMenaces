@@ -6,13 +6,13 @@
   import { t } from "../i18n.js";
   import { computeHighlights, legalFor } from "../game/interaction.js";
   import type { GameSession } from "../game/session.svelte.js";
-  import { platform } from "../platform/adapter.js";
   import { resetTool, ui } from "../stores/ui.svelte.js";
   import { resetView, zoomAt, zoomTo, viewport } from "../stores/viewport.svelte.js";
   import ActionBar from "./ActionBar.svelte";
   import Board from "./Board.svelte";
   import DebugPanel from "./DebugPanel.svelte";
   import Dialogs from "./Dialogs.svelte";
+  import GameMenu from "./GameMenu.svelte";
   import HandPanel from "./HandPanel.svelte";
   import HarvestPreview from "./HarvestPreview.svelte";
   import LogPanel from "./LogPanel.svelte";
@@ -36,6 +36,8 @@
   const me = $derived(viewer ? gs.players[viewer] : undefined);
   let panelOpen = $state(false);
   let savedNote: string | null = $state(null);
+  /** Settings opened from the game menu return to it when closed. */
+  let settingsFromMenu = false;
 
   // Reset transient UI gs when the acting mode changes.
   let lastMode = "";
@@ -58,11 +60,17 @@
     zoomTo(pts);
   }
   async function save() {
-    const data = session.toSaveFile();
-    const id = `save-${Date.now()}`;
-    await platform.save(id, `${gs.turnOrder.map((p) => gs.players[p]?.displayName).join(" vs ")} · round ${gs.round}`, data);
-    savedNote = "Saved.";
+    try {
+      await session.save();
+      savedNote = t("ui.saved");
+    } catch {
+      savedNote = t("ui.not_saved");
+    }
     setTimeout(() => (savedNote = null), 1800);
+  }
+  // The tab may be closed or frozen once hidden: write the autosave now.
+  function onhidden() {
+    if (document.visibilityState === "hidden") void session.flushAutosave();
   }
   function keydown(e: KeyboardEvent) {
     if ((e.target as HTMLElement)?.closest("input, select, textarea")) return;
@@ -78,20 +86,21 @@
   }
 </script>
 
-<svelte:window onkeydown={keydown} />
+<svelte:window onkeydown={keydown} onpagehide={() => void session.flushAutosave()} />
+<svelte:document onvisibilitychange={onhidden} />
 
 <div class="game">
   <header class="topbar">
-    <button class="ghost" onclick={onexit} aria-label={t("ui.main_menu")}>☰</button>
+    <button class="ghost" onclick={() => (ui.dialog = "menu")} aria-label={t("ui.main_menu")} aria-haspopup="dialog">☰</button>
     <h1>{t("app.title")}</h1>
-    <span class="round">Round {Math.max(1, gs.round)}</span>
+    <span class="round">{t("ui.round_n", { n: Math.max(1, gs.round) })}</span>
     {#if me}
       <div class="mine" aria-label={t("ui.your_resources")}>
         {#each RESOURCE_TYPES as r}<span><ResourceIcon resource={r} size={18} />{me.resources[r]}</span>{/each}
       </div>
     {/if}
     <span class="spacer"></span>
-    {#if session.transport.kind === "local"}<button class="ghost" onclick={save}>{savedNote ?? "Save"}</button>{/if}
+    {#if session.transport.kind === "local" && !tutorial}<button class="ghost" onclick={save}>{savedNote ?? t("ui.save")}</button>{/if}
     <button class="ghost" onclick={() => (ui.dialog = "settings")} aria-label={t("ui.settings")}>⚙</button>
     {#if import.meta.env.DEV}<button class="ghost" onclick={() => (ui.showDebug = true)}>{t("ui.debug")}</button>{/if}
     <button class="ghost panel-toggle" onclick={() => (panelOpen = !panelOpen)} aria-expanded={panelOpen}>{t("ui.panels")}</button>
@@ -139,7 +148,8 @@
 </div>
 
 <Dialogs {session} {legal} />
-{#if ui.dialog === "settings"}<SettingsDialog onclose={() => (ui.dialog = null)} />{/if}
+{#if ui.dialog === "menu"}<GameMenu {session} {tutorial} {onexit} onsettings={() => ((settingsFromMenu = true), (ui.dialog = "settings"))} onclose={() => (ui.dialog = null)} />{/if}
+{#if ui.dialog === "settings"}<SettingsDialog onclose={() => ((ui.dialog = settingsFromMenu ? "menu" : null), (settingsFromMenu = false))} />{/if}
 {#if ui.showDebug}<DebugPanel {session} onclose={() => (ui.showDebug = false)} />{/if}
 
 <style>

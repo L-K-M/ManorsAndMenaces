@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 
 // Critical flows (spec §66.5): create game, initial placement, first turn,
@@ -10,6 +11,11 @@ async function startHotseat(page: Page, rules: "standard" | "mvp" = "standard") 
     indexedDB.deleteDatabase("manors-menaces");
   });
   await page.reload();
+  await beginHotseat(page, rules);
+}
+
+/** From the title screen, keeping stored saves: always the same seed. */
+async function beginHotseat(page: Page, rules: "standard" | "mvp" = "standard") {
   await page.getByRole("button", { name: "New game" }).click();
   await page.getByRole("radio", { name: "2", exact: true }).check({ force: true });
   await page.getByLabel("Player 2 type").selectOption("human");
@@ -116,6 +122,12 @@ test("setup, first turn, build, harvest, warden, save and reload, victory", asyn
   await dialog.getByRole("button", { name: "Close" }).click();
   await endTurn(page);
   await expect(page.getByRole("dialog", { name: "Victory!" })).toBeVisible();
+  // A finished game drops its autosave: Continue never reopens a Victory.
+  await expect(async () => {
+    await page.reload();
+    await expect(page.getByRole("button", { name: "New game" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Continue/ })).toHaveCount(0);
+  }).toPass();
   expect(errors).toEqual([]);
 });
 
@@ -133,4 +145,175 @@ test("board is keyboard operable @mobile", async ({ page }) => {
   await site.focus();
   await page.keyboard.press("Enter");
   await expect(page.locator(".route.hl").first()).toBeVisible();
+});
+
+// Save safety: a save restores exactly what was on screen, and one game's
+// autosave never replaces another's.
+const ownedRoutes = (page: Page) => page.locator('.route[aria-label*="owned by"]');
+
+async function exitToTitle(page: Page) {
+  await page.getByRole("button", { name: "Main menu" }).click();
+  await page.getByRole("dialog", { name: "Menu" }).getByRole("button", { name: "Exit to title" }).click();
+  await page.getByRole("dialog", { name: "Leave this game?" }).getByRole("button", { name: "Exit to title" }).click();
+  await expect(page.getByRole("button", { name: "New game" })).toBeVisible();
+}
+
+test("the tutorial does not replace an unfinished game's Continue", async ({ page }) => {
+  await startHotseat(page, "mvp");
+  await completeSetup(page);
+  await exitToTitle(page);
+
+  await page.getByRole("button", { name: "Tutorial" }).click();
+  await expect(page.getByRole("complementary", { name: "Tutorial" })).toBeVisible();
+  await exitToTitle(page);
+  await page.reload();
+
+  await page.getByRole("button", { name: /^Continue/ }).click();
+  await passCurtain(page);
+  await expect(page.getByRole("region", { name: "Players" })).toContainText("Bertram");
+  await expect(page.getByRole("complementary", { name: "Tutorial" })).toHaveCount(0);
+});
+
+test("a new game with the same seed keeps the unfinished game's autosave", async ({ page }) => {
+  await startHotseat(page, "mvp");
+  await completeSetup(page);
+  await exitToTitle(page);
+
+  // Same custom seed, so the same match id: still a separate game.
+  await beginHotseat(page, "standard");
+  await passCurtain(page);
+  await exitToTitle(page);
+
+  await page.getByRole("button", { name: "Load game" }).click();
+  const rows = page.getByRole("dialog", { name: "Load game" }).getByRole("listitem");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.filter({ hasText: "Core" })).toHaveCount(1);
+  await expect(rows.filter({ hasText: "Standard" })).toHaveCount(1);
+});
+
+test("Save mid-turn keeps the turn's Route after a reload", async ({ page }) => {
+  await startHotseat(page);
+  await completeSetup(page);
+  await debugGrant(page);
+  const before = await ownedRoutes(page).count();
+  await page.getByRole("button", { name: /Build Route/ }).click();
+  await page.locator(".route.hl").first().click();
+  await expect(ownedRoutes(page)).toHaveCount(before + 1);
+
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Saved." })).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: /^Continue/ }).click();
+  await passCurtain(page);
+  await expect(ownedRoutes(page)).toHaveCount(before + 1);
+  // The restored Route is still this turn's action, so it can be undone.
+  await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
+
+  // Play on past the manual save, so the autosave holds a newer position.
+  await endTurn(page);
+  await passCurtain(page);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+  await exitToTitle(page);
+
+  // The manual save restores the same turn in progress.
+  await page.getByRole("button", { name: "Load game" }).click();
+  const manual = page.getByRole("dialog", { name: "Load game" }).getByRole("listitem").filter({ hasText: "Saved" });
+  await manual.getByRole("button", { name: /Alice/ }).click();
+  await passCurtain(page);
+  await expect(ownedRoutes(page)).toHaveCount(before + 1);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
+
+  // Only looking at the older save must not overwrite the newer autosave.
+  await exitToTitle(page);
+  await page.getByRole("button", { name: /^Continue/ }).click();
+  await passCurtain(page);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+});
+
+test("the game menu keeps the game open, exports a save and asks before leaving", async ({ page }) => {
+  await startHotseat(page, "mvp");
+  await completeSetup(page);
+
+  // ☰ opens a menu instead of leaving; Resume returns to the same game.
+  await page.getByRole("button", { name: "Main menu" }).click();
+  const menu = page.getByRole("dialog", { name: "Menu" });
+  await menu.getByRole("button", { name: "Resume" }).click();
+  await expect(menu).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Players" })).toContainText("Bertram");
+
+  // Settings opened from the menu returns to the menu.
+  await page.getByRole("button", { name: "Main menu" }).click();
+  await menu.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("dialog", { name: "Settings" }).getByRole("button", { name: "Close" }).click();
+  await expect(menu).toBeVisible();
+
+  // Export save file downloads a save that imports again.
+  const [download] = await Promise.all([page.waitForEvent("download"), menu.getByRole("button", { name: "Export save file" }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^manors-local-e2e-seed-r1\.json$/);
+  const file = await download.path();
+  const save = JSON.parse(await readFile(file, "utf8")) as { schemaVersion: number; seats: { displayName: string }[] };
+  expect(save.schemaVersion).toBe(1);
+  expect(save.seats.map((s) => s.displayName)).toEqual(["Alice", "Bertram"]);
+
+  // Leaving asks first; Stay keeps the game.
+  await menu.getByRole("button", { name: "Exit to title" }).click();
+  const leave = page.getByRole("dialog", { name: "Leave this game?" });
+  await expect(leave).toContainText("saved automatically");
+  await leave.getByRole("button", { name: "Stay" }).click();
+  await menu.getByRole("button", { name: "Resume" }).click();
+  await expect(page.getByRole("region", { name: "Players" })).toBeVisible();
+  await exitToTitle(page);
+
+  // The Load list describes each save and deletes only after confirmation.
+  await expect(page.getByRole("button", { name: /^Continue/ })).toContainText("Round 1");
+  await page.getByRole("button", { name: "Load game" }).click();
+  const load = page.getByRole("dialog", { name: "Load game" });
+  const row = load.getByRole("listitem");
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText("Alice");
+  await expect(row).toContainText("Bertram");
+  await expect(row).toContainText("Round 1");
+  await expect(row).toContainText("Autosave");
+  await row.getByRole("button", { name: "Delete save" }).click();
+  await expect(row.getByRole("group", { name: "Delete this save?" })).toBeVisible();
+  await row.getByRole("button", { name: "Keep" }).click();
+  await expect(row).toHaveCount(1);
+  await row.getByRole("button", { name: "Delete save" }).click();
+  await row.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(row).toHaveCount(0);
+
+  // A rejected file is reported; a later good import clears the report.
+  await load.getByLabel("Import a save file").setInputFiles({ name: "junk.json", mimeType: "application/json", buffer: Buffer.from("{}") });
+  await expect(load).toContainText("not a Manors & Menaces save");
+  await load.getByLabel("Import a save file").setInputFiles(file);
+  await passCurtain(page);
+  await expect(page.getByRole("region", { name: "Players" })).toContainText("Bertram");
+  await exitToTitle(page);
+  await page.getByRole("button", { name: "Load game" }).click();
+  await expect(load).toBeVisible();
+  await expect(load).not.toContainText("not a Manors & Menaces save");
+});
+
+test("leaving warns instead of claiming a game is saved when saving fails", async ({ page }) => {
+  await startHotseat(page, "mvp");
+  await completeSetup(page);
+
+  // Storage starts failing (quota, blocked site data): the next autosave fails.
+  await page.evaluate(() => {
+    IDBObjectStore.prototype.put = () => {
+      throw new DOMException("blocked", "QuotaExceededError");
+    };
+  });
+  await page.getByRole("button", { name: /Assign Banners →/ }).click();
+  await page.getByRole("button", { name: "Main menu" }).click();
+  const menu = page.getByRole("dialog", { name: "Menu" });
+  await expect(menu.getByRole("alert")).toContainText("Autosave is not working");
+
+  await menu.getByRole("button", { name: "Exit to title" }).click();
+  const leave = page.getByRole("dialog", { name: "Leave this game?" });
+  await expect(leave).toContainText("If you leave now, it is lost");
+  await expect(leave).not.toContainText("saved automatically");
+  await expect(leave.getByRole("button", { name: "Export save file" })).toBeVisible();
+  await leave.getByRole("button", { name: "Leave without saving" }).click();
+  await expect(page.getByRole("button", { name: "New game" })).toBeVisible();
 });

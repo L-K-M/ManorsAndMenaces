@@ -24,6 +24,7 @@ import { AiClient } from "./aiClient.js";
 import { aiPaceDelayMs, aiStepPace, resolveAiStep, type AiStep } from "./aiStep.js";
 import { engineFor, mapFor } from "./engine.js";
 import { formatEvents, noticeEntry, type LogEntry } from "./log.js";
+import { autosavesToPrune, describeSave, exportFileName, manualSaveId, newAutosaveId, replayPending, saveLabel } from "./saves.js";
 import { recordGame } from "./telemetry.js";
 import { devlog } from "../devlog.js";
 
@@ -50,7 +51,12 @@ export interface NewGameOptions {
   seed?: string;
   mapId?: string;
   matchId?: string;
+  /** Keep an autosave of this match (default true; the tutorial opts out). */
+  autosave?: boolean;
 }
+
+/** Coalesces bursts of changes (an AI turn, several builds) into one write. */
+const AUTOSAVE_DELAY_MS = 250;
 
 let floaterId = 1;
 let commandSeq = 0;
@@ -95,6 +101,8 @@ export class GameSession {
   presence: Record<PlayerId, boolean> = $state.raw({});
   /** Online: this client's seat. */
   readonly onlinePlayerId: PlayerId | null;
+  /** The last autosave failed (e.g. storage blocked); the UI offers Export instead. */
+  autosaveFailed = $state(false);
 
   private commandHistory: GameCommand[] = [];
   private undoStack: { state: GameState; logIds: number[] }[] = [];
@@ -110,6 +118,13 @@ export class GameSession {
   private aiNotice: { text: string; stuck: boolean; shownAt: number } | null = null;
   private destroyed = false;
   private listeners = new Set<(events: GameEvent[], state: GameState) => void>();
+  private readonly autosaveEnabled: boolean;
+  /** This line of play's autosave row (see saves.ts). */
+  private readonly autosaveSlot: string;
+  private autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Autosave writes run one after another, so an older snapshot never lands last. */
+  private autosaveQueue: Promise<void> = Promise.resolve();
+  private autosavesPruned = false;
 
   constructor(opts: {
     mapId: string;
@@ -117,8 +132,15 @@ export class GameSession {
     initialState: GameState;
     state: GameState;
     history?: GameCommand[];
+    /** Undoable actions of the turn in progress, from a save (see SaveFile). */
+    pending?: GameCommand[];
     transport?: Transport;
     onlinePlayerId?: PlayerId | null;
+    autosave?: boolean;
+    /** Keep writing this autosave slot (resuming it); default: a new slot. */
+    autosaveSlot?: string;
+    /** Opened from a stored save: nothing to autosave until play changes it. */
+    fromSave?: boolean;
   }) {
     this.engine = engineFor(opts.mapId);
     this.mapId = opts.mapId;
@@ -127,11 +149,22 @@ export class GameSession {
     this.commandHistory = [...(opts.history ?? [])];
     this.onlinePlayerId = opts.onlinePlayerId ?? null;
     this.transport = opts.transport ?? this.localTransport();
+    this.autosaveEnabled = this.transport.kind === "local" && opts.autosave !== false;
+    this.autosaveSlot = opts.autosaveSlot ?? newAutosaveId(opts.state.matchId);
     this.authoritative = opts.state;
     this.draft = opts.state;
+    for (const step of replayPending(this.engine, opts.state, opts.pending ?? [])) {
+      this.undoStack.push({ state: step.before, logIds: this.appendLog(step.events, step.after, true) });
+      // `buffered` is $state.raw: replace it, never mutate it.
+      this.buffered = [...this.buffered, step.command];
+      this.draft = step.after;
+    }
     this.aiRngState = seedRng(`${opts.state.matchId}:ai:${opts.state.revision}`);
     this.viewerId = this.onlinePlayerId ?? this.firstHuman();
     this.afterStateChange([]);
+    // Writing an unchanged save back would let merely opening an older
+    // position replace newer progress; the first change writes it instead.
+    if (opts.fromSave) this.cancelScheduledAutosave();
   }
 
   static create(opts: NewGameOptions): GameSession {
@@ -145,11 +178,24 @@ export class GameSession {
       ruleset: opts.ruleset,
       players: opts.seats.map((s) => ({ id: s.playerId, displayName: s.displayName })),
     });
-    return new GameSession({ mapId, seats: opts.seats, initialState, state: initialState });
+    return new GameSession({ mapId, seats: opts.seats, initialState, state: initialState, ...(opts.autosave === false ? { autosave: false } : {}) });
   }
 
-  static fromSave(save: SaveFile): GameSession {
-    return new GameSession({ mapId: save.mapId, seats: save.seats, initialState: save.initialState, state: save.state, history: save.commandHistory });
+  /**
+   * Open a stored save. Pass `autosaveSlot` when resuming an autosave so play
+   * continues in that row; otherwise the game autosaves to a new row.
+   */
+  static fromSave(save: SaveFile, opts: { autosave?: boolean; autosaveSlot?: string } = {}): GameSession {
+    return new GameSession({
+      mapId: save.mapId,
+      seats: save.seats,
+      initialState: save.initialState,
+      state: save.state,
+      history: save.commandHistory,
+      pending: save.pendingCommands ?? [],
+      fromSave: true,
+      ...opts,
+    });
   }
 
   get map() {
@@ -219,6 +265,7 @@ export class GameSession {
       this.buffered = [...this.buffered, command];
       this.draft = r.newState;
       this.notify(r.events, r.newState);
+      this.scheduleAutosave();
       return true;
     }
     // Locking commands are logged from the authoritative result.
@@ -239,6 +286,7 @@ export class GameSession {
     const drop = new Set(last.logIds);
     this.log = this.log.filter((e) => !drop.has(e.id));
     this.error = null;
+    this.scheduleAutosave();
   }
 
   private inFlight = 0;
@@ -342,7 +390,10 @@ export class GameSession {
     const state = this.authoritative;
     const actor = currentActor(state);
     if (this.transport.kind === "local") {
-      void this.autosave();
+      // A finished game has nothing to continue: drop its autosave so
+      // Continue never reopens a Victory screen.
+      if (state.status === "finished") this.discardAutosave();
+      else this.scheduleAutosave();
       if (events.some((e) => e.type === "game_won")) {
         recordGame(this.ctx, state, Object.fromEntries(this.seats.map((s) => [s.playerId, s.kind])));
       }
@@ -456,6 +507,10 @@ export class GameSession {
 
   // ------------------------------------------------------------------ persistence
 
+  /**
+   * A snapshot of exactly what is on screen: the committed state plus this
+   * turn's undoable actions, which loading re-applies (still undoable).
+   */
   toSaveFile(): SaveFile {
     return {
       schemaVersion: SAVE_SCHEMA_VERSION,
@@ -465,7 +520,9 @@ export class GameSession {
       seats: this.seats,
       initialState: this.initialState,
       state: this.authoritative,
-      commandHistory: this.commandHistory,
+      // Copied: the live history grows in place as batches commit.
+      commandHistory: [...this.commandHistory],
+      ...(this.buffered.length ? { pendingCommands: [...this.buffered] } : {}),
     };
   }
 
@@ -473,16 +530,79 @@ export class GameSession {
     return this.commandHistory;
   }
 
-  private async autosave(): Promise<void> {
-    if (this.transport.kind !== "local") return;
-    try {
-      await platform.save("autosave", t("app.title"), this.toSaveFile());
-    } catch {
-      // Saving is best-effort (private browsing may block IndexedDB).
+  /** Store a manual save. Rejects if it could not be stored. */
+  async save(): Promise<void> {
+    const data = this.toSaveFile();
+    await platform.save(manualSaveId(data), saveLabel(describeSave(data)), data);
+    // Continue should resume at least as far as the newest manual save.
+    await this.flushAutosave();
+  }
+
+  /** Export the save as a file. Resolves false if the player cancelled. */
+  exportSave(): Promise<boolean> {
+    const data = this.toSaveFile();
+    return platform.exportFile(exportFileName(data), JSON.stringify(data, null, 2));
+  }
+
+  private scheduleAutosave(): void {
+    if (!this.autosaveEnabled || this.destroyed) return;
+    if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
+    this.autosaveTimer = setTimeout(() => void this.flushAutosave(), AUTOSAVE_DELAY_MS);
+  }
+
+  /**
+   * Write a scheduled autosave now (leaving the game, page hidden), or retry
+   * one that failed. Resolves when every queued autosave write has settled;
+   * `autosaveFailed` then tells whether the game is stored.
+   */
+  flushAutosave(): Promise<void> {
+    const retry = this.autosaveFailed && this.authoritative.status !== "finished";
+    if (this.autosaveTimer || retry) {
+      this.cancelScheduledAutosave();
+      const data = this.toSaveFile();
+      this.enqueueAutosave(async () => {
+        await platform.save(this.autosaveSlot, saveLabel(describeSave(data)), data);
+        // Pruning is housekeeping: the game itself is stored at this point.
+        if (!this.autosavesPruned) await this.pruneAutosaves().catch((e: unknown) => console.warn("Pruning autosaves failed", e));
+      });
     }
+    return this.autosaveQueue;
+  }
+
+  private cancelScheduledAutosave(): void {
+    if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
+    this.autosaveTimer = null;
+  }
+
+  private discardAutosave(): void {
+    if (!this.autosaveEnabled) return;
+    this.cancelScheduledAutosave();
+    const id = this.autosaveSlot;
+    this.enqueueAutosave(() => platform.remove(id));
+  }
+
+  /** Autosaves are bounded: once per session, delete all but the newest (and this game's). */
+  private async pruneAutosaves(): Promise<void> {
+    this.autosavesPruned = true;
+    for (const id of autosavesToPrune(await platform.listSaves(), this.autosaveSlot)) await platform.remove(id);
+  }
+
+  private enqueueAutosave(write: () => Promise<void>): void {
+    this.autosaveQueue = this.autosaveQueue.then(write).then(
+      () => {
+        this.autosaveFailed = false;
+      },
+      (e: unknown) => {
+        // Not fatal to play (private browsing may block IndexedDB), but never
+        // silent: the game menu warns and offers Export instead.
+        this.autosaveFailed = true;
+        console.warn("Autosave failed", e);
+      },
+    );
   }
 
   destroy(): void {
+    void this.flushAutosave();
     this.destroyed = true;
     if (this.aiTimer) clearTimeout(this.aiTimer);
     this.ai.dispose();
