@@ -19,16 +19,17 @@
 | Lint | `pnpm lint` |
 | Unit + integration + server tests | `pnpm test` |
 | UI end-to-end tests | `pnpm test:e2e` |
-| CI-equivalent check | `pnpm check` |
+| CI-equivalent check (no e2e) | `pnpm check` (typecheck, lint, test, map:check, build:check) |
+| Production build + server smoke test | `pnpm build:check` |
 | Balance simulation | `pnpm simulate --games 40 --players 3 --rules standard` |
-| Regenerate the map | `pnpm map:generate` (deterministic; commit the result) |
+| Regenerate the map | `pnpm map:generate` (deterministic; commit the result; `pnpm map:check` verifies it) |
 | Build all targets | `scripts/build.sh [web] [server] [desktop] [android]` → `dist/` |
 | Release | `scripts/release.sh X.Y.Z [--push]` |
 | Installers without a release | `gh workflow run build.yml` → macOS `.dmg`, Linux `.deb`/`.AppImage`, Android `.apk` as run artifacts |
 
 ## Architecture rules (from the spec)
 
-- `packages/rules` must not import Svelte, DOM, SVG, Tauri or server code (§33, §103). All randomness goes through the match RNG (§30); ESLint forbids `Math.random` outside UI/tools.
+- `packages/rules` must not import Svelte, DOM, SVG, Tauri or server code (§33, §103); `eslint.config.js` enforces these package and app import boundaries. All randomness goes through the match RNG (§30); ESLint forbids `Math.random` outside UI/tools.
 - Legality lives only in the rules engine and its selectors; UIs and the AI ask `getLegalActions`/selectors and send commands (§103).
 - State is plain JSON (§106). The engine clones and never mutates its input.
 - Content is data; card/quest behaviour is typed code keyed by id (§39–41). User-facing text goes through `t()` with keys in `packages/content/src/i18n/en.ts` (§71).

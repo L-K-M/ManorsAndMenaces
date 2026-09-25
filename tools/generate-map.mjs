@@ -8,16 +8,21 @@
 // The output is deterministic for a given SEED and is committed; re-run only
 // when the map should change:  node tools/generate-map.mjs
 //
-// Usage: node tools/generate-map.mjs [--seed N] [--check]
-//   --check  print statistics only, do not write the file.
+// Usage: node tools/generate-map.mjs [--seed N] [--check] [--out FILE]
+//   --check     do not write; exit 1 unless the committed file equals a fresh
+//               generation byte for byte and the map passes validateMap (CI).
+//   --out FILE  write (or with --check, compare) FILE instead of greenvale.ts.
 
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { tsImport } from "tsx/esm/api";
 
 const args = process.argv.slice(2);
-const SEED = Number(args[args.indexOf("--seed") + 1]) || 14;
+const flagValue = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
+const SEED = Number(flagValue("--seed")) || 14;
 const CHECK_ONLY = args.includes("--check");
+const OUT = flagValue("--out");
 
 const W = 1600;
 const H = 1000;
@@ -354,7 +359,6 @@ const stats = {
   minRegionsPerSite: Math.min(...alive.map((s) => sites[s].cells.size)),
 };
 console.log(stats);
-if (CHECK_ONLY) process.exit(0);
 
 // ------------------------------------------------------------------ emit
 const REGION_NAMES = {
@@ -431,6 +435,36 @@ import type { MapDefinition } from "../types.js";
 export const GREENVALE_MAP: MapDefinition = ${JSON.stringify(map, null, 2)};
 `;
 const here = dirname(fileURLToPath(import.meta.url));
-const target = join(here, "..", "packages", "content", "src", "maps", "greenvale.ts");
-writeFileSync(target, out);
-console.log("wrote", target);
+const target = OUT ?? join(here, "..", "packages", "content", "src", "maps", "greenvale.ts");
+if (!CHECK_ONLY) {
+  writeFileSync(target, out);
+  console.log("wrote", target);
+  process.exit(0);
+}
+
+// ------------------------------------------------------------------ check
+const problems = [];
+let committed;
+try {
+  committed = readFileSync(target, "utf8");
+} catch (e) {
+  problems.push(`cannot read ${target}: ${e.message}`);
+}
+// Compare with LF endings so a Windows checkout (core.autocrlf) does not fail.
+if (committed !== undefined && committed.replace(/\r\n/g, "\n") !== out) {
+  problems.push(`${target} differs from a fresh generation (seed ${SEED}); run \`pnpm map:generate\` and commit the result`);
+}
+// Validate with the same code the app uses. Errors fail the check. Warnings
+// are the §11.1 balance heuristics, which a hand-tuned map may trip on
+// purpose, so they are printed but do not fail it.
+const { validateMap } = await tsImport("../packages/content/src/validate.ts", import.meta.url);
+const validation = validateMap(map);
+problems.push(...validation.errors);
+for (const w of validation.warnings) console.warn("map check warning:", w);
+if (stats.minRegionsPerSite < 2) problems.push(`a Site touches only ${stats.minRegionsPerSite} Region; every Site needs at least 2`);
+
+if (problems.length > 0) {
+  for (const p of problems) console.error("map check failed:", p);
+  process.exit(1);
+}
+console.log("map check passed:", target, "matches a fresh generation and passes validateMap");
