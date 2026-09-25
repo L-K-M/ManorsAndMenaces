@@ -495,7 +495,8 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   const p = tx.player(playerId);
   check(p.hand.length <= s.ruleset.handLimit, "HAND_OVER_LIMIT");
   // Refill revealed Quests. After the last seat's turn they are first
-  // claimable next round, so their expiry clock (§27.2) starts there.
+  // claimable next round, so their expiry clock (§27.2) starts there. This
+  // last-seat test must match the seat wrap that advances s.round below.
   const claimableFrom = s.turnOrder.indexOf(playerId) === s.turnOrder.length - 1 ? s.round + 1 : s.round;
   while (s.ruleset.enableQuests && s.revealedQuestIds.length < s.ruleset.revealedQuestCount && s.questDeck.length > 0) revealTopQuest(tx, undefined, claimableFrom);
   p.marketTradesThisTurn = 0;

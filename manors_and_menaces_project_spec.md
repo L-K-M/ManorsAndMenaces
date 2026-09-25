@@ -1236,7 +1236,7 @@ Off by default (`RulesetConfig.questExpiryRounds`, absent or 0). The base rules 
 
 With the option set to N (the New Game screen offers `BALANCE.questExpiryRounds`, 4):
 
-- each revealed Quest remembers the round it was revealed in; the opening Quests count from round 1;
+- each revealed Quest remembers the first round it can be claimed in: the round it was revealed in, or the next round when it is revealed at the end of the last seat's turn; the opening Quests count from round 1;
 - when a new round begins, each Quest that has been on show for N rounds without being claimed goes to the bottom of the Quest deck, and the top Quest of the deck takes its slot;
 - Quests are checked in slot order, and no more Quests leave than the deck held when the round began, so a Quest never returns at once; with an empty deck, nothing leaves;
 - the Quest panel shows how many rounds each Quest has left.

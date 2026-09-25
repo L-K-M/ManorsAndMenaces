@@ -321,7 +321,7 @@ export interface GameState {
 
   questDeck: QuestId[];
   revealedQuestIds: QuestId[];
-  /** Round each revealed Quest appeared in; kept only when `ruleset.questExpiryRounds` is on. */
+  /** First round each revealed Quest can be claimed in (§27.2); kept only when `ruleset.questExpiryRounds` is on. */
   revealedQuestRounds?: Record<QuestId, number>;
 
   activeEffects: ActiveEffect[];
