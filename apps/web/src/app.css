@@ -132,15 +132,17 @@ button {
   cursor: pointer;
   transition:
     box-shadow 120ms,
-    transform 80ms;
+    translate 80ms;
 }
 button:hover:not(:disabled) {
   background: var(--button-face-hover);
 }
-/* Pressed: the face sinks into the page instead of changing colour. */
+/* Pressed: the face sinks into the page instead of changing colour. The
+   separate translate property adds to a component's own transform (a pill
+   centred with translateX(-50%)) instead of replacing it. */
 button:active:not(:disabled) {
   box-shadow: var(--shadow-pressed);
-  transform: translateY(1px);
+  translate: 0 1px;
 }
 button:disabled {
   opacity: 0.45;

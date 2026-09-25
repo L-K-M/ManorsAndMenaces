@@ -132,6 +132,33 @@ test("text-link buttons skip the button bevel", async ({ page }) => {
   expect(shadow).toBe("none");
 });
 
+test("pressing a button keeps a component's own transform", async ({ page }) => {
+  await openTitle(page);
+  // Some buttons are centred with transform (the victory pill, the Chronicle's
+  // jump pill); the press must not replace it, or the button jumps away
+  // from under the pointer and the click is lost.
+  await page.evaluate(() => {
+    // A component rule (a class, as Svelte scopes it), not an inline style.
+    const style = document.createElement("style");
+    style.textContent = ".centred.probe { position: fixed; left: 50%; top: 8px; z-index: 1000; transform: translateX(-50%); }";
+    document.head.append(style);
+    const b = document.createElement("button");
+    b.id = "centred";
+    b.className = "centred probe";
+    b.textContent = "Centred";
+    document.body.append(b);
+  });
+  const button = page.locator("#centred");
+  const before = (await button.boundingBox())!;
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+  await page.mouse.down();
+  // Let the press transition finish.
+  await page.waitForTimeout(200);
+  const pressed = (await button.boundingBox())!;
+  await page.mouse.up();
+  expect(Math.abs(pressed.x - before.x)).toBeLessThan(1);
+});
+
 test("high contrast drops the paper texture and gradients", async ({ page }) => {
   await openTitle(page, { highContrast: true });
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundImage)).not.toMatch(/url\(/);
