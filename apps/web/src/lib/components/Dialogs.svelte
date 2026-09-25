@@ -1,12 +1,13 @@
 <script lang="ts">
   import { BALANCE, RESOURCE_TYPES, cardDefIdOf, type LegalActionSummary, type ResourceType } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
-  import { finishCardWith } from "../game/interaction.js";
+  import { ACTION_LABEL, availabilityFor, finishCardWith, legalFor, startAction } from "../game/interaction.js";
   import { regionName } from "../game/log.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { resetTool, ui } from "../stores/ui.svelte.js";
   import Modal from "./Modal.svelte";
   import ResourceIcon from "./ResourceIcon.svelte";
+  import ToolIcon from "./ToolIcon.svelte";
 
   let { session, legal }: { session: GameSession; legal: LegalActionSummary | null } = $props();
   const gs = $derived(session.draft);
@@ -21,14 +22,33 @@
     for (const p of legal.tradePosts) out.push({ resource: p.resource, amount: p.give, via: p.siteId });
     return out;
   });
+  // "Trade to afford": the next trade that makes the goal action affordable.
+  const goal = $derived(ui.dialog === "market" && ui.marketGoal ? ui.marketGoal : null);
+  const goalAvailability = $derived(goal ? availabilityFor(session, legal)?.[goal] : undefined);
+  const suggestion = $derived(goalAvailability?.fixByTrade?.[0] ?? null);
+  function preselect() {
+    if (!suggestion) return;
+    give = suggestion.give;
+    via = suggestion.tradePostSiteId ?? null;
+  }
+  $effect(preselect);
   async function trade(receive: ResourceType) {
-    if (!give) return;
+    if (!give || !legal) return;
+    // Read before trading: `legal` is recomputed as soon as the trade applies.
+    const leftBefore = legal.marketTradesLeft;
+    const target = goal;
     const ok = await session.perform({ type: "trade", give, receive, ...(via ? { tradePostSiteId: via } : {}) });
-    if (ok) {
-      give = null;
-      via = null;
-      if ((legal?.marketTradesLeft ?? 1) <= 1) ui.dialog = null;
+    if (!ok) return;
+    give = null;
+    via = null;
+    if (target && availabilityFor(session, legalFor(session))?.[target].ok) {
+      // The goal is affordable now: close and get on with it (a card is not bought unasked).
+      close();
+      if (target !== "card" && target !== "market") await startAction(session, target);
+      return;
     }
+    if (leftBefore <= 1) close();
+    else preselect();
   }
 
   // ---------------------------------------------------------------- writ
@@ -44,6 +64,12 @@
 
   // ---------------------------------------------------------------- arcane / festival
   let arcaneGive: ResourceType | null = $state(null);
+
+  // ---------------------------------------------------------------- dragon hoard
+  const dragonHoard = $derived.by(() => {
+    const dragon = Object.values(gs.menaces).find((m) => m.type === "young_dragon");
+    return Object.entries(dragon?.state.hoard ?? {}).filter(([, n]) => (n ?? 0) > 0) as [ResourceType, number][];
+  });
 
   // ---------------------------------------------------------------- prophecy
   let order: string[] = $state([]);
@@ -65,15 +91,23 @@
     const tg = p.target;
     switch (tg.effect) {
       case "wizard_interference":
-        return `${gs.players[gs.banners[tg.bannerId]?.ownerId ?? ""]?.displayName}'s Banner → ${regionName(session.map, tg.regionId)}`;
-      case "fog_of_confusion":
-        return `a Route ${gs.routeOwners[tg.routeId] ? `of ${gs.players[gs.routeOwners[tg.routeId] ?? ""]?.displayName}` : ""}`;
+        return t("tip.spell_target_banner", {
+          owner: gs.players[gs.banners[tg.bannerId]?.ownerId ?? ""]?.displayName ?? "",
+          region: regionName(session.map, tg.regionId),
+        });
+      case "fog_of_confusion": {
+        const routeOwner = gs.routeOwners[tg.routeId];
+        return routeOwner
+          ? t("tip.spell_target_route", { owner: gs.players[routeOwner]?.displayName ?? "" })
+          : t("tip.spell_target_route_unowned");
+      }
       default:
         return "";
     }
   }
   const close = () => {
     ui.dialog = null;
+    ui.marketGoal = null;
     give = null;
     via = null;
   };
@@ -81,21 +115,34 @@
 
 {#if ui.dialog === "market" && legal?.mode === "main"}
   <Modal title={t("action.trade")} onclose={close}>
-    <p class="help">{t("help.market")} {t("status.trades_left", { count: legal.marketTradesLeft })}.</p>
+    <p class="help">{t("help.market", { give: gs.ruleset.market.give, receive: gs.ruleset.market.receive, limit: gs.ruleset.market.maxTradesPerTurn })} <b class="left">{t("status.trades_left", { count: legal.marketTradesLeft })}</b></p>
+    {#if goal && suggestion}
+      <p class="goal">
+        {t("ui.market_goal", {
+          action: t(ACTION_LABEL[goal]),
+          give: `${giveOptions.find((o) => o.resource === suggestion.give && o.via === (suggestion.tradePostSiteId ?? null))?.amount ?? gs.ruleset.market.give} ${t(`resource.${suggestion.give}`)}`,
+          receive: t(`resource.${suggestion.receive}`),
+        })}
+      </p>
+    {/if}
     <h4>{t("ui.give")}</h4>
     <div class="grid">
       {#each giveOptions as o}
         <button class:on={give === o.resource && via === o.via} onclick={() => ((give = o.resource), (via = o.via))}>
-          {o.amount}× <ResourceIcon resource={o.resource} /> {t(`resource.${o.resource}`)}{o.via ? " (Trading Post)" : ""}
+          {o.amount}× <ResourceIcon resource={o.resource} /> {t(`resource.${o.resource}`)}{o.via ? ` (${t("ui.trading_post")})` : ""}
+          <small class="have">{t("ui.you_have", { count: me?.resources[o.resource] ?? 0 })}</small>
         </button>
       {/each}
-      {#if giveOptions.length === 0}<p>{t("ui.you_need_3_of_one")}</p>{/if}
+      {#if giveOptions.length === 0}<p>{t("ui.you_need_3_of_one", { give: gs.ruleset.market.give })}</p>{/if}
     </div>
     {#if give}
       <h4>{t("ui.receive_1")}</h4>
       <div class="grid">
         {#each RESOURCE_TYPES.filter((r) => r !== give) as r}
-          <button onclick={() => trade(r)}><ResourceIcon resource={r} /> {t(`resource.${r}`)}</button>
+          {@const suggested = !!suggestion && suggestion.give === give && (suggestion.tradePostSiteId ?? null) === via && suggestion.receive === r}
+          <button class:suggested onclick={() => trade(r)}>
+            <ResourceIcon resource={r} /> {t(`resource.${r}`)}{#if suggested}<small class="have">{t("ui.suggested")}</small>{/if}
+          </button>
         {/each}
       </div>
     {/if}
@@ -105,8 +152,10 @@
 {#if ui.dialog === "writ" && writBanner}
   <Modal title={t("action.royal_writ")} onclose={() => ((ui.dialog = null), (ui.writTargetId = null))}>
     <p class="help">
-      Send {gs.players[writBanner.ownerId]?.displayName}'s Banner in <b>{regionName(session.map, writBanner.regionId)}</b> home.
-      You pay 1 Essence to the Crown and a bribe of 1 resource to {gs.players[writBanner.ownerId]?.displayName}.
+      {t("writ.help", {
+        owner: gs.players[writBanner.ownerId]?.displayName ?? "",
+        region: regionName(session.map, writBanner.regionId),
+      })}
     </p>
     <h4>{t("ui.choose_the_bribe")}</h4>
     <div class="grid">
@@ -148,11 +197,24 @@
   </Modal>
 {/if}
 
+{#if ui.dialog === "hoard"}
+  <Modal title={t("card.dragon_whisperer.name")} onclose={() => ((ui.dialog = null), resetTool())}>
+    <p class="help">{t("ui.choose_hoard_take")}</p>
+    <div class="grid">
+      {#each dragonHoard as [r, n] (r)}
+        <button onclick={() => finishCardWith(session, { take: r })}>
+          <ResourceIcon resource={r} /> {t(`resource.${r}`)} ×{n}
+        </button>
+      {/each}
+    </div>
+  </Modal>
+{/if}
+
 {#if legal?.mode === "reaction" && pendingReaction}
   <Modal title={t("ui.counterspell")}>
     <p class="help">
-      {gs.players[pendingReaction.sourcePlayerId]?.displayName} plays
-      <b>{t(`card.${cardDefIdOf(pendingReaction.cardId)}.name`)}</b>{describeTarget() ? ` on ${describeTarget()}` : ""}.
+      {t("ui.reaction_intro", { name: gs.players[pendingReaction.sourcePlayerId]?.displayName ?? "" })}
+      <b>{t(`card.${cardDefIdOf(pendingReaction.cardId)}.name`)}</b>{describeTarget() ? ` ${t("ui.reaction_on", { target: describeTarget() })}` : ""}.
     </p>
     <div class="grid">
       {#each legal.reactionCards as c}
@@ -170,8 +232,8 @@
       {#each order as c, i (c)}
         <li>
           <span>{t(`card.${cardDefIdOf(c)}.name`)}</span>
-          <button aria-label={t("ui.move_up")} disabled={i === 0} onclick={() => move(i, -1)}>↑</button>
-          <button aria-label={t("ui.move_down")} disabled={i === order.length - 1} onclick={() => move(i, 1)}>↓</button>
+          <button aria-label={t("ui.move_up")} disabled={i === 0} onclick={() => move(i, -1)}><ToolIcon name="arrow-up" size={20} /></button>
+          <button aria-label={t("ui.move_down")} disabled={i === order.length - 1} onclick={() => move(i, 1)}><ToolIcon name="arrow-down" size={20} /></button>
         </li>
       {/each}
     </ol>
@@ -199,6 +261,29 @@
   .grid button.on {
     background: var(--accent);
     color: #fff;
+  }
+  .grid button.suggested {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  .have {
+    font-size: 0.72rem;
+    opacity: 0.8;
+  }
+  .grid button.on .have {
+    opacity: 0.9;
+  }
+  .left {
+    white-space: nowrap;
+  }
+  .goal {
+    margin: 0.2rem 0 0.4rem;
+    padding: 0.35rem 0.55rem;
+    border-left: 4px solid var(--accent);
+    background: #eaf3e6;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
   }
   .order {
     padding-left: 1.2rem;

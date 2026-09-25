@@ -1,6 +1,6 @@
 // Non-gameplay UI state (spec §45.3). Never serialized with the game.
 
-import type { BannerId, CardId, CardTarget, MenaceId, MenaceLocation, RegionId } from "@manors-menaces/rules";
+import type { BannerId, CardId, CardTarget, MenaceId, MenaceLocation, PlayerAction, RegionId } from "@manors-menaces/rules";
 
 export type Tool = "none" | "route" | "manor" | "upgrade" | "writ" | "warden" | "card";
 
@@ -12,7 +12,7 @@ export type Pick =
   | { kind: "site"; id: string }
   | { kind: "location"; location: MenaceLocation };
 
-export type Dialog = null | "market" | "settings" | "writ" | "arcane" | "festival" | "rules" | "save" | "menu";
+export type Dialog = null | "market" | "settings" | "writ" | "arcane" | "festival" | "hoard" | "rules" | "save" | "menu";
 
 export interface UiState {
   tool: Tool;
@@ -30,6 +30,8 @@ export interface UiState {
   hoverRegionId: RegionId | null;
   inspect: Pick | null;
   dialog: Dialog;
+  /** The action a "Trade to afford" opened the Market for, if any. */
+  marketGoal: PlayerAction | null;
   panel: "players" | "quests" | "log";
   showDebug: boolean;
 }
@@ -45,6 +47,7 @@ export const ui: UiState = $state({
   hoverRegionId: null,
   inspect: null,
   dialog: null,
+  marketGoal: null,
   panel: "players",
   showDebug: false,
 });
@@ -64,7 +67,7 @@ export function locationKey(loc: MenaceLocation): string {
 
 // ------------------------------------------------------------------ card target steps
 
-export type TargetField = { field: string; pick: Pick["kind"] | "dialog" };
+export type TargetField = { field: string; pick: Pick["kind"] | "dialog" | "hoard" };
 
 /** Which board picks each card needs, in order (spec §47.2: click/tap, not drag). */
 export const CARD_STEPS: Record<CardTarget["effect"], TargetField[]> = {
@@ -86,7 +89,10 @@ export const CARD_STEPS: Record<CardTarget["effect"], TargetField[]> = {
   festival_at_the_inn: [{ field: "choice", pick: "dialog" }],
   very_minor_prophecy: [],
   fog_of_confusion: [{ field: "routeId", pick: "route" }],
-  dragon_whisperer: [{ field: "destination", pick: "location" }],
+  dragon_whisperer: [
+    { field: "destination", pick: "location" },
+    { field: "take", pick: "hoard" },
+  ],
 };
 
 export function valueKey(v: unknown): string {

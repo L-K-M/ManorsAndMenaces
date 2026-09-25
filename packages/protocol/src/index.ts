@@ -11,6 +11,11 @@ export interface SeatConfig {
   displayName: string;
   kind: "human" | "ai";
   aiLevel?: AiLevel;
+  /**
+   * Named rival persona of an AI seat (content `RIVALS` id). Flavour only;
+   * optional so older saves and online seats without it stay valid.
+   */
+  rivalId?: string;
   /** Heraldic colour index (0–3). */
   color: number;
 }
@@ -29,6 +34,13 @@ export interface SaveFile {
   initialState: GameState;
   state: GameState;
   commandHistory: GameCommand[];
+  /**
+   * The current player's undoable actions this turn (§32.1), not yet part of
+   * `state`. A save restores exactly what was on screen: loading re-applies
+   * these on top of `state`, and they can still be undone. Optional, so
+   * schema version 1 files without it stay valid.
+   */
+  pendingCommands?: GameCommand[];
 }
 
 export function isSaveFile(x: unknown): x is SaveFile {
@@ -42,7 +54,8 @@ export function isSaveFile(x: unknown): x is SaveFile {
     Array.isArray(s.seats) &&
     !!s.state &&
     !!s.initialState &&
-    Array.isArray(s.commandHistory)
+    Array.isArray(s.commandHistory) &&
+    (s.pendingCommands === undefined || Array.isArray(s.pendingCommands))
   );
 }
 
@@ -115,6 +128,25 @@ export interface SubmitCommandsResponse {
   events: GameEvent[];
   state?: GameState;
   error?: RuleError;
+}
+
+/**
+ * Machine-readable reasons on HTTP error bodies. Older servers send only
+ * `error`, so clients must also handle a missing `code`, and treat a code
+ * they do not recognise (added by a newer server) as a generic error.
+ * - INVALID_SESSION (401): the token is missing or unknown; start a new session.
+ * - COMMAND_ID_CONFLICT (409): a command id was already used for a different command.
+ * - DUPLICATE_COMMAND_ID (400): one batch repeats a command id.
+ */
+export type ApiErrorCode = "INVALID_SESSION" | "COMMAND_ID_CONFLICT" | "DUPLICATE_COMMAND_ID";
+
+/**
+ * Body of every non-2xx HTTP response this server sends. A proxy in front of
+ * it can answer with a body of its own, so clients must not assume JSON.
+ */
+export interface ApiErrorBody {
+  error: string;
+  code?: ApiErrorCode;
 }
 
 /** Server → client push messages over WebSocket. */

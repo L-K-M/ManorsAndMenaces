@@ -139,6 +139,10 @@ export class Store {
     return rows.map((r) => this.toMatch(r));
   }
 
+  playingMatchIds(): string[] {
+    return (this.db.prepare("SELECT id FROM matches WHERE status = 'playing'").all() as { id: string }[]).map((r) => r.id);
+  }
+
   private toMatch(r: Record<string, unknown>): MatchRow {
     return {
       id: r.id as string,
@@ -195,8 +199,13 @@ export class Store {
     );
   }
 
-  hasCommand(matchId: string, commandId: string): boolean {
-    return !!this.db.prepare("SELECT 1 FROM match_events WHERE match_id = ? AND command_id = ?").get(matchId, commandId);
+  /** Already-committed commands among `commandIds`, keyed by id. */
+  commandsByIds(matchId: string, commandIds: string[]): Map<string, GameCommand> {
+    if (commandIds.length === 0) return new Map();
+    const rows = this.db
+      .prepare(`SELECT command_id, payload FROM match_events WHERE match_id = ? AND command_id IN (${commandIds.map(() => "?").join(", ")})`)
+      .all(matchId, ...commandIds) as { command_id: string; payload: string }[];
+    return new Map(rows.map((r) => [r.command_id, JSON.parse(r.payload) as GameCommand]));
   }
 
   // ------------------------------------------------------------------ seats

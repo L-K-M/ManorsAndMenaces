@@ -1,8 +1,13 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { t } from "../i18n.js";
   import type { AiLevel, SeatConfig } from "@manors-menaces/protocol";
-  import { mvpRuleset, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
+  import { BALANCE, mvpRuleset, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
   import { PLAYER_THEMES, emblemPath } from "../theme.js";
+  import { RIVALS, rivalById } from "@manors-menaces/content";
+  import { assignRivals, distinctRivals, freeRival, rivalName, rivalsTakenBy } from "../game/rivals.js";
+  import RivalPicker from "./RivalPicker.svelte";
+  import RivalPortrait from "./RivalPortrait.svelte";
 
   let { onstart, onback }: { onstart: (opts: { seats: SeatConfig[]; ruleset: RulesetConfig; seed?: string }) => void; onback: () => void } = $props();
 
@@ -10,21 +15,66 @@
   let count = $state(3);
   let mode: "standard" | "mvp" = $state("standard");
   let seed = $state("");
+  // Opt-in Quest expiry (§27.2); off by default, as in the spec's base rules.
+  let questExpiry = $state(false);
+  const KINDS = NAMES.map((_, i) => (i === 0 ? "human" : "ai") as "human" | "ai");
+  // Start the line-up at a random rival so new games meet different faces.
+  const initialRivals = assignRivals(KINDS, Math.floor(Math.random() * RIVALS.length));
   let seats = $state(
-    NAMES.map((name, i) => ({ name, kind: (i === 0 ? "human" : "ai") as "human" | "ai", level: "normal" as AiLevel })),
+    NAMES.map((name, i) => {
+      const rival = rivalById(initialRivals[i]);
+      return { name: rival ? rivalName(rival) : name, kind: KINDS[i] ?? "ai", level: "normal" as AiLevel, rivalId: rival?.id };
+    }),
   );
+
+  /** Rivals seated at the other AI seats in play; seats left out do not hold theirs. */
+  function rivalsOtherThan(i: number): (string | undefined)[] {
+    return rivalsTakenBy(seats, i, count);
+  }
+  // A seat brought back by raising the count may hold a rival picked since.
+  $effect(() => {
+    const ids = distinctRivals(seats, count);
+    untrack(() => ids.forEach((id, i) => id !== seats[i]?.rivalId && setRival(i, id)));
+  });
+  /** A name nobody typed: blank, the seat's default, or its rival's name. */
+  function isAutoName(i: number): boolean {
+    const s = seats[i];
+    const rival = rivalById(s?.rivalId);
+    return !!s && (!s.name.trim() || s.name === NAMES[i] || (!!rival && s.name === rivalName(rival)));
+  }
+  function setRival(i: number, id: string | undefined) {
+    const s = seats[i];
+    if (!s) return;
+    const auto = isAutoName(i);
+    s.rivalId = id;
+    const rival = rivalById(id);
+    if (auto && rival) s.name = rivalName(rival);
+  }
+  function kindChanged(i: number) {
+    const s = seats[i];
+    if (!s) return;
+    if (s.kind === "ai") {
+      const others = rivalsOtherThan(i);
+      setRival(i, s.rivalId && !others.includes(s.rivalId) ? s.rivalId : freeRival(others, i));
+    } else if (isAutoName(i)) s.name = NAMES[i] ?? s.name;
+  }
 
   function start() {
     const chosen: SeatConfig[] = seats.slice(0, count).map((s, i) => ({
       playerId: `P${i + 1}`,
       displayName: s.name.trim() || `Player ${i + 1}`,
       kind: s.kind,
-      ...(s.kind === "ai" ? { aiLevel: s.level } : {}),
+      ...(s.kind === "ai" ? { aiLevel: s.level, ...(s.rivalId ? { rivalId: s.rivalId } : {}) } : {}),
       color: i,
     }));
-    const ruleset = mode === "mvp" ? mvpRuleset() : standardRuleset(count);
+    const ruleset: RulesetConfig =
+      mode === "mvp" ? mvpRuleset() : { ...standardRuleset(count), ...(questExpiry ? { questExpiryRounds: BALANCE.questExpiryRounds } : {}) };
     onstart({ seats: chosen, ruleset, ...(seed.trim() ? { seed: seed.trim() } : {}) });
   }
+
+  // With no human seat the computers play the whole game; say so, but allow it
+  // (a watchable demo, and the harness for the all-computer e2e tests).
+  const humanCount = $derived(seats.slice(0, count).filter((s) => s.kind === "human").length);
 </script>
 
 <section class="panel">
@@ -39,10 +89,12 @@
       </div>
       {#each seats.slice(0, count) as seat, i}
         {@const theme = PLAYER_THEMES[i] ?? PLAYER_THEMES[0]!}
+        {@const rival = seat.kind === "ai" ? rivalById(seat.rivalId) : undefined}
         <div class="seat">
-          <svg width="26" height="26" viewBox="-13 -13 26 26" aria-hidden="true"><path d={emblemPath(theme.shape, 9)} fill={theme.color} stroke={theme.dark} stroke-width="2" /></svg>
+          {#if rival}<RivalPortrait portrait={rival.portrait} {theme} size={34} />
+          {:else}<svg width="34" height="26" viewBox="-17 -13 34 26" aria-hidden="true"><path d={emblemPath(theme.shape, 9)} fill={theme.color} stroke={theme.dark} stroke-width="2" /></svg>{/if}
           <input aria-label="Name of player {i + 1}" bind:value={seat.name} maxlength="20" />
-          <select aria-label="Player {i + 1} type" bind:value={seat.kind}>
+          <select aria-label="Player {i + 1} type" bind:value={seat.kind} onchange={() => kindChanged(i)}>
             <option value="human">{t("ui.human")}</option>
             <option value="ai">{t("ui.computer")}</option>
           </select>
@@ -54,21 +106,28 @@
             </select>
           {/if}
         </div>
+        {#if seat.kind === "ai"}
+          <RivalPicker rivalId={seat.rivalId} taken={rivalsOtherThan(i)} label={t("ui.rival_of_player", { n: i + 1 })} onpick={(id) => setRival(i, id)} />
+        {/if}
       {/each}
     </fieldset>
     <fieldset>
       <legend>{t("ui.rules")}</legend>
       <label class="rule"><input type="radio" name="mode" value="standard" bind:group={mode} /> <b>{t("ui.standard")}</b> {t("ui.cards_royal_quests_12_renown", { target: standardRuleset(count).targetRenown })}</label>
-      <label class="rule"><input type="radio" name="mode" value="mvp" bind:group={mode} /> <b>{t("ui.core")}</b> {t("ui.banners_building_and_the_toll")}</label>
+      <label class="rule"><input type="radio" name="mode" value="mvp" bind:group={mode} /> <b>{t("ui.core")}</b> {t("ui.banners_building_and_the_toll", { target: mvpRuleset().targetRenown })}</label>
     </fieldset>
     <details>
       <summary>{t("ui.advanced")}</summary>
       <label>{t("ui.seed_for_reproducible_games")} <input bind:value={seed} placeholder={t("ui.random")} /></label>
+      {#if mode === "standard"}
+        <label class="check"><input type="checkbox" bind:checked={questExpiry} /> {t("ui.quest_expiry_option", { rounds: BALANCE.questExpiryRounds })}</label>
+      {/if}
     </details>
     <div class="row">
       <button type="button" onclick={onback}>{t("ui.back")}</button>
-      <button type="submit" class="primary">{t("ui.begin")}</button>
+      <button type="submit" class="primary" aria-describedby={humanCount === 0 ? "no-humans-note" : undefined}>{t("ui.begin")}</button>
     </div>
+    {#if humanCount === 0}<p class="hint" id="no-humans-note">{t("ui.no_human_seats")}</p>{/if}
   </form>
 </section>
 
@@ -90,12 +149,19 @@
     margin: 0 0 0.8rem;
     display: grid;
     gap: 0.45rem;
+    /* Fieldsets default to min-width: min-content, which pushed the form
+       past the edge of small phones. */
+    min-width: 0;
   }
   .count {
     display: flex;
     gap: 0.4rem;
   }
   .count label {
+    display: grid;
+    place-items: center;
+    min-width: 44px;
+    min-height: 44px;
     border: 2px solid #8a7650;
     border-radius: 8px;
     padding: 0.3rem 0.9rem;
@@ -111,11 +177,16 @@
   }
   .seat {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.4rem;
     align-items: center;
   }
   .seat input {
-    flex: 1;
+    flex: 1 1 9rem;
+    min-width: 0;
+  }
+  .seat select {
+    flex: 1 1 6.5rem;
     min-width: 0;
   }
   .rule {
@@ -123,9 +194,26 @@
     gap: 0.4rem;
     align-items: baseline;
   }
+  .check {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    margin-top: 0.5rem;
+  }
+  .check input {
+    min-height: 0;
+    width: 1.1rem;
+    height: 1.1rem;
+    margin: 0;
+    accent-color: var(--accent);
+  }
   .row {
     display: flex;
     justify-content: space-between;
     margin-top: 0.8rem;
+  }
+  .hint {
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
   }
 </style>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createRng,
+  enumerateCardTargets,
   getHarvestPreview,
   getLegalActions,
   getRenown,
@@ -307,6 +308,42 @@ describe("cards (§18–19)", () => {
     const reversed = [...top].reverse();
     s = act(s, p1, { type: "resolve_prophecy", order: reversed }).state;
     expect(s.cardDeck.slice(0, 3)).toEqual(reversed);
+  });
+  it("Dragon Whisperer chooses which Hoard resource to take", () => {
+    const rs = { ...standardRuleset(2), activeMenaces: ["toll_troll" as const, "young_dragon" as const] };
+    const g = setupGame(rs);
+    let s: GameState = { ...g.state, menaces: { ...g.state.menaces, "menace_young_dragon": { ...g.state.menaces["menace_young_dragon"]!, state: { hoard: { grain: 1, iron: 1 } } } } };
+    s = give(s, g.p1, "dragon_whisperer");
+    const card = s.players[g.p1]?.hand[0] as string;
+    const dest = { kind: "region" as const, regionId: "R2" };
+    // A mixed Hoard offers one take variant per resource type.
+    const forDest = enumerateCardTargets(ctx, s, g.p1, card).filter(
+      (t) => t.effect === "dragon_whisperer" && (t.destination as { regionId: string }).regionId === "R2",
+    );
+    expect(forDest.map((t) => (t as { take?: string }).take).sort()).toEqual(["grain", "iron"]);
+    // The chosen resource is the one taken (p1 already holds 1 iron from setup).
+    const ironBefore = s.players[g.p1]?.resources.iron ?? 0;
+    s = act(s, g.p1, { type: "play_card", cardId: card, target: { effect: "dragon_whisperer", destination: dest, take: "iron" } }).state;
+    expect(s.players[g.p1]?.resources.iron).toBe(ironBefore + 1);
+    expect(s.menaces["menace_young_dragon"]?.state.hoard).toEqual({ grain: 1 });
+    expect(s.menaces["menace_young_dragon"]?.location).toEqual(dest);
+  });
+  it("enumerates Dragon Whisperer without take when the Hoard holds one type", () => {
+    const rs = { ...standardRuleset(2), activeMenaces: ["toll_troll" as const, "young_dragon" as const] };
+    const g = setupGame(rs);
+    let s: GameState = { ...g.state, menaces: { ...g.state.menaces, "menace_young_dragon": { ...g.state.menaces["menace_young_dragon"]!, state: { hoard: { grain: 2 } } } } };
+    s = give(s, g.p1, "dragon_whisperer");
+    const card = s.players[g.p1]?.hand[0] as string;
+    const forDest = enumerateCardTargets(ctx, s, g.p1, card).filter(
+      (t) => t.effect === "dragon_whisperer" && (t.destination as { regionId: string }).regionId === "R2",
+    );
+    expect(forDest).toEqual([{ effect: "dragon_whisperer", destination: { kind: "region", regionId: "R2" } }]);
+    reject(
+      s,
+      g.p1,
+      { type: "play_card", cardId: card, target: { effect: "dragon_whisperer", destination: { kind: "region", regionId: "R2" }, take: "iron" } },
+      "INVALID_CARD_TARGET",
+    );
   });
   it("Fog of Confusion breaks connectivity until the caster's next turn", () => {
     let { s, p1, p2 } = withCards();

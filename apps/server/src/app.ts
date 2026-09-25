@@ -16,8 +16,8 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import { isSubmitCommandsRequest, type ClientMessage, type ServerMessage } from "@manors-menaces/protocol";
-import { redactEvent } from "@manors-menaces/rules";
+import { isSubmitCommandsRequest, type ApiErrorBody, type ClientMessage, type ServerMessage } from "@manors-menaces/protocol";
+import { redactEvent, type GameEvent } from "@manors-menaces/rules";
 import { HttpError, MatchService } from "./service.js";
 import { Store } from "./store.js";
 
@@ -28,7 +28,30 @@ export interface AppOptions {
   aiDelayMs?: number;
   /** Requests per second per client, with a burst of 5× (default 8/s). */
   rateLimitPerSecond?: number;
+  /**
+   * Number of reverse proxies in front of the server whose forwarding headers
+   * identify the client for rate limiting (default 0: use the socket address).
+   */
+  trustProxy?: number;
+  /** WebSocket ping interval; a socket that misses one ping is dropped (default 25 s). */
+  heartbeatMs?: number;
 }
+
+// WebSocket limits. A client sends one small frame per match it opens, so
+// these leave ample room while stopping a single socket from making the
+// server read, redact and send a match view thousands of times a second.
+// Commands travel over HTTP (64 KB body cap), never over the socket: the
+// largest valid ClientMessage is a subscribe with a server-issued match id
+// (`m_` + UUID), 71 bytes.
+const WS_MAX_MESSAGE_BYTES = 4_096;
+const WS_MESSAGES_PER_SECOND = 5;
+const WS_MESSAGE_BURST = 20;
+const WS_MAX_SUBSCRIPTIONS = 10;
+/** RFC 6455 close code for a peer that breaks the server's usage policy. */
+const WS_POLICY_VIOLATION = 1008;
+const MAX_SOCKETS_PER_USER = 5;
+/** Longest address accepted from a forwarding header (a bracketed IPv6 address fits). */
+const MAX_FORWARDED_ADDRESS = 64;
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -41,6 +64,64 @@ const MIME: Record<string, string> = {
   ".map": "application/json",
 };
 
+/** Allows `rate` actions per second on average, and bursts of up to `burst`. */
+class TokenBucket {
+  private tokens: number;
+  lastUsed = Date.now();
+
+  constructor(
+    private readonly rate: number,
+    private readonly burst: number,
+  ) {
+    this.tokens = burst;
+  }
+
+  take(now = Date.now()): boolean {
+    this.tokens = Math.min(this.burst, this.tokens + ((now - this.lastUsed) / 1000) * this.rate);
+    this.lastUsed = now;
+    if (this.tokens < 1) return false;
+    this.tokens -= 1;
+    return true;
+  }
+}
+
+/** An address without its port: `[2001:db8::17]:4711` and `192.0.2.60:4711` both carry one. */
+function withoutPort(value: string): string {
+  if (value.startsWith("[")) return value.slice(1, value.indexOf("]"));
+  const parts = value.split(":");
+  return parts.length === 2 ? (parts[0] as string) : value; // IPv4 with a port; bare IPv6 has more colons
+}
+
+/** Client addresses listed by forwarding headers, nearest proxy last. */
+function forwardedChain(req: IncomingMessage): string[] {
+  const xff = req.headers["x-forwarded-for"];
+  // Some load balancers append the client port, which would give every connection its own bucket.
+  if (xff) return String(xff).split(",").map((a) => withoutPort(a.trim()));
+  const forwarded = req.headers.forwarded;
+  if (!forwarded) return [];
+  // RFC 7239: `for=192.0.2.60;proto=http, for="[2001:db8::17]:4711"`.
+  return String(forwarded)
+    .split(",")
+    .map((element) => {
+      const pair = element.split(";").find((p) => p.trim().toLowerCase().startsWith("for="));
+      return withoutPort((pair?.trim().slice(4) ?? "").replace(/^"|"$/g, ""));
+    });
+}
+
+/**
+ * The address rate limits are keyed on. Behind `trustProxy` proxies it is
+ * the entry `trustProxy` places from the right of the forwarding chain: the
+ * address the outermost trusted proxy saw. Entries further left come from
+ * the client and could be rotated to dodge the limit, so they are ignored.
+ */
+function clientAddress(req: IncomingMessage, trustProxy: number): string {
+  const direct = req.socket.remoteAddress ?? "?";
+  if (trustProxy <= 0) return direct;
+  const chain = forwardedChain(req);
+  const entry = chain[chain.length - trustProxy];
+  return entry && entry.length <= MAX_FORWARDED_ADDRESS ? entry : direct;
+}
+
 export function createApp(opts: AppOptions = {}): { server: Server; service: MatchService; store: Store; close: () => Promise<void> } {
   const store = new Store(opts.dbPath ?? ":memory:");
   const service = new MatchService(store, { aiDelayMs: opts.aiDelayMs ?? 700 });
@@ -48,24 +129,22 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   const webDist = opts.webDist && existsSync(opts.webDist) ? resolve(opts.webDist) : null;
 
   // Simple token-bucket rate limit per client (spec §72 hardening).
-  const buckets = new Map<string, { tokens: number; at: number }>();
+  const buckets = new Map<string, TokenBucket>();
   const rate = opts.rateLimitPerSecond ?? 8;
-  // Keyed by client address (never by an unauthenticated header, which an
-  // attacker could rotate); idle buckets are swept so the map stays bounded.
+  const trustProxy = opts.trustProxy ?? 0;
+  // Keyed by client address (forwarding headers count only when the operator
+  // vouches for the proxies that set them, since a client could rotate them);
+  // idle buckets are swept so the map stays bounded.
   const sweep = setInterval(() => {
     const cutoff = Date.now() - 60_000;
-    for (const [k, b] of buckets) if (b.at < cutoff) buckets.delete(k);
+    for (const [k, b] of buckets) if (b.lastUsed < cutoff) buckets.delete(k);
   }, 30_000);
   sweep.unref();
-  const allow = (key: string): boolean => {
-    const now = Date.now();
-    const b = buckets.get(key) ?? { tokens: rate * 5, at: now };
-    b.tokens = Math.min(rate * 5, b.tokens + ((now - b.at) / 1000) * rate);
-    b.at = now;
-    if (b.tokens < 1) return false;
-    b.tokens -= 1;
-    buckets.set(key, b);
-    return true;
+  const allow = (req: IncomingMessage): boolean => {
+    const key = clientAddress(req, trustProxy);
+    let bucket = buckets.get(key);
+    if (!bucket) buckets.set(key, (bucket = new TokenBucket(rate, rate * 5)));
+    return bucket.take();
   };
 
   const send = (res: ServerResponse, status: number, body: unknown): void => {
@@ -77,6 +156,17 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
       "cache-control": "no-store",
     });
     res.end(JSON.stringify(body));
+  };
+
+  // 204 responses must have no body (RFC 9110 §6.5.1). Node's HTTP layer
+  // discards one silently, but keep the wire and headers explicit.
+  const sendNoContent = (res: ServerResponse): void => {
+    res.writeHead(204, {
+      "access-control-allow-origin": cors,
+      "access-control-allow-headers": "authorization, content-type",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+    });
+    res.end();
   };
 
   const readJson = (req: IncomingMessage): Promise<unknown> =>
@@ -102,6 +192,12 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
       });
       req.on("error", reject);
     });
+
+  const readObject = async (req: IncomingMessage): Promise<Record<string, unknown>> => {
+    const body = await readJson(req);
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new HttpError(400, "request body must be a JSON object");
+    return body as Record<string, unknown>;
+  };
 
   const bearer = (req: IncomingMessage): string | null => {
     const h = req.headers.authorization;
@@ -137,7 +233,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     } catch {
       return send(res, 400, { error: "bad url" });
     }
-    if (req.method === "OPTIONS") return send(res, 204, {});
+    if (req.method === "OPTIONS") return sendNoContent(res);
     if (!url.pathname.startsWith("/api/")) {
       try {
         return serveStatic(req, res);
@@ -146,20 +242,22 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         return send(res, 500, { error: "internal error" });
       }
     }
-    if (!allow(req.socket.remoteAddress ?? "?")) return send(res, 429, { error: "slow down" });
+    // Health checks bypass the limiter: a burst of legitimate traffic must not
+    // make the Docker HEALTHCHECK 429 a healthy container (Dockerfile).
+    if (req.method === "GET" && url.pathname === "/api/health") return send(res, 200, { ok: true });
+    if (!allow(req)) return send(res, 429, { error: "slow down" });
     try {
       const parts = url.pathname.split("/").filter(Boolean); // ["api", ...]
-      if (req.method === "GET" && url.pathname === "/api/health") return send(res, 200, { ok: true });
       if (req.method === "POST" && url.pathname === "/api/guest") {
-        const body = (await readJson(req)) as { displayName?: unknown };
+        const body = await readObject(req);
         return send(res, 200, service.createGuest(body.displayName));
       }
       const user = service.authenticate(bearer(req));
       if (req.method === "GET" && url.pathname === "/api/me") return send(res, 200, { userId: user.id, displayName: user.display_name });
       if (url.pathname === "/api/matches" && req.method === "GET") return send(res, 200, service.listMatches(user));
-      if (url.pathname === "/api/matches" && req.method === "POST") return send(res, 200, service.createMatch(user, (await readJson(req)) as never));
+      if (url.pathname === "/api/matches" && req.method === "POST") return send(res, 200, service.createMatch(user, (await readObject(req)) as never));
       if (url.pathname === "/api/matches/join" && req.method === "POST") {
-        const body = (await readJson(req)) as { inviteCode?: unknown; displayName?: unknown };
+        const body = await readObject(req);
         return send(res, 200, service.joinMatch(user, body.inviteCode, body.displayName));
       }
       if (parts[1] === "matches" && parts[2]) {
@@ -178,27 +276,47 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
       }
       throw new HttpError(404, "not found");
     } catch (e) {
-      if (e instanceof HttpError) return send(res, e.status, { error: e.message });
+      if (e instanceof HttpError) return send(res, e.status, { error: e.message, ...(e.code ? { code: e.code } : {}) } satisfies ApiErrorBody);
       console.error(e);
       return send(res, 500, { error: "internal error" });
     }
   });
 
   // ------------------------------------------------------------------ WebSocket push
-  const wss = new WebSocketServer({ noServer: true, maxPayload: 16_000 });
-  const subs = new Map<WebSocket, { userId: string; matches: Set<string> }>();
+  const wss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_MESSAGE_BYTES });
+  interface Subscriber {
+    userId: string;
+    matches: Set<string>;
+    messages: TokenBucket;
+    /** Cleared on every ping and set again by the pong. */
+    alive: boolean;
+  }
+  const subs = new Map<WebSocket, Subscriber>();
   service.isConnected = (userId) => [...subs.values()].some((s) => s.userId === userId);
   // Tell other members when someone connects or disconnects.
   let closing = false;
   const presenceChanged = (userId: string): void => {
     if (closing) return; // sockets close after the database during shutdown
     try {
-      for (const m of service.listMatchIdsForUser(userId)) for (const [ws, sub] of subs) if (sub.matches.has(m)) pushTo(ws, sub.userId, m, []);
+      for (const m of service.listMatchIdsForUser(userId)) broadcast(m, []);
     } catch (e) {
       console.error(e);
     }
   };
-  const MAX_SOCKETS_PER_USER = 5;
+  // Heartbeat: a half-open connection (say, a phone that lost its network)
+  // never fires "close", so it would look online and hold one of the user's
+  // socket slots. Drop every socket that did not answer the previous ping.
+  const heartbeat = setInterval(() => {
+    for (const [ws, sub] of subs) {
+      if (!sub.alive) {
+        ws.terminate(); // its "close" handler updates presence
+        continue;
+      }
+      sub.alive = false;
+      ws.ping();
+    }
+  }, opts.heartbeatMs ?? 25_000);
+  heartbeat.unref();
   server.on("upgrade", (req, socket, head) => {
     let url: URL;
     try {
@@ -206,7 +324,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     } catch {
       return socket.destroy();
     }
-    if (url.pathname !== "/api/ws" || !allow(req.socket.remoteAddress ?? "?")) return socket.destroy();
+    if (url.pathname !== "/api/ws" || !allow(req)) return socket.destroy();
     let user;
     try {
       user = service.authenticate(url.searchParams.get("token"));
@@ -219,11 +337,18 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
       return socket.destroy();
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
-      subs.set(ws, { userId: user.id, matches: new Set() });
+      const sub: Subscriber = { userId: user.id, matches: new Set(), messages: new TokenBucket(WS_MESSAGES_PER_SECOND, WS_MESSAGE_BURST), alive: true };
+      subs.set(ws, sub);
       presenceChanged(user.id);
       const hello: ServerMessage = { type: "hello", userId: user.id };
       ws.send(JSON.stringify(hello));
+      ws.on("pong", () => (sub.alive = true));
+      // ws closes the socket itself on protocol errors (1009 for an oversized
+      // frame); without a listener the error would also be an uncaught exception.
+      ws.on("error", () => {});
       ws.on("message", (raw) => {
+        if (ws.readyState !== ws.OPEN) return;
+        if (!sub.messages.take()) return ws.close(WS_POLICY_VIOLATION, "too many messages");
         let msg: ClientMessage;
         try {
           msg = JSON.parse(String(raw)) as ClientMessage;
@@ -231,11 +356,21 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
           return;
         }
         if (!msg || typeof msg !== "object" || Array.isArray(msg)) return;
-        const sub = subs.get(ws);
-        if (!sub) return;
-        if (msg.type === "subscribe" && typeof msg.matchId === "string" && service.memberPlayerId(msg.matchId, sub.userId)) {
+        if (msg.type === "subscribe" && typeof msg.matchId === "string") {
+          // Repeats are ignored: the socket already receives every update.
+          if (sub.matches.has(msg.matchId) || sub.matches.size >= WS_MAX_SUBSCRIPTIONS) return;
+          let member: string | null;
+          try {
+            member = service.memberPlayerId(msg.matchId, sub.userId);
+          } catch (e) {
+            // main.ts exits on uncaught exceptions: a failed lookup must not take the server down.
+            console.error(e);
+            return;
+          }
+          if (!member) return;
           sub.matches.add(msg.matchId);
-          pushTo(ws, sub.userId, msg.matchId, []);
+          const update = updateFor(sub.userId, msg.matchId, []);
+          if (update) ws.send(update);
         } else if (msg.type === "unsubscribe") sub.matches.delete(msg.matchId);
         else if (msg.type === "ping") ws.send(JSON.stringify({ type: "hello", userId: sub.userId } satisfies ServerMessage));
       });
@@ -246,20 +381,31 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     });
   });
 
-  const pushTo = (ws: WebSocket, userId: string, matchId: string, events: Parameters<typeof redactEvent>[0][]): void => {
+  /** The serialised update for one member, or null if they are not a member any more. */
+  const updateFor = (userId: string, matchId: string, events: GameEvent[]): string | null => {
     try {
       const user = { id: userId, display_name: "", token_hash: "", created_at: "" };
       const match = service.view(matchId, user);
       const viewer = match.youAre;
       const msg: ServerMessage = { type: "match_update", match, events: events.map((e) => redactEvent(e, viewer)) };
-      ws.send(JSON.stringify(msg));
+      return JSON.stringify(msg);
     } catch {
-      // Not a member any more, or the socket closed.
+      return null;
     }
   };
-  service.onMatchUpdate((matchId, events) => {
-    for (const [ws, sub] of subs) if (sub.matches.has(matchId)) pushTo(ws, sub.userId, matchId, events);
-  });
+  /** Pushes an update to every subscribed socket, building each member's view once. */
+  const broadcast = (matchId: string, events: GameEvent[]): void => {
+    const perUser = new Map<string, string | null>();
+    for (const [ws, sub] of subs) {
+      if (!sub.matches.has(matchId)) continue;
+      if (!perUser.has(sub.userId)) perUser.set(sub.userId, updateFor(sub.userId, matchId, events));
+      const update = perUser.get(sub.userId);
+      if (update) ws.send(update);
+    }
+  };
+  service.onMatchUpdate(broadcast);
+  // AI turns run on in-memory timers: restart the ones a restart dropped.
+  service.resumeAll();
 
   return {
     server,
@@ -269,6 +415,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
       new Promise((done) => {
         closing = true;
         clearInterval(sweep);
+        clearInterval(heartbeat);
         service.shutdown();
         for (const ws of subs.keys()) ws.terminate();
         wss.close();

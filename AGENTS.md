@@ -13,22 +13,23 @@
 |---|---|
 | Install | `pnpm install` |
 | Web dev server | `pnpm dev` (http://localhost:5173) |
-| Online server (dev) | `pnpm server` (http://localhost:8787; `DB_PATH`, `PORT`, `WEB_DIST`, `CORS_ORIGIN`, `AI_DELAY_MS`) |
+| Online server (dev) | `pnpm server` (http://localhost:8787; `DB_PATH`, `PORT`, `WEB_DIST`, `CORS_ORIGIN`, `AI_DELAY_MS`, `TRUST_PROXY` = reverse proxies in front whose X-Forwarded-For is trusted, default 0; see `apps/server/src/main.ts`) |
 | Desktop dev | `pnpm tauri:dev` |
 | Typecheck everything | `pnpm typecheck` |
 | Lint | `pnpm lint` |
 | Unit + integration + server tests | `pnpm test` |
 | UI end-to-end tests | `pnpm test:e2e` |
-| CI-equivalent check | `pnpm check` |
+| CI-equivalent check (no e2e) | `pnpm check` (typecheck, lint, test, map:check, build:check) |
+| Production build + server smoke test | `pnpm build:check` |
 | Balance simulation | `pnpm simulate --games 40 --players 3 --rules standard` |
-| Regenerate the map | `pnpm map:generate` (deterministic; commit the result) |
+| Regenerate the map | `pnpm map:generate` (deterministic; commit the result; `pnpm map:check` verifies it) |
 | Build all targets | `scripts/build.sh [web] [server] [desktop] [android]` → `dist/` |
 | Release | `scripts/release.sh X.Y.Z [--push]` |
 | Installers without a release | `gh workflow run build.yml` → macOS `.dmg`, Linux `.deb`/`.AppImage`, Android `.apk` as run artifacts |
 
 ## Architecture rules (from the spec)
 
-- `packages/rules` must not import Svelte, DOM, SVG, Tauri or server code (§33, §103). All randomness goes through the match RNG (§30); ESLint forbids `Math.random` outside UI/tools.
+- `packages/rules` must not import Svelte, DOM, SVG, Tauri or server code (§33, §103); `eslint.config.js` enforces these package and app import boundaries. All randomness goes through the match RNG (§30); ESLint forbids `Math.random` outside UI/tools.
 - Legality lives only in the rules engine and its selectors; UIs and the AI ask `getLegalActions`/selectors and send commands (§103).
 - State is plain JSON (§106). The engine clones and never mutates its input.
 - Content is data; card/quest behaviour is typed code keyed by id (§39–41). User-facing text goes through `t()` with keys in `packages/content/src/i18n/en.ts` (§71).
@@ -43,7 +44,11 @@
 
 ## Icons
 
-`media-sources/icon.svg` is the master. Regenerate all app icons with `pnpm tauri icon media-sources/icon.svg -o src-tauri/icons`; the derived icons are committed.
+`media-sources/icon.svg` is the master. Regenerate all app icons with `pnpm tauri icon media-sources/icon.svg -o src-tauri/icons` and the web app manifest icons (including the maskable and Apple touch variants) with `node tools/generate-pwa-icons.mjs`; the derived icons are committed.
+
+## Offline web app
+
+The production web build emits `sw.js` (from `apps/web/pwa/sw.template.js`) with a precache manifest of every built file and a cache name hashed from their contents, so each release installs as a new service worker. It registers only in production web builds, never in the dev server or Tauri, and never intercepts `/api/` requests or the WebSocket.
 
 <!-- shared-rules:start -->
 

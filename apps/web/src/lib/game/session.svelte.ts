@@ -2,36 +2,46 @@
 // of undoable actions (§32.1), UI-facing log/feedback, AI scheduling and the
 // hot-seat privacy curtain. Rules decisions are delegated to the engine.
 
-import { chooseAction } from "@manors-menaces/ai";
 import { SAVE_SCHEMA_VERSION, type SaveFile, type SeatConfig } from "@manors-menaces/protocol";
 import {
   RULESET_VERSION,
   UNDO_SAFE_COMMANDS,
-  createRng,
   seedRng,
   type CommandIntent,
   type GameCommand,
   type GameEvent,
-  type GameRng,
   type GameState,
   type PlayerId,
+  type RngState,
   type RulesEngine,
   type RulesetConfig,
 } from "@manors-menaces/rules";
 import { playForEvents, play } from "../audio/sfx.js";
 import { t } from "../i18n.js";
 import { platform } from "../platform/adapter.js";
-import { aiDelayMs, settings } from "../stores/settings.svelte.js";
+import { animationScale, settings } from "../stores/settings.svelte.js";
+import { AiClient } from "./aiClient.js";
+import { aiPaceDelayMs, aiStepPace, resolveAiStep, type AiStep } from "./aiStep.js";
 import { engineFor, mapFor } from "./engine.js";
-import { formatEvents, type LogEntry } from "./log.js";
+import { EventBus } from "./eventBus.js";
+import { formatEvents, noticeEntry, rebuildLog, type LogEntry } from "./log.js";
+import { initialView, nextView, privacyMode, revealView, type PrivacyMode, type PrivacyView } from "./privacy.js";
+import { autosavesToPrune, describeSave, exportFileName, manualSaveId, newAutosaveId, replayPending, saveLabel } from "./saves.js";
 import { recordGame } from "./telemetry.js";
 import { devlog } from "../devlog.js";
 
-export interface Floater {
-  id: number;
-  playerId: PlayerId;
-  text: string;
-  resource: string;
+/** One batch of engine events, published once on `GameSession.events`. */
+export interface SessionEvents {
+  events: GameEvent[];
+  state: GameState;
+  /** A buffered local action, shown before it is submitted (it may be undone). */
+  provisional: boolean;
+  /**
+   * The batch was sent by this client for one of its human seats. Only its
+   * buffered commands were published before, provisionally; the locking
+   * command that ended it was not, so subscribers must still show it.
+   */
+  own: boolean;
 }
 
 /** Transport for submitting command batches (local engine or online server). */
@@ -50,10 +60,18 @@ export interface NewGameOptions {
   seed?: string;
   mapId?: string;
   matchId?: string;
+  /** Keep an autosave of this match (default true; the tutorial opts out). */
+  autosave?: boolean;
 }
 
-let floaterId = 1;
+/** Coalesces bursts of changes (an AI turn, several builds) into one write. */
+const AUTOSAVE_DELAY_MS = 250;
 let commandSeq = 0;
+
+/** How long a stuck AI seat waits before trying again (as on the server). */
+const AI_STUCK_RETRY_MS = 5000;
+/** How long an AI fallback notice stays up at least, so players can read it. */
+const AI_NOTICE_MIN_MS = 4000;
 
 /** Who must act next: reaction/prophecy decisions come before the active player. */
 export function currentActor(state: GameState): PlayerId | null {
@@ -70,28 +88,50 @@ export class GameSession {
   readonly initialState: GameState;
   readonly transport: Transport;
 
-  authoritative: GameState = $state() as GameState;
-  draft: GameState = $state() as GameState;
-  buffered: GameCommand[] = $state([]);
-  log: LogEntry[] = $state([]);
-  floaters: Floater[] = $state([]);
+  // Game state is immutable plain data (§106): the engine returns a new
+  // object for every change and nothing here mutates one in place. `$state.raw`
+  // tracks reassignment only, so selectors and the AI read plain objects
+  // instead of deep proxies (15 to 130 times faster) and the state can be
+  // posted to the AI worker as is. Always replace these, never mutate them.
+  authoritative: GameState = $state.raw() as GameState;
+  draft: GameState = $state.raw() as GameState;
+  buffered: GameCommand[] = $state.raw([]);
+  log: LogEntry[] = $state.raw([]);
   error: string | null = $state(null);
   busy = $state(false);
-  /** Player whose private information (hand) the UI shows. */
+  /** Player whose private information (hand) the UI shows; see privacy.ts. */
   viewerId: PlayerId | null = $state(null);
   /** Hot-seat: waiting for this player to take the device. */
   curtainFor: PlayerId | null = $state(null);
   /** Online: which seats currently have a live connection. */
-  presence: Record<PlayerId, boolean> = $state({});
+  presence: Record<PlayerId, boolean> = $state.raw({});
   /** Online: this client's seat. */
   readonly onlinePlayerId: PlayerId | null;
+  /** The last autosave failed (e.g. storage blocked); the UI offers Export instead. */
+  autosaveFailed = $state(false);
 
   private commandHistory: GameCommand[] = [];
   private undoStack: { state: GameState; logIds: number[] }[] = [];
   private aiTimer: ReturnType<typeof setTimeout> | null = null;
-  private aiRng: GameRng;
+  private readonly ai = new AiClient();
+  /** The AI RNG, carried from one decision to the next (§30). */
+  private aiRngState: RngState;
+  /** An AI decision is being made or paced; at most one runs at a time. */
+  private aiInFlight = false;
+  /** The last AI problem reported, so repeats in the same turn stay quiet. */
+  private aiProblemKey = "";
+  /** The AI problem shown as `error`, if any (the Chronicle keeps the record). */
+  private aiNotice: { text: string; stuck: boolean; shownAt: number } | null = null;
   private destroyed = false;
-  private listeners = new Set<(events: GameEvent[], state: GameState) => void>();
+  /** Every batch of events, for animation and feedback layers. */
+  readonly events = new EventBus<SessionEvents>();
+  private readonly autosaveEnabled: boolean;
+  /** This line of play's autosave row (see saves.ts). */
+  private readonly autosaveSlot: string;
+  private autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Autosave writes run one after another, so an older snapshot never lands last. */
+  private autosaveQueue: Promise<void> = Promise.resolve();
+  private autosavesPruned = false;
 
   constructor(opts: {
     mapId: string;
@@ -99,8 +139,17 @@ export class GameSession {
     initialState: GameState;
     state: GameState;
     history?: GameCommand[];
+    /** The Chronicle so far, e.g. rebuilt from a save's history. */
+    log?: LogEntry[];
+    /** Undoable actions of the turn in progress, from a save (see SaveFile). */
+    pending?: GameCommand[];
     transport?: Transport;
     onlinePlayerId?: PlayerId | null;
+    autosave?: boolean;
+    /** Keep writing this autosave slot (resuming it); default: a new slot. */
+    autosaveSlot?: string;
+    /** Opened from a stored save: nothing to autosave until play changes it. */
+    fromSave?: boolean;
   }) {
     this.engine = engineFor(opts.mapId);
     this.mapId = opts.mapId;
@@ -109,11 +158,23 @@ export class GameSession {
     this.commandHistory = [...(opts.history ?? [])];
     this.onlinePlayerId = opts.onlinePlayerId ?? null;
     this.transport = opts.transport ?? this.localTransport();
+    this.autosaveEnabled = this.transport.kind === "local" && opts.autosave !== false;
+    this.autosaveSlot = opts.autosaveSlot ?? newAutosaveId(opts.state.matchId);
     this.authoritative = opts.state;
     this.draft = opts.state;
-    this.aiRng = createRng(seedRng(`${opts.state.matchId}:ai:${opts.state.revision}`));
-    this.viewerId = this.onlinePlayerId ?? this.firstHuman();
+    this.log = (opts.log ?? []).slice(-300);
+    for (const step of replayPending(this.engine, opts.state, opts.pending ?? [])) {
+      this.undoStack.push({ state: step.before, logIds: this.appendLog(step.events, step.after, true) });
+      // `buffered` is $state.raw: replace it, never mutate it.
+      this.buffered = [...this.buffered, step.command];
+      this.draft = step.after;
+    }
+    this.aiRngState = seedRng(`${opts.state.matchId}:ai:${opts.state.revision}`);
+    this.viewerId = this.onlinePlayerId ?? initialView(this.privacyMode(), this.firstHuman()).viewerId;
     this.afterStateChange([]);
+    // Writing an unchanged save back would let merely opening an older
+    // position replace newer progress; the first change writes it instead.
+    if (opts.fromSave) this.cancelScheduledAutosave();
   }
 
   static create(opts: NewGameOptions): GameSession {
@@ -127,11 +188,28 @@ export class GameSession {
       ruleset: opts.ruleset,
       players: opts.seats.map((s) => ({ id: s.playerId, displayName: s.displayName })),
     });
-    return new GameSession({ mapId, seats: opts.seats, initialState, state: initialState });
+    return new GameSession({ mapId, seats: opts.seats, initialState, state: initialState, ...(opts.autosave === false ? { autosave: false } : {}) });
   }
 
-  static fromSave(save: SaveFile): GameSession {
-    return new GameSession({ mapId: save.mapId, seats: save.seats, initialState: save.initialState, state: save.state, history: save.commandHistory });
+  /**
+   * Open a stored save. Pass `autosaveSlot` when resuming an autosave so play
+   * continues in that row; otherwise the game autosaves to a new row.
+   */
+  static fromSave(save: SaveFile, opts: { autosave?: boolean; autosaveSlot?: string } = {}): GameSession {
+    // The Chronicle is not saved; rebuild it from the history. It goes in
+    // before the replayed pending actions so entry ids stay in log order.
+    const { entries } = rebuildLog(engineFor(save.mapId), mapFor(save.mapId), save.initialState, save.commandHistory, save.state);
+    return new GameSession({
+      mapId: save.mapId,
+      seats: save.seats,
+      initialState: save.initialState,
+      state: save.state,
+      history: save.commandHistory,
+      log: entries,
+      pending: save.pendingCommands ?? [],
+      fromSave: true,
+      ...opts,
+    });
   }
 
   get map() {
@@ -154,6 +232,16 @@ export class GameSession {
     return this.seats.find((s) => s.kind === "human")?.playerId ?? null;
   }
 
+  /** Local games only: read each time, as the curtain setting can change mid-game. */
+  private privacyMode(): PrivacyMode {
+    return privacyMode(this.seats.filter((s) => s.kind === "human").length, settings.privacyCurtain);
+  }
+
+  private setView(view: PrivacyView): void {
+    this.viewerId = view.viewerId;
+    this.curtainFor = view.curtainFor;
+  }
+
   /** The player this client may act for right now, if any. */
   get localActor(): PlayerId | null {
     const actor = currentActor(this.draft);
@@ -161,11 +249,6 @@ export class GameSession {
     if (this.transport.kind === "online") return actor === this.onlinePlayerId ? actor : null;
     if (!this.isHuman(actor) || this.curtainFor) return null;
     return actor;
-  }
-
-  onEvents(fn: (events: GameEvent[], state: GameState) => void): () => void {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
   }
 
   // ------------------------------------------------------------------ actions
@@ -200,7 +283,8 @@ export class GameSession {
       this.undoStack.push({ state: this.draft, logIds });
       this.buffered = [...this.buffered, command];
       this.draft = r.newState;
-      this.notify(r.events, r.newState);
+      this.events.emit({ events: r.events, state: r.newState, provisional: true, own: true });
+      this.scheduleAutosave();
       return true;
     }
     // Locking commands are logged from the authoritative result.
@@ -221,6 +305,7 @@ export class GameSession {
     const drop = new Set(last.logIds);
     this.log = this.log.filter((e) => !drop.has(e.id));
     this.error = null;
+    this.scheduleAutosave();
   }
 
   private inFlight = 0;
@@ -258,7 +343,8 @@ export class GameSession {
       this.draft = this.authoritative;
       this.buffered = [];
       this.undoStack = [];
-      this.notify(res.events, res.state);
+      const own = this.transport.kind === "online" || this.isHuman(batch[0]?.playerId);
+      this.events.emit({ events: res.events, state: res.state, provisional: false, own });
       this.afterStateChange(res.events);
       return true;
     } finally {
@@ -283,8 +369,8 @@ export class GameSession {
     if (!ownEcho) {
       this.appendLog(events, state);
       playForEvents(events);
+      this.events.emit({ events, state, provisional: false, own: false });
     }
-    this.notify(events, state);
     this.afterStateChange(events);
   }
 
@@ -297,23 +383,10 @@ export class GameSession {
     play("error");
   }
 
-  private notify(events: GameEvent[], state: GameState): void {
-    for (const fn of this.listeners) fn(events, state);
-  }
-
   /** Append formatted events; returns the ids of the new entries. */
   private appendLog(events: GameEvent[], state: GameState, provisional = false): number[] {
     const entries = formatEvents(events, state, this.map).map((e) => (provisional ? { ...e, provisional } : e));
     if (entries.length) this.log = [...this.log, ...entries].slice(-300);
-    for (const e of events) {
-      if (e.type === "resource_gained" && (e.reason === "harvest" || e.reason === "starting_resources")) {
-        const f: Floater = { id: floaterId++, playerId: e.playerId, text: `+${e.amount}`, resource: e.resource };
-        this.floaters = [...this.floaters, f];
-        setTimeout(() => {
-          if (!this.destroyed) this.floaters = this.floaters.filter((x) => x.id !== f.id);
-        }, 1600);
-      }
-    }
     return entries.map((e) => e.id);
   }
 
@@ -324,60 +397,123 @@ export class GameSession {
     const state = this.authoritative;
     const actor = currentActor(state);
     if (this.transport.kind === "local") {
-      void this.autosave();
+      // A game that ends here has nothing to continue: drop its autosave so
+      // Continue never reopens a Victory screen. A finished save opened from
+      // the Load list is left alone, so its results can be viewed again.
+      if (events.some((e) => e.type === "game_won")) this.discardAutosave();
+      else if (state.status !== "finished") this.scheduleAutosave();
       if (events.some((e) => e.type === "game_won")) {
         recordGame(this.ctx, state, Object.fromEntries(this.seats.map((s) => [s.playerId, s.kind])));
       }
       // Hot-seat privacy curtain between different humans (§56.1).
-      const humans = this.seats.filter((s) => s.kind === "human").length;
-      if (actor && this.isHuman(actor) && actor !== this.viewerId) {
-        if (settings.privacyCurtain && humans >= 2) this.curtainFor = actor;
-        else this.viewerId = actor;
-      }
+      const view = { viewerId: this.viewerId, curtainFor: this.curtainFor };
+      this.setView(nextView(this.privacyMode(), view, actor, this.isHuman(actor), state.activePlayerId));
       if (actor && !this.isHuman(actor)) this.scheduleAi();
+      else if (actor) this.expireAiNotice();
     } else if (events.some((e) => e.type === "turn_started" && e.playerId === this.onlinePlayerId)) {
       void platform.notify(t("app.title"), t("log.turn", { name: state.players[this.onlinePlayerId ?? ""]?.displayName ?? "" }));
     }
   }
 
   revealForCurtain(): void {
-    if (!this.curtainFor) return;
-    this.viewerId = this.curtainFor;
-    this.curtainFor = null;
+    this.setView(revealView({ viewerId: this.viewerId, curtainFor: this.curtainFor }));
   }
 
-  private scheduleAi(): void {
-    if (this.aiTimer) return;
+  private scheduleAi(delayMs = 0): void {
+    if (this.aiTimer || this.aiInFlight) return;
+    // Deferred so the batch that led here has fully settled (busy is clear).
     this.aiTimer = setTimeout(() => {
       this.aiTimer = null;
       void this.runAiStep();
-    }, aiDelayMs());
+    }, delayMs);
   }
 
   private async runAiStep(): Promise<void> {
-    if (this.destroyed || this.busy) return;
+    if (this.destroyed || this.busy || this.aiInFlight) return;
     const state = this.authoritative;
     const actor = currentActor(state);
     if (!actor || this.isHuman(actor)) return;
-    const seat = this.seat(actor);
-    let intent = chooseAction(this.engine, state, actor, { level: seat?.aiLevel ?? "normal", rng: this.aiRng });
-    if (!intent) return;
-    devlog("ai", `${seat?.displayName ?? actor} (${seat?.aiLevel ?? "normal"}) chose ${intent.type}`, intent);
-    let command = this.envelope(actor, intent);
-    let r = this.engine.applyCommand(state, command);
-    if (!r.accepted) {
-      // Never let a bad AI choice stall the game: fall back to advancing.
-      intent = state.phase === "main" ? { type: "end_main_phase" } : state.phase === "banner_assignment" ? { type: "assign_banners", assignments: {} } : { type: "end_turn" };
-      command = this.envelope(actor, intent);
-      r = this.engine.applyCommand(state, command);
-      if (!r.accepted) return;
+    this.aiInFlight = true;
+    let step: AiStep | null;
+    try {
+      step = await this.prepareAiStep(state, actor);
+    } finally {
+      this.aiInFlight = false;
     }
-    this.draft = r.newState as GameState;
-    await this.flush([command]);
+    if (this.destroyed) return;
+    // The game moved on while the AI was thinking (e.g. a debug command).
+    if (this.authoritative !== state || this.busy) return this.scheduleAi();
+    if (!step) return this.scheduleAi(AI_STUCK_RETRY_MS);
+    if (!step.fellBack || this.aiNotice?.stuck) this.expireAiNotice();
+    this.draft = step.newState;
+    await this.flush([step.command]);
+  }
+
+  /**
+   * Decide off the UI thread, then hold the move for the beat it deserves:
+   * steps that change nothing visible go straight through, visible ones wait
+   * (counting the time spent thinking) so players can follow them. Null if
+   * the seat is stuck or the game moved on meanwhile.
+   */
+  private async prepareAiStep(state: GameState, actor: PlayerId): Promise<AiStep | null> {
+    const seat = this.seat(actor);
+    const level = seat?.aiLevel ?? "normal";
+    const started = performance.now();
+    let intent: CommandIntent | null = null;
+    let failure: unknown = null;
+    try {
+      const decision = await this.ai.choose({ mapId: this.mapId, state, playerId: actor, level, rngState: this.aiRngState });
+      this.aiRngState = decision.rngState;
+      intent = decision.intent;
+    } catch (err) {
+      failure = err;
+    }
+    if (this.destroyed || this.authoritative !== state) return null;
+
+    // Never let a failed or bad AI choice stall the game: fall back to the
+    // same progression moves as the server, and say so.
+    const step = resolveAiStep(this.engine, state, actor, intent, (i) => this.envelope(actor, i));
+    if (!step || step.fellBack) this.reportAiProblem(state, actor, step, failure ?? intent);
+    if (!step) return null;
+    devlog("ai", `${seat?.displayName ?? actor} (${level}) chose ${step.command.type}`, step.command);
+
+    const wait = aiPaceDelayMs(aiStepPace(step), animationScale()) - (performance.now() - started);
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    return step;
+  }
+
+  /** Show an AI failure as an error and in the Chronicle, once per seat and turn. */
+  private reportAiProblem(state: GameState, actor: PlayerId, step: AiStep | null, cause: unknown): void {
+    console.error(`AI seat ${actor} ${step ? `fell back to ${step.command.type}` : "has no legal move"} at revision ${state.revision}`, cause);
+    const key = `${state.turnNumber}:${actor}:${step ? "fallback" : "stuck"}`;
+    if (this.aiProblemKey === key) return;
+    this.aiProblemKey = key;
+    const name = state.players[actor]?.displayName ?? actor;
+    const text = t(step ? "error.AI_FALLBACK" : "error.AI_STUCK", { name });
+    this.aiNotice = { text, stuck: !step, shownAt: performance.now() };
+    this.error = text;
+    this.log = [...this.log, noticeEntry(text, actor)].slice(-300);
+  }
+
+  /**
+   * Take down the AI notice once play has moved on: a stuck notice as soon as
+   * the seat moves, a fallback notice once it has been up long enough to read.
+   * Otherwise the human's next action clears it, like any error.
+   */
+  private expireAiNotice(): void {
+    const notice = this.aiNotice;
+    if (!notice) return;
+    if (!notice.stuck && performance.now() - notice.shownAt < AI_NOTICE_MIN_MS) return;
+    this.aiNotice = null;
+    if (this.error === notice.text) this.error = null;
   }
 
   // ------------------------------------------------------------------ persistence
 
+  /**
+   * A snapshot of exactly what is on screen: the committed state plus this
+   * turn's undoable actions, which loading re-applies (still undoable).
+   */
   toSaveFile(): SaveFile {
     return {
       schemaVersion: SAVE_SCHEMA_VERSION,
@@ -387,7 +523,9 @@ export class GameSession {
       seats: this.seats,
       initialState: this.initialState,
       state: this.authoritative,
-      commandHistory: this.commandHistory,
+      // Copied: the live history grows in place as batches commit.
+      commandHistory: [...this.commandHistory],
+      ...(this.buffered.length ? { pendingCommands: [...this.buffered] } : {}),
     };
   }
 
@@ -395,18 +533,82 @@ export class GameSession {
     return this.commandHistory;
   }
 
-  private async autosave(): Promise<void> {
-    if (this.transport.kind !== "local") return;
-    try {
-      await platform.save("autosave", t("app.title"), this.toSaveFile());
-    } catch {
-      // Saving is best-effort (private browsing may block IndexedDB).
+  /** Store a manual save. Rejects if it could not be stored. */
+  async save(): Promise<void> {
+    const data = this.toSaveFile();
+    await platform.save(manualSaveId(data), saveLabel(describeSave(data)), data);
+    // Continue should resume at least as far as the newest manual save.
+    await this.flushAutosave();
+  }
+
+  /** Export the save as a file. Resolves false if the player cancelled. */
+  exportSave(): Promise<boolean> {
+    const data = this.toSaveFile();
+    return platform.exportFile(exportFileName(data), JSON.stringify(data, null, 2));
+  }
+
+  private scheduleAutosave(): void {
+    if (!this.autosaveEnabled || this.destroyed) return;
+    if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
+    this.autosaveTimer = setTimeout(() => void this.flushAutosave(), AUTOSAVE_DELAY_MS);
+  }
+
+  /**
+   * Write a scheduled autosave now (leaving the game, page hidden), or retry
+   * one that failed. Resolves when every queued autosave write has settled;
+   * `autosaveFailed` then tells whether the game is stored.
+   */
+  flushAutosave(): Promise<void> {
+    const retry = this.autosaveFailed && this.authoritative.status !== "finished";
+    if (this.autosaveTimer || retry) {
+      this.cancelScheduledAutosave();
+      const data = this.toSaveFile();
+      this.enqueueAutosave(async () => {
+        await platform.save(this.autosaveSlot, saveLabel(describeSave(data)), data);
+        // Pruning is housekeeping: the game itself is stored at this point.
+        if (!this.autosavesPruned) await this.pruneAutosaves().catch((e: unknown) => console.warn("Pruning autosaves failed", e));
+      });
     }
+    return this.autosaveQueue;
+  }
+
+  private cancelScheduledAutosave(): void {
+    if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
+    this.autosaveTimer = null;
+  }
+
+  private discardAutosave(): void {
+    if (!this.autosaveEnabled) return;
+    this.cancelScheduledAutosave();
+    const id = this.autosaveSlot;
+    this.enqueueAutosave(() => platform.remove(id));
+  }
+
+  /** Autosaves are bounded: once per session, delete all but the newest (and this game's). */
+  private async pruneAutosaves(): Promise<void> {
+    this.autosavesPruned = true;
+    for (const id of autosavesToPrune(await platform.listSaves(), this.autosaveSlot)) await platform.remove(id);
+  }
+
+  private enqueueAutosave(write: () => Promise<void>): void {
+    this.autosaveQueue = this.autosaveQueue.then(write).then(
+      () => {
+        this.autosaveFailed = false;
+      },
+      (e: unknown) => {
+        // Not fatal to play (private browsing may block IndexedDB), but never
+        // silent: the game menu warns and offers Export instead.
+        this.autosaveFailed = true;
+        console.warn("Autosave failed", e);
+      },
+    );
   }
 
   destroy(): void {
+    void this.flushAutosave();
     this.destroyed = true;
     if (this.aiTimer) clearTimeout(this.aiTimer);
+    this.ai.dispose();
     this.transport.close?.();
   }
 

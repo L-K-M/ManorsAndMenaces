@@ -11,6 +11,8 @@ export interface Settings {
   music: boolean;
   privacyCurtain: boolean;
   showRegionNames: boolean;
+  /** Named AI rivals remark on the game in speech bubbles and the Chronicle. */
+  rivalChatter: boolean;
 }
 
 const KEY = "mm.settings.v1";
@@ -24,6 +26,7 @@ const defaults = (): Settings => ({
   music: false,
   privacyCurtain: true,
   showRegionNames: true,
+  rivalChatter: true,
 });
 
 function load(): Settings {
@@ -50,10 +53,4 @@ export function saveSettings(): void {
 export function animationScale(): number {
   if (settings.reducedMotion || settings.animationSpeed === "off") return 0;
   return settings.animationSpeed === "fast" ? 0.45 : 1;
-}
-
-/** Delay between AI actions, scaled with animation speed. */
-export function aiDelayMs(): number {
-  const s = animationScale();
-  return s === 0 ? 120 : Math.round(550 * s);
 }

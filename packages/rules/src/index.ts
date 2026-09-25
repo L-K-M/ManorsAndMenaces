@@ -13,5 +13,5 @@ export * from "./legal.js";
 export * from "./views.js";
 export * from "./hash.js";
 export { createRulesEngine, type ApplyResult, type RulesEngine } from "./engine.js";
-export { validateCardTarget } from "./cards.js";
+export { isCardUsableInRuleset, validateCardTarget } from "./cards.js";
 export { clone } from "./clone.js";

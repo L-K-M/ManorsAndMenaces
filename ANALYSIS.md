@@ -13,7 +13,7 @@ Note on "AquaZone": the original request mentions "the original AquaZone". The n
 
 This is written for agents (human or LLM) picking up work.
 
-1. **Check [Done or in flight](#done-or-in-flight-do-not-redo) first.** PRs #4 to #25 are open and unmerged. Do not redo their work; build on their branches or wait for them to merge. Read [Status snapshot](#status-snapshot) for merge order and known conflicts.
+1. **Check [Done or in flight](#done-or-in-flight-do-not-redo) first.** PRs #4 to #30 were consolidated into one tree; see [Consolidation](#consolidation-2026-09-25) for what was merged, folded or closed. Do not redo their work.
 2. **Ids are stable.** Refer to entries by id (for example `rules-reaction-window-leaks-counterspell`) in branches, commits and PR bodies. Where several findings shared a root cause, one entry lists the others under "Also covers". Entries carried over from the previous analysis got new ids and say "From the previous analysis".
 3. **Entry layout.** Each entry has: id and title; Severity (critical, high, medium, low), Effort (S under a day, M 1 to 3 days, L about a week, XL more) and Delight (0 to 5, how much players would notice and enjoy it); Status of verification ("confirmed" means reproduced; "partially confirmed" means a detail was corrected and the corrected version is what appears; "est." marks ratings estimated when merging the previous analysis, which gave none); Files with `path:line`; Evidence; a shovel-ready Proposal; and the tests that prove it. Where a PR already did part of an entry, the entry says "Partly done in #N" and describes only what is left.
 4. **Line numbers** refer to `main` at `65f4f89` unless an entry names a PR. Many open PRs rewrite the files cited (`Board.svelte`, `GameScreen.svelte`, `ActionBar.svelte`, `session.svelte.ts`), so re-locate code after they merge.
@@ -24,8 +24,7 @@ This is written for agents (human or LLM) picking up work.
 ## Status snapshot
 
 - Date: 2026-09-25.
-- `main` is at `7114d3a` (this document); the PR branches are based on `65f4f89` and merge cleanly with it.
-- 22 open PRs, none merged at the time of writing.
+- The open PRs of 2026-09-24 and 2026-09-25 were consolidated; see [Consolidation](#consolidation-2026-09-25). The per-PR notes below describe each PR as it was opened.
 - Baseline from the second review (do not redo it): the rules engine is solid. A 200-game random fuzzer (61k commands) found no invariant violations, no nondeterminism and no disagreement between the legal-action summary and the engine; the playout, replay and hash tests passed and CI was green on `main`. The problems sit around the engine: the online boundary, save safety, layout and readability, AI pacing and presentation. The written flavour (Lord Mumble, Grum, the goblins' invoice) is good, but almost none of it reaches the screen (see `delight-idea-menace-personality` and `delight-idea-town-crier`).
 
 ### Open pull requests
@@ -64,7 +63,7 @@ From the second review (each is one work package; the PR body lists what it leav
 
 ### Merge order and conflicts
 
-Suggested order (derived from the conflict notes below, not tested as a whole): #8, #16, #21, #22, #17, #20, #12, #10, #9, #13, #14, #11, #15, #25, #18, #19, #23, #24. Decide where #4 to #7 go by the overlaps listed first.
+Order suggested before the consolidation, which used a tested order instead (see [Consolidation](#consolidation-2026-09-25)): #8, #16, #21, #22, #17, #20, #12, #10, #9, #13, #14, #11, #15, #25, #18, #19, #23, #24. Decide where #4 to #7 go by the overlaps listed first.
 
 Overlaps between the two sets of PRs (the same ideas were addressed twice; whoever merges must pick one version):
 - **#4 and #15 (board highlight contrast):** #4 changes the highlight to a blue outline fill and removes the glow filter; #15 replaces the whole highlight with a dimming veil, cased outlines and a separate glow overlay. They conflict in `Board.svelte` and in intent. #4's pip and banner centring fix may still be wanted if #15 does not cover it.
@@ -88,6 +87,52 @@ Notes between PRs #8 to #25 (from the merge notes):
 - **#23 and #14:** 3 GameScreen hunks conflict. Resolve in favour of #14's layout and switch #14's dock `.mine` resource row to #23's `<ResourcePurse {session} playerId={viewer ?? ""} />`. Drop #14's now-unused `[data-layout="sheet"] .floater` rule. ActionFeed already reads #14's `--overlay-bottom`; its hard-coded left offset (for main's vertical camera column) is only a cosmetic indent under #14.
 - **#23 and #9, #10, #12:** `session.svelte.ts` gains an event bus emit in `flush()` and `receiveRemote()`; small hunks. #12 made `floaters` `$state.raw`, and #23 removes that field.
 - **#24:** small insertions in NewGame (conflicts with #14's phone layout and #19's styling), PlayersPanel (#14, and #23's "Next" row), GameScreen (mount point), LogPanel (#9 removed `aria-live` there), SettingsDialog and OnlineLobby (#17 lobby changes). Its win and lose quips could later be shown on #18's victory screen.
+
+### Consolidation (2026-09-25)
+
+Several agents worked in parallel and opened 28 PRs (#2, #4 to #30), with overlapping work. A third pass reviewed them together, decided per PR, and merged the survivors into one tree in the order below. After each merge it ran typecheck, lint, the unit and integration tests and the affected e2e specs. The final tree passes `pnpm check`, `pnpm map:check`, `pnpm build:check` and the full Playwright suite. The combined tree is on `claude/pr-review-deduplication-sci1jf`. Where a PR needed fixes, they are commits on top of its branch, and behaviour fixes come with regression tests.
+
+| Order | PR | Decision | What changed while merging |
+|---|---|---|---|
+| 1 | #27 already-stronghold-error | Merged | |
+| 2 | #8 online Spells | Merged | |
+| 3 | #16 ci-hardening | Fixed, merged | The map check fails only on errors and prints warnings; `region_24` is a known warning. The committed map is compared with CRLF line endings normalised. E2E specs get Vite client types |
+| 4 | #21 ai-expansion | Merged | |
+| 5 | #22 content-fixes | Fixed, merged | Fog accepts any Route you don't own, unowned Routes included (§19.10). The Quest-expiry countdown no longer counts setup rounds |
+| 6 | #26 dragon-whisperer-take-choice | Merged | |
+| 7 | #17 server-robustness | Fixed, merged | Proxy rate-limit tests go through a limited route (`/api/me`) |
+| 8 | #29 server-options-and-health | Fixed, merged | Resolved with #17's `app.ts`, with `/api/health` still answered before the limiter. The OPTIONS test asserts there is no content type |
+| 9 | #20 offline-pwa | Merged | Both Vite plugins kept, next to #16's `failOnBuildWarnings` |
+| 10 | #12 perf-stutter | Merged | |
+| 11 | #7 board-indexing | Merged | |
+| 12 | #10 save-safety | Merged | Its save, Load list and round strings replace #30's copies |
+| 13 | #9 hotseat-privacy | Fixed, merged | When the curtain lifts over an open decision dialog (Prophecy), focus goes into the dialog, not behind the inert game |
+| 14 | #13 camera-input | Fixed, merged | Retargeted glides ease out, and only newly added targets are framed |
+| 15 | #15 board-readability | Merged | Supersedes #4's highlight changes and #30's inspector strings |
+| 16 | #18 victory-screen | Merged | Supersedes #30's victory strings |
+| 17 | #25 terrain-art | Fixed, merged | Keeps `MENACE_THEME`. #15's glow overlay follows #13's camera transform |
+| 18 | #4 board-readability (fix/) | Folded | Kept only the pip-centring formula (with an e2e test) and the QuestPanel ready style. The blue highlight lost to #15 because it clashes with Azure and the focus ring |
+| 19 | #28 log-autoscroll-stickiness | Fixed, merged | One effect with no rAF. The Chronicle opens at the latest entry |
+| 20 | #14 responsive-layout | Fixed, merged | Dock toasts let board clicks through. Board labels grow with Text size |
+| 21 | #11 turn-flow | Fixed, merged | ActionBar uses #12's `hints` prop, and the Market help gets #22's parameters. An armed but unavailable tool looks disabled |
+| 22 | #19 storybook-look | Fixed, merged | Buttons press with `translate`, so they keep their position. The remaining glyph icons (ActionBar, VictoryScreen, crown, update prompt) are drawn as SVG to satisfy #19's icon guard |
+| 23 | #23 harvest-feedback | Merged | The feed says "Route" to satisfy #22's terminology test |
+| 24 | #24 ai-rivals | Merged | Chatter listens on #23's event bus and skips provisional batches. Quips are spoken through #9's Announcer |
+| 25 | #30 i18n-hardcoded-ui | Fixed, merged | 24 duplicate or dead keys dropped (3 were TS1117 duplicates with #10). `ui.ai_seat` wired in. The guard is Windows-safe |
+| 26 | #6 newgame-tutorial-guards | Fixed, merged | All-computer games are allowed with a note, because #12's e2e plays one. Finish closes the coach and keeps the game |
+| | #5 rules-guards | Closed | Its Druid's Blessing guard contradicts §19.4 and its Fog guard contradicts §19.10. The Menace clone is redundant with #8 |
+| | #2 Node 25 image | Closed | Node 25 is past end-of-life and ships without Corepack, so `corepack enable` fails. Stay on Node 22 LTS (`.nvmrc`) |
+
+Decisions for the owner:
+- **Tool cost chips (#11 against #14):** #11's have/need chips are hidden below 105rem, where #14 moves costs into tooltips and accessible names. Revisit if laptop players miss them.
+- **Quest expiry (#22):** the rule is opt-in in New Game. Making it the default is still open.
+
+Follow-ups deferred from the merge reviews (all low severity):
+- i18n guard: also check string literals inside template expressions and a11y attributes, then externalise what that finds: the Region, Route and Holding aria-labels in `Board.svelte`, and the seat labels in `NewGame.svelte`.
+- #26: build the Hoard take dialog from the engine's legal options. A mixed Hoard also multiplies Dragon Whisperer AI candidates by the number of Hoard types.
+- #12: a restarted AI worker that hangs on its first decision is treated as a load failure, so that slow decision reruns on the main thread.
+- #17: clear `aiFailures` when a match stops being AI-due. Write the fatal message in `fail()` with `writeSync`, which matters for piped stderr on macOS.
+- #16: add a per-request timeout to the build check's smoke-test `fetch`, so a stalled server fails fast instead of waiting for the job timeout.
 
 ## Done or in flight (do not redo)
 

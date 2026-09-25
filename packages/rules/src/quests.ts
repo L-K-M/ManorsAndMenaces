@@ -78,7 +78,8 @@ export function evaluateQuestCondition(ctx: RulesContext, state: GameState, play
     case "diverse_realm":
       return progress(p.stats.maxHarvestTypes, 5);
     case "patron_of_heroes":
-      return progress(p.stats.heroesPlayed, 3);
+      // 2, not 3: the deck holds only 3 Hero cards in 2-player games and 5 otherwise (§27.1).
+      return progress(p.stats.heroesPlayed, 2);
     case "arcane_scholar":
       return progress(p.stats.spellsPlayed, 3);
     case "stone_and_timber": {
@@ -99,6 +100,26 @@ export function evaluateQuestCondition(ctx: RulesContext, state: GameState, play
     case "the_safer_road":
       return progress(p.stats.menacesMovedOffOwnAssets, 2);
   }
+}
+
+/**
+ * Under the opt-in expiry rule (§27.2), the rounds a revealed Quest has left
+ * on offer: 1 means it leaves as the next round begins. Null when there is no
+ * countdown to show: the rule is off, the Quest is not on display, or it is
+ * due but the deck has no replacement for it as the coming round begins (a
+ * due Quest crowded out by earlier slots can still leave a round later).
+ */
+export function questRoundsLeft(state: GameState, questId: QuestId): number | null {
+  const rounds = state.ruleset.questExpiryRounds ?? 0;
+  if (!state.ruleset.enableQuests || rounds <= 0 || !state.revealedQuestIds.includes(questId)) return null;
+  // Setup runs in round 0, but the opening Quests count from round 1.
+  const now = Math.max(state.round, 1);
+  const left = (q: QuestId): number => Math.max(1, rounds - (now - (state.revealedQuestRounds?.[q] ?? now)));
+  // Quests due next round leave in slot order while the deck has replacements.
+  const due = state.revealedQuestIds.filter((q) => left(q) === 1);
+  const place = due.indexOf(questId);
+  if (place >= state.questDeck.length || (place < 0 && state.questDeck.length === 0)) return null;
+  return left(questId);
 }
 
 export function getQuestProgress(ctx: RulesContext, state: GameState, playerId: PlayerId, questId: QuestId): QuestProgress {

@@ -1,14 +1,15 @@
 // Turns engine events into concise, readable log lines (spec §84).
 
 import type { MapDefinition } from "@manors-menaces/content";
-import { cardDefIdOf, type GameEvent, type GameState, type MenaceLocation } from "@manors-menaces/rules";
+import { cardDefIdOf, type GameCommand, type GameEvent, type GameState, type MenaceLocation, type RulesEngine } from "@manors-menaces/rules";
 import { t } from "../i18n.js";
+import { replayHistory } from "./replay.js";
 
 export interface LogEntry {
   id: number;
   text: string;
   playerId: string | null;
-  kind: "turn" | "info" | "important";
+  kind: "turn" | "info" | "important" | "quip";
   /** Raw event for the expandable debug view. */
   raw?: GameEvent;
   /** Logged locally for a buffered (not yet submitted) action. */
@@ -16,6 +17,11 @@ export interface LogEntry {
 }
 
 let nextId = 1;
+
+/** A rival's remark for the Chronicle; it is flavour, not an engine event. */
+export function quipEntry(text: string, playerId: string): LogEntry {
+  return { id: nextId++, text, playerId, kind: "quip" };
+}
 
 export function nameOf(state: GameState, playerId: string | null | undefined): string {
   return (playerId && state.players[playerId]?.displayName) || "?";
@@ -29,8 +35,10 @@ export function placeName(map: MapDefinition, loc: MenaceLocation): string {
   switch (loc.kind) {
     case "region":
       return regionName(map, loc.regionId);
-    case "route":
-      return t("route.road").toLowerCase() + " " + loc.routeId.replace("route_", "#");
+    case "route": {
+      const kind = map.routes.find((r) => r.id === loc.routeId)?.kind ?? "road";
+      return `${t(`route.${kind}`).toLowerCase()} ${loc.routeId.replace("route_", "#")}`;
+    }
     case "site": {
       const site = map.sites.find((s) => s.id === loc.siteId);
       return site?.landmarkId ? t(`landmark.${site.landmarkId}`) : `site ${loc.siteId.replace("site_", "#")}`;
@@ -137,6 +145,9 @@ export function formatEvents(events: GameEvent[], state: GameState, map: MapDefi
       case "quest_revealed":
         push(t("log.quest_revealed", { quest: t(`quest.${e.questId}.name`) }), null, "info", e);
         break;
+      case "quest_expired":
+        push(t("log.quest_expired", { quest: t(`quest.${e.questId}.name`) }), null, "info", e);
+        break;
       case "effect_started":
         if (e.effect === "fog") push(t("log.fog", { name: nameOf(state, e.playerId) }), e.playerId, "info", e);
         break;
@@ -152,4 +163,28 @@ export function formatEvents(events: GameEvent[], state: GameState, map: MapDefi
   }
   flushAssigned();
   return out;
+}
+
+/** An important Chronicle line that no engine event produced (a client notice). */
+export function noticeEntry(text: string, playerId: string | null): LogEntry {
+  return { id: nextId++, text, playerId, kind: "important" };
+}
+
+/**
+ * Rebuilds the Chronicle of a saved game by replaying its history (the log
+ * itself is not saved). When the replay stops early or does not reach
+ * `saved` (unrecorded debug commands), the entries it could derive end with
+ * a note that some events are missing.
+ */
+export function rebuildLog(
+  engine: RulesEngine,
+  map: MapDefinition,
+  initial: GameState,
+  history: readonly GameCommand[],
+  saved: GameState,
+): { entries: LogEntry[]; complete: boolean } {
+  const entries: LogEntry[] = [];
+  const { complete } = replayHistory(engine, initial, history, (step) => entries.push(...formatEvents(step.events, step.after, map)), saved);
+  if (!complete) entries.push({ id: nextId++, text: t("log.history_unavailable"), playerId: null, kind: "info" });
+  return { entries, complete };
 }

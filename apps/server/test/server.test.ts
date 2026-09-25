@@ -79,6 +79,44 @@ describe("static files", () => {
   });
 });
 
+describe("protocol details", () => {
+  it("answers OPTIONS with 204 and no body", async () => {
+    // 204 must have no body (RFC 9110); check at the HTTP level, since fetch
+    // implementations hide the violation rather than reject it.
+    const { request } = await import("node:http");
+    const res = await new Promise<{ status: number; body: string; allowOrigin: string | null; contentType: string | null }>((resolve) => {
+      const req = request(
+        { host: "127.0.0.1", port: Number(base.split(":")[2]), path: "/api/matches", method: "OPTIONS" },
+        (r) => {
+          let body = "";
+          r.on("data", (c: Buffer) => (body += c));
+          r.on("end", () => resolve({ status: r.statusCode ?? 0, body, allowOrigin: r.headers["access-control-allow-origin"] ?? null, contentType: r.headers["content-type"] ?? null }));
+        },
+      );
+      req.end();
+    });
+    expect(res.status).toBe(204);
+    expect(res.body).toBe("");
+    expect(res.allowOrigin).not.toBeNull();
+    expect(res.contentType).toBeNull();
+  });
+  it("serves /api/health without rate limiting", async () => {
+    // A strict limiter must not 429 the Docker HEALTHCHECK (Dockerfile).
+    const strict = createApp({ dbPath: ":memory:", webDist: null, rateLimitPerSecond: 1 });
+    await new Promise<void>((r) => strict.server.listen(0, "127.0.0.1", r));
+    const healthBase = `http://127.0.0.1:${(strict.server.address() as AddressInfo).port}`;
+    try {
+      const burst = await Promise.all(Array.from({ length: 20 }, () => fetch(healthBase + "/api/health")));
+      expect(burst.every((r) => r.status === 200)).toBe(true);
+      // The limiter still applies to real API routes.
+      const gated = await Promise.all(Array.from({ length: 20 }, () => fetch(healthBase + "/api/guest", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })));
+      expect(gated.some((r) => r.status === 429)).toBe(true);
+    } finally {
+      await strict.close();
+    }
+  });
+});
+
 describe("server", () => {
   it("rejects unauthenticated and non-member requests", async () => {
     const { matchId } = await setupTwoPlayerMatch();

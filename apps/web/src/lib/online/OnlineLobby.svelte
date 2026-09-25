@@ -1,10 +1,13 @@
 <script lang="ts">
   import { t } from "../i18n.js";
+  import { RIVALS, rivalById } from "@manors-menaces/content";
+  import { assignRivals, rivalName } from "../game/rivals.js";
   // Online lobby (spec §86): guest session, private invite links first,
   // your asynchronous matches, and joining by code.
   import type { AiLevel, MatchView, SeatConfig } from "@manors-menaces/protocol";
   import { GameSession } from "../game/session.svelte.js";
-  import { OnlineClient, onlineTransport } from "./client.js";
+  import { ApiError, OnlineClient, onlineTransport } from "./client.js";
+  import ToolIcon from "../components/ToolIcon.svelte";
 
   let { onopen, onback }: { onopen: (s: GameSession) => void; onback: () => void } = $props();
 
@@ -13,6 +16,7 @@
   let serverUrl = $state(client.serverUrl);
   let signedIn = $state(!!client.token);
   let error: string | null = $state(null);
+  let notice: string | null = $state(null);
   let busy = $state(false);
   let matches: MatchView[] = $state([]);
   let seatCount = $state(2);
@@ -26,13 +30,32 @@
     busy = true;
     error = null;
     try {
-      return await fn();
+      try {
+        return await fn();
+      } catch (e) {
+        if (!(e instanceof ApiError && e.sessionInvalid)) throw e;
+        // The server no longer knows the saved session: start a new guest
+        // session and try once more instead of stranding the lobby.
+        await renewSession();
+        return await fn();
+      }
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       return undefined;
     } finally {
       busy = false;
     }
+  }
+
+  async function renewSession() {
+    try {
+      await client.ensureGuest(name.trim() || "Guest");
+    } catch (e) {
+      signedIn = false; // back to the form, where the server address can be changed
+      notice = null; // an earlier renewal's "signed in as a new guest" is no longer true
+      throw e;
+    }
+    notice = t("ui.session_renewed");
   }
 
   async function signIn() {
@@ -52,12 +75,20 @@
   });
 
   async function create() {
+    // A random offset varies the line-up between matches, as in New Game.
+    const rivalIds = assignRivals(
+      Array.from({ length: Math.min(aiCount, seatCount - 1) }, () => "ai" as const),
+      Math.floor(Math.random() * RIVALS.length),
+    );
     const res = await guard(() =>
       client.createMatch({
         displayName: name.trim() || "Guest",
         seatCount,
         rulesetName: rules,
-        aiSeats: Array.from({ length: Math.min(aiCount, seatCount - 1) }, (_, i) => ({ displayName: ["Lord Mumble", "Lady Fennick", "Sir Quill"][i] ?? "Robot", level: aiLevel })),
+        aiSeats: rivalIds.map((id) => {
+          const rival = rivalById(id);
+          return { displayName: rival ? rivalName(rival) : "Robot", level: aiLevel };
+        }),
       }),
     );
     if (res) await openMatch(res.matchId);
@@ -128,6 +159,7 @@
 
 <section class="panel">
   <h2>{t("ui.play_online")}</h2>
+  {#if notice}<p class="notice" role="status">{notice}</p>{/if}
   {#if !signedIn}
     <form onsubmit={(e) => (e.preventDefault(), signIn())}>
       <label>{t("ui.your_name")} <input bind:value={name} maxlength="24" required /></label>
@@ -145,7 +177,7 @@
     <p class="code">{lobbyMatch.inviteCode}</p>
     <input class="link" readonly value={inviteLink} onfocus={(e) => (e.target as HTMLInputElement).select()} aria-label={t("ui.invite_link")} />
     <ul>
-      {#each lobbyMatch.seats as s}<li>{s.displayName} — {s.kind === "open" ? "waiting" : s.kind}</li>{/each}
+      {#each lobbyMatch.seats as s}<li>{s.displayName} — {s.kind === "open" ? t("ui.seat_waiting") : s.kind}</li>{/each}
     </ul>
     <button onclick={() => ((lobbyMatch = null), unsubscribeLobby?.())}>{t("ui.back_to_lobby")}</button>
   {:else}
@@ -172,7 +204,7 @@
         <button class="primary" disabled={busy}>{t("ui.join")}</button>
       </form>
     </div>
-    <h3>{t("ui.your_matches")} <button class="ghost" onclick={refresh}>↻</button></h3>
+    <h3>{t("ui.your_matches")} <button class="ghost" onclick={refresh} aria-label={t("ui.refresh")}><ToolIcon name="refresh" size={20} /></button></h3>
     {#if matches.length === 0}<p class="muted">{t("ui.no_matches_yet")}</p>{/if}
     <ul class="matches">
       {#each matches as m (m.matchId)}
@@ -180,7 +212,7 @@
         <li>
           <button onclick={() => openMatch(m.matchId)}>
             {m.seats.map((s) => s.displayName).join(" · ")}
-            <small>{m.status}{yourTurn ? " — your turn!" : ""} · code {m.inviteCode}</small>
+            <small>{m.status}{yourTurn ? t("ui.your_turn_suffix") : ""} · {t("ui.match_code", { code: m.inviteCode })}</small>
           </button>
         </li>
       {/each}
@@ -241,6 +273,13 @@
   }
   .error {
     color: #a3190c;
+  }
+  .notice {
+    margin: 0 0 0.8rem;
+    padding: 0.5rem 0.8rem;
+    border-left: 4px solid #8a7650;
+    border-radius: 6px;
+    background: rgba(138, 118, 80, 0.14);
   }
   .muted {
     opacity: 0.7;

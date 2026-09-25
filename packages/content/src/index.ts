@@ -3,12 +3,14 @@ import { CARDS } from "./cards.js";
 import { GREENVALE_MAP } from "./maps/greenvale.js";
 import { QUESTS } from "./quests.js";
 import type { MapDefinition } from "./types.js";
+import { validateMap } from "./validate.js";
 
 export * from "./types.js";
 export { CARDS } from "./cards.js";
 export { QUESTS } from "./quests.js";
 export { MENACES } from "./menaces.js";
 export { EN } from "./i18n/en.js";
+export { RIVALS, RIVAL_QUIP_TRIGGERS, rivalById, rivalQuipKeys, type RivalDefinition, type RivalPortrait, type RivalQuipTrigger } from "./rivals.js";
 export { validateMap, maximumIndependentSet, type MapValidation } from "./validate.js";
 export { GREENVALE_MAP } from "./maps/greenvale.js";
 
@@ -40,6 +42,10 @@ export function rulesContentFor(mapId: string = GREENVALE_MAP.id): RulesContent 
   if (cached) return cached;
   const map = MAPS[mapId];
   if (!map) throw new Error(`Unknown map ${mapId}`);
+  // A malformed map breaks games in confusing ways much later (§102), so the
+  // web client, the server and the tools all refuse one here, once per map.
+  const { errors } = validateMap(map);
+  if (errors.length) throw new Error(`Map ${mapId} is invalid: ${errors.join("; ")}`);
   const content: RulesContent = {
     board: toBoardTopology(map),
     cards: CARDS.map((c) => ({
@@ -49,6 +55,7 @@ export function rulesContentFor(mapId: string = GREENVALE_MAP.id): RulesContent 
       effectId: c.effectId,
       copies: c.copies,
       ...(c.requiresMenace ? { requiresMenace: c.requiresMenace } : {}),
+      ...(c.requiresMenacePair ? { requiresMenacePair: true as const } : {}),
     })),
     quests: QUESTS.map((q) => ({ id: q.id, renown: q.renown, conditionId: q.conditionId, exclusive: q.exclusive })),
   };
