@@ -38,7 +38,7 @@
 ## Helper scripts
 
 - `scripts/release.sh` — stub over the shared `lkm-release` engine (kind `tauri`); `scripts/sync-versions.mjs` keeps every workspace `package.json` and the README marker in lockstep.
-- `scripts/build.sh` — multi-target orchestrator (web, server, desktop, android); missing toolchains skip on a default run and fail when named.
+- `scripts/build.sh` — multi-target orchestrator (web, server, desktop, android); missing toolchains skip on a default run and fail when named. It checks Node and pnpm before installing, uses rustup's toolchain for Android when the `rustc` on PATH lacks the Android targets, and retries a macOS DMG without its Finder window layout; `--check` shows what it found.
 - `update.sh` — pull + `docker compose up -d --build` for a self-hosted server.
 - `tools/generate-map.mjs` — Voronoi map generator; `tools/simulate.ts` — AI-vs-AI telemetry against the §68 targets.
 
