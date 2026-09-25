@@ -7,6 +7,7 @@
     type PlayerAction,
     type ResourceCost,
   } from "@manors-menaces/rules";
+  import { tick } from "svelte";
   import { hasKey, t } from "../i18n.js";
   import {
     ACTION_LABEL,
@@ -18,6 +19,7 @@
     tradeToAfford,
   } from "../game/interaction.js";
   import { currentActor, type GameSession } from "../game/session.svelte.js";
+  import { animationScale } from "../stores/settings.svelte.js";
   import { resetTool, ui } from "../stores/ui.svelte.js";
   import { PLAYER_THEMES, emblemPath } from "../theme.js";
   import ResourceIcon from "./ResourceIcon.svelte";
@@ -39,14 +41,28 @@
   const ARM_MS = 350;
   const phaseKey = $derived(`${legal?.mode ?? "none"}:${legal?.playerId ?? ""}`);
   let arming = $state(true);
+  let bar: HTMLDivElement | undefined = $state();
+  // Keyboard activation removes the focused button with the phase, dropping
+  // focus to <body>, where a repeated Enter would reach the End Turn shortcut.
+  // Focus lands on the button that takes the old one's place instead.
+  let refocus = false;
   $effect(() => {
     void phaseKey;
     arming = true;
-    const timer = setTimeout(() => (arming = false), ARM_MS);
+    const timer = setTimeout(async () => {
+      arming = false;
+      if (!refocus) return;
+      refocus = false;
+      await tick();
+      const lost = !document.activeElement || document.activeElement === document.body;
+      if (lost) bar?.querySelector<HTMLButtonElement>("[data-refocus]:not(:disabled)")?.focus();
+    }, ARM_MS);
     return () => clearTimeout(timer);
   });
   const once = (fn: () => unknown) => (e: MouseEvent) => {
     if (e.detail > 1 || arming) return;
+    // detail 0: activated by Enter or Space rather than a pointer.
+    refocus = e.detail === 0;
     void fn();
   };
 
@@ -79,7 +95,7 @@
     if (!a.reason) return "";
     if (a.reason === "NEED_RESOURCES") return t("why.NEED_RESOURCES", { list: costList(a.missing ?? {}, a.missingAny ?? 0) });
     const specific = `why.${a.reason}.${action}`;
-    return t(hasKey(specific) ? specific : `why.${a.reason}`);
+    return t(hasKey(specific) ? specific : `why.${a.reason}`, { count: gs.ruleset.market.give });
   }
   const toolDetail = (action: PlayerAction, a: ActionAvailability): string =>
     a.ok ? (action === "market" ? t("status.market_trades_left", { count: a.tradesLeft ?? 0 }) : costList(a.cost, a.extraAny)) : why(action, a);
@@ -146,7 +162,7 @@
 
 <svelte:window onkeydown={keydown} />
 
-<div class="actions" role="toolbar" aria-label={t("ui.actions")}>
+<div class="actions" role="toolbar" aria-label={t("ui.actions")} bind:this={bar}>
   {#if gs.status !== "finished"}
     <div class="turnline" data-testid="turn-status" style="--pc: {activeTheme.color}; --pd: {activeTheme.dark}; --pl: {activeTheme.light}">
       <span class="who" class:mine={isMyTurn}>
@@ -213,7 +229,7 @@
       <button class="primary" class:arming disabled={arming} onclick={once(finishBanners)}>
         {draftChanges ? `✓ ${t("action.confirm_end_turn")}` : t("action.end_turn_keep")}<kbd aria-hidden="true">⏎</kbd>
       </button>
-      <button class="ghost" class:arming disabled={arming || !session.canUndo} onclick={once(() => session.undo())}>← {t("action.back_to_main")}</button>
+      <button class="ghost" class:arming disabled={arming || !session.canUndo} onclick={once(() => session.undo())} data-refocus>← {t("action.back_to_main")}</button>
     </div>
   {:else if legal.mode === "main" && avail}
     <div class="tools">
@@ -245,7 +261,7 @@
             {/if}
           </button>
           {#if a.fixByTrade}
-            <button class="fix" onclick={() => tradeToAfford(tool.action)} aria-label={t("action.trade_to_afford")} title={t("action.trade_to_afford_help", { action: t(ACTION_LABEL[tool.action]) })}>
+            <button class="fix" onclick={() => tradeToAfford(tool.action)} title={t("action.trade_to_afford_help", { action: t(ACTION_LABEL[tool.action]) })} aria-label={t("action.trade_to_afford_help", { action: t(ACTION_LABEL[tool.action]) })}>
               <span aria-hidden="true">⇄</span><small aria-hidden="true">{t("action.trade_short")}</small>
             </button>
           {/if}
@@ -255,12 +271,12 @@
     <div class="end">
       {#if hints.hint && ui.tool !== "none"}<p class="hint">{t(hints.hint)} <button class="link" onclick={resetTool}>{t("action.cancel")}</button></p>{/if}
       {#each claimable as q (q)}
-        <button class="claim" onclick={() => claim(q)}>
+        <button class="claim" class:glow={animationScale() > 0} onclick={() => claim(q)}>
           <span aria-hidden="true">★</span> {t("action.claim_quest", { quest: t(`quest.${q}.name`) })} <small>+{session.ctx.quest(q).renown} ♛</small>
         </button>
       {/each}
       <button class="ghost" disabled={!session.canUndo} onclick={() => session.undo()} aria-label={t("action.undo")}>↶ {t("action.undo")}</button>
-      <button class="primary" class:arming disabled={arming} onclick={once(endMain)}>{t("action.end_main")} →</button>
+      <button class="primary" class:arming disabled={arming} onclick={once(endMain)} data-refocus>{t("action.end_main")} →</button>
     </div>
   {:else if legal.mode === "end"}
     <p class="status">
@@ -289,7 +305,7 @@
 
   /* ---------------------------------------------------------- turn status */
   .turnline {
-    flex: 1 0 100%;
+    flex: 0 1 auto;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -349,7 +365,8 @@
     color: #5c7a52;
   }
   .stepper li.now {
-    background: var(--pc);
+    /* The dark shade keeps white text readable for every player colour. */
+    background: var(--pd);
     color: #fff;
     font-weight: 700;
   }
@@ -359,6 +376,9 @@
 
   /* ---------------------------------------------------------- tools */
   .tools {
+    /* Tools first, so the turn status shares a row with the phase buttons. */
+    order: -1;
+    flex: 1 1 100%;
     display: flex;
     flex-wrap: wrap;
     gap: 0.4rem;
@@ -516,6 +536,9 @@
     background: linear-gradient(#fff6d8, #f7e3a2);
     color: #5a4200;
     font-weight: 700;
+  }
+  /* Off with reduced motion or animations disabled (see animationScale). */
+  .claim.glow {
     animation: glow 1.8s ease-in-out infinite;
   }
   .claim:hover:not(:disabled) {
@@ -558,6 +581,19 @@
   @media (hover: none) {
     kbd {
       display: none;
+    }
+  }
+  @media (max-width: 900px) {
+    /* The dock scrolls at this width (GameScreen): keep the phase buttons in
+       view at its bottom edge instead of below the fold. */
+    .end {
+      position: sticky;
+      bottom: 0;
+      z-index: 1;
+      flex: 1 1 100%;
+      padding: 0.3rem 0;
+      background: var(--parchment);
+      box-shadow: 0 -8px 8px -8px #5a3e2280;
     }
   }
   @media (max-width: 600px) {

@@ -263,7 +263,7 @@
     padding: 0 0.3em;
     border-radius: 999px;
     background: #d19a12;
-    color: #fff;
+    color: #2b1f00;
     font-size: 0.75em;
     font-weight: 700;
     vertical-align: 0.1em;

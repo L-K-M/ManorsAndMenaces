@@ -134,7 +134,6 @@ export const EN: Record<string, string> = {
   "action.end_turn_keep": "End Turn",
   "action.confirm_end_turn": "Confirm & End Turn",
   "action.claim_quest": "Claim {quest}",
-  "action.trade_to_afford": "Trade to afford",
   "action.trade_short": "Trade",
   "action.trade_to_afford_help": "Trade at the Market to afford {action}",
 
@@ -169,7 +168,7 @@ export const EN: Record<string, string> = {
   "why.LIMIT_REACHED.writ": "Already issued this turn",
   "why.LIMIT_REACHED.warden": "Already hired this turn",
   "why.DECK_EMPTY": "The deck is empty",
-  "why.NO_TRADE_GIVE": "Need 3 of one resource",
+  "why.NO_TRADE_GIVE": "Need {count} of one resource",
   "why.WRONG_PHASE": "Only in your Main phase",
   "why.FEATURE_DISABLED": "Not used in these rules",
 

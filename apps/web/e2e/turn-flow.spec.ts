@@ -58,7 +58,7 @@ async function debugGrant(page: Page) {
   await page.getByRole("dialog", { name: "Debug tools" }).getByRole("button", { name: "Close" }).click();
 }
 
-test("double and triple clicks never skip a phase or end the turn", async ({ page }) => {
+test("double and triple clicks never skip a phase or end the turn @mobile", async ({ page }) => {
   await startHotseat(page);
   await completeSetup(page);
 
@@ -92,7 +92,7 @@ test("the Market stays open until both trades are used", async ({ page }) => {
   await expect(page.getByRole("button", { name: /^Market/ })).toContainText("No trades left this turn");
 });
 
-test("Back to actions leaves Banner Assignment with nothing lost", async ({ page }) => {
+test("Back to actions leaves Banner Assignment with nothing lost @mobile", async ({ page }) => {
   await startHotseat(page);
   await completeSetup(page);
   const resources = page.locator(".player.active > .res");
@@ -100,8 +100,22 @@ test("Back to actions leaves Banner Assignment with nothing lost", async ({ page
 
   await page.getByRole("button", { name: /Assign Banners/ }).click();
   await page.getByRole("button", { name: /Back to actions/ }).click();
-  await expect(page.getByRole("button", { name: /Build Route/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Build Route/ })).toBeVisible();
   await expect(resources).toHaveText(before ?? "");
+});
+
+test("pressing Enter twice from Assign Banners never ends the turn", async ({ page }) => {
+  await startHotseat(page);
+  await completeSetup(page);
+
+  await page.getByRole("button", { name: /Assign Banners/ }).focus();
+  await page.keyboard.press("Enter");
+  await expect(statusLine(page)).toContainText("Banner Assignment");
+  // Past the arming delay, a repeated Enter must not reach the End Turn shortcut.
+  await page.waitForTimeout(500);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: /Assign Banners/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Tap to begin turn" })).toHaveCount(0);
 });
 
 test("turn status names the player and the current phase", async ({ page }) => {
@@ -146,14 +160,14 @@ test("disabled actions say why, and Trade to afford sets up the Market", async (
   await debugGrant(page);
 
   // Buy cards until one of their inputs runs out.
-  const buy = page.getByRole("button", { name: /Buy Card/ });
+  const buy = page.getByRole("button", { name: /^Buy Card/ });
   for (let i = 0; i < 12 && (await buy.isEnabled()); i++) await buy.click();
   await expect(buy).toBeDisabled();
   await expect(buy).toContainText(/Need \d/);
 
-  const warden = page.locator(".tool", { has: page.getByRole("button", { name: /Hire a Warden/ }) });
-  await expect(warden.getByRole("button", { name: /Hire a Warden/ })).toBeDisabled();
-  await warden.getByRole("button", { name: "Trade to afford" }).click();
+  const warden = page.locator(".tool", { has: page.getByRole("button", { name: /^Hire a Warden/ }) });
+  await expect(warden.getByRole("button", { name: /^Hire a Warden/ })).toBeDisabled();
+  await warden.getByRole("button", { name: "Trade at the Market to afford Hire a Warden" }).click();
 
   const market = page.getByRole("dialog", { name: "Market" });
   await expect(market).toContainText("To afford Hire a Warden");
