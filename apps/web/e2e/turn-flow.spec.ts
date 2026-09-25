@@ -27,15 +27,19 @@ async function passCurtain(page: Page) {
 
 const statusLine = (page: Page) => page.locator(".actions .status").first();
 
-/** Place both Manors of each player: the first player takes the first and last legal Sites. */
-async function completeSetup(page: Page) {
+/**
+ * Place both Manors of each player: the first player takes the first and last
+ * legal Sites, or its first Manor on the first legal Site named `firstSite`.
+ */
+async function completeSetup(page: Page, firstSite?: RegExp) {
   let manors = 0;
   for (let k = 0; k < 12; k++) {
     await passCurtain(page);
     const s = (await statusLine(page).count()) ? ((await statusLine(page).textContent()) ?? "") : "";
     if (/place a Manor/.test(s)) {
       const sites = page.locator(".site.hl");
-      await (manors === 3 ? sites.last() : sites.first()).click();
+      if (manors === 0 && firstSite) await sites.and(page.getByRole("button", { name: firstSite })).first().click();
+      else await (manors === 3 ? sites.last() : sites.first()).click();
       manors++;
     } else if (/free Route/.test(s)) await page.locator(".route.hl").first().click();
     else if (/starting Banners/.test(s)) {
@@ -65,7 +69,7 @@ test("double and triple clicks never skip a phase or end the turn @mobile", asyn
   await page.getByRole("button", { name: /Assign Banners/ }).dblclick();
   await expect(statusLine(page)).toContainText("Banner Assignment");
 
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await page.getByRole("button", { name: /Assign Banners/ }).click({ clickCount: 3 });
   await expect(statusLine(page)).toContainText("Banner Assignment");
   await expect(page.getByRole("button", { name: "Tap to begin turn" })).toHaveCount(0);
@@ -111,8 +115,9 @@ test("pressing Enter twice from Assign Banners never ends the turn", async ({ pa
   await page.getByRole("button", { name: /Assign Banners/ }).focus();
   await page.keyboard.press("Enter");
   await expect(statusLine(page)).toContainText("Banner Assignment");
-  // Past the arming delay, a repeated Enter must not reach the End Turn shortcut.
-  await page.waitForTimeout(500);
+  // Once armed, focus sits on the button that replaced Assign Banners, so a
+  // repeated Enter activates it instead of reaching the End Turn shortcut.
+  await expect(page.getByRole("button", { name: /Back to actions/ })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("button", { name: /Assign Banners/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Tap to begin turn" })).toHaveCount(0);
@@ -176,6 +181,27 @@ test("disabled actions say why, and Trade to afford sets up the Market", async (
   await expect(market).toBeHidden();
   // The Warden is affordable and armed: Menaces are highlighted for picking.
   await expect(page.locator(".menace.hl").first()).toBeVisible();
+});
+
+test("only the suggested Market route marks a resource as suggested", async ({ page }) => {
+  await startHotseat(page);
+  // A Timber or Stone Trading Post, so card purchases never spend its resource.
+  await completeSetup(page, /Trading Post \((Timber|Stone) 2:1\)/);
+  await debugGrant(page);
+
+  const buy = page.getByRole("button", { name: /^Buy Card/ });
+  for (let i = 0; i < 12 && (await buy.isEnabled()); i++) await buy.click();
+  await page.getByRole("button", { name: "Trade at the Market to afford Buy Card" }).click();
+
+  const market = page.getByRole("dialog", { name: "Market" });
+  const viaPost = market.getByRole("button", { name: /Trading Post/ });
+  // The Trading Post is the cheaper route, so the suggestion preselects it.
+  await expect(viaPost).toHaveClass(/\bon\b/);
+  await expect(market.locator("button.suggested")).toHaveCount(1);
+
+  const postResource = /(Timber|Stone)/.exec((await viaPost.textContent()) ?? "")?.[1] ?? "";
+  await market.getByRole("button", { name: new RegExp(`^3× .*${postResource}`) }).click();
+  await expect(market.locator("button.suggested")).toHaveCount(0);
 });
 
 test("a claimable Quest is badged, prompted, and recalled when leaving Main", async ({ page }) => {

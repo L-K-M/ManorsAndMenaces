@@ -125,7 +125,7 @@
       <h4>{t("ui.receive_1")}</h4>
       <div class="grid">
         {#each RESOURCE_TYPES.filter((r) => r !== give) as r}
-          {@const suggested = suggestion?.give === give && suggestion.receive === r}
+          {@const suggested = !!suggestion && suggestion.give === give && (suggestion.tradePostSiteId ?? null) === via && suggestion.receive === r}
           <button class:suggested onclick={() => trade(r)}>
             <ResourceIcon resource={r} /> {t(`resource.${r}`)}{#if suggested}<small class="have">{t("ui.suggested")}</small>{/if}
           </button>

@@ -162,7 +162,7 @@
 
 <svelte:window onkeydown={keydown} />
 
-<div class="actions" role="toolbar" aria-label={t("ui.actions")} bind:this={bar}>
+<div class="actions" role="toolbar" aria-label={t("ui.actions")} bind:this={bar} style="--arm-ms: {ARM_MS}ms">
   {#if gs.status !== "finished"}
     <div class="turnline" data-testid="turn-status" style="--pc: {activeTheme.color}; --pd: {activeTheme.dark}; --pl: {activeTheme.light}">
       <span class="who" class:mine={isMyTurn}>
@@ -553,7 +553,7 @@
     }
   }
   button.arming {
-    animation: arm 350ms ease-out;
+    animation: arm var(--arm-ms) ease-out;
   }
   button.arming:disabled {
     cursor: default;
