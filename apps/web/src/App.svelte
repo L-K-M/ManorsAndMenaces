@@ -11,6 +11,7 @@
   import SettingsDialog from "./lib/components/SettingsDialog.svelte";
   import Modal from "./lib/components/Modal.svelte";
   import OnlineLobby from "./lib/online/OnlineLobby.svelte";
+  import UpdatePrompt from "./lib/components/UpdatePrompt.svelte";
 
   type Screen = "title" | "new" | "game" | "online";
   // Invite links (#/join/CODE) open the online lobby directly (spec §86).
@@ -145,6 +146,8 @@
     {#if loadError}<p class="error">{loadError}</p>{/if}
   </Modal>
 {/if}
+
+<UpdatePrompt />
 
 {#if showRules}
   <Modal title={t("ui.how_to_play")} onclose={() => (showRules = false)} wide>

@@ -5,6 +5,9 @@ export const EN: Record<string, string> = {
   // ---------------------------------------------------------------- brand
   "app.title": "Manors & Menaces",
   "app.tagline": "Build wisely. Trouble wanders.",
+  "app.update_ready": "A new version of the realm is ready.",
+  "app.update_reload": "Reload",
+  "app.update_later": "Later",
 
   // ---------------------------------------------------------------- resources
   "resource.grain": "Grain",

@@ -43,7 +43,11 @@
 
 ## Icons
 
-`media-sources/icon.svg` is the master. Regenerate all app icons with `pnpm tauri icon media-sources/icon.svg -o src-tauri/icons`; the derived icons are committed.
+`media-sources/icon.svg` is the master. Regenerate all app icons with `pnpm tauri icon media-sources/icon.svg -o src-tauri/icons` and the web app manifest icons (including the maskable and Apple touch variants) with `node tools/generate-pwa-icons.mjs`; the derived icons are committed.
+
+## Offline web app
+
+The production web build emits `sw.js` (from `apps/web/pwa/sw.template.js`) with a precache manifest of every built file and a cache name hashed from their contents, so each release installs as a new service worker. It registers only in production web builds, never in the dev server or Tauri, and never intercepts `/api/` requests or the WebSocket.
 
 <!-- shared-rules:start -->
 
