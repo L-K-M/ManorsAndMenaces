@@ -64,6 +64,18 @@
 
   const previewByRegion = $derived(new Map((preview?.banners ?? []).map((b) => [b.regionId, b])));
 
+  // Pre-indexed lookups so per-frame template code stays O(1) instead of
+  // scanning all holdings/banners for every site/region.
+  const holdingBySite = $derived(new Map(Object.values(gs.holdings).map((h) => [h.siteId, h])));
+  const bannerCountByRegion = $derived.by(() => {
+    const counts = new Map<string, number>();
+    for (const b of Object.values(gs.banners)) {
+      const r = bannerRegion(b);
+      if (r) counts.set(r, (counts.get(r) ?? 0) + 1);
+    }
+    return counts;
+  });
+
   function menacePos(m: MenaceInstance): { x: number; y: number } {
     const loc = m.location;
     if (loc.kind === "region") {
@@ -221,7 +233,7 @@
   <g class="layer-regions">
     {#each map.regions as region (region.id)}
       {@const colors = RESOURCE_COLORS[region.resource]}
-      {@const occupants = Object.values(gs.banners).filter((b) => bannerRegion(b) === region.id).length}
+      {@const occupants = bannerCountByRegion.get(region.id) ?? 0}
       {@const isHl = hl.regions.has(region.id) || hl.locations.has(`region:${region.id}`)}
       {@const pv = previewByRegion.get(region.id)}
       <g
@@ -299,7 +311,7 @@
   <!-- sites and holdings -->
   <g class="layer-sites">
     {#each map.sites as site (site.id)}
-      {@const holding = Object.values(gs.holdings).find((h) => h.siteId === site.id)}
+      {@const holding = holdingBySite.get(site.id)}
       {@const isHl = hl.sites.has(site.id) || hl.locations.has(`site:${site.id}`)}
       {@const theme = holding ? playerTheme(holding.ownerId) : null}
       <g
