@@ -68,6 +68,11 @@
   li.important {
     font-weight: 600;
   }
+  li.quip {
+    font-style: italic;
+    border-left-style: dotted;
+    opacity: 0.85;
+  }
   code {
     display: block;
     font-size: 0.65rem;

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { t } from "../i18n.js";
+  import { RIVALS } from "@manors-menaces/content";
+  import { rivalName } from "../game/rivals.js";
   // Online lobby (spec §86): guest session, private invite links first,
   // your asynchronous matches, and joining by code.
   import type { AiLevel, MatchView, SeatConfig } from "@manors-menaces/protocol";
@@ -57,7 +59,7 @@
         displayName: name.trim() || "Guest",
         seatCount,
         rulesetName: rules,
-        aiSeats: Array.from({ length: Math.min(aiCount, seatCount - 1) }, (_, i) => ({ displayName: ["Lord Mumble", "Lady Fennick", "Sir Quill"][i] ?? "Robot", level: aiLevel })),
+        aiSeats: Array.from({ length: Math.min(aiCount, seatCount - 1) }, (_, i) => ({ displayName: RIVALS[i] ? rivalName(RIVALS[i]) : "Robot", level: aiLevel })),
       }),
     );
     if (res) await openMatch(res.matchId);

@@ -3,6 +3,10 @@
   import type { AiLevel, SeatConfig } from "@manors-menaces/protocol";
   import { mvpRuleset, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
   import { PLAYER_THEMES, emblemPath } from "../theme.js";
+  import { RIVALS, rivalById } from "@manors-menaces/content";
+  import { assignRivals, freeRival, rivalName } from "../game/rivals.js";
+  import RivalPicker from "./RivalPicker.svelte";
+  import RivalPortrait from "./RivalPortrait.svelte";
 
   let { onstart, onback }: { onstart: (opts: { seats: SeatConfig[]; ruleset: RulesetConfig; seed?: string }) => void; onback: () => void } = $props();
 
@@ -10,16 +14,49 @@
   let count = $state(3);
   let mode: "standard" | "mvp" = $state("standard");
   let seed = $state("");
+  const KINDS = NAMES.map((_, i) => (i === 0 ? "human" : "ai") as "human" | "ai");
+  // Start the line-up at a random rival so new games meet different faces.
+  const initialRivals = assignRivals(KINDS, Math.floor(Math.random() * RIVALS.length));
   let seats = $state(
-    NAMES.map((name, i) => ({ name, kind: (i === 0 ? "human" : "ai") as "human" | "ai", level: "normal" as AiLevel })),
+    NAMES.map((name, i) => {
+      const rival = rivalById(initialRivals[i]);
+      return { name: rival ? rivalName(rival) : name, kind: KINDS[i] ?? "ai", level: "normal" as AiLevel, rivalId: rival?.id };
+    }),
   );
+
+  /** Rivals seated at the other AI seats (all four, so changing the count never duplicates one). */
+  function rivalsOtherThan(i: number): (string | undefined)[] {
+    return seats.filter((s, j) => j !== i && s.kind === "ai").map((s) => s.rivalId);
+  }
+  /** A name nobody typed: blank, the seat's default, or its rival's name. */
+  function isAutoName(i: number): boolean {
+    const s = seats[i];
+    const rival = rivalById(s?.rivalId);
+    return !!s && (!s.name.trim() || s.name === NAMES[i] || (!!rival && s.name === rivalName(rival)));
+  }
+  function setRival(i: number, id: string | undefined) {
+    const s = seats[i];
+    if (!s) return;
+    const auto = isAutoName(i);
+    s.rivalId = id;
+    const rival = rivalById(id);
+    if (auto && rival) s.name = rivalName(rival);
+  }
+  function kindChanged(i: number) {
+    const s = seats[i];
+    if (!s) return;
+    if (s.kind === "ai") {
+      const others = rivalsOtherThan(i);
+      setRival(i, s.rivalId && !others.includes(s.rivalId) ? s.rivalId : freeRival(others, i));
+    } else if (isAutoName(i)) s.name = NAMES[i] ?? s.name;
+  }
 
   function start() {
     const chosen: SeatConfig[] = seats.slice(0, count).map((s, i) => ({
       playerId: `P${i + 1}`,
       displayName: s.name.trim() || `Player ${i + 1}`,
       kind: s.kind,
-      ...(s.kind === "ai" ? { aiLevel: s.level } : {}),
+      ...(s.kind === "ai" ? { aiLevel: s.level, ...(s.rivalId ? { rivalId: s.rivalId } : {}) } : {}),
       color: i,
     }));
     const ruleset = mode === "mvp" ? mvpRuleset() : standardRuleset(count);
@@ -39,10 +76,12 @@
       </div>
       {#each seats.slice(0, count) as seat, i}
         {@const theme = PLAYER_THEMES[i] ?? PLAYER_THEMES[0]!}
+        {@const rival = seat.kind === "ai" ? rivalById(seat.rivalId) : undefined}
         <div class="seat">
-          <svg width="26" height="26" viewBox="-13 -13 26 26" aria-hidden="true"><path d={emblemPath(theme.shape, 9)} fill={theme.color} stroke={theme.dark} stroke-width="2" /></svg>
+          {#if rival}<RivalPortrait portrait={rival.portrait} {theme} size={34} />
+          {:else}<svg width="34" height="26" viewBox="-17 -13 34 26" aria-hidden="true"><path d={emblemPath(theme.shape, 9)} fill={theme.color} stroke={theme.dark} stroke-width="2" /></svg>{/if}
           <input aria-label="Name of player {i + 1}" bind:value={seat.name} maxlength="20" />
-          <select aria-label="Player {i + 1} type" bind:value={seat.kind}>
+          <select aria-label="Player {i + 1} type" bind:value={seat.kind} onchange={() => kindChanged(i)}>
             <option value="human">{t("ui.human")}</option>
             <option value="ai">{t("ui.computer")}</option>
           </select>
@@ -54,6 +93,9 @@
             </select>
           {/if}
         </div>
+        {#if seat.kind === "ai"}
+          <RivalPicker rivalId={seat.rivalId} taken={rivalsOtherThan(i)} label={t("ui.rival_of_player", { n: i + 1 })} onpick={(id) => setRival(i, id)} />
+        {/if}
       {/each}
     </fieldset>
     <fieldset>

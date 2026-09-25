@@ -5,6 +5,10 @@
   import { currentActor } from "../game/session.svelte.js";
   import { PLAYER_THEMES, emblemPath } from "../theme.js";
   import ResourceIcon from "./ResourceIcon.svelte";
+  import { quipFor } from "../game/chatter.svelte.js";
+  import { seatRival } from "../game/rivals.js";
+  import QuipBubble from "./QuipBubble.svelte";
+  import RivalPortrait from "./RivalPortrait.svelte";
 
   let { session }: { session: GameSession } = $props();
   const gs = $derived(session.draft);
@@ -16,10 +20,13 @@
     {@const p = gs.players[pid]}
     {@const seat = session.seat(pid)}
     {@const theme = PLAYER_THEMES[seat?.color ?? 0] ?? PLAYER_THEMES[0]!}
+    {@const rival = seatRival(seat)}
+    {@const quip = quipFor(pid)}
     {#if p}
       <article class="player" class:active={actor === pid} style="--pc: {theme.color}; --pl: {theme.light}">
         <header>
-          <svg width="22" height="22" viewBox="-11 -11 22 22" aria-hidden="true"><path d={emblemPath(theme.shape, 8)} fill={theme.color} stroke={theme.dark} stroke-width="1.5" /></svg>
+          {#if rival}<RivalPortrait portrait={rival.portrait} {theme} size={30} title="{t(rival.nameKey)}, {t(rival.titleKey)}: {t(rival.mottoKey)}" />
+          {:else}<svg width="22" height="22" viewBox="-11 -11 22 22" aria-hidden="true"><path d={emblemPath(theme.shape, 8)} fill={theme.color} stroke={theme.dark} stroke-width="1.5" /></svg>{/if}
           <strong>{p.displayName}</strong>
           {#if seat?.kind === "ai"}<span class="tag">AI · {seat.aiLevel}</span>{/if}
           {#if session.transport.kind === "online" && seat?.kind === "human"}
@@ -31,6 +38,7 @@
             <span class="crown" aria-hidden="true">♛</span>{getRenown(session.ctx, gs, pid)}<small>/{gs.ruleset.targetRenown}</small>
           </span>
         </header>
+        {#if quip}<div class="quip"><QuipBubble text={quip.text} {theme} /></div>{/if}
         <div class="res" aria-label={t("ui.resources")}>
           {#each RESOURCE_TYPES as r}
             <span class="r"><ResourceIcon resource={r} size={18} /> {p.resources[r]}</span>
@@ -58,6 +66,17 @@
     border-radius: 10px;
     padding: 0.45rem 0.6rem;
     background: var(--paper);
+    position: relative;
+  }
+  .quip {
+    position: absolute;
+    top: 2.45rem;
+    left: 0.35rem;
+    right: 0.5rem;
+    /* Cover the card body entirely while the rival speaks. */
+    min-height: calc(100% - 2.8rem);
+    display: grid;
+    z-index: 2;
   }
   .player.active {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc) 55%, transparent);

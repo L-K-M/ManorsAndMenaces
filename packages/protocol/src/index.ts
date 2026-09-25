@@ -11,6 +11,11 @@ export interface SeatConfig {
   displayName: string;
   kind: "human" | "ai";
   aiLevel?: AiLevel;
+  /**
+   * Named rival persona of an AI seat (content `RIVALS` id). Flavour only;
+   * optional so older saves and online seats without it stay valid.
+   */
+  rivalId?: string;
   /** Heraldic colour index (0–3). */
   color: number;
 }

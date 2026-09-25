@@ -20,6 +20,7 @@
   import PlayersPanel from "./PlayersPanel.svelte";
   import QuestPanel from "./QuestPanel.svelte";
   import ResourceIcon from "./ResourceIcon.svelte";
+  import RivalQuips from "./RivalQuips.svelte";
   import SettingsDialog from "./SettingsDialog.svelte";
   import TutorialCoach from "./TutorialCoach.svelte";
 
@@ -103,6 +104,7 @@
     {#each session.floaters.filter((f) => f.playerId === viewer) as f (f.id)}
       <div class="floater" style="--i: {f.id % 5}"><ResourceIcon resource={f.resource as never} size={22} /> {f.text}</div>
     {/each}
+    <RivalQuips {session} />
     <Overlays {session} {onexit} {onrematch} />
     {#if tutorial}<TutorialCoach {session} onfinish={onexit} />{/if}
   </main>
