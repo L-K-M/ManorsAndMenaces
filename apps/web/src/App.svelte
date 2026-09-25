@@ -276,6 +276,26 @@
       margin-top: max(0.5rem, 5vh);
     }
   }
+  /* Short screens: tighten the stack so the card still fits once the
+     Continue button appears (a 1024x600 netbook, a 360x640 phone). */
+  @media (max-height: 700px) {
+    .hero {
+      margin-top: 0;
+    }
+    .tagline {
+      margin: 0.5rem 0 1.1rem;
+    }
+    .menu {
+      gap: 0.4rem;
+      padding: 1.6rem 1rem 1rem;
+    }
+    .menu button {
+      padding: 0.4rem 1rem;
+    }
+    .version {
+      margin-top: 0.4rem;
+    }
+  }
   /* Short landscape screens (phones on their side): logo beside the menu,
      menu buttons in two columns, so nothing needs scrolling. */
   @media (max-height: 560px) and (orientation: landscape) {

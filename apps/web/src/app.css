@@ -162,6 +162,16 @@ button.ghost {
   background: transparent;
   box-shadow: none;
 }
+/* Text-link buttons (the action hint's Cancel) stay flat: no bevel, no
+   hover face, no press. */
+button.link,
+button.link:hover:not(:disabled),
+button.link:active:not(:disabled) {
+  background: none;
+  box-shadow: none;
+  transform: none;
+  font-weight: inherit;
+}
 :focus-visible {
   outline: 3px solid #1b5fd1;
   outline-offset: 2px;
@@ -242,7 +252,8 @@ label:has(> input:focus-visible) {
   --ink-soft: #000000;
   --edge: #000000;
   --paper-grain: none;
-  --paper-sheet: #ffffff;
+  /* Must stay an <image>: it is also used as a background-image. */
+  --paper-sheet: linear-gradient(#ffffff, #ffffff);
   --button-face: #ffffff;
   --button-face-hover: #fff1c2;
   --primary-face: var(--accent);
