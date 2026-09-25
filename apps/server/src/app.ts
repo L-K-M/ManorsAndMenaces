@@ -268,6 +268,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
           if (!isSubmitCommandsRequest(body) || body.matchId !== matchId) throw new HttpError(400, "malformed command batch");
           return send(res, 200, service.submit(user, body));
         }
+        if (parts[3] === "history" && parts.length === 4 && req.method === "GET") return send(res, 200, service.history(matchId, user));
         if (parts[3] === "replay" && req.method === "GET") {
           const view = service.view(matchId, user);
           if (view.status !== "finished") throw new HttpError(409, "replays are available once the match is finished");
@@ -369,7 +370,17 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
           }
           if (!member) return;
           sub.matches.add(msg.matchId);
-          const update = updateFor(sub.userId, msg.matchId, []);
+          // A client that says which revision it already shows gets the
+          // events it missed (e.g. while reconnecting) with this first update.
+          const since = typeof msg.since === "number" && Number.isSafeInteger(msg.since) && msg.since >= 0 ? msg.since : null;
+          let missed: GameEvent[] = [];
+          try {
+            if (since !== null) missed = service.eventsSince(msg.matchId, since);
+          } catch (e) {
+            // As above: a failed replay must not take the server down.
+            console.error(e);
+          }
+          const update = updateFor(sub.userId, msg.matchId, missed);
           if (update) ws.send(update);
         } else if (msg.type === "unsubscribe") sub.matches.delete(msg.matchId);
         else if (msg.type === "ping") ws.send(JSON.stringify({ type: "hello", userId: sub.userId } satisfies ServerMessage));

@@ -5,10 +5,12 @@
 import type {
   ApiErrorBody,
   ApiErrorCode,
+  ClientMessage,
   CreateMatchRequest,
   CreateMatchResponse,
   GuestSessionResponse,
   JoinMatchResponse,
+  MatchHistoryResponse,
   MatchView,
   ServerMessage,
   SubmitCommandsResponse,
@@ -129,16 +131,34 @@ export class OnlineClient {
   getMatch(matchId: string): Promise<MatchView> {
     return this.call(`/api/matches/${encodeURIComponent(matchId)}`);
   }
+  /** The match with every move's events, for its Chronicle. */
+  async history(matchId: string): Promise<MatchHistoryResponse> {
+    try {
+      return await this.call(`/api/matches/${encodeURIComponent(matchId)}/history`);
+    } catch (e) {
+      // A server from before the history endpoint: open the match without its
+      // Chronicle, which then says so. A missing match is still reported by getMatch.
+      if (!(e instanceof ApiError && e.status === 404)) throw e;
+      return { match: await this.getMatch(matchId), entries: [], complete: false };
+    }
+  }
   submit(matchId: string, expectedRevision: number, commands: GameCommand[]): Promise<SubmitCommandsResponse> {
     return this.call(`/api/matches/${encodeURIComponent(matchId)}/commands`, { matchId, expectedRevision, commands });
   }
 
   /**
-   * Subscribe to a match; reconnects with backoff until `close()`.
+   * Subscribe to a match; reconnects with backoff until `close()`. With
+   * `since` (the revision on screen), each (re)connection's first update
+   * carries the events missed meanwhile.
    * The session token travels in the query string because browsers cannot set
    * WebSocket headers; deploy behind TLS and keep query strings out of access logs.
    */
-  subscribe(matchId: string, onUpdate: (match: MatchView, events: GameEvent[]) => void, onStatus: (connected: boolean) => void): () => void {
+  subscribe(
+    matchId: string,
+    onUpdate: (match: MatchView, events: GameEvent[]) => void,
+    onStatus: (connected: boolean) => void,
+    since?: () => number,
+  ): () => void {
     let ws: WebSocket | null = null;
     let closed = false;
     let delay = 500;
@@ -150,7 +170,7 @@ export class OnlineClient {
       ws.onopen = () => {
         delay = 500;
         onStatus(true);
-        ws?.send(JSON.stringify({ type: "subscribe", matchId }));
+        ws?.send(JSON.stringify({ type: "subscribe", matchId, ...(since ? { since: since() } : {}) } satisfies ClientMessage));
       };
       ws.onmessage = (e) => {
         const msg = JSON.parse(String(e.data)) as ServerMessage;

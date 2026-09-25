@@ -10,6 +10,8 @@ import type {
   ApiErrorCode,
   CreateMatchRequest,
   GuestSessionResponse,
+  HistoryEntry,
+  MatchHistoryResponse,
   MatchSeatInfo,
   MatchView,
   SubmitCommandsRequest,
@@ -256,31 +258,69 @@ export class MatchService {
   }
 
   /**
-   * The events that already-committed commands produced, recomputed by
-   * replaying the history from the initial state (§62); events are not
-   * stored. Only idempotent retries after a lost response pay this cost.
+   * The events that already-committed commands produced. Only idempotent
+   * retries after a lost response pay for this replay.
    */
   private committedEvents(match: MatchRow, commandIds: Set<string>): GameEvent[] {
-    let state = match.initial_state;
-    if (!state) return [];
     const events: GameEvent[] = [];
     let remaining = commandIds.size;
-    for (const c of this.store.commandHistory(match.id)) {
-      if (remaining === 0) break;
-      const r = this.engine.applyCommand(state, c);
-      if (!r.accepted || !r.newState) {
-        // A history that no longer replays is a server bug; the retry still
-        // succeeds, only without its Chronicle entries.
-        console.error(`history of ${match.id} does not replay at ${c.commandId}`, r.error);
-        return [];
-      }
-      if (commandIds.has(c.commandId)) {
-        events.push(...r.events);
+    // A history that no longer replays is a server bug; the retry still
+    // succeeds, only without its Chronicle entries.
+    const complete = this.replay(match, (_revision, command, commandEvents) => {
+      if (commandIds.has(command.commandId)) {
+        events.push(...commandEvents);
         remaining--;
       }
+      return remaining > 0;
+    });
+    return complete ? events : [];
+  }
+
+  /**
+   * The match and every committed command's events as the viewer may see
+   * them (§105), so a player who (re)opens a match gets its Chronicle back,
+   * including the moves made while they were away.
+   */
+  history(matchId: string, user: UserRow): MatchHistoryResponse {
+    const match = this.view(matchId, user);
+    const row = this.store.match(matchId);
+    const entries: HistoryEntry[] = [];
+    const complete = !row || this.replay(row, (revision, _command, events) => void entries.push({ revision, events: events.map((e) => redactEvent(e, match.youAre)) }));
+    return { match, entries, complete };
+  }
+
+  /**
+   * The unredacted events of the commands after revision `since`, for a
+   * client that reconnects: the caller redacts them for its viewer.
+   */
+  eventsSince(matchId: string, since: number): GameEvent[] {
+    const match = this.store.match(matchId);
+    if (!match || since >= match.revision) return [];
+    const events: GameEvent[] = [];
+    this.replay(match, (revision, _command, commandEvents) => {
+      if (revision > since) events.push(...commandEvents);
+    });
+    return events;
+  }
+
+  /**
+   * Replays the history from the initial state (§62), handing `visit` each
+   * command's events; events are not stored. `visit` returns false once it
+   * has all it needs. Returns false if the history no longer replays.
+   */
+  private replay(match: MatchRow, visit: (revision: number, command: GameCommand, events: GameEvent[]) => boolean | void): boolean {
+    let state = match.initial_state;
+    if (!state) return true;
+    for (const { revision, command } of this.store.commandRows(match.id)) {
+      const r = this.engine.applyCommand(state, command);
+      if (!r.accepted || !r.newState) {
+        console.error(`history of ${match.id} does not replay at ${command.commandId}`, r.error);
+        return false;
+      }
+      if (visit(revision, command, r.events) === false) return true;
       state = r.newState;
     }
-    return events;
+    return true;
   }
 
   // ------------------------------------------------------------------ AI seats

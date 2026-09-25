@@ -19,8 +19,9 @@
   import ToolIcon from "./lib/components/ToolIcon.svelte";
 
   type Screen = "title" | "new" | "game" | "online";
-  // Invite links (#/join/CODE) open the online lobby directly (spec §86).
-  let screen: Screen = $state(location.hash.startsWith("#/join/") ? "online" : "title");
+  // Invite links (#/join/CODE) open the online lobby directly (spec §86), and
+  // a match address (#/match/ID, e.g. after a reload) reopens that match.
+  let screen: Screen = $state(location.hash.startsWith("#/join/") || location.hash.startsWith("#/match/") ? "online" : "title");
   let session: GameSession | null = $state(null);
   let tutorial = $state(false);
   let saves: SaveEntry[] = $state([]);

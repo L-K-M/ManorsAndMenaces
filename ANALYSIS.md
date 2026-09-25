@@ -738,13 +738,15 @@ AI performance entries (`ai-latency-beam`, `ai-banner-search-cost`) are under [P
 
 ##### spec-async-online-catchup: Reopening or reconnecting to a match shows no missed events
 - Also covers: `online-reconnect-event-gap`
-- Severity: medium | Effort: M | Delight: 4 | Status: confirmed
+- Severity: medium | Effort: M | Delight: 4 | Status: done (Chronicle); away digest open
+- Done: `GET /api/matches/:id/history` returns every command's events, redacted for the viewer, by replaying the history (about 8 ms for a full 4-player match) instead of a new column. `subscribe` takes `since` and sends the events after it. The client keeps the last seen revision per match (`online/seen.ts`), rebuilds the Chronicle from the history, and puts a "Since your last visit" divider before the missed moves, opening the Chronicle there. Still open: feeding the missed moves into the "While you were away" digest (`FeedbackController` starts with no batches on reopen).
 - Files: `apps/web/src/lib/online/OnlineLobby.svelte:95-121`, `apps/web/src/lib/game/session.svelte.ts:111-116,262-281`, `apps/server/src/app.ts:236-238`, `apps/server/src/store.ts:81-92,192-196`, `packages/rules/src/views.ts:43`
 - Proposal: add a `match_events.events TEXT` column (guarded `ALTER TABLE`) holding the full events of each batch. `subscribe` accepts `sinceRevision` and replies with up to 200 events passed through `redactEvent(e, viewer)`. Also add `GET /api/matches/:id/events?since=`. The client stores `lastSeenRevision` per match, seeds the log, and shows a "While you were away" card (see `delight-idea-away-digest`). Tests: 3 AI steps while disconnected all arrive on reconnect, redacted for the other seat.
 - #23's away digest (`game/feed.ts`, digest rules) is the natural renderer for the missed events.
 
 ##### online-no-resume-after-reload: Reloading drops you out of an online match; no deep link
-- Severity: medium | Effort: S | Delight: 4 | Status: confirmed
+- Severity: medium | Effort: S | Delight: 4 | Status: done (reload, link); connection pill and title-screen resume open
+- Done: the open match lives in the address as `#/match/ID` (`online/route.ts`); a reload or the link reopens it when a session token exists, and leaving the match clears it. Still open: the separate `session.connection` pill and a "Resume online match" button on the title screen.
 - Files: `apps/web/src/App.svelte:17`, `apps/web/src/lib/online/OnlineLobby.svelte:95-122`
 - Proposal: `launch()` writes `#/match/<id>`. App routes that hash (when a token exists) to the lobby with `autoOpen`, and `exit()` clears it. Add a separate `session.connection` state rendered as a "Reconnecting…" pill (`ui.reconnecting`) rather than overwriting `session.error`. On the title screen, show "Resume online match: your turn". E2E: reload mid-game and the board is visible.
 
