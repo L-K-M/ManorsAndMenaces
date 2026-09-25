@@ -113,7 +113,6 @@ describe("building (§12–13)", () => {
     s = act(s, p1, { type: "upgrade_holding", siteId: "s1" }).state;
     reject(s, p1, { type: "upgrade_holding", siteId: "s1" }, "ALREADY_STRONGHOLD");
   });
-  });
 });
 
 describe("banners (§14)", () => {
