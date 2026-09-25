@@ -362,6 +362,7 @@ export const EN: Record<string, string> = {
   "ui.server": "Server",
   "ui.server_address": "Server address",
   "ui.continue_as_guest": "Continue as guest",
+  "ui.session_renewed": "The server no longer recognised your saved session, so you are now signed in as a new guest. Matches from the old session are not listed.",
   "ui.waiting_for_players_share_this": "Waiting for players… Share this invite:",
   "ui.back_to_lobby": "Back to lobby",
   "ui.new_match": "New match",

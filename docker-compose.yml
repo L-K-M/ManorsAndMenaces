@@ -9,6 +9,14 @@ services:
     environment:
       CORS_ORIGIN: ${CORS_ORIGIN:-*} # restrict to your web origin in production
       AI_DELAY_MS: ${AI_DELAY_MS:-700} # pause between server-side AI moves
+      # Behind a reverse proxy (nginx, Caddy, Traefik) every player arrives from
+      # the proxy's address and shares one rate limit. Set this to the number of
+      # proxies in front of the server so limits key on the X-Forwarded-For
+      # client address instead. Leave it at 0 when the port is exposed directly:
+      # clients could then forge the header. Each proxy must append to or
+      # overwrite X-Forwarded-For (it is read before Forwarded), never pass a
+      # client-supplied one through untouched.
+      TRUST_PROXY: ${TRUST_PROXY:-0}
     volumes:
       - manors-data:/data # SQLite database
 volumes:

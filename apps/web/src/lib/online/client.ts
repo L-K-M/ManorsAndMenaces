@@ -3,6 +3,8 @@
 // statically hosted web build can talk to any server.
 
 import type {
+  ApiErrorBody,
+  ApiErrorCode,
   CreateMatchRequest,
   CreateMatchResponse,
   GuestSessionResponse,
@@ -28,6 +30,22 @@ function defaultServer(): string {
   if (env) return env;
   if (typeof location !== "undefined" && location.protocol.startsWith("http") && location.port !== "5173") return location.origin;
   return "http://localhost:8787";
+}
+
+/** An HTTP error from the server, with its machine-readable code if it sent one. */
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly code?: ApiErrorCode,
+  ) {
+    super(message);
+  }
+
+  /** The server rejected the session token; only a new guest session helps. */
+  get sessionInvalid(): boolean {
+    return this.status === 401;
+  }
 }
 
 export class OnlineClient {
@@ -63,9 +81,21 @@ export class OnlineClient {
       headers: { "content-type": "application/json", ...(this.token ? { authorization: `Bearer ${this.token}` } : {}) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-    const data = (await res.json().catch(() => ({}))) as T & { error?: string };
-    if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+    const data = (await res.json().catch(() => ({}))) as T & Partial<ApiErrorBody>;
+    if (!res.ok) {
+      // A rejected token never becomes valid again (the server lost its
+      // database, or this is another server): forget it rather than
+      // retrying it on every visit.
+      if (res.status === 401) this.forgetSession();
+      throw new ApiError(res.status, data.error ?? `HTTP ${res.status}`, data.code);
+    }
     return data;
+  }
+
+  private forgetSession(): void {
+    this.token = null;
+    this.userId = null;
+    this.persist();
   }
 
   async ensureGuest(displayName: string): Promise<void> {
@@ -75,8 +105,10 @@ export class OnlineClient {
         await this.call("/api/me");
         this.persist();
         return;
-      } catch {
-        this.token = null;
+      } catch (e) {
+        // Keep the session through network trouble; replace it only once
+        // the server has rejected it.
+        if (!(e instanceof ApiError && e.sessionInvalid)) throw e;
       }
     }
     const g = await this.call<GuestSessionResponse>("/api/guest", { displayName });
