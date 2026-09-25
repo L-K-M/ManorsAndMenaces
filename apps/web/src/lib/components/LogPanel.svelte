@@ -53,7 +53,7 @@
         </li>
       {/each}
     </ol>
-    {#if !following}<button class="jump" onclick={jumpToLatest}>↓ {t("ui.jump_to_latest")}</button>{/if}
+    {#if !following}<button class="jump" onclick={jumpToLatest}>{t("ui.jump_to_latest")}</button>{/if}
   </div>
 </section>
 
@@ -105,10 +105,10 @@
     word-break: break-all;
   }
   .jump {
-    position: sticky;
-    bottom: 0.3rem;
-    display: block;
-    margin: 0.3rem auto 0;
+    position: absolute;
+    bottom: 0.5rem;
+    left: 50%;
+    transform: translateX(-50%);
     min-height: 34px;
     padding: 0.15rem 0.7rem;
     border-radius: 999px;
