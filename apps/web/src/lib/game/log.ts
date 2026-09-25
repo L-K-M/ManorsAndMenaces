@@ -35,8 +35,10 @@ export function placeName(map: MapDefinition, loc: MenaceLocation): string {
   switch (loc.kind) {
     case "region":
       return regionName(map, loc.regionId);
-    case "route":
-      return t("route.road").toLowerCase() + " " + loc.routeId.replace("route_", "#");
+    case "route": {
+      const kind = map.routes.find((r) => r.id === loc.routeId)?.kind ?? "road";
+      return `${t(`route.${kind}`).toLowerCase()} ${loc.routeId.replace("route_", "#")}`;
+    }
     case "site": {
       const site = map.sites.find((s) => s.id === loc.siteId);
       return site?.landmarkId ? t(`landmark.${site.landmarkId}`) : `site ${loc.siteId.replace("site_", "#")}`;

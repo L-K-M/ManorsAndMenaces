@@ -34,7 +34,7 @@
           {#if rival}<RivalPortrait portrait={rival.portrait} {theme} size={30} title={t("ui.rival_portrait", { name: t(rival.nameKey), title: t(rival.titleKey), motto: t(rival.mottoKey) })} />
           {:else}<svg width="22" height="22" viewBox="-11 -11 22 22" aria-hidden="true"><path d={emblemPath(theme.shape, 8)} fill={theme.color} stroke={theme.dark} stroke-width="1.5" /></svg>{/if}
           <strong>{p.displayName}</strong>
-          {#if seat?.kind === "ai"}<span class="tag">AI · {seat.aiLevel}</span>{/if}
+          {#if seat?.kind === "ai"}<span class="tag">{t("ui.ai_seat", { level: t(`ui.${seat.aiLevel ?? "normal"}`) })}</span>{/if}
           {#if session.transport.kind === "online" && seat?.kind === "human"}
             <span class="presence" class:on={session.presence[pid]} title={session.presence[pid] ? t("ui.online") : t("ui.offline")}>
               {session.presence[pid] ? t("ui.online") : t("ui.offline")}
@@ -74,8 +74,8 @@
         <div class="meta">
           <span>{getPlayerHoldings(gs, pid).filter((h) => h.type === "manor").length} {t("holding.manor")}</span>
           <span>{getPlayerHoldings(gs, pid).filter((h) => h.type === "stronghold").length} {t("holding.stronghold")}</span>
-          <span>{p.routeIds.length} routes</span>
-          {#if gs.ruleset.enableCards}<span>{p.hand.length} cards</span>{/if}
+          <span>{t("ui.routes_count", { count: p.routeIds.length })}</span>
+          {#if gs.ruleset.enableCards}<span>{t("ui.cards_count", { count: p.hand.length })}</span>{/if}
         </div>
       </article>
     {/if}

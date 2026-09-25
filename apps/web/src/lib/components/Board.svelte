@@ -292,7 +292,8 @@
   const bannerLabel = (b: Banner) => {
     const owner = gs.players[b.ownerId]?.displayName ?? "";
     const r = bannerRegion(b);
-    return `${owner}'s Banner, ${r ? `in ${regionName(map, r)}` : "at home"}${b.settled ? ", settled" : ""}`;
+    const place = r ? t("aria.banner_in", { owner, region: regionName(map, r) }) : t("aria.banner_home", { owner });
+    return b.settled ? `${place}${t("aria.banner_settled")}` : place;
   };
   const myBanners = $derived(new Set(session.localActor ? getPlayerBanners(gs, session.localActor).map((b) => b.id) : []));
 
@@ -670,7 +671,7 @@
         tabindex={isHl || !targeting ? 0 : -1}
         aria-label={holding
           ? `${t(`holding.${holding.type}`)} of ${gs.players[holding.ownerId]?.displayName}${site.landmarkId ? `, ${t(`landmark.${site.landmarkId}`)}` : ""}`
-          : `Site${site.landmarkId ? `, ${t(`landmark.${site.landmarkId}`)}` : ""}${site.tradePost ? `, Trading Post (${t(`resource.${site.tradePost.resource}`)} 2:1)` : ""}`}
+          : `${t("inspect.site")}${site.landmarkId ? `, ${t(`landmark.${site.landmarkId}`)}` : ""}${site.tradePost ? `, ${t("aria.trade_post", { resource: t(`resource.${site.tradePost.resource}`) })}` : ""}`}
         onclick={() => pick(hl.locations.has(`site:${site.id}`) ? { kind: "location", location: { kind: "site", siteId: site.id } } : { kind: "site", id: site.id })}
         onkeydown={(e) => key(e, { kind: "site", id: site.id })}
         onpointerenter={(e) => hoverIn(e, { kind: "site", id: site.id })}

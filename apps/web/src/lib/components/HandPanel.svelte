@@ -99,7 +99,7 @@
         {hiddenNote}
       </p>
     {:else if viewer && hand.length === 0}
-      <p class="empty">No cards. {t("action.buy_card")}: {t("cost.card")}</p>
+      <p class="empty">{t("hand.empty", { action: t("action.buy_card"), cost: t("cost.card") })}</p>
     {/if}
     <ul onscroll={hidePeek}>
       {#each hand as cardId (cardId)}

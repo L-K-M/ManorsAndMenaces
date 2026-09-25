@@ -10,19 +10,20 @@
 
   interface Step {
     text: string;
-    todo: string;
+    /** i18n key of the task line (todo strings live in en.ts, spec §71). */
+    taskKey: string;
     done: (s: GameState) => boolean;
   }
   const steps: Step[] = [
-    { text: t("tutorial.1"), todo: "Place your first Manor on a highlighted Site, then a free Route.", done: (s) => getPlayerHoldings(s, me).length >= 1 && (s.players[me]?.routeIds.length ?? 0) >= 1 },
-    { text: t("tutorial.5"), todo: "Place your second Manor and its Route. You'll receive a resource from each Region it touches.", done: (s) => getPlayerHoldings(s, me).length >= 2 && (s.players[me]?.routeIds.length ?? 0) >= 2 },
-    { text: t("tutorial.2"), todo: "Select one of your flags, then pick a highlighted Region. Confirm your Banners.", done: (s) => getPlayerBanners(s, me).some((b) => b.regionId) },
-    { text: t("tutorial.3"), todo: "Look at the Next Harvest box — that's exactly what you'll get next turn. End your first turn: click “Assign Banners”, then “End Turn”.", done: (s) => s.status === "playing" && (s.players[me]?.firstHarvestSkipped ?? false) && s.activePlayerId !== me },
-    { text: t("tutorial.4"), todo: "Regions show capacity pips. When the AI has Banners next to your Holdings, the Royal Writ lets you send them home (1 Essence + a bribe).", done: (s) => (s.players[me]?.stats.resourcesHarvestedTotal ?? 0) > 0 },
-    { text: t("tutorial.6"), todo: "The Toll Troll blocks its Region. Use “Hire a Warden” (1 Essence + 1 Grain) to move it onto someone else's Banner.", done: (s) => (s.players[me]?.stats.menacesMoved ?? 0) > 0 || s.round >= 5 },
-    { text: t("tutorial.7"), todo: "Build a Route (1 Timber + 1 Stone) toward a free Site, then a Manor (1 Grain + 1 Timber + 1 Stone). Use the Market if you're short.", done: (s) => getPlayerHoldings(s, me).length >= 3 },
-    { text: t("tutorial.9"), todo: "Upgrade a Manor to a Stronghold (2 Grain + 2 Iron) for another Banner and +1 Renown.", done: (s) => getPlayerHoldings(s, me).some((h) => h.type === "stronghold") },
-    { text: t("tutorial.8"), todo: "In the standard game, Royal Quests and cards add more ways to score. You're ready — play on to 10 Renown!", done: () => false },
+    { text: t("tutorial.1"), taskKey: "tutorial.task.1", done: (s) => getPlayerHoldings(s, me).length >= 1 && (s.players[me]?.routeIds.length ?? 0) >= 1 },
+    { text: t("tutorial.5"), taskKey: "tutorial.task.2", done: (s) => getPlayerHoldings(s, me).length >= 2 && (s.players[me]?.routeIds.length ?? 0) >= 2 },
+    { text: t("tutorial.2"), taskKey: "tutorial.task.3", done: (s) => getPlayerBanners(s, me).some((b) => b.regionId) },
+    { text: t("tutorial.3"), taskKey: "tutorial.task.4", done: (s) => s.status === "playing" && (s.players[me]?.firstHarvestSkipped ?? false) && s.activePlayerId !== me },
+    { text: t("tutorial.4"), taskKey: "tutorial.task.5", done: (s) => (s.players[me]?.stats.resourcesHarvestedTotal ?? 0) > 0 },
+    { text: t("tutorial.6"), taskKey: "tutorial.task.6", done: (s) => (s.players[me]?.stats.menacesMoved ?? 0) > 0 || s.round >= 5 },
+    { text: t("tutorial.7"), taskKey: "tutorial.task.7", done: (s) => getPlayerHoldings(s, me).length >= 3 },
+    { text: t("tutorial.9"), taskKey: "tutorial.task.8", done: (s) => getPlayerHoldings(s, me).some((h) => h.type === "stronghold") },
+    { text: t("tutorial.8"), taskKey: "tutorial.task.9", done: () => false },
   ];
   let index = $state(0);
   $effect(() => {
@@ -34,13 +35,13 @@
 
 <aside class="coach" class:minimized aria-live="polite" aria-label={t("ui.tutorial")}>
   <header>
-    <strong>Tutorial · {index + 1}/{steps.length}</strong>
-    <button class="ghost" onclick={() => (minimized = !minimized)}>{minimized ? "Show" : "Hide"}</button>
+    <strong>{t("tutorial.title", { current: index + 1, total: steps.length })}</strong>
+    <button class="ghost" onclick={() => (minimized = !minimized)}>{minimized ? t("ui.show") : t("ui.hide")}</button>
     <button class="ghost" onclick={onfinish}>{t("ui.end_tutorial")}</button>
   </header>
   {#if !minimized}
     <p class="lesson">{steps[index]?.text}</p>
-    <p class="todo">→ {steps[index]?.todo}</p>
+    <p class="todo">→ {t(steps[index]?.taskKey ?? "tutorial.task.1")}</p>
     <div class="dots" aria-hidden="true">{#each steps as _, i}<span class:on={i <= index}></span>{/each}</div>
   {/if}
 </aside>
