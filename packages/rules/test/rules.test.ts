@@ -6,6 +6,7 @@ import {
   getHarvestPreview,
   getLegalActions,
   getRenown,
+  getRenownSources,
   hashState,
   redactState,
   seedRng,
@@ -374,6 +375,22 @@ describe("quests (§27)", () => {
     s = passTurn(s);
     expect(s.revealedQuestIds).toHaveLength(3);
     expect(s.revealedQuestIds).toContain("prosperous_estates");
+  });
+  it("itemises Renown by source, summing to the total", () => {
+    const { state, p1 } = setupGame(standardRuleset(2));
+    let s: GameState = { ...state, revealedQuestIds: ["monster_problems", "kings_highway", "stone_and_timber"] };
+    const player = s.players[p1] as GameState["players"][string];
+    s = { ...s, players: { ...s.players, [p1]: { ...player, bonusRenown: 1, stats: { ...player.stats, menacesMoved: 3 } } } };
+    s = act(s, p1, { type: "claim_quest", questId: "monster_problems" }).state;
+    s = act(grant(s, p1, { grain: 2, iron: 2 }), p1, { type: "upgrade_holding", siteId: "s1" }).state;
+
+    const sources = getRenownSources(ctx, s, p1);
+    expect(sources.manors).toEqual({ count: 1, renown: 1 });
+    expect(sources.strongholds).toEqual({ count: 1, renown: 2 });
+    expect(sources.quests).toEqual([{ questId: "monster_problems", renown: ctx.quest("monster_problems").renown }]);
+    expect(sources.bonus).toBe(1);
+    expect(sources.total).toBe(getRenown(ctx, s, p1));
+    expect(sources.manors.renown + sources.strongholds.renown + sources.quests[0]!.renown + sources.bonus).toBe(sources.total);
   });
 });
 

@@ -29,6 +29,7 @@
   import ResourcePurse from "./ResourcePurse.svelte";
   import RivalQuips from "./RivalQuips.svelte";
   import ScoreStrip from "./ScoreStrip.svelte";
+  import RenownDialog from "./RenownDialog.svelte";
   import ToolIcon from "./ToolIcon.svelte";
   import SettingsDialog from "./SettingsDialog.svelte";
   import TutorialCoach from "./TutorialCoach.svelte";
@@ -276,6 +277,7 @@
 <Dialogs {session} {legal} />
 {#if ui.dialog === "menu"}<GameMenu {session} {tutorial} {onexit} onsettings={() => ((settingsFromMenu = true), (ui.dialog = "settings"))} onclose={() => (ui.dialog = null)} />{/if}
 {#if ui.dialog === "settings"}<SettingsDialog onclose={() => ((ui.dialog = settingsFromMenu ? "menu" : null), (settingsFromMenu = false))} />{/if}
+{#if ui.renownOf}<RenownDialog {session} playerId={ui.renownOf} onclose={() => (ui.renownOf = null)} />{/if}
 {#if ui.showDebug}<DebugPanel {session} onclose={() => (ui.showDebug = false)} />{/if}
 
 <style>
@@ -669,6 +671,10 @@
   [data-layout="sheet"] .score {
     order: 10;
     flex-basis: 100%;
+    /* The chips are full-height touch targets around a smaller pill; let
+       them reach into the row gap and the bar's padding, which hold nothing
+       else, so the board keeps its height. */
+    margin-block: -0.35rem -0.2rem;
   }
   [data-layout="sheet"] .score :global(.scoreboard) {
     justify-content: safe center;
