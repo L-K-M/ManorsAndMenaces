@@ -10,6 +10,7 @@ import type {
   CreateMatchResponse,
   EmailSettings,
   GuestSessionResponse,
+  InviteSettings,
   JoinMatchResponse,
   MatchHistoryResponse,
   MatchNotice,
@@ -51,6 +52,16 @@ export class ApiError extends Error {
   get sessionInvalid(): boolean {
     return this.status === 401;
   }
+
+  /** The server is invite-only and this device has no (valid) invite: ask for its code. */
+  get inviteRequired(): boolean {
+    return this.code === "INVITE_REQUIRED";
+  }
+}
+
+/** The code in a pasted invite link (`…/invite/<code>`), or the text itself if it is just the code. */
+export function inviteCodeFrom(text: string): string {
+  return /\/invite\/([A-Za-z0-9]+)/.exec(text)?.[1] ?? text.trim();
 }
 
 export class OnlineClient {
@@ -103,7 +114,8 @@ export class OnlineClient {
     this.persist();
   }
 
-  async ensureGuest(displayName: string): Promise<void> {
+  /** A guest session; `inviteCode` admits it to an invite-only server (the apps ask for it once). */
+  async ensureGuest(displayName: string, inviteCode?: string): Promise<void> {
     this.displayName = displayName;
     if (this.token) {
       try {
@@ -111,12 +123,18 @@ export class OnlineClient {
         this.persist();
         return;
       } catch (e) {
+        // A session from before the server became invite-only keeps its matches.
+        if (e instanceof ApiError && e.inviteRequired && inviteCode) {
+          await this.call("/api/invites/accept", { code: inviteCode });
+          this.persist();
+          return;
+        }
         // Keep the session through network trouble; replace it only once
         // the server has rejected it.
         if (!(e instanceof ApiError && e.sessionInvalid)) throw e;
       }
     }
-    const g = await this.call<GuestSessionResponse>("/api/guest", { displayName });
+    const g = await this.call<GuestSessionResponse>("/api/guest", { displayName, ...(inviteCode ? { inviteCode } : {}) });
     this.token = g.token;
     this.userId = g.userId;
     this.persist();
@@ -240,6 +258,21 @@ export class OnlineClient {
   }
   removeEmail(): Promise<EmailSettings> {
     return this.call("/api/email/remove", {});
+  }
+  /** The invites this player made, on an invite-only server. */
+  inviteSettings(): Promise<InviteSettings> {
+    return this.call("/api/invites");
+  }
+  inviteFriend(name: string): Promise<InviteSettings> {
+    return this.call("/api/invites", { name });
+  }
+  withdrawInvite(id: string): Promise<InviteSettings> {
+    return this.call("/api/invites/withdraw", { id });
+  }
+  /** The link that opens this server's game with an invite. */
+  inviteLink(code: string): string {
+    // An empty address means this site (call() fetches relative to it), but a link must say where.
+    return `${this.serverUrl.trim().replace(/\/+$/, "") || location.origin}/invite/${code}`;
   }
 }
 

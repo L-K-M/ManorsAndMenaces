@@ -18,6 +18,7 @@
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm map:check && pnpm build:check",
     "build:check": "node scripts/check-build.mjs",
     "server": "pnpm --filter @manors-menaces/server start",
+    "invites": "pnpm --filter @manors-menaces/server start invites",
     "map:generate": "node tools/generate-islands.mjs",
     "map:check": "node tools/generate-islands.mjs --check",
     "simulate": "tsx tools/simulate.ts",

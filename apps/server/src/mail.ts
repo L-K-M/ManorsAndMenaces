@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { createTransport } from "nodemailer";
 import type { EmailSettings, MatchNotice } from "@manors-menaces/protocol";
 import { text } from "./notices.js";
+import { htmlPage } from "./page.js";
 import { HttpError, hashToken } from "./service.js";
 import type { Store } from "./store.js";
 
@@ -249,38 +250,11 @@ export class EmailNotices {
   }
 }
 
-const escapeHtml = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-
 /**
  * The page an email link opens. A link only ever shows a question and a
  * button: mail scanners open links to check them, and must not confirm or
  * unsubscribe anyone by doing so. The button posts back to the same address.
  */
 export function emailPage(publicUrl: string, title: string, body: string, button?: string): string {
-  const form = button ? `<form method="post"><button>${escapeHtml(button)}</button></form>` : "";
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>${escapeHtml(title)}</title>
-<style>
-body { margin: 0; min-height: 100vh; display: grid; place-items: center; font: 17px/1.5 Georgia, serif; background: #efe4c8; color: #2b2116; }
-main { max-width: 30rem; margin: 1rem; padding: 1.4rem 1.6rem; background: #fbf5e6; border: 3px solid #8a7650; border-radius: 16px; }
-h1 { margin-top: 0; font-size: 1.4rem; }
-button { font: inherit; padding: 0.5rem 1.2rem; border-radius: 10px; border: 2px solid #5b4a2c; background: #7a5a2e; color: #fff; cursor: pointer; }
-a { color: #5b3f12; }
-</style>
-</head>
-<body>
-<main>
-<h1>${escapeHtml(title)}</h1>
-<p>${escapeHtml(body)}</p>
-${form}
-<p><a href="${escapeHtml(publicUrl)}/">${escapeHtml(text("email.page_open_game"))}</a></p>
-</main>
-</body>
-</html>
-`;
+  return htmlPage(title, body, { ...(button ? { button } : {}), link: { href: `${publicUrl}/`, label: text("email.page_open_game") } });
 }
