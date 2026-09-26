@@ -70,6 +70,8 @@
   $effect(() => {
     if (ui.tool !== "none") trayOpen = false;
   });
+  // A Renown breakdown belongs to this game; leaving or a rematch closes it.
+  $effect(() => () => (ui.renownOf = null));
 
   // Reset transient UI gs when the acting mode changes.
   let lastMode = "";

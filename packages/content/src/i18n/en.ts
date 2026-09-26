@@ -734,7 +734,6 @@ export const EN: Record<string, string> = {
   "ui.panels": "Panels",
   "ui.close_panels": "Close panels",
   "ui.scoreboard": "Scoreboard",
-  "ui.renown_of": "{name}: {renown} of {target} Renown",
   "ui.renown_count": "{renown} of {target} Renown",
   "ui.renown_of_details": "{name}: {renown} of {target} Renown. Select to see where it comes from.",
   "ui.renown_sources_title": "Renown of {name}",
