@@ -13,6 +13,9 @@ RUN pnpm --filter @manors-menaces/web build && pnpm --filter @manors-menaces/ser
 
 FROM node:22-slim
 ENV NODE_ENV=production PORT=8787 DB_PATH=/data/manors.sqlite WEB_DIST=/app/web
+# node:sqlite warns that it is experimental on every start; keep that out of
+# the output of commands run in the container (`node server.mjs invites …`).
+ENV NODE_OPTIONS=--disable-warning=ExperimentalWarning
 WORKDIR /app
 COPY --from=build /app/apps/server/dist/server.mjs ./server.mjs
 COPY --from=build /app/apps/web/dist ./web

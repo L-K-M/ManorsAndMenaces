@@ -11,7 +11,7 @@ You can put the game online without opening it to everyone. On an invite-only se
 
 ## Turning it on
 
-Set `INVITE_ONLY=true` for the server. With Docker Compose, add it to the `.env` file next to `docker-compose.yml`:
+Set `INVITE_ONLY=true` for the server. With Docker Compose, set it in the `.env` file next to `docker-compose.yml` (copy `.env.example` to `.env` if you have none; [Hosting a server](../README.md#hosting-a-server) walks through a whole setup):
 
 ```sh
 INVITE_ONLY=true

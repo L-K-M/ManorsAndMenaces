@@ -25,12 +25,148 @@ pnpm server                # online server on http://localhost:8787 (optional)
 Or run the whole online stack in Docker:
 
 ```sh
-docker compose up -d       # web client + API on http://localhost:8787
+docker compose up -d --build   # web client + API on http://localhost:8787
 ```
 
-Players can be told when it is their turn by Web Push or email. [`docs/notifications.md`](docs/notifications.md) explains both, how players set them up (Android in detail) and what a server needs for them.
+To run a server for other people, see [Hosting a server](#hosting-a-server).
 
-To put the game online for invited people only, see [`docs/invites.md`](docs/invites.md).
+## Hosting a server
+
+The Docker image serves the web game and the online API from one address. These steps put it on a machine of yours, such as a small VPS, with HTTPS and, if you like, invites. You need a Linux host with git, Docker and the Docker Compose plugin, and a domain name that points at the host. The examples use `play.example.org`.
+
+### 1. Configure
+
+```sh
+git clone https://github.com/L-K-M/ManorsAndMenaces.git
+cd ManorsAndMenaces
+cp .env.example .env
+```
+
+`.env` holds the server's settings; [`.env.example`](.env.example) explains each one. For a server on the internet behind the HTTPS proxy of step 3, set these in `.env`:
+
+```sh
+PORT=127.0.0.1:8787
+TRUST_PROXY=1
+PUBLIC_URL=https://play.example.org
+VAPID_SUBJECT=mailto:you@example.org
+INVITE_ONLY=true
+```
+
+- `PORT=127.0.0.1:8787` lets only the proxy on the same machine reach the server. Ports that Docker publishes bypass firewalls such as ufw.
+- `TRUST_PROXY=1` makes rate limits count each player separately, not everyone behind the proxy together.
+- `PUBLIC_URL` is where players open the game. The invite command prints whole links with it.
+- `VAPID_SUBJECT` is your contact for the Web Push services that deliver turn notifications.
+- `INVITE_ONLY=true` lets in only the people you invite. Leave it `false` to open the game to everyone.
+
+Turn emails need an SMTP account as well: see `.env.example` and [Email](docs/notifications.md#email).
+
+### 2. Start the server
+
+```sh
+docker compose up -d --build
+docker compose logs manors
+```
+
+`--build` builds the image from your checkout, so the server runs the code you have. Without it, Compose runs the image it built last, or downloads the latest release's image if there is none, and that image may lack features your checkout has.
+
+The log shows how the server started:
+
+```
+Invite-only: on (make invites with: node server.mjs invites create NAME)
+Turn emails: off (set SMTP_URL, MAIL_FROM and PUBLIC_URL to turn them on)
+Manors & Menaces server listening on :8787 (db /data/manors.sqlite)
+```
+
+If you set `INVITE_ONLY=true` and the log has no `Invite-only` line, the server is older than invites: start it with `--build`.
+
+The server restarts by itself after a crash or a reboot. After you change `.env`, run `docker compose up -d` to apply it.
+
+### 3. Add HTTPS
+
+Put a reverse proxy with a certificate in front of the server. Browsers offer turn notifications only to HTTPS sites, and players' sessions and invites should not cross the internet unencrypted.
+
+[Caddy](https://caddyserver.com/docs/install) gets and renews a certificate by itself. Install it on the same host, put this in `/etc/caddy/Caddyfile`, and run `sudo systemctl reload caddy`:
+
+```
+play.example.org {
+	reverse_proxy 127.0.0.1:8787
+}
+```
+
+Caddy passes WebSockets through and keeps idle ones open. It also replaces `X-Forwarded-For` with the player's address, which is what `TRUST_PROXY=1` expects.
+
+Another proxy (nginx, Traefik) works too if it:
+
+- passes WebSocket upgrades on `/api/ws` through;
+- sets `X-Forwarded-For`, appending to or replacing the header it received (never passing a client's own through untouched), and `X-Forwarded-Proto`;
+- keeps idle WebSockets open for more than 10 minutes. nginx closes them after 60 seconds unless you raise its timeouts; see [Idle WebSockets and the Android app](docs/notifications.md#idle-websockets-and-the-android-app).
+
+Then open `https://play.example.org`.
+
+### 4. Invite people
+
+Skip this step if you left `INVITE_ONLY=false`.
+
+On an invite-only server everyone needs an invite, you included. Make one for yourself first:
+
+```sh
+docker compose exec manors node server.mjs invites create "Your Name"
+```
+
+```
+Invite for Your Name (id k3m9x2): any number of devices, no expiry, 10 invites of their own.
+https://play.example.org/invite/pnbuxsq7srgq
+```
+
+Open the link in each browser you play in and press **Accept invite**. In the desktop and Android apps, paste the link when the online lobby asks for an invite.
+
+Then make a link for each person you invite and send it to them:
+
+```sh
+docker compose exec manors node server.mjs invites create Anna --uses 3 --days 14
+```
+
+- `--uses N`: how many devices the link lets in (`1` for a single-use link). Default: any number.
+- `--days N`: for how many days the link lets new devices in. Devices already in stay in. Default: no limit.
+- `--invites N`: how many people Anna may invite in turn, from **Invite friends** in the online lobby. Default: 10.
+
+To see who came in through which invite, or to shut someone out:
+
+```sh
+docker compose exec manors node server.mjs invites list
+docker compose exec manors node server.mjs invites revoke ID
+```
+
+`ID` is the invite's id from the list. Revoking an invite shuts out every device and player it let in; the invites they made for others keep working until you revoke those too. [`docs/invites.md`](docs/invites.md) has the details.
+
+### 5. Updates and backups
+
+To update to the latest code:
+
+```sh
+./update.sh
+```
+
+It pulls `main`, rebuilds the image and restarts the server. Open games reconnect by themselves, and computer players carry on.
+
+Everything the server keeps (matches, players, invites, the Web Push keys) is in one SQLite database in the `manors-data` Docker volume. Back it up regularly. Stop the server for a moment while you copy it, so the copy is consistent:
+
+```sh
+docker compose stop manors
+docker compose cp manors:/data "$HOME/manors-backup-$(date +%F)"
+docker compose start manors
+```
+
+To restore a backup, replace the database with it in a container of the server's image, which gives the files to the user the server runs as:
+
+```sh
+docker compose stop manors
+docker compose run --rm -v "$HOME/manors-backup-2026-09-26:/backup:ro" manors \
+  sh -c 'rm -f /data/manors.sqlite* && cp /backup/manors.sqlite /data/'
+docker compose start manors
+```
+
+[`docs/notifications.md`](docs/notifications.md) explains how players get turn notifications (Android in detail) and what the server needs for them.
 
 ## How to play (short)
 
