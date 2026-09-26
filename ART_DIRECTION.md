@@ -554,3 +554,10 @@ Check full-deck coverage, large text, narrow layouts and fallback rendering.
   `/tmp/mm-banner-before.log`,
   `/tmp/mm-wave2-full-e2e-fixed.log`. CI and latest-revision review must pass
   before merging.
+- Full local browser run: 142 passed, two desktop-only skips, one harvest-note
+  fixture failure because it selects `.banner.mine`. Preserved that ownership
+  marker while retaining the hit-area fix. All 33 board, Chronicle and turn-flow
+  checks now pass, including the harvest-note test; typecheck and lint pass again.
+  Log: `/tmp/mm-wave2-board-final.log`. Review round two had only an optional
+  nonempty-selector assertion, deferred under the minor-feedback stopping rule.
+  Await final CI and review for the ownership-marker restoration before merging.

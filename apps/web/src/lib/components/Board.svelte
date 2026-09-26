@@ -2,7 +2,7 @@
   // The SVG board (spec §47). Layers, bottom to top: sea, terrain/Regions,
   // Routes, Sites/Holdings, Banners, Menaces, highlights. Every interactive
   // entity is a focusable button with an accessible name (spec §52).
-  import type { Banner, HarvestPreview, LegalActionSummary, MenaceInstance } from "@manors-menaces/rules";
+  import { getPlayerBanners, type Banner, type HarvestPreview, type LegalActionSummary, type MenaceInstance } from "@manors-menaces/rules";
   import { onMount, untrack } from "svelte";
   import { t } from "../i18n.js";
   import type { GameSession } from "../game/session.svelte.js";
@@ -301,6 +301,7 @@
     const place = r ? t("aria.banner_in", { owner, region: regionName(map, r) }) : t("aria.banner_home", { owner });
     return `${place}${b.settled ? t("aria.banner_settled") : ""}${sick.has(b.id) ? t("aria.banner_sick") : ""}`;
   };
+  const myBanners = $derived(new Set(session.localActor ? getPlayerBanners(gs, session.localActor).map((b) => b.id) : []));
 
   // ------------------------------------------------------------------ view scale
   // Labels, outlines and rings are sized from the camera scale so they stay
@@ -743,6 +744,7 @@
           class="banner"
           class:hl={isHl}
           class:selected
+          class:mine={myBanners.has(banner.id)}
           style="transform: translate({pos.x}px, {pos.y}px)"
           role="button"
           tabindex={isHl || !targeting ? 0 : -1}
