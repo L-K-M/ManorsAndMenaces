@@ -14,6 +14,7 @@
     "@manors-menaces/content": "workspace:*",
     "@manors-menaces/protocol": "workspace:*",
     "@manors-menaces/rules": "workspace:*",
+    "nodemailer": "^10.0.10",
     "ws": "^8.21.3"
   },
   "devDependencies": {

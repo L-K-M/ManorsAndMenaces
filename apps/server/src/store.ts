@@ -17,6 +17,14 @@ export interface UserRow {
   created_at: string;
 }
 
+export interface EmailRow {
+  user_id: string;
+  address: string;
+  confirm_hash: string | null;
+  requested_at: string;
+  confirmed_at: string | null;
+}
+
 export interface MatchRow {
   id: string;
   status: MatchStatus;
@@ -107,6 +115,14 @@ export class Store {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS push_subscriptions_by_user ON push_subscriptions(user_id);
+      -- Turn emails: an address gets them once its owner confirms it (confirmed_at).
+      CREATE TABLE IF NOT EXISTS email_addresses (
+        user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        address TEXT NOT NULL,
+        confirm_hash TEXT UNIQUE,
+        requested_at TEXT NOT NULL,
+        confirmed_at TEXT
+      );
     `);
   }
 
@@ -178,6 +194,38 @@ export class Store {
   removePushSubscription(endpoint: string, userId?: string): void {
     if (userId === undefined) this.db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").run(endpoint);
     else this.db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?").run(endpoint, userId);
+  }
+
+  // ------------------------------------------------------------------ email addresses
+
+  emailAddress(userId: string): EmailRow | undefined {
+    return this.db.prepare("SELECT * FROM email_addresses WHERE user_id = ?").get(userId) as EmailRow | undefined;
+  }
+
+  /** Sets a new, unconfirmed address; `confirmHash` is the hash of the token its confirmation link carries. */
+  requestEmail(userId: string, address: string, confirmHash: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO email_addresses (user_id, address, confirm_hash, requested_at, confirmed_at) VALUES (?, ?, ?, ?, NULL)
+         ON CONFLICT(user_id) DO UPDATE SET address = excluded.address, confirm_hash = excluded.confirm_hash, requested_at = excluded.requested_at, confirmed_at = NULL`,
+      )
+      .run(userId, address, confirmHash, this.now());
+  }
+
+  /** The unconfirmed address a confirmation token belongs to, if it was asked for after `since`. */
+  pendingEmail(confirmHash: string, since: string): EmailRow | undefined {
+    return this.db.prepare("SELECT * FROM email_addresses WHERE confirm_hash = ? AND requested_at > ?").get(confirmHash, since) as EmailRow | undefined;
+  }
+
+  /** Confirms the address a token belongs to; each token works once. */
+  confirmEmail(confirmHash: string, since: string): EmailRow | undefined {
+    return this.db
+      .prepare("UPDATE email_addresses SET confirmed_at = ?, confirm_hash = NULL WHERE confirm_hash = ? AND requested_at > ? RETURNING *")
+      .get(this.now(), confirmHash, since) as EmailRow | undefined;
+  }
+
+  removeEmail(userId: string): void {
+    this.db.prepare("DELETE FROM email_addresses WHERE user_id = ?").run(userId);
   }
 
   // ------------------------------------------------------------------ matches

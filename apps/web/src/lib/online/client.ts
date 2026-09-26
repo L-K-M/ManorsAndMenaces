@@ -8,6 +8,7 @@ import type {
   ClientMessage,
   CreateMatchRequest,
   CreateMatchResponse,
+  EmailSettings,
   GuestSessionResponse,
   JoinMatchResponse,
   MatchHistoryResponse,
@@ -229,6 +230,16 @@ export class OnlineClient {
   }
   pushUnsubscribe(endpoint: string): Promise<{ ok: true }> {
     return this.call("/api/push/unsubscribe", { endpoint });
+  }
+  emailSettings(): Promise<EmailSettings> {
+    return this.call("/api/email");
+  }
+  /** Emails `address` a confirmation link; turn emails start once it is opened. */
+  requestEmail(address: string): Promise<EmailSettings> {
+    return this.call("/api/email", { address });
+  }
+  removeEmail(): Promise<EmailSettings> {
+    return this.call("/api/email/remove", {});
   }
 }
 

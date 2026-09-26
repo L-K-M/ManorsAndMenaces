@@ -13,7 +13,7 @@
 |---|---|
 | Install | `pnpm install` |
 | Web dev server | `pnpm dev` (http://localhost:5173) |
-| Online server (dev) | `pnpm server` (http://localhost:8787; `DB_PATH`, `PORT`, `WEB_DIST`, `CORS_ORIGIN`, `AI_DELAY_MS`, `TRUST_PROXY` = reverse proxies in front whose X-Forwarded-For is trusted, default 0, `VAPID_SUBJECT` = Web Push contact; see `apps/server/src/main.ts`) |
+| Online server (dev) | `pnpm server` (http://localhost:8787; `DB_PATH`, `PORT`, `WEB_DIST`, `CORS_ORIGIN`, `AI_DELAY_MS`, `TRUST_PROXY` = reverse proxies in front whose X-Forwarded-For is trusted, default 0, `VAPID_SUBJECT` = Web Push contact, `SMTP_URL`/`MAIL_FROM`/`PUBLIC_URL` = turn emails, `MAIL_OUTBOX_DIR` = write emails to files instead; see `apps/server/src/main.ts` and `docs/notifications.md`) |
 | Desktop dev | `pnpm tauri:dev` |
 | Typecheck everything | `pnpm typecheck` |
 | Lint | `pnpm lint` |

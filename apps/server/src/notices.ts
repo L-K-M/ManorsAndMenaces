@@ -27,7 +27,7 @@ export function noticesAfter(before: GameState | null, after: GameState): { play
   return actor && actor !== (before && actorOf(before)) ? [{ playerId: actor, kind: "your_turn" }] : [];
 }
 
-function text(key: string, params: Record<string, string | number> = {}): string {
+export function text(key: string, params: Record<string, string | number> = {}): string {
   return (EN[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? `{${name}}`));
 }
 
