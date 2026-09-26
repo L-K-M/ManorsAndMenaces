@@ -15,7 +15,7 @@
   import { viewport, frameIfHidden, panScreen, pinch, resetView, setContainer, setWorld, zoomAtScreen } from "../stores/viewport.svelte.js";
   import { settings, animationScale } from "../stores/settings.svelte.js";
   import { PLAYER_THEMES, RESOURCE_COLORS, RESOURCE_GLYPHS, emblemPath } from "../theme.js";
-  import { bridgeRails } from "../art/routes.js";
+  import { bridgeRails, routeGeometry } from "../art/routes.js";
   import CoastLayer from "./board/CoastLayer.svelte";
   import HoldingFigure from "./board/HoldingFigure.svelte";
   import LandmarkArt from "./board/LandmarkArt.svelte";
@@ -34,7 +34,7 @@
   const gs = $derived(session.draft);
   const sitesById = $derived(new Map(map.sites.map((s) => [s.id, s])));
   const regionsById = $derived(new Map(map.regions.map((r) => [r.id, r])));
-  const routesById = $derived(new Map(map.routes.map((r) => [r.id, r])));
+  const roadGeometry = $derived(new Map(map.routes.map((r) => [r.id, routeGeometry(r, sitesById.get(r.siteA)!, sitesById.get(r.siteB)!)])));
 
   // The camera keeps the island (its coastline and extent) in view.
   const coast = $derived(pathPoints(map.coastline));
@@ -100,10 +100,7 @@
       const s = sitesById.get(loc.siteId);
       return s ? { x: s.x + MENACE_OFFSET.site.x, y: s.y + MENACE_OFFSET.site.y } : { x: 0, y: 0 };
     }
-    const route = routesById.get(loc.routeId);
-    const a = route && sitesById.get(route.siteA);
-    const b = route && sitesById.get(route.siteB);
-    return a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : { x: 0, y: 0 };
+    return roadGeometry.get(loc.routeId)?.mid ?? { x: 0, y: 0 };
   }
 
   const fogged = $derived(new Set(gs.activeEffects.filter((e) => e.kind === "fog").map((e) => (e.kind === "fog" ? e.routeId : ""))));
@@ -244,12 +241,7 @@
   function targetPoints(keys: readonly string[]): Point[] {
     const pts: Point[] = [];
     const site = (id: string) => sitesById.get(id);
-    const routeMid = (id: string) => {
-      const r = routesById.get(id);
-      const a = r && site(r.siteA);
-      const b = r && site(r.siteB);
-      return a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : undefined;
-    };
+    const routeMid = (id: string) => roadGeometry.get(id)?.mid;
     const region = (id: string) => {
       const r = regionsById.get(id);
       return r && { x: r.labelX, y: r.labelY };
@@ -326,7 +318,7 @@
   const hlRouteLines = $derived(
     map.routes
       .filter((r) => hl.routes.has(r.id) || hl.locations.has(`route:${r.id}`))
-      .map((r) => ({ id: r.id, a: sitesById.get(r.siteA), b: sitesById.get(r.siteB) })),
+      .map((r) => ({ id: r.id, d: roadGeometry.get(r.id)!.d })),
   );
   const hlSites = $derived(map.sites.filter((s) => hl.sites.has(s.id) || hl.locations.has(`site:${s.id}`)));
   const ringedBanners = $derived(Object.values(gs.banners).filter((b) => hl.banners.has(b.id) || ui.selectedBannerId === b.id));
@@ -382,9 +374,9 @@
         if (sick.has(id)) obstacles.circles.push({ x: pos.x + SICK_AT.x, y: pos.y + SICK_AT.y, r: 7 });
       }
       for (const route of map.routes) {
-        const a = sitesById.get(route.siteA);
-        const b = sitesById.get(route.siteB);
-        if (a && b) obstacles.segments.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y, r: 7 });
+        for (const { a, b } of roadGeometry.get(route.id)!.segments) {
+          obstacles.segments.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y, r: 7 });
+        }
       }
       for (const r of map.regions) {
         obstacles.rects.push({ x: r.labelX - 20, y: r.labelY - 20, w: 40, h: LABEL.pipY + 26 });
@@ -465,10 +457,8 @@
         return s ? { x: s.x, top: s.y - (s.landmarkId ? 48 * PIECE_SCALE : holdingBySite.has(s.id) ? 32 * PIECE_SCALE : 16), bottom: s.y + 16 * PIECE_SCALE } : null;
       }
       case "route": {
-        const route = routesById.get(p.id);
-        const a = route && sitesById.get(route.siteA);
-        const b = route && sitesById.get(route.siteB);
-        return a && b ? { x: (a.x + b.x) / 2, top: (a.y + b.y) / 2 - 10, bottom: (a.y + b.y) / 2 + 10 } : null;
+        const mid = roadGeometry.get(p.id)?.mid;
+        return mid ? { x: mid.x, top: mid.y - 10, bottom: mid.y + 10 } : null;
       }
       case "banner": {
         const pos = bannerPositions.get(p.id);
@@ -635,6 +625,7 @@
     {#each map.routes as route (route.id)}
       {@const a = sitesById.get(route.siteA)}
       {@const b = sitesById.get(route.siteB)}
+      {@const geometry = roadGeometry.get(route.id)!}
       {@const owner = gs.routeOwners[route.id]}
       {@const embers = owner ? undefined : smouldering.get(route.id)}
       {@const isHl = hl.routes.has(route.id) || hl.locations.has(`route:${route.id}`)}
@@ -650,37 +641,37 @@
           onpointerenter={(e) => hoverIn(e, { kind: "route", id: route.id })}
           onpointerleave={() => hoverOut({ kind: "route", id: route.id })}
         >
-          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} class="hit" />
+          <path d={geometry.d} fill="none" class="hit" />
           {#if owner}
             {@const rt = playerTheme(owner)}
             <!-- a raised piece: offset shadow, dark rim, colour, lit top edge; planks on bridges -->
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} transform="translate(2.5,3)" stroke="#1d160c" stroke-opacity="0.25" stroke-width="13" stroke-linecap="round" />
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#3a2d1a" stroke-width="13" stroke-linecap="round" />
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={rt.color} stroke-width="8" stroke-linecap="round" />
-            {#if route.kind === "bridge"}<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={rt.dark} stroke-opacity="0.4" stroke-width="7" stroke-dasharray="1.2 2.6" />{/if}
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} transform="translate(-1.2,-1.4)" stroke={rt.light} stroke-opacity="0.8" stroke-width="1.8" stroke-linecap="round" />
+            <path d={geometry.d} fill="none" transform="translate(2.5,3)" stroke="#1d160c" stroke-opacity="0.25" stroke-width="13" stroke-linecap="round" />
+            <path d={geometry.d} fill="none" stroke="#3a2d1a" stroke-width="13" stroke-linecap="round" />
+            <path d={geometry.d} fill="none" stroke={rt.color} stroke-width="8" stroke-linecap="round" />
+            {#if route.kind === "bridge"}<path d={geometry.d} fill="none" stroke={rt.dark} stroke-opacity="0.4" stroke-width="7" stroke-dasharray="1.2 2.6" />{/if}
+            <path d={geometry.d} fill="none" transform="translate(-1.2,-1.4)" stroke={rt.light} stroke-opacity="0.8" stroke-width="1.8" stroke-linecap="round" />
           {:else if embers}
             {@const et = playerTheme(embers)}
             <!-- burned (Fire Bolt): a charred bed, the former owner's colour in cinders, glowing embers and a flame -->
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#2b1d14" stroke-opacity="0.85" stroke-width="11" stroke-linecap="round" />
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={et.color} stroke-opacity="0.6" stroke-width="4.5" stroke-dasharray="7 6" stroke-linecap="round" />
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} class="embers" stroke-width="3.4" stroke-dasharray="0.1 8.5" stroke-linecap="round" />
-            <g class="flame" transform="translate({(a.x + b.x) / 2},{(a.y + b.y) / 2 - 7})">
+            <path d={geometry.d} fill="none" stroke="#2b1d14" stroke-opacity="0.85" stroke-width="11" stroke-linecap="round" />
+            <path d={geometry.d} fill="none" stroke={et.color} stroke-opacity="0.6" stroke-width="4.5" stroke-dasharray="7 6" stroke-linecap="round" />
+            <path d={geometry.d} fill="none" class="embers" stroke-width="3.4" stroke-dasharray="0.1 8.5" stroke-linecap="round" />
+            <g class="flame" transform="translate({geometry.mid.x},{geometry.mid.y - 7})">
               <path d={FLAME_PATH} fill="#f07b1f" stroke="#7a1d10" stroke-width="1.3" />
               <path d={FLAME_PATH} transform="translate(0,2.5) scale(0.5)" fill="#ffd23f" />
             </g>
           {:else}
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#8a7650" stroke-width="4" stroke-dasharray={route.kind === "trail" ? "3 7" : "10 6"} stroke-linecap="round" opacity="0.75" />
+            <path d={geometry.d} fill="none" stroke="#8a7650" stroke-width="4" stroke-dasharray={route.kind === "trail" ? "3 7" : "10 6"} stroke-linecap="round" opacity="0.75" />
           {/if}
           {#if route.kind === "bridge"}
             <path d={bridgeRails(a, b)} fill="none" stroke="#4a3522" stroke-width="2.4" stroke-linecap="round" />
           {/if}
           {#if fogged.has(route.id)}
-            <ellipse cx={(a.x + b.x) / 2} cy={(a.y + b.y) / 2} rx="34" ry="16" fill="#f4f4f4" opacity="0.8" />
+            <ellipse cx={geometry.mid.x} cy={geometry.mid.y} rx="34" ry="16" fill="#f4f4f4" opacity="0.8" />
           {/if}
           {#if isHl}
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} class="hl-casing" stroke-width={px(8, 16)} />
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} class="hl-line" stroke-width={px(3.5, 7)} stroke-dasharray="{px(7, 12)} {px(4, 7)}" />
+            <path d={geometry.d} fill="none" class="hl-casing" stroke-width={px(8, 16)} />
+            <path d={geometry.d} fill="none" class="hl-line" stroke-width={px(3.5, 7)} stroke-dasharray="{px(7, 12)} {px(4, 7)}" />
           {/if}
         </g>
       {/if}
@@ -887,7 +878,7 @@
       <path d={r.path} clip-path="url(#glow-clip-{r.id})" stroke-width={px(16, 22)} />
     {/each}
     {#each hlRouteLines as l (l.id)}
-      {#if l.a && l.b}<line x1={l.a.x} y1={l.a.y} x2={l.b.x} y2={l.b.y} stroke-width={px(16, 28)} />{/if}
+      <path d={l.d} fill="none" stroke-width={px(16, 28)} />
     {/each}
     {#each hlSites as site (site.id)}
       <circle cx={site.x} cy={site.y} r={siteRing(holdingBySite.has(site.id)) + px(5, 6)} stroke-width={px(7, 9)} />
@@ -931,6 +922,15 @@
     fill: transparent;
     stroke: transparent;
     stroke-width: 22;
+  }
+  .route {
+    pointer-events: stroke;
+  }
+  .route .hit {
+    fill: none;
+  }
+  .route path {
+    stroke-linejoin: round;
   }
   /* Label font sizes and halo widths are set inline from the camera scale. */
   .region-name {
@@ -1045,7 +1045,6 @@
     animation: breathe 1.6s ease-in-out infinite alternate;
   }
   .glow path,
-  .glow line,
   .glow circle {
     fill: none;
     stroke: #ffd23f;

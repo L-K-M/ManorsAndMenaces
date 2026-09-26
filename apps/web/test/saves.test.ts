@@ -20,7 +20,7 @@ import {
   replayPending,
 } from "../src/lib/game/saves.js";
 
-const engine = engineFor();
+const engine = engineFor("greenvale");
 
 function newGame(seed = "s"): GameState {
   return engine.createGame({

@@ -5,7 +5,7 @@
 
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { chooseAction, fallbackIntents } from "@manors-menaces/ai";
-import { rulesContentFor } from "@manors-menaces/content";
+import { GREENVALE_MAP, rulesContentFor } from "@manors-menaces/content";
 import type {
   ApiErrorCode,
   CreateMatchRequest,
@@ -51,7 +51,7 @@ export interface MatchListener {
   (matchId: string, events: GameEvent[]): void;
 }
 
-const MAP_ID = "greenvale";
+const MAP_ID = GREENVALE_MAP.id;
 /** Pause before an AI seat that found no usable move tries again; it doubles on each failure in a row. */
 const AI_RETRY_MS = 5_000;
 /** Cap on that growing pause, so a match stuck on a bug does not flood the log. */
@@ -82,7 +82,7 @@ function canonicalJson(x: unknown): string {
 }
 
 export class MatchService {
-  private readonly engine: RulesEngine;
+  private readonly engines = new Map<string, RulesEngine>();
   private readonly listeners = new Set<MatchListener>();
   private readonly aiTimers = new Map<string, ReturnType<typeof setTimeout>>();
   /** AI steps in a row that failed, per match; sets the retry delay. */
@@ -96,8 +96,15 @@ export class MatchService {
   constructor(
     private readonly store: Store,
     private readonly opts: { aiDelayMs: number } = { aiDelayMs: 700 },
-  ) {
-    this.engine = createRulesEngine(rulesContentFor(MAP_ID));
+  ) {}
+
+  private engineFor(mapId: string): RulesEngine {
+    let engine = this.engines.get(mapId);
+    if (!engine) {
+      engine = createRulesEngine(rulesContentFor(mapId));
+      this.engines.set(mapId, engine);
+    }
+    return engine;
   }
 
   onMatchUpdate(fn: MatchListener): () => void {
@@ -172,7 +179,7 @@ export class MatchService {
       this.emit(matchId, []);
       return;
     }
-    const state = this.engine.createGame({
+    const state = this.engineFor(match.map_id).createGame({
       matchId,
       seed: match.seed,
       rulesetVersion: match.rules_version,
@@ -249,7 +256,7 @@ export class MatchService {
     if (req.expectedRevision !== match.revision) {
       return { accepted: false, revision: match.revision, events: [], state: redactState(match.state, playerId), error: { code: "REVISION_MISMATCH" } };
     }
-    const r = this.engine.applyBatch(match.state, req.commands);
+    const r = this.engineFor(match.map_id).applyBatch(match.state, req.commands);
     if (!r.accepted || !r.newState) {
       return { accepted: false, revision: match.revision, events: [], ...(r.error ? { error: r.error } : {}) };
     }
@@ -318,7 +325,7 @@ export class MatchService {
     let state = match.initial_state;
     if (!state) return true;
     for (const { revision, command } of this.store.commandRows(match.id)) {
-      const r = this.engine.applyCommand(state, command);
+      const r = this.engineFor(match.map_id).applyCommand(state, command);
       if (!r.accepted || !r.newState) {
         console.error(`history of ${match.id} does not replay at ${command.commandId}`, r.error);
         return false;
@@ -359,7 +366,7 @@ export class MatchService {
     const match = this.store.match(matchId);
     if (!match?.state || actorOf(match.state) !== seat.player_id) return;
     const rng = createRng(seedRng(`${match.seed}:ai:${match.revision}`));
-    const intent = chooseAction(this.engine, match.state, seat.player_id, { level: seat.ai_level ?? "normal", rng });
+    const intent = chooseAction(this.engineFor(match.map_id), match.state, seat.player_id, { level: seat.ai_level ?? "normal", rng });
     if (!intent) {
       console.error(`AI seat ${seat.player_id} in ${matchId} chose no action; retrying later`);
       this.retryAiLater(matchId);
@@ -368,13 +375,13 @@ export class MatchService {
     const make = (i: typeof intent): GameCommand =>
       ({ ...i, commandId: `ai-${match.revision}-${randomUUID()}`, matchId, playerId: seat.player_id }) as GameCommand;
     let command = make(intent);
-    let r = this.engine.applyCommand(match.state, command);
+    let r = this.engineFor(match.map_id).applyCommand(match.state, command);
     // Never let a rejected AI move stall the match: try each progression move.
     const s = match.state;
-    for (const f of fallbackIntents(this.engine.ctx, s, seat.player_id)) {
+    for (const f of fallbackIntents(this.engineFor(match.map_id).ctx, s, seat.player_id)) {
       if (r.accepted) break;
       command = make(f);
-      r = this.engine.applyCommand(s, command);
+      r = this.engineFor(match.map_id).applyCommand(s, command);
     }
     if (!r.accepted || !r.newState) {
       console.error(`AI seat ${seat.player_id} in ${matchId} has no legal move; retrying later`, r.error);

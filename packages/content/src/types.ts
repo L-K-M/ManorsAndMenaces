@@ -26,6 +26,8 @@ export interface SiteDefinition {
 }
 
 export interface RouteDefinition {
+  /** Optional drawing polyline, including both endpoints; never sent to the rules engine. */
+  points?: { x: number; y: number }[];
   id: RouteId;
   siteA: SiteId;
   siteB: SiteId;

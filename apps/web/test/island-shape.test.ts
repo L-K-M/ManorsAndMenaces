@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { GREENVALE_MAP as map } from "@manors-menaces/content";
+import { GREENVALE_MAP as map, LEGACY_GREENVALE_MAP } from "@manors-menaces/content";
 import { edgeDistance, inside, polygonPoints, signedArea, type Pt } from "../src/lib/art/geometry.js";
 
 const coast = polygonPoints(map.coastline);
@@ -27,7 +27,7 @@ describe("island geography", () => {
   });
 
   it("preserves the published board's connections and save-game identities", () => {
-    const { coastline: _coastline, sites, regions, ...rest } = map;
+    const { coastline: _coastline, sites, regions, ...rest } = LEGACY_GREENVALE_MAP;
     const gameplay = {
       ...rest,
       sites: sites.map(({ x: _x, y: _y, ...s }) => s),
@@ -100,9 +100,13 @@ describe("island geography", () => {
     for (const route of map.routes) {
       const a = map.sites.find((s) => s.id === route.siteA)!;
       const b = map.sites.find((s) => s.id === route.siteB)!;
-      for (let step = 0; step <= 100; step++) {
-        const t = step / 100;
-        expect(onLand({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }), route.id).toBe(true);
+      const points = route.points ?? [a, b];
+      for (let i = 1; i < points.length; i++) {
+        const from = points[i - 1]!, to = points[i]!;
+        for (let step = 0; step <= 100; step++) {
+          const t = step / 100;
+          expect(onLand({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t }), route.id).toBe(true);
+        }
       }
     }
   });

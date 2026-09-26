@@ -21,6 +21,12 @@ describe("validateMap", () => {
     for (const map of Object.values(MAPS)) expect(validateMap(map).errors, map.id).toEqual([]);
   });
 
+  it("rejects invalid road drawing points", () => {
+    for (const points of [[], [{ x: 0, y: 0 }], [{ x: NaN, y: 0 }, { x: 1, y: 1 }], [{ x: 0, y: 0 }, { x: 1, y: 1 }]]) {
+      expect(errorsOf(mutate((m) => { m.routes[0]!.points = points; }))).toContainEqual(expect.stringMatching(/route .* drawing/));
+    }
+  });
+
   it("rejects a Menace starting on the wrong kind of place", () => {
     const m = mutate((m) => {
       const troll = m.menaceStarts.find((s) => s.menaceType === "toll_troll");

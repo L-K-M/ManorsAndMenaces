@@ -178,7 +178,7 @@ export class GameSession {
   }
 
   static create(opts: NewGameOptions): GameSession {
-    const mapId = opts.mapId ?? "greenvale";
+    const mapId = opts.mapId ?? mapFor().id;
     const engine = engineFor(mapId);
     const seed = opts.seed ?? `${Date.now().toString(36)}-${Math.floor(performance.now() * 1000).toString(36)}`;
     const initialState = engine.createGame({

@@ -663,3 +663,97 @@ selector initializes it for every action before checking blocked states.
 The base button rule already retains a 44px minimum height, and the phone
 touch-target audit passed. Initial Mac packaging succeeded; rebuild after the
 final CSS change and wait for latest-commit CI/review before merging.
+
+## Complete coastal building network (in progress)
+
+PR #46 merged as `413e925`, with all CI passing (147 browser tests, two
+intentional skips) and two review rounds without important findings. The final
+Mac bundle rebuilt. Optional containment-test refinements were deferred; the
+no-scroll suggestion conflicted with the intended narrow-screen action strip.
+
+The beach screenshot exposes topology omitted by the generator, not a build
+legality issue. It prunes coastal junctions to reach 36 Sites and explicitly
+excludes coastline Routes. The current map has seven missing beach junctions;
+16 junctions in total should form the coastal network. The fix will restore
+those Sites and their inland links, and add roads following the shoreline
+between consecutive coastal junctions. Ordinary manor spacing, network and
+resource rules still apply. Decorative coastline bends are not building Sites.
+
+Because adding adjacency changes gameplay, keep the published `greenvale` map
+for existing saves and introduce a new default map ID for new local/online
+games. Preserve existing region names, resource placement and interior artwork.
+Coastal roads need explicit drawing points so they follow bays rather than
+crossing water. Use the same geometry for rendering, hit areas, highlights,
+Menace positions, camera targets and terrain/note clearance. Add regressions
+for complete coastal connectivity, coastal setup/build legality, old-save
+compatibility and curved route rendering before merging.
+
+Implemented on `codex/coastal-building-network`: new games use
+`greenvale-coastal-v2` with 43 Sites and 66 Routes. Restored seven junctions and
+seven inland links; added 16 shoreline roads. The exact boundary segments drive
+road drawing, stroke-only hit areas, highlights, Menace/effect positions,
+hover anchors, camera targets and scenery/note clearance. Sparse terrain gets
+more bounded placement attempts to retain its minimum illustration density.
+The published `greenvale` remains registered and its gameplay fingerprint is
+unchanged. The server now selects an engine using each match's stored map ID,
+including old lobbies, AI turns, submitted commands and history replay.
+
+The coastal-network and invalid-polyline regressions failed before their fixes.
+All 589 unit/integration/server tests, typecheck, lint, deterministic map check
+and production build/smoke test pass. New coverage verifies every shoreline
+segment exactly once, coastal Manor/Route setup, route marker geometry and old
+versus new online match legality. Existing save fixtures explicitly use the
+legacy engine. Browser preview reopened the old 36-Site save successfully,
+then created and resumed a new coastal game and built a shoreline road.
+A focused browser run verified the actual curved-road click; its assertion
+initially assumed Alice started, corrected to accept either shuffled player.
+Two other checks were interrupted by Vite reloads during edits; a full browser
+run is now in progress. Also recheck the harvest-note zoom scenario, which
+failed to keep a note visible with the denser road network.
+Logs: `/tmp/mm-coast-check.log`, `/tmp/mm-coast-e2e.log`,
+`/tmp/mm-coast-regressions.log`. The localhost:5175 preview contains a fresh
+Alice/Madame Quill/Dame Brash game with a coastal Manor and road.
+
+Browser follow-up: the full run had 143 passes, two intentional skips and five
+failures. Three were stale fixtures/expectations: finished saves now use the
+legacy engine matching their map ID; the price-layout test no longer assumes a
+quest happens to be claimable after setup; crowded harvest notes may correctly
+remain badges when no slot is clear. A real camera regression came from putting
+`pointer-events: stroke` directly on road hit paths, overriding the disabled
+Route group's `none`. Put it on the Route group instead so children inherit the
+correct interaction state. Its existing double-click test failed consistently
+before the fix, then passed; the coastal browser test additionally checks that
+disabled roads inherit `none`. All five focused checks now pass, as do updated
+typecheck/lint. An unrelated turn-email assertion failed once because the test
+helper decodes 7-bit text as quoted-printable; it passed on recheck. Defer that
+helper correction rather than changing notification code in this map PR.
+
+The new and legacy maps each finished all 40 standard three-player AI games.
+Average length: 13.6 versus 13.8 rounds; no seat won more than 40% on the new
+map. The existing hereditary-region heuristic misses its target equally on
+both maps (55% versus a 25% target), and AI card use remains low. No balance
+retuning is included. Logs: `/tmp/mm-coast-simulation.log` and
+`/tmp/mm-coast-baseline.log`. The final Mac `.app` build succeeded. PR #47 is
+awaiting its first review; the verified browser follow-up is ready to push.
+
+Final local browser rerun: 148 passed, two intentional skips, no retries or
+failures (`/tmp/mm-coast-e2e-final.log`). Verified the retained legacy map object
+is exactly equal to `origin/main`'s published map, including all geometry.
+
+PR #47 review round 1 completed without confirmed important findings. Verified
+all three major-labelled concerns: chord normals/bridge rails only apply to
+straight bridges/passes, while coastal road clearance uses every polyline
+segment; terrain RNG is per Region and full legacy terrain output is exactly
+identical at 160/800 retry limits; the retained `greenvale` is registered and
+old local/online saves are covered. Accepted two small test improvements:
+fresh server fixtures per test and shoreline coverage filtered to coastal
+endpoints, permitting future inland road curves. Existing validation rejects
+empty polylines and unknown endpoints and checks both maps' adjacency,
+connectivity, landmarks and Menace starts before gameplay. SiteDefinition has
+no separate label coordinates. Rejected the suggested inland road/site inset:
+it would misalign the requested beach junctions and could cross bays. Deferred
+hypothetical malformed typed-content guards, curved bridge support, generated
+file constant extraction, legacy lazy-loading and generator diagnostic polish.
+The updated PR will carry the passing 148-test browser result and the disabled
+road inheritance fix. Wait for CI and completed review on the new head, then
+merge; final Mac app already matches this implementation.
