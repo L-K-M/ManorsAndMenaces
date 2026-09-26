@@ -109,6 +109,38 @@ test("title menu stays usable without scenery and in high contrast @mobile", asy
   await expect(page.getByRole("button", { name: "New game", exact: true })).toBeVisible();
 });
 
+test("new-game controls stay in distinct player groups at large text @mobile", async ({ page }) => {
+  for (const highContrast of [false, true]) {
+    await openTitle(page, { textScale: 1.5, highContrast });
+    await page.getByRole("button", { name: "New game" }).click();
+    await page.getByRole("radio", { name: "4", exact: true }).check({ force: true });
+    for (let n = 1; n <= 4; n++) {
+      const group = page.getByRole("group", { name: `Player ${n}`, exact: true });
+      await expect(group).toBeVisible();
+      await expect(group.getByLabel(`Name of player ${n}`)).toBeVisible();
+      await expect(group.getByLabel(`Player ${n} type`)).toBeVisible();
+      if (n > 1) {
+        await expect(group.getByLabel(`Player ${n} difficulty`)).toBeVisible();
+        await expect(group.getByLabel(`Player ${n} rival`)).toBeVisible();
+        await expect(group.locator("q")).toBeVisible();
+      }
+      expect(await group.evaluate((el) => {
+        const outer = el.getBoundingClientRect();
+        return [...el.querySelectorAll("input, select, q")].every((child) => {
+          const box = child.getBoundingClientRect();
+          return box.left >= outer.left && box.right <= outer.right && box.top >= outer.top && box.bottom <= outer.bottom;
+        });
+      })).toBe(true);
+    }
+    await page.getByLabel("Player 2 type").selectOption("human");
+    await expect(page.getByRole("group", { name: "Player 2", exact: true }).getByRole("combobox")).toHaveCount(1);
+    await expect(page.getByRole("group", { name: "Player 3", exact: true }).getByLabel("Player 3 rival")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.getByRole("button", { name: "Begin", exact: true }).scrollIntoViewIfNeeded();
+    await expect(page.getByRole("button", { name: "Begin", exact: true })).toBeInViewport({ ratio: 1 });
+  }
+});
+
 test("radio options are compact selectable cards", async ({ page }) => {
   await openTitle(page);
   await page.getByRole("button", { name: "New game" }).click();

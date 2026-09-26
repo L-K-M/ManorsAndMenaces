@@ -81,7 +81,7 @@
 <section class="panel">
   <h2>{t("ui.new_game")}</h2>
   <form onsubmit={(e) => (e.preventDefault(), start())}>
-    <fieldset>
+    <fieldset class="players">
       <legend>{t("ui.players")}</legend>
       <div class="count" role="radiogroup" aria-label={t("ui.number_of_players")}>
         {#each [2, 3, 4] as n}
@@ -91,25 +91,34 @@
       {#each seats.slice(0, count) as seat, i}
         {@const theme = PLAYER_THEMES[i] ?? PLAYER_THEMES[0]!}
         {@const rival = seat.kind === "ai" ? rivalById(seat.rivalId) : undefined}
-        <div class="seat">
-          {#if rival}<RivalPortrait portrait={rival.portrait} {theme} size={34} />
-          {:else}<svg width="34" height="26" viewBox="-17 -13 34 26" aria-hidden="true"><path d={emblemPath(theme.shape, 9)} fill={theme.color} stroke={theme.dark} stroke-width="2" /></svg>{/if}
-          <input aria-label="Name of player {i + 1}" bind:value={seat.name} maxlength="20" />
-          <select aria-label="Player {i + 1} type" bind:value={seat.kind} onchange={() => kindChanged(i)}>
-            <option value="human">{t("ui.human")}</option>
-            <option value="ai">{t("ui.computer")}</option>
-          </select>
-          {#if seat.kind === "ai"}
-            <select aria-label="Player {i + 1} difficulty" bind:value={seat.level}>
-              <option value="easy">{t("ui.easy")}</option>
-              <option value="normal">{t("ui.normal")}</option>
-              <option value="hard">{t("ui.hard")}</option>
+        <fieldset class="player-seat" style:--seat-color={theme.color}>
+          <legend>
+            <span class="seat-heading">
+              <span aria-hidden="true">
+                {#if rival}<RivalPortrait portrait={rival.portrait} {theme} size={34} />
+                {:else}<svg width="34" height="26" viewBox="-17 -13 34 26"><path d={emblemPath(theme.shape, 9)} fill={theme.color} stroke={theme.dark} stroke-width="2" /></svg>{/if}
+              </span>
+              {t("ui.player_number", { n: i + 1 })}
+            </span>
+          </legend>
+          <div class="seat">
+            <input aria-label="Name of player {i + 1}" bind:value={seat.name} maxlength="20" />
+            <select aria-label="Player {i + 1} type" bind:value={seat.kind} onchange={() => kindChanged(i)}>
+              <option value="human">{t("ui.human")}</option>
+              <option value="ai">{t("ui.computer")}</option>
             </select>
+            {#if seat.kind === "ai"}
+              <select aria-label="Player {i + 1} difficulty" bind:value={seat.level}>
+                <option value="easy">{t("ui.easy")}</option>
+                <option value="normal">{t("ui.normal")}</option>
+                <option value="hard">{t("ui.hard")}</option>
+              </select>
+            {/if}
+          </div>
+          {#if seat.kind === "ai"}
+            <RivalPicker rivalId={seat.rivalId} taken={rivalsOtherThan(i)} label={t("ui.rival_of_player", { n: i + 1 })} onpick={(id) => setRival(i, id)} />
           {/if}
-        </div>
-        {#if seat.kind === "ai"}
-          <RivalPicker rivalId={seat.rivalId} taken={rivalsOtherThan(i)} label={t("ui.rival_of_player", { n: i + 1 })} onpick={(id) => setRival(i, id)} />
-        {/if}
+        </fieldset>
       {/each}
     </fieldset>
     <fieldset>
@@ -177,6 +186,29 @@
     position: absolute;
     opacity: 0;
   }
+  .players {
+    gap: 0.85rem;
+  }
+  .player-seat {
+    margin: 0;
+    padding: 0.4rem 0.7rem 0.7rem;
+    border: 1px solid var(--edge);
+    border-inline-start: 4px solid var(--seat-color);
+    background: var(--paper-sheet);
+    gap: 0.55rem;
+  }
+  .player-seat legend {
+    color: var(--ink);
+    font-size: 0.95rem;
+  }
+  .seat-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+  .seat-heading > span {
+    display: flex;
+  }
   .seat {
     display: flex;
     flex-wrap: wrap;
@@ -190,6 +222,11 @@
   .seat select {
     flex: 1 1 6.5rem;
     min-width: 0;
+  }
+  @media (max-width: 480px) {
+    .seat input {
+      flex-basis: 100%;
+    }
   }
   .rule {
     display: flex;
