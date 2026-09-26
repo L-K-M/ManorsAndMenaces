@@ -118,6 +118,10 @@
   // it for now); The Plague leaves Banners sick until their owner's Harvest.
   const smouldering = $derived(new Map(gs.activeEffects.flatMap((e) => (e.kind === "smouldering" ? [[e.routeId, e.ownerId] as const] : []))));
   const sick = $derived(new Set(gs.activeEffects.flatMap((e) => (e.kind === "sick" ? [e.bannerId] : []))));
+  // Siege Fireball leaves a Site in ruins for good; Raiders leave one razed
+  // (only its owner may build there) until the end of the owner's next turn.
+  const ruined = $derived(new Set(gs.ruinedSiteIds ?? []));
+  const razed = $derived(new Set(gs.activeEffects.flatMap((e) => (e.kind === "razed" ? [e.siteId] : []))));
   /** Where a sick Banner's mark sits, relative to the Banner's foot. */
   const SICK_AT = { x: 12, y: -27 } as const;
 
@@ -712,7 +716,7 @@
         tabindex={isHl || !targeting ? 0 : -1}
         aria-label={holding
           ? `${t(`holding.${holding.type}`)} of ${gs.players[holding.ownerId]?.displayName}${site.landmarkId ? `, ${t(`landmark.${site.landmarkId}`)}` : ""}`
-          : `${t("inspect.site")}${site.landmarkId ? `, ${t(`landmark.${site.landmarkId}`)}` : ""}${site.tradePost ? `, ${t("aria.trade_post", { resource: t(`resource.${site.tradePost.resource}`) })}` : ""}`}
+          : `${t("inspect.site")}${site.landmarkId ? `, ${t(`landmark.${site.landmarkId}`)}` : ""}${site.tradePost ? `, ${t("aria.trade_post", { resource: t(`resource.${site.tradePost.resource}`) })}` : ""}${ruined.has(site.id) ? t("aria.site_ruined") : razed.has(site.id) ? t("aria.site_razed") : ""}`}
         onclick={() => pick(hl.locations.has(`site:${site.id}`) ? { kind: "location", location: { kind: "site", siteId: site.id } } : { kind: "site", id: site.id })}
         onkeydown={(e) => key(e, { kind: "site", id: site.id })}
         onpointerenter={(e) => hoverIn(e, { kind: "site", id: site.id })}
@@ -735,8 +739,22 @@
             <HoldingFigure type={holding.type} {theme} />
             <path d={emblemPath(theme.shape, 4)} transform="translate(0,-26)" fill={theme.light} stroke={theme.dark} stroke-width="1.5" />
           </g>
+        {:else if ruined.has(site.id)}
+          <!-- in ruins (Siege Fireball): broken walls on rubble, where nobody may build again -->
+          <g class="ruin" pointer-events="none">
+            <path d="M-12,7H12 M-10,7V-1L-8,-4L-6.5,-1L-4.5,-3V7Z M2,7V-6L4,-4L5.5,-8L8.5,-4V7Z" fill="#a39684" stroke="#3d3328" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" />
+            <path d="M6,-3L4.5,1L6.5,3" fill="none" stroke="#3d3328" stroke-width="1.2" />
+            <circle cx="-1" cy="5.5" r="2" fill="#8a7d6c" stroke="#3d3328" stroke-width="1.2" />
+          </g>
         {:else}
           <circle class="empty-site" r="7" fill="#fffaf0" stroke="#6b5a3a" stroke-width="2.5" pointer-events="none" />
+          {#if razed.has(site.id)}
+            <!-- razed (Raiders): the burned Manor smoulders while only its owner may rebuild -->
+            <g class="flame" transform="translate(0,-9)" pointer-events="none">
+              <path d={FLAME_PATH} fill="#f07b1f" stroke="#7a1d10" stroke-width="1.3" />
+              <path d={FLAME_PATH} transform="translate(0,2.5) scale(0.5)" fill="#ffd23f" />
+            </g>
+          {/if}
         {/if}
         {#if isHl}
           <circle r={siteRing(!!holding)} class="hl-casing" stroke-width={px(5, 6)} pointer-events="none" />

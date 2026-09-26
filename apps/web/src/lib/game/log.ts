@@ -108,6 +108,13 @@ function landedOn(events: readonly GameEvent[], state: GameState, holdingId: Hol
   return state.holdings[holdingId]?.type ?? "manor";
 }
 
+/** Chronicle lines for the Holdings the third wave's cards burn or reduce (§19.23–19.26). */
+const ATTACK_LOG = {
+  raiders: "log.raided",
+  siege_fireball: "log.fireballed",
+  siege_engines: "log.besieged",
+} as const;
+
 /** Format one batch of events into log entries. Consecutive details are merged. */
 export function formatEvents(events: GameEvent[], state: GameState, map: MapDefinition): LogEntry[] {
   const out: LogEntry[] = [];
@@ -225,6 +232,7 @@ export function formatEvents(events: GameEvent[], state: GameState, map: MapDefi
       case "effect_expired":
         if (e.effect === "plague") push(t("log.plague_cured", { name: nameOf(state, e.playerId) }), e.playerId, "info", e);
         else if (e.effect === "smouldering") push(t("log.embers_cooled", { name: nameOf(state, e.playerId) }), e.playerId, "info", e);
+        else if (e.effect === "razed") push(t("log.ashes_cooled", { name: nameOf(state, e.playerId) }), e.playerId, "info", e);
         break;
       case "hands_swapped":
         push(t("log.hands_swapped", { name: nameOf(state, e.playerId), opponent: nameOf(state, e.opponentId) }), e.playerId, "important", e);
@@ -249,11 +257,30 @@ export function formatEvents(events: GameEvent[], state: GameState, map: MapDefi
         push(t("log.dragon_landed", { owner: nameOf(state, e.ownerId), holding, place: siteName(map, e.siteId) }), null, "important", e);
         break;
       }
+      // The third wave's attacks are their caster's own action, unlike the dragon's.
       case "holding_destroyed":
-        push(t("log.holding_destroyed", { owner: nameOf(state, e.ownerId), place: siteName(map, e.siteId) }), null, "important", e);
+      case "holding_reduced": {
+        const params = { name: nameOf(state, e.byPlayerId), owner: nameOf(state, e.ownerId), place: siteName(map, e.siteId) };
+        if (e.cause === "dragons_landing") push(t(`log.${e.type}`, params), null, "important", e);
+        else push(t(ATTACK_LOG[e.cause], params), e.byPlayerId, "important", e);
         break;
-      case "holding_reduced":
-        push(t("log.holding_reduced", { owner: nameOf(state, e.ownerId), place: siteName(map, e.siteId) }), null, "important", e);
+      }
+      case "site_ruined":
+        push(t("log.site_ruined", { place: siteName(map, e.siteId) }), e.byPlayerId, "important", e);
+        break;
+      case "renown_lost":
+        push(t("log.disgraced", { name: nameOf(state, e.byPlayerId), owner: nameOf(state, e.playerId), amount: e.amount }), e.byPlayerId, "important", e);
+        break;
+      case "renown_stolen":
+        push(t("log.glory_stolen", { name: nameOf(state, e.byPlayerId), owner: nameOf(state, e.fromPlayerId), amount: e.amount }), e.byPlayerId, "important", e);
+        break;
+      case "resources_lost":
+        push(
+          t("log.sabotaged", { name: nameOf(state, e.byPlayerId), owner: nameOf(state, e.playerId), amount: e.amount, resource: t(`resource.${e.resource}`) }),
+          e.byPlayerId,
+          "important",
+          e,
+        );
         break;
       case "insurance_claimed":
         push(t("log.insurance_claimed", { name: nameOf(state, e.playerId), card: t(`card.${e.against}.name`) }), e.playerId, "important", e);

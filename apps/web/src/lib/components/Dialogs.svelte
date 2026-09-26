@@ -5,6 +5,7 @@
     RESOURCE_TYPES,
     cardDefIdOf,
     getRenown,
+    holdingAt,
     insurancePolicyOf,
     menaceOfType,
     rankPlayers,
@@ -106,6 +107,21 @@
   const nameOf = (id: PlayerId) => (id === legal?.playerId ? t("target.you") : (gs.players[id]?.displayName ?? ""));
   const policyName = $derived(t("card.royal_insurance_policy.name"));
 
+  /** What the player dialog shows under each opponent: what the card would touch. */
+  function opponentDetail(id: PlayerId): string {
+    switch (cardEffect) {
+      case "disgrace":
+      case "stolen_glory":
+        return t("target.renown", { renown: getRenown(session.ctx, gs, id) });
+      case "sabotage":
+        return t("target.grain", { count: gs.players[id]?.resources.grain ?? 0 });
+      default:
+        return t("ui.cards_count", { count: gs.players[id]?.hand.length ?? 0 });
+    }
+  }
+  // A Royal Insurance Policy covers every card the player dialog aims but Sabotage (§19.19).
+  const policyCovers = $derived(cardEffect !== "sabotage");
+
   // Arcane Exchange and Transmutation Magic: pick what to give, then what to receive.
   let arcaneGive: ResourceType | null = $state(null);
   let transmuteGive: string | null = $state(null);
@@ -167,6 +183,21 @@
           ? t("tip.spell_target_route", { owner: gs.players[routeOwner]?.displayName ?? "" })
           : t("tip.spell_target_route_unowned");
       }
+      case "disgrace":
+      case "stolen_glory":
+        return t("tip.spell_target_renown", { owner: gs.players[tg.opponentId]?.displayName ?? "" });
+      case "sabotage":
+        return t("tip.spell_target_grain", { owner: gs.players[tg.opponentId]?.displayName ?? "" });
+      case "siege_engines":
+      case "raiders":
+      case "siege_fireball": {
+        const h = holdingAt(gs, tg.siteId);
+        return t("tip.spell_target_holding", {
+          owner: gs.players[h?.ownerId ?? ""]?.displayName ?? "",
+          holding: t(`holding.${h?.type ?? "manor"}`),
+          place: siteName(session.map, tg.siteId),
+        });
+      }
       default:
         return "";
     }
@@ -190,6 +221,8 @@
         const hit = plagueVictims(session.ctx, gs, tg.siteId).filter((v) => !v.insured);
         return hit.length ? t("tip.spell_plague_victims", { names: listText(hit.map((v) => gs.players[v.ownerId]?.displayName ?? "")) }) : "";
       }
+      case "siege_fireball":
+        return t("tip.spell_fireball");
       default:
         return "";
     }
@@ -337,21 +370,21 @@
   </Modal>
 {/if}
 
-<!-- Changeling: an opponent to swap hands with. -->
+<!-- Changeling, Disgrace, Stolen Glory and Sabotage: an opponent. -->
 {#if ui.dialog === "player" && cardStep && legal}
   {@const opponents = gs.turnOrder.filter((id) => id !== legal.playerId)}
   <Modal title={cardTitle} onclose={resetTool}>
     <p class="help">{cardRules}</p>
     <div class="grid">
       {#each opponents as id (id)}
-        {@const insured = !!insurancePolicyOf(session.ctx, gs, id)}
+        {@const insured = policyCovers && !!insurancePolicyOf(session.ctx, gs, id)}
         <button disabled={!cardStep.options.includes(id)} onclick={() => pick(id)}>
           {gs.players[id]?.displayName ?? ""}
-          <small class="have">{t("ui.cards_count", { count: gs.players[id]?.hand.length ?? 0 })}{#if insured}, {t("target.insured")}{/if}</small>
+          <small class="have">{opponentDetail(id)}{#if insured}, {t("target.insured")}{/if}</small>
         </button>
       {/each}
     </div>
-    {#if opponents.some((id) => insurancePolicyOf(session.ctx, gs, id))}<p class="help">{t("target.insured_help", { card: policyName })}</p>{/if}
+    {#if policyCovers && opponents.some((id) => insurancePolicyOf(session.ctx, gs, id))}<p class="help">{t("target.insured_help", { card: policyName })}</p>{/if}
   </Modal>
 {/if}
 
@@ -390,6 +423,10 @@
         {/each}
       </ul>
       {#if victims.some((v) => v.insured)}<p class="help">{t("target.plague_insured_help", { card: policyName })}</p>{/if}
+    {:else if confirmTarget.effect === "siege_fireball"}
+      {@const ownerId = holdingAt(gs, confirmTarget.siteId)?.ownerId ?? ""}
+      <p class="help">{t("target.fireball", { owner: nameOf(ownerId), place: siteName(session.map, confirmTarget.siteId) })}</p>
+      {#if insurancePolicyOf(session.ctx, gs, ownerId)}<p class="help">{t("target.insured_help", { card: policyName })}</p>{/if}
     {/if}
     <div class="grid">
       <button class="primary" onclick={() => playPickedCard(session)}>{t("target.play", { card: cardTitle })}</button>

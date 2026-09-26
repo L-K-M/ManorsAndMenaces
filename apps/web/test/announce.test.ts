@@ -100,4 +100,15 @@ describe("announcementsFor", () => {
     });
     expect(announcementsFor([won], GREENVALE_MAP, names, soloAlice)).toEqual(["Alice wins with 12 Renown!"]);
   });
+
+  it("announces a third-wave attack to the player it hits, but not to its caster", () => {
+    const disgrace = entry({
+      text: "Cordelia disgraced Alice, who loses 1 Renown for the rest of the game.",
+      playerId: "cordelia",
+      kind: "important",
+      raw: { type: "renown_lost", byPlayerId: "cordelia", playerId: "alice", amount: 1, cause: "disgrace" },
+    });
+    expect(announcementsFor([disgrace], GREENVALE_MAP, names, soloAlice)).toEqual([disgrace.text]);
+    expect(announcementsFor([disgrace], GREENVALE_MAP, names, perspectiveFor(null, ["cordelia"]))).toEqual([]);
+  });
 });

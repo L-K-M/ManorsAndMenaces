@@ -132,7 +132,8 @@ export function buildMatchReport(engine: RulesEngine, final: GameState, history:
 export function renownBreakdown(engine: RulesEngine, state: GameState, playerId: PlayerId): RenownBreakdown {
   const s = getRenownSources(engine.ctx, state, playerId);
   const quests = s.quests.reduce((sum, q) => sum + q.renown, 0);
-  return { total: s.total, manors: s.manors.renown, strongholds: s.strongholds.renown, quests, other: s.bonus };
+  // Renown lost for good (Disgrace, Stolen Glory) comes off the other sources, so the parts sum to the total.
+  return { total: s.total, manors: s.manors.renown, strongholds: s.strongholds.renown, quests, other: s.bonus - s.lost };
 }
 
 function rankPlayers(state: GameState, result: (id: PlayerId) => PlayerResult): PlayerResult[] {

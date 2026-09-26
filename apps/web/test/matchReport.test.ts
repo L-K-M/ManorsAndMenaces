@@ -32,7 +32,8 @@ describe("buildMatchReport", () => {
       const b = r.renown;
       expect(b.total).toBe(getRenown(engine.ctx, game.final, r.playerId));
       expect(b.manors + b.strongholds + b.quests + b.other).toBe(b.total);
-      expect(b.other).toBe(game.final.players[r.playerId]?.bonusRenown ?? 0);
+      const p = game.final.players[r.playerId];
+      expect(b.other).toBe((p?.bonusRenown ?? 0) - (p?.lostRenown ?? 0));
     }
   });
 
@@ -116,7 +117,8 @@ describe("buildMatchReport", () => {
 /**
  * A game that Ragnarök ends. The card is dealt to P1 from the start (an edit
  * of the initial state, so the history still replays from revision 0) and
- * played the first time the rules allow it.
+ * played the first time the rules allow it. Without reaction cards no
+ * Counterspell can stop it, whatever the deck deals.
  */
 function ragnarokGame(): { initial: GameState; final: GameState; commands: GameCommand[] } {
   const initial = clone(
@@ -124,7 +126,7 @@ function ragnarokGame(): { initial: GameState; final: GameState; commands: GameC
       matchId: "m-ragnarok",
       seed: "ragnarok",
       rulesetVersion: RULESET_VERSION,
-      ruleset: standardRuleset(3),
+      ruleset: { ...standardRuleset(3), enableReactionCards: false },
       players: ["P1", "P2", "P3"].map((id, i) => ({ id, displayName: `Player ${i + 1}` })),
     }),
   );

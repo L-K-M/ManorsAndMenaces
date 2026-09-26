@@ -58,13 +58,13 @@ describe("formatEvents: second-wave cards", () => {
     // Formatted against the state after the batch, where the Stronghold is already a Manor.
     const reduced: GameEvent[] = [
       { type: "dragon_landed", byPlayerId: "P1", ownerId: "P2", holdingId: "h9", siteId: site.id },
-      { type: "holding_reduced", byPlayerId: "P1", ownerId: "P2", holdingId: "h9", siteId: site.id, bannerId: "b9" },
+      { type: "holding_reduced", byPlayerId: "P1", ownerId: "P2", holdingId: "h9", siteId: site.id, bannerId: "b9", cause: "dragons_landing" },
     ];
     expect(lines(reduced)).toEqual([
       ["important", `A dragon landed on Player 2's Stronghold at ${place}!`, null],
       ["important", `Player 2's Stronghold at ${place} was knocked back to a Manor and lost a Banner.`, null],
     ]);
-    const razed: GameEvent = { type: "holding_destroyed", byPlayerId: "P1", ownerId: "P2", holdingId: "h9", siteId: site.id, bannerIds: ["b9"] };
+    const razed: GameEvent = { type: "holding_destroyed", byPlayerId: "P1", ownerId: "P2", holdingId: "h9", siteId: site.id, bannerIds: ["b9"], cause: "dragons_landing" };
     expect(lines([razed])).toEqual([["important", `Player 2's Manor at ${place} burned to the ground.`, null]]);
   });
 
@@ -127,5 +127,46 @@ describe("formatEvents: second-wave cards", () => {
     expect(endCauseOf(entries)).toBe("ragnarok");
     expect(endCauseOf(formatEvents([{ type: "game_won", playerId: "P2", renown: 12 }], state, map))).toBeNull();
     expect(endCauseOf([])).toBeNull();
+  });
+});
+
+describe("formatEvents: third-wave cards", () => {
+  const map = mapFor("greenvale");
+  const state = playGame(mvpRuleset(), "third-wave", 2, 0).initial;
+  const site = map.sites.find((s) => !s.landmarkId)!;
+  const place = siteName(map, site.id);
+  const lines = (events: GameEvent[]) => formatEvents(events, state, map).map((e) => [e.kind, e.text, e.playerId]);
+  const hit = { byPlayerId: "P1", ownerId: "P2", holdingId: "h9", siteId: site.id } as const;
+
+  it("tells each attack on a Holding as its caster's action, and names the ruined Site", () => {
+    expect(
+      lines([
+        { type: "holding_destroyed", ...hit, bannerIds: ["b9"], cause: "raiders" },
+        { type: "holding_reduced", ...hit, bannerId: "b9", cause: "siege_engines" },
+        { type: "holding_destroyed", ...hit, bannerIds: ["b9"], cause: "siege_fireball" },
+        { type: "site_ruined", byPlayerId: "P1", siteId: site.id },
+        { type: "effect_expired", effect: "razed", playerId: "P2" },
+      ]),
+    ).toEqual([
+      ["important", `Player 1's raiders burned down Player 2's Manor at ${place}.`, "P1"],
+      ["important", `Player 1's siege engines knocked Player 2's Stronghold at ${place} back to a Manor.`, "P1"],
+      ["important", `Player 1's Siege Fireball burned down Player 2's Manor at ${place}.`, "P1"],
+      ["important", `The Site at ${place} lies in ruins: nobody may build there again.`, "P1"],
+      ["info", "The ashes have cooled on Player 2's razed Site(s): anyone may build there again.", "P2"],
+    ]);
+  });
+
+  it("tells Renown lost for good or stolen, and Grain burned", () => {
+    expect(
+      lines([
+        { type: "renown_lost", byPlayerId: "P1", playerId: "P2", amount: 1, cause: "disgrace" },
+        { type: "renown_stolen", byPlayerId: "P2", fromPlayerId: "P1", amount: 1 },
+        { type: "resources_lost", byPlayerId: "P1", playerId: "P2", resource: "grain", amount: 2, cause: "sabotage" },
+      ]),
+    ).toEqual([
+      ["important", "Player 1 disgraced Player 2, who loses 1 Renown for the rest of the game.", "P1"],
+      ["important", "Player 2 stole 1 Renown from Player 1 for the rest of the game.", "P2"],
+      ["important", "Player 1 burned down Player 2's grain silo: 2 Grain lost.", "P1"],
+    ]);
   });
 });

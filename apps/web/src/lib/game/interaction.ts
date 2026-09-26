@@ -198,12 +198,14 @@ export function computeHighlights(session: GameSession, legal: LegalActionSummar
     case "card": {
       const step = currentCardStep(session);
       if (!step) {
-        // Awaiting confirmation: The Plague shows the Banners it would sicken.
+        // Awaiting confirmation: The Plague shows the Banners it would sicken,
+        // Siege Fireball the Manor it would leave in ruins.
         const target = ui.dialog === "card_confirm" ? pendingCardTarget(session) : undefined;
         if (target?.effect === "the_plague") {
           h.sites.add(target.siteId);
           for (const v of plagueVictims(ctx, state, target.siteId)) if (!v.insured) v.ids.forEach((b) => h.banners.add(b));
         }
+        if (target?.effect === "siege_fireball") h.sites.add(target.siteId);
         break;
       }
       // A dialog step is its own instruction.

@@ -102,12 +102,12 @@ describe("detectQuipCandidates", () => {
     const sabotaged = (pid: PlayerId) => [pid, "sabotaged", QUIP_CHANCE.sabotaged];
 
     expect(struck([{ type: "route_burned", byPlayerId: "P1", ownerId: "P2", routeId: "r" }])).toEqual([sabotaged("P2")]);
-    expect(struck([{ type: "holding_reduced", byPlayerId: "P3", ownerId: "P2", holdingId: "h", siteId: "s", bannerId: "b" }])).toEqual([sabotaged("P2")]);
+    expect(struck([{ type: "holding_reduced", byPlayerId: "P3", ownerId: "P2", holdingId: "h", siteId: "s", bannerId: "b", cause: "dragons_landing" }])).toEqual([sabotaged("P2")]);
     expect(struck([{ type: "hands_swapped", playerId: "P1", opponentId: "P3", handSize: 2, opponentHandSize: 3 }])).toEqual([sabotaged("P3")]);
     // The Plague's caster says nothing about its own sick Banners.
     expect(struck([{ type: "effect_started", effect: "plague", siteId: "s", bannerIds: [b2!.id, b3!.id], playerId: "P3" }])).toEqual([sabotaged("P2")]);
     // Nor does a rival whose own Dragon's Landing came down on it.
-    expect(struck([{ type: "holding_destroyed", byPlayerId: "P2", ownerId: "P2", holdingId: "h", siteId: "s", bannerIds: [] }])).toEqual([]);
+    expect(struck([{ type: "holding_destroyed", byPlayerId: "P2", ownerId: "P2", holdingId: "h", siteId: "s", bannerIds: [], cause: "dragons_landing" }])).toEqual([]);
   });
 
   it("gives every rival a line at the end", () => {

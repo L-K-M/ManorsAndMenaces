@@ -129,13 +129,20 @@ export const CARD_STEPS: Record<CardTarget["effect"], TargetField[]> = {
     { field: "take", pick: "hoard" },
     { field: "destination", pick: "location" },
   ],
+  disgrace: [{ field: "opponentId", pick: "player" }],
+  siege_engines: [{ field: "siteId", pick: "site" }],
+  raiders: [{ field: "siteId", pick: "site" }],
+  stolen_glory: [{ field: "opponentId", pick: "player" }],
+  siege_fireball: [{ field: "siteId", pick: "site" }],
+  sabotage: [{ field: "opponentId", pick: "player" }],
 };
 
 /**
  * Cards whose outcome is drastic or easy to misjudge: once every target is
  * picked, a dialog spells out what will happen before the card is played.
+ * Siege Fireball's ruin lasts the whole game.
  */
-export const CONFIRMED_CARDS: ReadonlySet<CardTarget["effect"]> = new Set(["ragnarok", "dragons_landing", "the_plague"]);
+export const CONFIRMED_CARDS: ReadonlySet<CardTarget["effect"]> = new Set(["ragnarok", "dragons_landing", "the_plague", "siege_fireball"]);
 
 export function valueKey(v: unknown): string {
   if (v && typeof v === "object" && "kind" in (v as object)) return locationKey(v as MenaceLocation);

@@ -96,6 +96,13 @@ export function detectQuipCandidates(scene: QuipScene): QuipCandidate[] {
       case "hands_swapped":
         add(e.opponentId, "sabotaged");
         break;
+      case "renown_lost":
+      case "resources_lost":
+        add(e.playerId, "sabotaged");
+        break;
+      case "renown_stolen":
+        add(e.fromPlayerId, "sabotaged");
+        break;
       case "effect_started":
         if (e.effect !== "plague") break;
         for (const id of e.bannerIds) {

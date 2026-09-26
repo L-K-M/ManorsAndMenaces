@@ -136,6 +136,40 @@ function setRenown(s: GameState, id: PlayerId, renown: number): void {
 
 const noResources = { grain: 0, timber: 0, stone: 0, iron: 0, essence: 0 };
 
+/**
+ * Clears every Royal Insurance Policy the AI game left in play, for tests
+ * that expect an uninsured board and set up their own policies.
+ */
+function noPolicies(s: GameState): void {
+  for (const p of Object.values(s.players)) p.charters = [];
+}
+
+/** Adds a Manor for `ownerId` on a free Site (spacing is not checked). */
+function extraHolding(s: GameState, ownerId: PlayerId, id: string): void {
+  const taken = new Set(Object.values(s.holdings).map((h) => h.siteId));
+  const site = ctx.board.topology.sites.find((x) => !taken.has(x.id));
+  if (!site) throw new Error("no free Site");
+  s.holdings[id] = { id, siteId: site.id, ownerId, type: "manor" };
+  (s.players[ownerId] as Player).holdingIds.push(id);
+}
+
+/** The rival's first Holding. */
+function rivalHolding(s: GameState): GameState["holdings"][string] {
+  const h = s.holdings[(s.players[rival] as Player).holdingIds[0] as string];
+  if (!h) throw new Error("the rival has no Holding");
+  return h;
+}
+
+/** Gives the actor a Route that ends at `siteId`, taking it from whoever owned it. */
+function routeTo(s: GameState, me: Player, siteId: string): void {
+  const route = ctx.board.routesAt(siteId)[0];
+  if (!route) throw new Error(`no Route at ${siteId}`);
+  const owner = s.routeOwners[route.id];
+  if (owner) (s.players[owner] as Player).routeIds = (s.players[owner] as Player).routeIds.filter((r) => r !== route.id);
+  s.routeOwners[route.id] = actor;
+  me.routeIds.push(route.id);
+}
+
 /** Each new card, set up so it can be played, and the dialogs its flow opens. */
 const NEW_CARDS: { effect: CardEffectId; setup?: (s: GameState, me: Player) => void; dialogs: string[] }[] = [
   {
@@ -184,6 +218,44 @@ const NEW_CARDS: { effect: CardEffectId; setup?: (s: GameState, me: Player) => v
       dragon.state.hoard = { grain: 5, stone: 1 };
     },
     dialogs: ["hoard"],
+  },
+  {
+    effect: "disgrace",
+    setup: (s) => setRenown(s, rival, Math.max(...s.turnOrder.map((id) => getRenown(ctx, s, id))) + 1),
+    dialogs: ["player"],
+  },
+  {
+    effect: "siege_engines",
+    setup: (s, me) => {
+      const h = rivalHolding(s);
+      h.type = "stronghold";
+      routeTo(s, me, h.siteId);
+    },
+    dialogs: [],
+  },
+  {
+    effect: "raiders",
+    setup: (s, me) => {
+      extraHolding(s, rival, "h_raided");
+      routeTo(s, me, s.holdings.h_raided?.siteId as string);
+    },
+    dialogs: [],
+  },
+  { effect: "stolen_glory", setup: (s) => setRenown(s, rival, getRenown(ctx, s, actor) + 1), dialogs: ["player"] },
+  {
+    effect: "siege_fireball",
+    setup: (s) => {
+      extraHolding(s, rival, "h_fireball");
+      setRenown(s, rival, getRenown(ctx, s, actor) + 1);
+    },
+    dialogs: ["card_confirm"],
+  },
+  {
+    effect: "sabotage",
+    setup: (s) => {
+      (s.players[rival] as Player).resources = { ...noResources, grain: 3 };
+    },
+    dialogs: ["player"],
   },
 ];
 
@@ -272,7 +344,7 @@ describe("card targeting flow", () => {
   });
 
   it("shows The Plague's Sites, then its victims before it is cast, and Back returns to the Sites", async () => {
-    const s = prepared("the_plague#1");
+    const s = prepared("the_plague#1", noPolicies);
     const { session, performed } = fakeSession(s);
     await ix.startCard(session, "the_plague#1");
     const sites = ix.computeHighlights(session, ix.legalFor(session));
@@ -298,7 +370,7 @@ describe("card targeting flow", () => {
   });
 
   it("spares an insured owner's Banners in The Plague's preview", async () => {
-    const s = prepared("the_plague#1");
+    const s = prepared("the_plague#1", noPolicies);
     // A Site where a rival and at least one other player would fall sick.
     const siteId = enumerateCardTargets(ctx, s, actor, "the_plague#1")
       .map((c) => (c as Extract<CardTarget, { effect: "the_plague" }>).siteId)
@@ -339,6 +411,43 @@ describe("card targeting flow", () => {
     expect(risks.find((r) => r.ownerId === rival)?.ids).toContain("h_extra");
     expect([...(risks.find((r) => r.ownerId === actor)?.ids ?? [])].sort()).toEqual([...mine].sort());
     for (const r of risks) expect((s.players[r.ownerId] as Player).holdingIds.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("offers Disgrace only the rivals who share the most Renown", async () => {
+    const s = prepared("disgrace#1", (st) => {
+      const top = Math.max(...st.turnOrder.map((id) => getRenown(ctx, st, id))) + 2;
+      for (const id of rivals) setRenown(st, id, top);
+      setRenown(st, actor, 0);
+    });
+    const { session } = fakeSession(s);
+    await ix.startCard(session, "disgrace#1");
+    expect(store.ui.dialog).toBe("player");
+    expect(ix.currentCardStep(session)?.options).toEqual(rivals);
+
+    const lower = prepared("disgrace#1", (st) => {
+      setRenown(st, actor, 0);
+      setRenown(st, rival, 9);
+      for (const id of rivals.slice(1)) setRenown(st, id, 8);
+    });
+    const low = fakeSession(lower);
+    await ix.startCard(low.session, "disgrace#1");
+    expect(ix.currentCardStep(low.session)?.options).toEqual([rival]);
+  });
+
+  it("shows the Manor a Siege Fireball would leave in ruins before it is cast", async () => {
+    const s = prepared("siege_fireball#1", NEW_CARDS.find((c) => c.effect === "siege_fireball")?.setup);
+    const { session, performed } = fakeSession(s);
+    await ix.startCard(session, "siege_fireball#1");
+    const sites = ix.computeHighlights(session, ix.legalFor(session));
+    expect(sites.hint).toBe("hint.card_site");
+    const rivalManors = Object.values(s.holdings).filter((h) => h.ownerId === rival && h.type === "manor").map((h) => h.siteId);
+    expect([...sites.sites].sort()).toEqual([...rivalManors].sort());
+
+    const siteId = rivalManors[0] as string;
+    await ix.onPick(session, ix.legalFor(session), { kind: "site", id: siteId });
+    expect(store.ui.dialog).toBe("card_confirm");
+    expect(performed).toEqual([]);
+    expect([...ix.computeHighlights(session, ix.legalFor(session)).sites]).toEqual([siteId]);
   });
 
   it("closes a card's dialog when the tool is reset", async () => {
