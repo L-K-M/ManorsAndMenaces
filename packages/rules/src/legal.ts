@@ -275,7 +275,16 @@ function cardTargetCandidates(ctx: RulesContext, state: GameState, playerId: Pla
       break;
     }
     case "changeling":
-      for (const opponentId of state.turnOrder) if (opponentId !== playerId) candidates.push({ effect: "changeling", opponentId });
+    case "disgrace":
+    case "stolen_glory":
+    case "sabotage":
+      for (const opponentId of state.turnOrder) if (opponentId !== playerId) candidates.push({ effect: def.effectId, opponentId });
+      break;
+    case "siege_engines":
+    case "raiders":
+    case "siege_fireball":
+      // Holdings are few: validation picks the opponents' Holdings of the right kind.
+      for (const h of Object.values(state.holdings)) if (h.ownerId !== playerId) candidates.push({ effect: def.effectId, siteId: h.siteId });
       break;
     case "ragnarok":
     case "dragons_landing":

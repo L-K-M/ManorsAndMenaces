@@ -96,6 +96,12 @@ export const CARD_EFFECT_IDS = [
   "robin_of_the_glade",
   "unreliable_bard",
   "treasure_hunter",
+  "disgrace",
+  "siege_engines",
+  "raiders",
+  "stolen_glory",
+  "siege_fireball",
+  "sabotage",
 ] as const;
 export type CardEffectId = (typeof CARD_EFFECT_IDS)[number];
 
@@ -257,6 +263,12 @@ export interface PlayerState {
   resources: Resources;
   hand: CardId[];
   bonusRenown: number;
+  /**
+   * Renown lost for the rest of the game (Disgrace, Stolen Glory), taken off
+   * the total. Never more than keeps the total at 0 or above. Absent in older
+   * saves and until the first loss.
+   */
+  lostRenown?: number;
   holdingIds: HoldingId[];
   routeIds: RouteId[];
   claimedQuestIds: QuestId[];
@@ -286,7 +298,12 @@ export type ActiveEffect =
   /** The Plague: the Banner produces nothing at its owner's next Harvest. */
   | { kind: "sick"; bannerId: BannerId; sourcePlayerId: PlayerId }
   /** Fire Bolt: only the burned Route's former owner may rebuild it until the end of their next turn. */
-  | { kind: "smouldering"; routeId: RouteId; ownerId: PlayerId; sourcePlayerId: PlayerId };
+  | { kind: "smouldering"; routeId: RouteId; ownerId: PlayerId; sourcePlayerId: PlayerId }
+  /**
+   * Raiders: only the burned Manor's owner may build on the Site, or next to
+   * it, until the end of their next turn.
+   */
+  | { kind: "razed"; siteId: SiteId; ownerId: PlayerId; sourcePlayerId: PlayerId };
 
 /** A decision the game is waiting on before normal play resumes (§109). */
 export type PendingDecision =
@@ -327,7 +344,13 @@ export type CardTarget =
   | { effect: "royal_insurance_policy" }
   | { effect: "robin_of_the_glade"; resource: ResourceType }
   | { effect: "unreliable_bard" }
-  | { effect: "treasure_hunter"; take: ResourceType; destination: MenaceLocation };
+  | { effect: "treasure_hunter"; take: ResourceType; destination: MenaceLocation }
+  | { effect: "disgrace"; opponentId: PlayerId }
+  | { effect: "siege_engines"; siteId: SiteId }
+  | { effect: "raiders"; siteId: SiteId }
+  | { effect: "stolen_glory"; opponentId: PlayerId }
+  | { effect: "siege_fireball"; siteId: SiteId }
+  | { effect: "sabotage"; opponentId: PlayerId };
 
 export interface GameState {
   revision: number;
@@ -363,6 +386,8 @@ export interface GameState {
   revealedQuestRounds?: Record<QuestId, number>;
 
   activeEffects: ActiveEffect[];
+  /** Sites a Siege Fireball left in ruins: nobody may build on them again. Absent in older saves. */
+  ruinedSiteIds?: SiteId[];
   pending?: PendingDecision;
   nextIds: { holding: number; banner: number };
   winnerId?: PlayerId;

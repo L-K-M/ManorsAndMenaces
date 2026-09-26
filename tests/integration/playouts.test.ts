@@ -61,8 +61,15 @@ function checkInvariants(s: GameState, cards: number): void {
   for (const h of Object.values(s.holdings)) expect(s.players[h.ownerId]?.holdingIds, h.id).toContain(h.id);
   for (const e of s.activeEffects) {
     if ("bannerId" in e) expect(s.banners[e.bannerId], `${e.kind} on a missing Banner`).toBeDefined();
-    // Rebuilding puts the embers out, so a smouldering Route is unowned.
+    // Rebuilding puts the embers out, so a smouldering Route is unowned and a razed Site empty.
     if (e.kind === "smouldering") expect(s.routeOwners[e.routeId], `smouldering ${e.routeId}`).toBeUndefined();
+    if (e.kind === "razed") expect(sites, `razed ${e.siteId}`).not.toContain(e.siteId);
+  }
+  // Nobody ever builds on a ruin, and no card takes Renown below 0.
+  for (const ruin of s.ruinedSiteIds ?? []) expect(sites, `ruined ${ruin}`).not.toContain(ruin);
+  for (const p of Object.values(s.players)) {
+    expect(getRenown(ctx, s, p.id), `${p.id}'s Renown`).toBeGreaterThanOrEqual(0);
+    expect(p.lostRenown ?? 0).toBeGreaterThanOrEqual(0);
   }
   // Changeling, Charters and Ragnarök move cards around; none may appear or vanish.
   expect(cardCount(s)).toBe(cards);
@@ -111,14 +118,18 @@ function dealTopCard(s: GameState): DebugCommand | null {
 
 type Step = { command: GameCommand } | { deal: DebugCommand };
 
-/** Replays the steps, returning the final state and the type of every event on the way. */
-function replaySteps(initial: GameState, steps: Step[]): { state: GameState; eventTypes: Set<GameEvent["type"]> } {
+/** An event's type, with the card that caused it for the Holdings several cards burn or reduce. */
+type EventKind = GameEvent["type"] | `${"holding_destroyed" | "holding_reduced"}:${string}`;
+const kindOf = (e: GameEvent): EventKind => (e.type === "holding_destroyed" || e.type === "holding_reduced" ? `${e.type}:${e.cause}` : e.type);
+
+/** Replays the steps, returning the final state and the kind of every event on the way. */
+function replaySteps(initial: GameState, steps: Step[]): { state: GameState; eventTypes: Set<EventKind> } {
   let s = initial;
-  const eventTypes = new Set<GameEvent["type"]>();
+  const eventTypes = new Set<EventKind>();
   for (const step of steps) {
     const r = "deal" in step ? engine.applyDebugCommand(s, step.deal) : engine.applyCommand(s, step.command);
     if (!r.newState) throw new Error(`replay failed: ${r.error?.code}`);
-    for (const e of r.events) eventTypes.add(e.type);
+    for (const e of r.events) eventTypes.add(kindOf(e));
     s = r.newState;
   }
   return { state: s, eventTypes };
@@ -210,9 +221,9 @@ describe("AI playouts", () => {
   const CARD_HEAVY_PLAYERS = [2, 3, 4] as const;
   /** Seed suffixes tried in turn; the first ones are the invariant games below. */
   const CARD_HEAVY_SUFFIXES = ["", "-b", "-c", "-d", "-e", "-f", "-g"];
-  const cardGameEvents = new Map<string, Set<GameEvent["type"]>>();
-  /** Plays and checks one card-heavy game once per run; returns its event types. */
-  function cardHeavyGame(players: number, suffix = ""): Set<GameEvent["type"]> {
+  const cardGameEvents = new Map<string, Set<EventKind>>();
+  /** Plays and checks one card-heavy game once per run; returns its event kinds. */
+  function cardHeavyGame(players: number, suffix = ""): Set<EventKind> {
     const seed = `cards-${players}p${suffix}`;
     const played = cardGameEvents.get(seed);
     if (played) return played;
@@ -236,9 +247,25 @@ describe("AI playouts", () => {
   // resolve in whole games. Which seeds get there shifts with every AI or
   // deck change, so games are played across seeds until each event has
   // happened, within a fixed budget.
-  it("card-heavy games exercise the second-wave cards", () => {
-    const wanted = ["route_burned", "holding_destroyed", "hands_swapped", "insurance_claimed"] as const;
-    const seen = new Set<GameEvent["type"]>();
+  // Siege Engines and Raiders are not required: they need a rival's Holding at
+  // the end of one of the caster's Routes, which AI networks seldom build
+  // (0.05 to 0.15 raids per game in `pnpm simulate`; whether any of the games
+  // below has one shifts with every AI change). They resolve through the same
+  // Stronghold reduction and Manor burning as Dragon's Landing and Siege
+  // Fireball, and new-cards.test.ts covers each.
+  it("card-heavy games exercise the second- and third-wave cards", () => {
+    const wanted: EventKind[] = [
+      "route_burned",
+      "holding_destroyed:dragons_landing",
+      "hands_swapped",
+      "insurance_claimed",
+      "renown_lost",
+      "renown_stolen",
+      "holding_destroyed:siege_fireball",
+      "site_ruined",
+      "resources_lost",
+    ];
+    const seen = new Set<EventKind>();
     for (const suffix of CARD_HEAVY_SUFFIXES) {
       for (const players of CARD_HEAVY_PLAYERS) for (const type of cardHeavyGame(players, suffix)) seen.add(type);
       if (wanted.every((type) => seen.has(type))) break;

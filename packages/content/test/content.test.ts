@@ -48,8 +48,8 @@ describe("card definitions (§19, §39)", () => {
   it("use every effect the engine implements, once each", () => {
     expect(CARDS.map((c) => c.effectId).sort()).toEqual([...CARD_EFFECT_IDS].sort());
   });
-  it("make up the 40-card deck", () => {
-    expect(CARDS.reduce((n, c) => n + c.copies, 0)).toBe(40);
+  it("make up the 51-card deck", () => {
+    expect(CARDS.reduce((n, c) => n + c.copies, 0)).toBe(51);
   });
   it("reach the rules engine with their requirements", () => {
     for (const c of CARDS) {
@@ -72,14 +72,14 @@ describe("standard decks by player count", () => {
   });
   it("2 players: no Dragon Whisperer, Treasure Hunter or Teleportation Mishap", () => {
     const deck = deckOf(2);
-    expect(deck).toHaveLength(34);
+    expect(deck).toHaveLength(45);
     expect(deck).not.toContain("dragon_whisperer");
     expect(deck).not.toContain("treasure_hunter");
     expect(deck).not.toContain("teleportation_mishap");
   });
   it.each([3, 4])("%i players: the full deck, since two Region Menaces can swap", (players) => {
     const deck = deckOf(players);
-    expect(deck).toHaveLength(39);
+    expect(deck).toHaveLength(50);
     expect(deck.filter((c) => c === "teleportation_mishap")).toHaveLength(2);
     expect(deck.filter((c) => c === "treasure_hunter")).toHaveLength(1);
   });

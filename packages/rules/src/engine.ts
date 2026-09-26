@@ -22,6 +22,7 @@ import {
   getRenown,
   holdingAt,
   isLegalMenaceDestination,
+  isRuinedSite,
   passesSpacing,
   totalBuildCost,
   validateBannerAssignment,
@@ -353,6 +354,7 @@ function placeInitialManor(tx: Tx, playerId: PlayerId, siteId: SiteId): void {
   check(setup.placementOrder[setup.placementIndex] === playerId, "NOT_ACTIVE_PLAYER");
   check(typeof siteId === "string" && tx.ctx.board.hasSite(siteId), "UNKNOWN_ENTITY", "site");
   check(!holdingAt(s, siteId), "SITE_OCCUPIED");
+  check(!isRuinedSite(s, siteId), "SITE_RUINED");
   check(passesSpacing(tx.ctx, s, siteId), "SITE_TOO_CLOSE");
   const holdingId = createHolding(tx, playerId, siteId);
   tx.emit({ type: "holding_built", playerId, holdingId, siteId, free: true });
@@ -517,6 +519,11 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
     s.activeEffects = s.activeEffects.filter((e) => !(e.kind === "smouldering" && e.ownerId === playerId));
     tx.emit({ type: "effect_expired", effect: "smouldering", playerId });
   }
+  // Likewise a razed Manor's owner had their turn to rebuild it (Raiders, §19.24).
+  if (s.activeEffects.some((e) => e.kind === "razed" && e.ownerId === playerId)) {
+    s.activeEffects = s.activeEffects.filter((e) => !(e.kind === "razed" && e.ownerId === playerId));
+    tx.emit({ type: "effect_expired", effect: "razed", playerId });
+  }
   p.marketTradesThisTurn = 0;
   p.nonReactionCardsPlayedThisTurn = 0;
   p.writsIssuedThisTurn = 0;
@@ -602,6 +609,8 @@ function buildManor(tx: Tx, playerId: PlayerId, siteId: string, toll: unknown, s
   check(typeof siteId === "string", "INVALID_COMMAND");
   const c = checkBuildManor(tx.ctx, tx.s, playerId, siteId);
   payForBuild(tx, playerId, c, toll, surcharge, "build_manor");
+  // Rebuilding a razed Manor puts out its embers (Raiders, §19.24).
+  tx.s.activeEffects = tx.s.activeEffects.filter((e) => !(e.kind === "razed" && e.siteId === siteId));
   const holdingId = createHolding(tx, playerId, siteId);
   tx.emit({ type: "holding_built", playerId, holdingId, siteId, free: false });
 }

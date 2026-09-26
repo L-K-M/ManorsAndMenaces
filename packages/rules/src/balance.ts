@@ -38,9 +38,19 @@ export const BALANCE = {
   treasureHunter: { take: 3 },
   /** How far behind a rival The Unreliable Bard's player must be (§19.20). */
   underdogGap: 2,
+  /** Renown Disgrace takes from the leader, and Stolen Glory moves (§19.22, §19.25). */
+  renownSwing: 1,
+  /**
+   * Raiders and Siege Fireball burn a Manor only of a player with at least
+   * this many Holdings, as Dragon's Landing does: nobody drops below the two
+   * Holdings everyone starts with (§19.24, §19.26).
+   */
+  raid: { minHoldings: 3 },
+  /** Grain Sabotage burns (§19.27). */
+  sabotage: { grain: 2 },
 } as const;
 
-export const RULESET_VERSION = "0.6.0";
+export const RULESET_VERSION = "0.7.0";
 
 /** Fixed Menace sets by player count (spec §118). */
 export function standardMenaces(playerCount: number): MenaceType[] {
