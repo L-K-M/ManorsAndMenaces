@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Deploys/updates the self-hosted server: pulls the branch, rebuilds and
-# restarts the compose stack, prunes old images, and shows status.
+# Deploys/updates the self-hosted server: pulls the branch, rebuilds the
+# image on the latest base image, restarts the compose stack, prunes old
+# images, and shows status.
 #
 # Usage: ./update.sh [branch]   (default: main)
 # Requires: git, docker with the compose plugin; gh optional.
@@ -17,7 +18,11 @@ else
 fi
 
 echo "==> Rebuilding and restarting"
-docker compose up -d --build --remove-orphans
+# --pull fetches the current node:22-slim base image. Without it the build
+# keeps reusing the one already on this machine, so Node and Debian
+# security fixes never arrive.
+docker compose build --pull
+docker compose up -d --remove-orphans
 
 echo "==> Pruning old images"
 docker image prune -f

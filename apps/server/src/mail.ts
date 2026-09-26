@@ -1,14 +1,15 @@
 // Turn notices by email (spec §85) for players who asked for them in the
 // lobby and confirmed their address. Like Web Push, a notice goes out only
 // while the player has no app open (app.ts). The server sends through SMTP
-// (SMTP_URL); for development, MAIL_OUTBOX_DIR writes each message to a file
-// instead. Links point at PUBLIC_URL, where players open the game, so the
+// (SMTP_HOST and friends); for development, MAIL_OUTBOX_DIR writes each
+// message to a file instead. Links point at PUBLIC_URL, where players open the game, so the
 // server there must also serve the web client (WEB_DIST).
 
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { isIPv6 } from "node:net";
 import { join } from "node:path";
-import { createTransport } from "nodemailer";
+import { createTransport, type SMTPTransportOptions } from "nodemailer";
 import type { EmailSettings, MatchNotice } from "@manors-menaces/protocol";
 import { text } from "./notices.js";
 import { htmlPage } from "./page.js";
@@ -58,6 +59,10 @@ function mailboxKey(address: string): string {
 // SMTP servers that hang must not hold a lobby request for minutes
 // (nodemailer waits up to two minutes to connect by default).
 const SMTP_TIMEOUTS = { connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 20_000 };
+/** The mail server's port when SMTP_PORT is not set: message submission (RFC 6409). */
+const DEFAULT_SMTP_PORT = 587;
+/** Implicit TLS (RFC 8314). On other ports the connection upgrades when the server offers STARTTLS. */
+const SMTPS_PORT = 465;
 
 const MAX_ADDRESS_LENGTH = 254;
 const MAX_LOCAL_PART_LENGTH = 64;
@@ -72,16 +77,46 @@ export function isEmailAddress(value: unknown): value is string {
 }
 
 /**
- * Email settings from the environment: null when neither SMTP_URL nor
+ * Nodemailer's options for the mail server in SMTP_HOST, SMTP_PORT,
+ * SMTP_USER and SMTP_PASSWORD: null when SMTP_HOST is not set. The user name
+ * and password are used exactly as set, so nothing needs encoding. Throws a
+ * message naming the setting to fix.
+ */
+export function smtpOptionsFromEnv(env: Record<string, string | undefined>): SMTPTransportOptions | null {
+  const host = env.SMTP_HOST?.trim() ?? "";
+  const portSetting = env.SMTP_PORT?.trim() ?? "";
+  const user = env.SMTP_USER?.trim() ?? "";
+  // Kept as set, spaces included: a password is whatever the provider issued.
+  const pass = env.SMTP_PASSWORD ?? "";
+  if (!host) {
+    // A login for no server is a setup left half done; a port alone (.env.example spells out the default) is not.
+    const stray = (["SMTP_USER", "SMTP_PASSWORD"] as const).find((name) => env[name]?.trim());
+    if (stray) throw new Error(`${stray} is set, but SMTP_HOST, the mail server, is not`);
+    return null;
+  }
+  if (!isIPv6(host) && !/^[^\s/:]+$/.test(host)) {
+    throw new Error(`SMTP_HOST is the mail server's name, like smtp.example.org, without smtp:// or a port (that goes in SMTP_PORT), not "${host}"`);
+  }
+  const port = portSetting ? Number(portSetting) : DEFAULT_SMTP_PORT;
+  if (!/^\d*$/.test(portSetting) || !Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error(`SMTP_PORT must be a port number, usually 587 (STARTTLS) or 465 (TLS), not "${portSetting}"`);
+  }
+  if (!user !== !pass) throw new Error("Set SMTP_USER and SMTP_PASSWORD together, or neither for a mail server that needs no login");
+  return { host, port, secure: port === SMTPS_PORT, ...(user ? { auth: { user, pass } } : {}) };
+}
+
+/**
+ * Email settings from the environment: null when neither SMTP_HOST nor
  * MAIL_OUTBOX_DIR is set. Throws a message naming the setting to fix.
  */
 export function mailConfigFromEnv(env: Record<string, string | undefined>): MailConfig | null {
-  const smtp = env.SMTP_URL?.trim();
+  if (env.SMTP_URL?.trim()) throw new Error("SMTP_URL is no longer read: set SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD instead");
+  const smtp = smtpOptionsFromEnv(env);
   const outbox = env.MAIL_OUTBOX_DIR?.trim();
   if (!smtp && !outbox) return null;
-  if (smtp && outbox) throw new Error("Set SMTP_URL or MAIL_OUTBOX_DIR, not both");
+  if (smtp && outbox) throw new Error("Set SMTP_HOST or MAIL_OUTBOX_DIR, not both");
   const missing = ["MAIL_FROM", "PUBLIC_URL"].filter((name) => !env[name]?.trim());
-  if (missing.length > 0) throw new Error(`Email needs ${missing.join(" and ")} as well as ${smtp ? "SMTP_URL" : "MAIL_OUTBOX_DIR"}`);
+  if (missing.length > 0) throw new Error(`Email needs ${missing.join(" and ")} as well as ${smtp ? "SMTP_HOST" : "MAIL_OUTBOX_DIR"}`);
 
   const publicUrl = parseUrl(env.PUBLIC_URL as string);
   if (!publicUrl || !/^https?:$/.test(publicUrl.protocol) || publicUrl.search || publicUrl.hash) {
@@ -93,9 +128,7 @@ export function mailConfigFromEnv(env: Record<string, string | undefined>): Mail
   const base = publicUrl.href.replace(/\/+$/, "");
   if (outbox) return { from, publicUrl: base, transport: outboxTransport(outbox) };
 
-  // The URL carries the password: never echo it.
-  if (!/^smtps?:$/.test(parseUrl(smtp as string)?.protocol ?? "")) throw new Error("SMTP_URL must start with smtp:// (STARTTLS, usually port 587) or smtps:// (TLS, usually port 465)");
-  const transporter = createTransport({ url: smtp, ...SMTP_TIMEOUTS });
+  const transporter = createTransport({ ...(smtp as SMTPTransportOptions), ...SMTP_TIMEOUTS });
   return {
     from,
     publicUrl: base,

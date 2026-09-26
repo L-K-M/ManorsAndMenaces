@@ -15,19 +15,22 @@
 //                 appending the address it saw; otherwise clients can spoof it.
 //                 X-Forwarded-For is read first when present, so a proxy that
 //                 sets only Forwarded must still strip or overwrite it.
-//   VAPID_SUBJECT contact for Web Push services (RFC 8292): mailto:you@example.org
-//                 or an https: URL of yours (default: the project's repository).
+//   PUSH_CONTACT  your contact for Web Push services, who may use it if the
+//                 server misbehaves: an email address (you@example.org) or an
+//                 https: URL of yours (default: the project's repository).
 //                 Push reaches players whose app is closed; it needs the web
 //                 client served over HTTPS.
-//   SMTP_URL      turns on turn emails for players who confirm an address in
-//                 the lobby: smtps://user:password@smtp.example.org (TLS, port
-//                 465) or smtp://user:password@smtp.example.org:587 (STARTTLS).
-//                 Percent-encode reserved characters in the user and password.
-//                 Needs MAIL_FROM and PUBLIC_URL too.
+//   SMTP_HOST     the mail server for turn emails, for players who confirm an
+//                 address in the lobby: smtp.example.org. Needs MAIL_FROM and
+//                 PUBLIC_URL too.
+//   SMTP_PORT     its port (default 587): 465 connects with TLS, other ports
+//                 upgrade with STARTTLS when the server offers it.
+//   SMTP_USER, SMTP_PASSWORD  the login, as your mail provider gives it (no
+//                 encoding); leave both unset for a server that needs none.
 //   MAIL_FROM     sender of turn emails: Manors & Menaces <turns@example.org>
 //   PUBLIC_URL    where players open the game (this server, serving WEB_DIST),
 //                 like https://play.example.org; email links point there.
-//   MAIL_OUTBOX_DIR  instead of SMTP_URL, for development: write each email to
+//   MAIL_OUTBOX_DIR  instead of SMTP_HOST, for development: write each email to
 //                 this directory as an .eml file rather than sending it.
 //   BACKGROUND_PING_SECONDS  how often the Android app's background connection
 //                 is pinged (default 600, 60 to 3600). Every ping wakes the
@@ -51,7 +54,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp } from "./app.js";
 import { invitesCommand } from "./inviteCommand.js";
-import { mailConfigFromEnv, type MailConfig } from "./mail.js";
+import { mailConfigFromEnv } from "./mail.js";
+import { pushContactFromEnv } from "./push.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -81,12 +85,16 @@ const inviteOnlySetting = (process.env.INVITE_ONLY ?? "").trim().toLowerCase();
 if (!["", "true", "false", "1", "0"].includes(inviteOnlySetting)) fail(`INVITE_ONLY must be true or false, not "${process.env.INVITE_ONLY}"`);
 const inviteOnly = inviteOnlySetting === "true" || inviteOnlySetting === "1";
 
-let email: MailConfig | null = null;
-try {
-  email = mailConfigFromEnv(process.env);
-} catch (e) {
-  fail(e instanceof Error ? e.message : String(e));
+/** A setting read from the environment; a bad one stops the server with its message. */
+function setting<T>(read: (env: NodeJS.ProcessEnv) => T): T {
+  try {
+    return read(process.env);
+  } catch (e) {
+    fail(e instanceof Error ? e.message : String(e));
+  }
 }
+const pushContact = setting(pushContactFromEnv);
+const email = setting(mailConfigFromEnv);
 
 if (dbPath !== ":memory:") mkdirSync(dirname(dbPath), { recursive: true });
 
@@ -97,12 +105,12 @@ const app = createApp({
   aiDelayMs: Number(process.env.AI_DELAY_MS ?? 700),
   trustProxy,
   backgroundHeartbeatMs: backgroundPingSeconds * 1000,
-  ...(process.env.VAPID_SUBJECT ? { push: { subject: process.env.VAPID_SUBJECT } } : {}),
+  ...(pushContact ? { push: { subject: pushContact } } : {}),
   ...(email ? { email } : {}),
   inviteOnly,
 });
 console.log(inviteOnly ? "Invite-only: on (make invites with: node server.mjs invites create NAME)" : "Invite-only: off, the game is open to everyone");
-if (!email) console.log("Turn emails: off (set SMTP_URL, MAIL_FROM and PUBLIC_URL to turn them on)");
+if (!email) console.log("Turn emails: off (set SMTP_HOST, MAIL_FROM and PUBLIC_URL to turn them on)");
 else if (!email.verify) console.log(`Turn emails: written to ${process.env.MAIL_OUTBOX_DIR}, not sent`);
 else {
   // A mail server that is down now may be back later: report, keep running.

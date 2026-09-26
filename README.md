@@ -48,17 +48,17 @@ cp .env.example .env
 PORT=127.0.0.1:8787
 TRUST_PROXY=1
 PUBLIC_URL=https://play.example.org
-VAPID_SUBJECT=mailto:you@example.org
+PUSH_CONTACT=you@example.org
 INVITE_ONLY=true
 ```
 
 - `PORT=127.0.0.1:8787` lets only the proxy on the same machine reach the server. Ports that Docker publishes bypass firewalls such as ufw.
 - `TRUST_PROXY=1` makes rate limits count each player separately, not everyone behind the proxy together.
 - `PUBLIC_URL` is where players open the game. The invite command prints whole links with it.
-- `VAPID_SUBJECT` is your contact for the Web Push services that deliver turn notifications.
+- `PUSH_CONTACT` is your email address for the Web Push services that deliver turn notifications, so that they can reach you if your server misbehaves.
 - `INVITE_ONLY=true` lets in only the people you invite. Leave it `false` to open the game to everyone.
 
-Turn emails need an SMTP account as well: see `.env.example` and [Email](docs/notifications.md#email).
+Turn emails need an SMTP account as well: set `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD` and `MAIL_FROM` (see `.env.example` and [Email](docs/notifications.md#email)).
 
 ### 2. Start the server
 
@@ -73,7 +73,7 @@ The log shows how the server started:
 
 ```
 Invite-only: on (make invites with: node server.mjs invites create NAME)
-Turn emails: off (set SMTP_URL, MAIL_FROM and PUBLIC_URL to turn them on)
+Turn emails: off (set SMTP_HOST, MAIL_FROM and PUBLIC_URL to turn them on)
 Manors & Menaces server listening on :8787 (db /data/manors.sqlite)
 ```
 
@@ -147,7 +147,7 @@ To update to the latest code:
 ./update.sh
 ```
 
-It pulls `main`, rebuilds the image and restarts the server. Open games reconnect by themselves, and computer players carry on.
+It pulls `main`, rebuilds the image on the current Node 22 base image, so that Node and Debian security fixes arrive too, and restarts the server. Open games reconnect by themselves, and computer players carry on.
 
 Everything the server keeps (matches, players, invites, the Web Push keys) is in one SQLite database in the `manors-data` Docker volume. Back it up regularly. Stop the server for a moment while you copy it, so the copy is consistent:
 
