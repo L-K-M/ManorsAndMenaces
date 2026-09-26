@@ -67,6 +67,7 @@ export type GameEvent =
     }
   | { type: "menace_moved"; byPlayerId: PlayerId | null; menaceId: MenaceId; from: MenaceLocation; to: MenaceLocation }
   | { type: "hoard_changed"; menaceId: MenaceId; resource: ResourceType; delta: number }
+  | { type: "cards_dealt"; playerId: PlayerId; cardIds: CardId[] | null; count: number; reason: "setup" | "round" }
   | { type: "card_bought"; playerId: PlayerId; cardId: CardId | null }
   | { type: "deck_reshuffled"; size: number }
   | { type: "card_played"; playerId: PlayerId; cardId: CardId }

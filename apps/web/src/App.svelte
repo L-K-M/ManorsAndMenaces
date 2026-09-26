@@ -344,6 +344,7 @@
     <ol class="rules">
       {#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as n}<li>{t(`tutorial.${n}`)}</li>{/each}
     </ol>
+    <p>{t("ui.card_income_hint", { count: BALANCE.initialCards, rounds: BALANCE.cardDrawEveryRounds })}</p>
     <h3>{t("ui.costs")}</h3>
     <ul>
       <li>{t("action.build_route")}: {t("cost.route")}</li>

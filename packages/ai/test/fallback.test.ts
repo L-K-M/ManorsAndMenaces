@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CommandIntent, GameState, PlayerId } from "@manors-menaces/rules";
 import { fallbackIntents } from "../src/index.js";
-import { act, cmd, engine, newGame, setupGame, standardRuleset } from "../../rules/test/helpers.js";
+import { act, cmd, engine, newGame, setupGame, cardTestRuleset as standardRuleset } from "../../rules/test/helpers.js";
 
 /** The first fallback the engine accepts for `playerId`, or null. */
 function firstAccepted(s: GameState, playerId: PlayerId): string | null {

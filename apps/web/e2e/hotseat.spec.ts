@@ -75,11 +75,12 @@ async function untilSecondHumanTurn(page: Page) {
 }
 
 async function buyCard(page: Page) {
+  const before = await page.locator(".hand button.card").count();
   await page.getByRole("button", { name: "Debug" }).click();
   await page.getByRole("button", { name: "Grant 5 of each resource" }).click();
   await page.getByRole("dialog", { name: "Debug tools" }).getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: /^Buy Card/ }).click();
-  await expect(page.locator(".hand button.card")).toHaveCount(1);
+  await expect(page.locator(".hand button.card")).toHaveCount(before + 1);
 }
 
 interface Snapshot {

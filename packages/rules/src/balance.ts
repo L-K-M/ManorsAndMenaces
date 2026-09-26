@@ -22,6 +22,8 @@ export const BALANCE = {
   writ: { maxPerTurn: 1, requireSettled: true, bribeToOwner: true },
   warden: { maxPerTurn: 1, guard: true },
   handLimit: 7,
+  initialCards: 2,
+  cardDrawEveryRounds: 3,
   maxNonReactionCardsPerTurn: 1,
   revealedQuestCount: 3,
   /** Rounds an unclaimed Quest stays on offer in the Standard rules (§27.2). */
@@ -38,7 +40,7 @@ export const BALANCE = {
   underdogGap: 2,
 } as const;
 
-export const RULESET_VERSION = "0.5.0";
+export const RULESET_VERSION = "0.6.0";
 
 /** Fixed Menace sets by player count (spec §118). */
 export function standardMenaces(playerCount: number): MenaceType[] {
@@ -86,6 +88,8 @@ export function standardRuleset(playerCount: number): RulesetConfig {
     enableReactionCards: true,
     enableQuests: true,
     questExpiryRounds: BALANCE.questExpiryRounds,
+    initialCards: BALANCE.initialCards,
+    cardDrawEveryRounds: BALANCE.cardDrawEveryRounds,
   };
 }
 

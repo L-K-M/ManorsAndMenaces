@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import { clone, getLegalBannerRegions, hashState, type CardTarget, type GameCommand, type GameState, type PlayerId } from "../src/index.js";
-import { act, cmd, engine, give, grant, newGame, setupGame, standardRuleset } from "./helpers.js";
+import { act, cmd, engine, give, grant, newGame, setupGame, cardTestRuleset as standardRuleset } from "./helpers.js";
 
 const MENACE_RULESET = { ...standardRuleset(2), activeMenaces: ["toll_troll" as const, "young_dragon" as const, "highwayman" as const] };
 

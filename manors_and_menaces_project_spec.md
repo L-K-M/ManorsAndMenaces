@@ -860,6 +860,19 @@ One-off narrative effect, often symmetrical or unusual.
 
 ## 18.2 Card acquisition
 
+New Standard and asynchronous games deal two cards to each player after all
+setup steps finish. At the start of rounds 3, 6, 9 and every third round after
+that, every player draws one free card before the first seat acts. A round is
+one turn for each player. Deal in turn order, one card per seat per pass, using
+the normal draw pile and discard reshuffle. If no cards remain, skip the
+unavailable draws without blocking play. Set-aside Ragnarök stays out until
+its omen. Free cards do not count as purchases. Hand limits still apply at
+the end of each player's own turn, even if a free draw took them above seven.
+
+New Game's Advanced options can disable both starting and periodic draws.
+Older saves without these ruleset fields keep their original card economy.
+Core games have no cards and receive no free draws.
+
 Default card purchase cost:
 
 - 1 Grain;

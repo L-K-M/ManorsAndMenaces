@@ -125,6 +125,10 @@
       {viewer ? t("ui.players_hand", { name: session.draft.players[viewer]?.displayName ?? "" }) : t("ui.hand")}
       {#if viewer}<small>({hand.length}/{session.draft.ruleset.handLimit})</small>{/if}
     </h3>
+    {#if session.draft.status === "playing" && (session.draft.ruleset.cardDrawEveryRounds ?? 0) > 0}
+      {@const interval = session.draft.ruleset.cardDrawEveryRounds!}
+      <p class="draw-note">{t("hand.next_free_card", { round: (Math.floor(session.draft.round / interval) + 1) * interval })}</p>
+    {/if}
     {#if hiddenNote}
       <p class="empty hidden">
         <svg class="lock" width="14" height="16" viewBox="0 0 14 16" aria-hidden="true">
@@ -200,6 +204,7 @@
 {/if}
 
 <style>
+  .draw-note { margin: 0 0 0.3rem; font-size: 0.75rem; color: var(--ink-soft); }
   h3 {
     margin: 0 0 0.3rem;
     font: 700 0.8rem/1 var(--font-body);

@@ -182,6 +182,10 @@ export interface RulesetConfig {
    * the start of a round. Absent or 0: Quests stay until claimed.
    */
   questExpiryRounds?: number;
+  /** Cards dealt to each player after setup. Absent/0 preserves older games. */
+  initialCards?: number;
+  /** Deal one card to every player at multiples of this round. Absent/0 disables it. */
+  cardDrawEveryRounds?: number;
 }
 
 export interface PlayerConfig {

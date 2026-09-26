@@ -286,7 +286,17 @@ describe("catching up on missed moves", () => {
       // Alice sees her own moves as she did when she made them, and Bob's as
       // the server would have pushed them to her.
       const expected = p.playerId === aliceId ? p.events : p.events.map((e) => redactEvent(e, aliceId));
-      expect(eventsBetween(entries, p.from, p.to)).toEqual(expected);
+      // A round can deal to both seats in the same command. Its submitter's
+      // response cannot contain the other seat's identities; compare public
+      // parts here and check each viewer's private draw below.
+      const publicDraw = (e: GameEvent) => e.type === "cards_dealt" ? redactEvent(e, null) : e;
+      expect(eventsBetween(entries, p.from, p.to).map(publicDraw)).toEqual(expected.map(publicDraw));
+    }
+    const deals = entries.flatMap((entry) => entry.events).filter((e) => e.type === "cards_dealt");
+    expect(deals.length).toBeGreaterThan(0);
+    for (const event of deals) {
+      if (event.playerId === aliceId) expect(event.cardIds).toHaveLength(event.count);
+      else expect(event.cardIds).toBeNull();
     }
     const bobHistory = (await api<MatchHistoryResponse>(`/api/matches/${matchId}/history`, bob.token)).data;
     for (const p of played.filter((q) => q.playerId === bobId)) expect(eventsBetween(bobHistory.entries, p.from, p.to)).toEqual(p.events);

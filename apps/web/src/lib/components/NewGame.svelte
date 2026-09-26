@@ -25,6 +25,7 @@
   // Quest expiry (§27.2) is part of the Standard rules; unchecking it keeps
   // every Quest on offer until claimed.
   let questExpiry = $state(true);
+  let cardIncome = $state(true);
   const KINDS = NAMES.map((_, i) => (i === 0 ? "human" : "ai") as "human" | "ai");
   // Start the line-up at a random rival so new games meet different faces.
   const initialRivals = assignRivals(KINDS, Math.floor(Math.random() * RIVALS.length));
@@ -78,7 +79,7 @@
       color: i,
     }));
     const ruleset: RulesetConfig =
-      mode === "mvp" ? mvpRuleset() : { ...standardRuleset(count), questExpiryRounds: questExpiry ? BALANCE.questExpiryRounds : 0 };
+      mode === "mvp" ? mvpRuleset() : { ...standardRuleset(count), questExpiryRounds: questExpiry ? BALANCE.questExpiryRounds : 0, initialCards: cardIncome ? BALANCE.initialCards : 0, cardDrawEveryRounds: cardIncome ? BALANCE.cardDrawEveryRounds : 0 };
     const board: BoardChoice = island ? { kind: "drawn", islandId: island } : { kind: "drawn" };
     onstart({ seats: chosen, ruleset, board, ...(seed.trim() ? { seed: seed.trim() } : {}) });
   }
@@ -148,6 +149,8 @@
       <summary>{t("ui.advanced")}</summary>
       <label>{t("ui.seed_for_reproducible_games")} <input bind:value={seed} placeholder={t("ui.random")} /></label>
       {#if mode === "standard"}
+        <label class="check"><input type="checkbox" bind:checked={cardIncome} /> {t("ui.card_income_option")}</label>
+        <p>{t("ui.card_income_hint", { count: BALANCE.initialCards, rounds: BALANCE.cardDrawEveryRounds })}</p>
         <label class="check"><input type="checkbox" bind:checked={questExpiry} /> {t("ui.quest_expiry_option", { rounds: BALANCE.questExpiryRounds })}</label>
       {/if}
     </details>

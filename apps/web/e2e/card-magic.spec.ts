@@ -11,6 +11,8 @@ async function startVsAi(page: Page, speed: "normal" | "off", reducedMotion = fa
   await page.getByRole("button", { name: "New game" }).click();
   await page.getByRole("radio", { name: "2", exact: true }).check({ force: true });
   await page.getByText("Advanced").click();
+  // Animation scenarios stage one specific card independently of opening draws.
+  await page.getByRole("checkbox", { name: "Starting cards and regular draws" }).uncheck();
   await page.getByLabel(/Seed/).fill("layout-seed-18");
   await page.getByRole("button", { name: "Begin" }).click();
 }

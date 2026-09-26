@@ -44,6 +44,7 @@ export function redactEvent(event: GameEvent, viewerId: PlayerId | null): GameEv
   switch (event.type) {
     case "card_bought":
       return event.playerId === viewerId ? event : { ...event, cardId: null };
+    case "cards_dealt":
     case "prophecy_revealed":
       return event.playerId === viewerId ? event : { ...event, cardIds: null };
     case "card_discarded":

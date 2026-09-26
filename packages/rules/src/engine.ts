@@ -413,6 +413,7 @@ function assignInitialBanners(tx: Tx, playerId: PlayerId, assignments: Record<Ba
   s.turnOrder.forEach((id, i) => {
     for (const [r, n] of Object.entries(s.ruleset.seatBonus?.[i] ?? {})) if (isResourceType(r) && n) tx.gain(id, r, n, "starting_resources");
   });
+  dealCardsToAll(tx, s.ruleset.initialCards ?? 0, "setup");
   startTurn(tx, s.activePlayerId);
 }
 
@@ -536,6 +537,8 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   if (nextIdx === 0) {
     s.round += 1;
     expireQuests(tx);
+    const interval = s.ruleset.cardDrawEveryRounds ?? 0;
+    if (interval > 0 && s.round % interval === 0) dealCardsToAll(tx, 1, "round");
   }
   s.turnNumber += 1;
   s.activePlayerId = s.turnOrder[nextIdx] as PlayerId;
@@ -687,6 +690,24 @@ function hireWarden(tx: Tx, playerId: PlayerId, menaceId: string, destination: u
 }
 
 // ------------------------------------------------------------------ cards (§18)
+
+/** Deal in seat order, one card each per pass. The normal end-turn hand
+ * limit still applies; incoming cards are never silently thrown away. */
+function dealCardsToAll(tx: Tx, count: number, reason: "setup" | "round"): void {
+  if (!tx.s.ruleset.enableCards || count <= 0) return;
+  const received = new Map(tx.s.turnOrder.map((id) => [id, [] as string[]]));
+  for (let pass = 0; pass < Math.min(count, tx.s.ruleset.handLimit); pass++) {
+    for (const id of tx.s.turnOrder) {
+      const card = tx.drawCard();
+      if (!card) continue;
+      tx.player(id).hand.push(card);
+      received.get(id)!.push(card);
+    }
+  }
+  for (const [playerId, cardIds] of received) {
+    if (cardIds.length) tx.emit({ type: "cards_dealt", playerId, cardIds, count: cardIds.length, reason });
+  }
+}
 
 function buyCard(tx: Tx, playerId: PlayerId): void {
   const s = tx.s;

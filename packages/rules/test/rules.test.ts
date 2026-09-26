@@ -16,7 +16,7 @@ import {
   type GameState,
   type PlayerId,
 } from "../src/index.js";
-import { act, engine, grant, mvpRuleset, newGame, passTurn, reject, routeId, setupGame, standardRuleset } from "./helpers.js";
+import { act, engine, grant, mvpRuleset, newGame, passTurn, reject, routeId, setupGame, cardTestRuleset as standardRuleset } from "./helpers.js";
 
 const ctx = engine.ctx;
 
