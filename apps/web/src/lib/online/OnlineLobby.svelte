@@ -13,7 +13,7 @@
   import { clearMatchRoute, matchRoute, setMatchRoute } from "./route.js";
   import { lastSeenRevision, watchSeen } from "./seen.js";
   import { onNotice, watchNotices } from "./notices.svelte.js";
-  import { disablePush, enablePush, pushState, type PushState } from "./push.js";
+  import { allowInBackground, disableTurnNotices, enableTurnNotices, followSession, turnNoticeSetting, type TurnNoticeSetting } from "./turnNotices.js";
   import TurnEmails from "./TurnEmails.svelte";
   import ToolIcon from "../components/ToolIcon.svelte";
 
@@ -73,11 +73,12 @@
 
   /** Remounts the turn email setting, which belongs to the guest. */
   let guestKey = $state(0);
-  /** A new guest session: hear its notices, and move this browser's push subscription to it. */
+  /** A new guest session: hear its notices, and point this device's turn notices at it. */
   async function sessionChanged() {
     watchNotices();
     guestKey++;
-    if ((await pushState()) === "on") pushSetting = await enablePush(client).catch(() => pushSetting);
+    const next = await followSession(client).catch(() => null);
+    if (next) setNoticeSetting(next);
   }
 
   async function signIn() {
@@ -99,14 +100,43 @@
   // "Your turn" in the list follows the notices.
   $effect(() => onNotice(() => void refresh()));
 
-  // Turn notices by Web Push, for when the app is closed (spec §85).
-  let pushSetting: PushState = $state("unsupported");
-  void pushState().then((s) => (pushSetting = s));
-  async function togglePush(input: HTMLInputElement) {
-    const next = await guard(() => (input.checked ? enablePush(client) : disablePush(client)));
-    pushSetting = next ?? (await pushState());
+  // Turn notices for when the app is closed (spec §85): Web Push, or in the
+  // Android app its native watcher (turnNotices.ts).
+  let noticeSetting: TurnNoticeSetting = $state({ channel: "push", state: "unsupported", batteryRestricted: false });
+  /** Bumped by every change, so an answer that was already on its way cannot undo it. */
+  let noticeGeneration = 0;
+  async function loadNoticeSetting() {
+    const asked = ++noticeGeneration;
+    const next = await turnNoticeSetting().catch(() => null);
+    if (next && asked === noticeGeneration) noticeSetting = next;
+  }
+  function setNoticeSetting(next: TurnNoticeSetting) {
+    noticeGeneration++;
+    noticeSetting = next;
+  }
+  void loadNoticeSetting();
+  $effect(() => {
+    // Android answers the notification and battery prompts on its own screens.
+    const onVisible = () => {
+      if (!document.hidden) void loadNoticeSetting();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  });
+  async function toggleNotices(input: HTMLInputElement) {
+    const next = await guard(() => (input.checked ? enableTurnNotices(client) : disableTurnNotices(client)));
+    if (next) setNoticeSetting(next);
+    else await loadNoticeSetting();
     // The click already flipped the box; show what actually happened.
-    input.checked = pushSetting === "on";
+    input.checked = noticeSetting.state === "on";
+  }
+  async function allowBackground() {
+    const next = await guard(() => allowInBackground());
+    if (next) setNoticeSetting(next);
+  }
+  function noticeHint(setting: TurnNoticeSetting): string {
+    if (setting.channel === "android") return setting.state === "denied" ? t("ui.turn_notifications_android_denied") : t("ui.turn_notifications_android_hint");
+    return setting.state === "denied" ? t("ui.turn_notifications_denied") : t("ui.turn_notifications_hint");
   }
 
   // A reload (or a link) with #/match/ID reopens that match straight away.
@@ -270,12 +300,24 @@
         <button class="primary" disabled={busy}>{t("ui.join")}</button>
       </form>
     </div>
-    {#if pushSetting !== "unsupported"}
+    {#if noticeSetting.state !== "unsupported"}
       <label class="push">
-        <input type="checkbox" checked={pushSetting === "on"} disabled={busy || pushSetting === "denied"} onchange={(e) => togglePush(e.target as HTMLInputElement)} />
+        <!-- A browser that blocked the site never asks again; Android can be changed in its settings and retried. -->
+        <input
+          type="checkbox"
+          checked={noticeSetting.state === "on"}
+          disabled={busy || (noticeSetting.state === "denied" && noticeSetting.channel === "push")}
+          onchange={(e) => toggleNotices(e.target as HTMLInputElement)}
+        />
         {t("ui.turn_notifications")}
-        <small class="muted">{pushSetting === "denied" ? t("ui.turn_notifications_denied") : t("ui.turn_notifications_hint")}</small>
+        <small class="muted">{noticeHint(noticeSetting)}</small>
       </label>
+      {#if noticeSetting.batteryRestricted}
+        <p class="battery">
+          {t("ui.turn_notifications_battery")}
+          <button type="button" disabled={busy} onclick={allowBackground}>{t("ui.turn_notifications_allow_background")}</button>
+        </p>
+      {/if}
     {/if}
     {#key guestKey}<TurnEmails {client} {guard} {busy} />{/key}
     <h3>{t("ui.your_matches")} <button class="ghost" onclick={refresh} aria-label={t("ui.refresh")}><ToolIcon name="refresh" size={20} /></button></h3>
@@ -367,5 +409,9 @@
   }
   .push small {
     grid-column: 2;
+  }
+  .battery {
+    margin: 0.4rem 0 0;
+    font-size: 0.9rem;
   }
 </style>

@@ -4,7 +4,7 @@ import { MAX_NOTICES, withNotice } from "../src/lib/online/noticeList.js";
 
 // Notices about matches that are not on screen (spec §85) wait in a short
 // list until opened or dismissed.
-const notice = (matchId: string, kind: MatchNotice["kind"] = "your_turn"): MatchNotice => ({ matchId, kind, title: "Your turn", body: `Match ${matchId}` });
+const notice = (matchId: string, kind: MatchNotice["kind"] = "your_turn"): MatchNotice => ({ matchId, kind, title: "Your turn", body: `Match ${matchId}`, revision: 1 });
 
 describe("withNotice", () => {
   it("puts the newest notice first", () => {

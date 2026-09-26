@@ -97,6 +97,12 @@ jobs:
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/29.0.14206865
         run: pnpm tauri android build --apk --ci
+      # The turn watcher's JVM unit tests (app/src/test); they need the Gradle
+      # files the build above generates, but not the Rust library. The ABI
+      # flavors share their sources, so one flavor's run covers them.
+      - name: Unit tests
+        working-directory: src-tauri/gen/android
+        run: ./gradlew --no-daemon :app:testUniversalDebugUnitTest
       - uses: actions/upload-artifact@v7
         with:
           name: manors-menaces-android

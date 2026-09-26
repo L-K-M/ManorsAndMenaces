@@ -229,6 +229,17 @@ export class MatchService {
     return this.store.matchesForUser(userId).map((m) => m.id);
   }
 
+  /** A "your turn" notice for each of the user's matches that is waiting for them. */
+  pendingNotices(userId: string): MatchNotice[] {
+    const notices: MatchNotice[] = [];
+    for (const match of this.store.matchesForUser(userId)) {
+      if (match.status !== "playing" || !match.state) continue;
+      const playerId = this.memberPlayerId(match.id, userId);
+      if (playerId && actorOf(match.state) === playerId) notices.push(noticeFor(match.id, "your_turn", playerId, match.state));
+    }
+    return notices;
+  }
+
   memberPlayerId(matchId: string, userId: string): PlayerId | null {
     return this.store.seats(matchId).find((s) => s.user_id === userId)?.player_id ?? null;
   }
