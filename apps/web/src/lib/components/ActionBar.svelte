@@ -124,38 +124,6 @@
     await claim(questId);
   }
 
-  // ------------------------------------------------------------ cost chips
-  // The tools show their cost chips whenever the row has room for them.
-  // A width threshold cannot know about Claim and Trade-to-afford buttons,
-  // so the row is measured with the chips on, before the browser paints,
-  // and turns them off if it would scroll. Their costs then stay in the
-  // tooltip and the accessible name.
-  let toolRow: HTMLDivElement | undefined = $state();
-  function fitChips() {
-    if (!toolRow) return;
-    toolRow.dataset.chips = "on";
-    // Icon tiles never show chips (see the styles).
-    const chips = toolRow.querySelector(".chips");
-    const room = !!chips && getComputedStyle(chips).display !== "none" && toolRow.scrollWidth <= toolRow.clientWidth;
-    toolRow.dataset.chips = room ? "on" : "off";
-  }
-  $effect(() => {
-    void avail;
-    void claimable;
-    fitChips();
-  });
-  // The bar's width, and through the buttons beside the tools the Text size
-  // and web fonts. Neither element changes size when the chips do, so the
-  // observer never feeds itself.
-  $effect(() => {
-    if (!bar || !toolRow) return;
-    const end = toolRow.parentElement?.querySelector(".end");
-    const observer = new ResizeObserver(fitChips);
-    observer.observe(bar);
-    if (end) observer.observe(end);
-    return () => observer.disconnect();
-  });
-
   // ------------------------------------------------------------ phase actions
   function sendHome() {
     if (!ui.selectedBannerId) return;
@@ -272,33 +240,31 @@
         <button class="ghost" class:arming disabled={arming || !session.canUndo} onclick={once(() => session.undo())} data-refocus>← {t("action.back_to_main")}</button>
       </div>
     {:else if legal.mode === "main" && avail}
-      <div class="tools" bind:this={toolRow}>
+      <div class="tools">
         {#each shownTools as tool (tool.action)}
           {@const a = avail[tool.action]}
           {@const detail = toolDetail(tool.action, a)}
+          {@const description = tool.action !== "market" && !a.ok ? `${costList(a.cost, a.extraAny)}; ${detail}` : detail}
           <div class="tool" class:fixable={!!a.fixByTrade}>
-            <!-- `need` (not `short`: that class is the compact label) marks a
-                 tool that only lacks resources. -->
             <button
               class:on={ui.tool === tool.action}
-              class:need={a.reason === "NEED_RESOURCES"}
               disabled={!a.ok}
               onclick={() => startAction(session, tool.action)}
-              title={`${detail} — ${helpText(tool.help)}`}
+              title={`${description} — ${helpText(tool.help)}`}
             >
               <span class="i"><ToolIcon name={tool.icon} /></span>
               <span class="label">{t(ACTION_LABEL[tool.action])}</span>
               <span class="short" aria-hidden="true">{t(tool.short)}</span>
-              {#if tool.action !== "market" && (a.ok || a.reason === "NEED_RESOURCES")}
+              {#if tool.action !== "market"}
                 <span class="chips" aria-hidden="true">
                   {#each RESOURCE_TYPES.filter((r) => (a.cost[r] ?? 0) > 0) as r}
                     {@const have = me?.resources[r] ?? 0}
                     {@const need = a.cost[r] ?? 0}
-                    <span class="chip" class:lack={have < need}><ResourceIcon resource={r} size={14} label={false} />{have}/{need}</span>
+                    <span class="chip" class:lack={have < need}><ResourceIcon resource={r} size={16} label={false} />{need}</span>
                   {/each}
                   {#if a.extraAny}<span class="chip any" class:lack={(a.missingAny ?? 0) > 0}>+{a.extraAny} {t("ui.any_resource")}</span>{/if}
                 </span>
-                <span class="sr">{detail}</span>
+                <span class="sr">{description}</span>
               {:else}
                 <small class="why">{detail}</small>
               {/if}
@@ -482,7 +448,7 @@
     border-bottom-right-radius: 0;
   }
   .tools .i {
-    grid-row: span 2;
+    grid-row: 1;
     display: grid;
     align-self: center;
   }
@@ -516,6 +482,7 @@
     color: #7a5a2e;
   }
   .chips {
+    grid-column: 1 / -1;
     display: flex;
     gap: 0.2rem;
   }
@@ -523,7 +490,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.15rem;
-    padding: 0 0.3rem 0 0.1rem;
+    padding: 0.05rem 0.25rem 0.05rem 0.1rem;
     border-radius: 999px;
     font-size: 0.7rem;
     font-weight: 700;
@@ -727,23 +694,6 @@
     color: inherit;
   }
 
-  /* A row with no room for the cost chips (fitChips) drops them, and a tool
-     that only lacks resources gets a red mark instead, so it reads apart
-     from one blocked for another reason. */
-  .tools:global([data-chips="off"]) .chips {
-    display: none;
-  }
-  .tools:global([data-chips="off"]) button.need::after {
-    content: "";
-    position: absolute;
-    top: 0.25rem;
-    right: 0.25rem;
-    width: 0.45rem;
-    height: 0.45rem;
-    border-radius: 50%;
-    background: #a3190c;
-    box-shadow: 0 0 0 1.5px #f6eedb;
-  }
   /* Laptop widths: reasons move to the tooltip, and stay in the DOM
      (visually hidden) as part of the accessible name. */
   @container actionbar (max-width: 105rem) {
@@ -773,27 +723,18 @@
       display: inline;
     }
   }
-  /* Small laptops, tablets and phones: tools become icon tiles, which keep
-     their costs in the tooltip. */
+  /* Compact tools retain their price row. The strip scrolls when necessary
+     instead of hiding costs or shrinking the board to fit more rows. */
   @container actionbar (max-width: 68rem) {
     .tools {
       gap: 0.25rem;
     }
-    .tools .chips {
-      display: none;
-    }
     .tools button:not(.fix) {
-      grid-template-columns: 1fr;
-      justify-items: center;
-      row-gap: 0.1rem;
-      padding: 0.3rem 0.35rem 0.2rem;
-      min-width: 44px;
-    }
-    .tools .i {
-      grid-row: auto;
+      column-gap: 0.2rem;
+      padding: 0.3rem 0.35rem;
     }
     .tools .short {
-      font-size: 0.68rem;
+      font-size: 0.78rem;
       line-height: 1.1;
     }
   }
@@ -823,27 +764,11 @@
     }
     .tools {
       flex: 1 1 100%;
-      display: grid;
-      grid-auto-flow: column;
-      grid-auto-columns: minmax(2.8rem, 1fr);
+      padding-bottom: 0.15rem;
     }
     .tool > button:first-child {
       flex: 1;
       min-width: 0;
-    }
-  }
-  @container actionbar (max-width: 23rem) {
-    .tools button:not(.fix) {
-      padding-inline: 0.1rem;
-    }
-    .tools .short {
-      font-size: 0.62rem;
-    }
-  }
-  @container actionbar (max-width: 20rem) {
-    .tools {
-      grid-auto-flow: row;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
   }
   .spinner {
