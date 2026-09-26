@@ -153,16 +153,18 @@ Everything the server keeps (matches, players, invites, the Web Push keys) is in
 
 ```sh
 docker compose stop manors
-docker compose cp manors:/data "$HOME/manors-backup-$(date +%F)"
+docker compose cp manors:/data "$HOME/manors-backup-$(date +%F-%H%M%S)"
 docker compose start manors
 ```
 
-To restore a backup, replace the database with it in a container of the server's image, which gives the files to the user the server runs as:
+Each backup gets a folder of its own, because the files in it belong together: besides `manors.sqlite`, it can hold `manors.sqlite-wal` with the latest changes, if the server had to be stopped forcibly.
+
+To restore a backup, replace the database with all of its files, in a container of the server's image so that they belong to the user the server runs as:
 
 ```sh
 docker compose stop manors
-docker compose run --rm -v "$HOME/manors-backup-2026-09-26:/backup:ro" manors \
-  sh -c 'rm -f /data/manors.sqlite* && cp /backup/manors.sqlite /data/'
+docker compose run --rm -v "$HOME/manors-backup-2026-09-26-093000:/backup:ro" manors \
+  sh -c 'rm -f /data/manors.sqlite* && cp /backup/manors.sqlite* /data/'
 docker compose start manors
 ```
 
