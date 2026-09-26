@@ -23,6 +23,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   store.resetTool();
+  store.ui.selectedBannerId = null;
   store.ui.bannerDraft = {};
 });
 
@@ -75,6 +76,13 @@ describe("Banner Assignment hint", () => {
     store.ui.selectedBannerId = getPlayerBanners(base, actor)[0]?.id ?? null;
     const h = ix.computeHighlights(session(base), ix.legalFor(session(base)));
     expect(h.regions.size).toBeGreaterThan(0);
+    expect(h.hint).toBe("hint.banner_region");
+  });
+
+  it("keeps the plain hint for a selection that no longer exists", () => {
+    store.ui.selectedBannerId = "no_such_banner";
+    const h = ix.computeHighlights(session(base), ix.legalFor(session(base)));
+    expect(h.regions.size).toBe(0);
     expect(h.hint).toBe("hint.banner_region");
   });
 

@@ -159,7 +159,8 @@ export function computeHighlights(session: GameSession, legal: LegalActionSummar
       }
       const options = getBannerRegionOptions(ctx, state, ui.selectedBannerId, ui.bannerDraft);
       for (const o of options) if (o.blockedBy === null) h.regions.add(o.regionId);
-      if (h.regions.size > 0) h.hint = "hint.banner_region";
+      // No options at all means a stale selection, not a full neighbourhood.
+      if (h.regions.size > 0 || options.length === 0) h.hint = "hint.banner_region";
       else explainNoRoom(session, options, h);
       return h;
     }
