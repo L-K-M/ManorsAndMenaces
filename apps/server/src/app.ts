@@ -194,25 +194,21 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     return bucket.take();
   };
 
+  const corsHeaders = {
+    "access-control-allow-origin": cors,
+    "access-control-allow-headers": "authorization, content-type",
+    "access-control-allow-methods": "GET, POST, OPTIONS",
+  };
+
   const send = (res: ServerResponse, status: number, body: unknown): void => {
-    res.writeHead(status, {
-      "content-type": "application/json",
-      "access-control-allow-origin": cors,
-      "access-control-allow-headers": "authorization, content-type",
-      "access-control-allow-methods": "GET, POST, OPTIONS",
-      "cache-control": "no-store",
-    });
+    res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store", ...corsHeaders });
     res.end(JSON.stringify(body));
   };
 
   // 204 responses must have no body (RFC 9110 §6.5.1). Node's HTTP layer
   // discards one silently, but keep the wire and headers explicit.
   const sendNoContent = (res: ServerResponse): void => {
-    res.writeHead(204, {
-      "access-control-allow-origin": cors,
-      "access-control-allow-headers": "authorization, content-type",
-      "access-control-allow-methods": "GET, POST, OPTIONS",
-    });
+    res.writeHead(204, corsHeaders);
     res.end();
   };
 
@@ -312,8 +308,8 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         return send(res, 500, { error: "internal error" });
       }
     }
-    // Health checks bypass the limiter: a burst of legitimate traffic must not
-    // make the Docker HEALTHCHECK 429 a healthy container (Dockerfile).
+    // Health checks bypass the limiter so a burst of legitimate traffic cannot
+    // make Docker's HEALTHCHECK fail (429) on a healthy container (Dockerfile).
     if (req.method === "GET" && url.pathname === "/api/health") return send(res, 200, { ok: true });
     if (!allow(req)) return send(res, 429, { error: "slow down" });
     try {

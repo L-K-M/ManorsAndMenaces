@@ -86,7 +86,7 @@ describe("protocol details", () => {
     const { request } = await import("node:http");
     const res = await new Promise<{ status: number; body: string; allowOrigin: string | null; contentType: string | null }>((resolve) => {
       const req = request(
-        { host: "127.0.0.1", port: Number(base.split(":")[2]), path: "/api/matches", method: "OPTIONS" },
+        { host: "127.0.0.1", port: Number(new URL(base).port), path: "/api/matches", method: "OPTIONS" },
         (r) => {
           let body = "";
           r.on("data", (c: Buffer) => (body += c));

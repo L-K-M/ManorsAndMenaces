@@ -38,7 +38,7 @@ async function completeSetup(page: Page) {
     if (/place a Manor/.test(s)) await page.locator(".site.hl").first().click();
     else if (/free Route/.test(s)) await page.locator(".route.hl").first().click();
     else if (/starting Banners/.test(s)) await assignAllBanners(page);
-    else if (/thinking|waiting/i.test(s)) await page.waitForTimeout(250);
+    else if (/thinking|waiting/i.test(s) || !s) await page.waitForTimeout(250);
     else break;
   }
 }
