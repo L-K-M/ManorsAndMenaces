@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AddressInfo } from "node:net";
 import WebSocket from "ws";
-import type { GuestSessionResponse, MatchView, SubmitCommandsResponse } from "@manors-menaces/protocol";
-import { getLegalActions, HIDDEN_CARD, type CommandIntent, type GameCommand, type GameState } from "@manors-menaces/rules";
+import type { GuestSessionResponse, MatchHistoryResponse, MatchView, SubmitCommandsResponse } from "@manors-menaces/protocol";
+import { getLegalActions, HIDDEN_CARD, redactEvent, type CommandIntent, type GameCommand, type GameEvent, type GameState } from "@manors-menaces/rules";
 import { chooseAction } from "@manors-menaces/ai";
 import { createRng, seedRng, createRulesEngine } from "@manors-menaces/rules";
 import { rulesContentFor } from "@manors-menaces/content";
@@ -221,4 +221,109 @@ describe("server", () => {
     expect((await api("/api/health", null)).status).toBe(200);
     ws.close();
   });
+});
+
+describe("catching up on missed moves", () => {
+  interface Submission {
+    playerId: string;
+    from: number;
+    to: number;
+    /** As the submitter saw them. */
+    events: GameEvent[];
+  }
+
+  /** Both seats play `steps` single-command batches chosen by the AI. */
+  async function play(matchId: string, tokens: Record<string, string>, steps: number): Promise<Submission[]> {
+    const rng = createRng(seedRng("catch-up-test"));
+    const out: Submission[] = [];
+    const anyToken = Object.values(tokens)[0] as string;
+    for (let i = 0; i < steps; i++) {
+      const s = (await api<MatchView>(`/api/matches/${matchId}`, anyToken)).data.state as GameState;
+      if (s.status === "finished") break;
+      const actor = (s.pending?.kind === "reaction" ? s.pending.eligiblePlayerIds[0] : s.pending?.kind === "prophecy" ? s.pending.playerId : s.activePlayerId) as string;
+      const token = tokens[actor] as string;
+      const mine = (await api<MatchView>(`/api/matches/${matchId}`, token)).data.state as GameState;
+      const legal = getLegalActions(engine.ctx, mine, actor);
+      const fallback: CommandIntent =
+        legal.mode === "main" ? { type: "end_main_phase" } : legal.mode === "banner_assignment" ? { type: "assign_banners", assignments: {} } : { type: "end_turn" };
+      const intents = [chooseAction(engine, mine, actor, { level: "easy", rng }) ?? fallback, fallback];
+      for (const intent of intents) {
+        const res = await api<SubmitCommandsResponse>(`/api/matches/${matchId}/commands`, token, { matchId, expectedRevision: mine.revision, commands: [command(mine, actor, intent)] });
+        if (!res.data.accepted) continue;
+        out.push({ playerId: actor, from: mine.revision, to: res.data.revision, events: res.data.events });
+        break;
+      }
+    }
+    return out;
+  }
+
+  async function twoPlayers() {
+    const { alice, bob, matchId } = await setupTwoPlayerMatch();
+    const aliceId = (await api<MatchView>(`/api/matches/${matchId}`, alice.token)).data.youAre as string;
+    const bobId = aliceId === "P1" ? "P2" : "P1";
+    return { alice, bob, matchId, aliceId, bobId, tokens: { [aliceId]: alice.token, [bobId]: bob.token } };
+  }
+
+  const eventsBetween = (entries: { revision: number; events: GameEvent[] }[], from: number, to: number): GameEvent[] =>
+    entries.filter((e) => e.revision > from && e.revision <= to).flatMap((e) => e.events);
+
+  it("returns every move's events, with other players' hidden cards removed", async () => {
+    const { alice, bob, matchId, aliceId, bobId, tokens } = await twoPlayers();
+    const played = await play(matchId, tokens, 80);
+    expect(played.length).toBeGreaterThan(40);
+
+    const history = await api<MatchHistoryResponse>(`/api/matches/${matchId}/history`, alice.token);
+    expect(history.status).toBe(200);
+    const { match, entries, complete } = history.data;
+    expect(complete).toBe(true);
+    expect(match.youAre).toBe(aliceId);
+    expect(match.revision).toBe(played.at(-1)?.to);
+    // One entry per committed command, in order.
+    expect(entries.map((e) => e.revision)).toEqual(Array.from({ length: match.revision }, (_, i) => i + 1));
+    for (const p of played) {
+      // Alice sees her own moves as she did when she made them, and Bob's as
+      // the server would have pushed them to her.
+      const expected = p.playerId === aliceId ? p.events : p.events.map((e) => redactEvent(e, aliceId));
+      expect(eventsBetween(entries, p.from, p.to)).toEqual(expected);
+    }
+    const bobHistory = (await api<MatchHistoryResponse>(`/api/matches/${matchId}/history`, bob.token)).data;
+    for (const p of played.filter((q) => q.playerId === bobId)) expect(eventsBetween(bobHistory.entries, p.from, p.to)).toEqual(p.events);
+  }, 60_000);
+
+  it("is only for the match's players", async () => {
+    const { matchId } = await setupTwoPlayerMatch();
+    const carol = await guest("Carol");
+    expect((await api(`/api/matches/${matchId}/history`, carol.token)).status).toBe(403);
+    expect((await api(`/api/matches/${matchId}/history`, null)).status).toBe(401);
+  });
+
+  it("sends a resubscribing client the events after the revision it already has", async () => {
+    const { alice, matchId, tokens } = await twoPlayers();
+    const played = await play(matchId, tokens, 30);
+    const history = (await api<MatchHistoryResponse>(`/api/matches/${matchId}/history`, alice.token)).data;
+    expect(played.length).toBeGreaterThan(11);
+    const since = played[10]!.to;
+
+    const firstUpdate = async (subscribe: object): Promise<{ match: MatchView; events: GameEvent[] }> => {
+      const ws = new WebSocket(`${base.replace("http", "ws")}/api/ws?token=${alice.token}`);
+      await new Promise<void>((r) => ws.on("open", () => r()));
+      const update = new Promise<{ match: MatchView; events: GameEvent[] }>((resolve) =>
+        ws.on("message", (raw) => {
+          const msg = JSON.parse(String(raw));
+          if (msg.type === "match_update") resolve(msg);
+        }),
+      );
+      ws.send(JSON.stringify({ type: "subscribe", matchId, ...subscribe }));
+      const got = await update;
+      ws.close();
+      return got;
+    };
+
+    const caughtUp = await firstUpdate({ since });
+    expect(caughtUp.match.revision).toBe(history.match.revision);
+    expect(caughtUp.events).toEqual(eventsBetween(history.entries, since, history.match.revision));
+    expect(caughtUp.events.length).toBeGreaterThan(0);
+    // Without `since` (older clients) the first update still carries no events.
+    expect((await firstUpdate({})).events).toEqual([]);
+  }, 60_000);
 });

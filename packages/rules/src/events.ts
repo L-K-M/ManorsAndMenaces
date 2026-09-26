@@ -1,5 +1,6 @@
 import type {
   BannerId,
+  CardEffectId,
   CardId,
   HoldingId,
   MenaceId,
@@ -19,7 +20,7 @@ import type {
 // protocol layer filters per recipient (see views.ts: redactEvent).
 
 /** Why a Banner's Harvest differs from its Region's plain yield (UI key `harvest.<note>`). */
-export const HARVEST_NOTES = ["blocked_by_troll", "converted_by_witch", "taken_by_dragon", "druids_blessing"] as const;
+export const HARVEST_NOTES = ["blocked_by_troll", "sick", "converted_by_witch", "taken_by_dragon", "druids_blessing"] as const;
 export type HarvestNote = (typeof HARVEST_NOTES)[number];
 
 export type GameEvent =
@@ -78,7 +79,25 @@ export type GameEvent =
   | { type: "prophecy_resolved"; playerId: PlayerId }
   | { type: "effect_started"; effect: "fog"; routeId: RouteId; playerId: PlayerId }
   | { type: "effect_started"; effect: "druids_blessing"; bannerId: BannerId; playerId: PlayerId }
-  | { type: "effect_expired"; effect: "fog" | "druids_blessing"; playerId: PlayerId }
+  /** The Plague: `bannerIds` fall sick (their owners' insured Banners are spared). */
+  | { type: "effect_started"; effect: "plague"; siteId: SiteId; bannerIds: BannerId[]; playerId: PlayerId }
+  /**
+   * `playerId` is the effect's source for fog and Druid's Blessing, the cured
+   * owner for the Plague, and the burned Route's owner for smouldering.
+   */
+  | { type: "effect_expired"; effect: "fog" | "druids_blessing" | "plague" | "smouldering"; playerId: PlayerId }
+  // New-card events carry everything a log line needs: destroyed entities are
+  // gone from the state the log is formatted against.
+  | { type: "hands_swapped"; playerId: PlayerId; opponentId: PlayerId; handSize: number; opponentHandSize: number }
+  | { type: "route_burned"; byPlayerId: PlayerId; ownerId: PlayerId; routeId: RouteId }
+  | { type: "dragon_landed"; byPlayerId: PlayerId; ownerId: PlayerId; holdingId: HoldingId; siteId: SiteId }
+  | { type: "holding_destroyed"; byPlayerId: PlayerId; ownerId: PlayerId; holdingId: HoldingId; siteId: SiteId; bannerIds: BannerId[] }
+  /** A Stronghold knocked back to a Manor; `bannerId` is the Banner it lost. */
+  | { type: "holding_reduced"; byPlayerId: PlayerId; ownerId: PlayerId; holdingId: HoldingId; siteId: SiteId; bannerId: BannerId }
+  | { type: "insurance_claimed"; playerId: PlayerId; cardId: CardId; against: CardEffectId }
+  | { type: "renown_gained"; playerId: PlayerId; amount: number; cause: "unreliable_bard" }
+  /** A set-aside card (Ragnarök) is shuffled into the draw pile. Public: the omen is announced. */
+  | { type: "card_foretold"; cardId: CardId }
   | { type: "market_traded"; playerId: PlayerId; give: ResourceType; giveAmount: number; receive: ResourceType; tradePostSiteId: SiteId | null }
   | { type: "royal_writ_issued"; playerId: PlayerId; targetBannerId: BannerId; ownerId: PlayerId }
   | { type: "warden_hired"; playerId: PlayerId; menaceId: MenaceId }
@@ -91,7 +110,8 @@ export type GameEvent =
   | { type: "turn_started"; playerId: PlayerId; turnNumber: number; round: number }
   | { type: "turn_ended"; playerId: PlayerId }
   | { type: "game_started"; firstPlayerId: PlayerId; turnOrder: PlayerId[] }
-  | { type: "game_won"; playerId: PlayerId; renown: number };
+  /** `cause` is absent for the normal §7 win (reaching the target). */
+  | { type: "game_won"; playerId: PlayerId; renown: number; cause?: "ragnarok" };
 
 export type ResourceReason =
   | "harvest"

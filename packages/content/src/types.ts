@@ -79,6 +79,8 @@ export interface CardDefinition {
   requiresMenace?: MenaceType;
   /** Needs two active Menaces on the same kind of place; see CardRulesDefinition. */
   requiresMenacePair?: true;
+  /** Waits outside the draw pile until the endgame omen; see CardRulesDefinition. */
+  setAside?: true;
 }
 
 export interface QuestDefinition {

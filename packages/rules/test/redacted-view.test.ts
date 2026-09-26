@@ -64,6 +64,26 @@ describe("redacted views", () => {
     expect(getLegalActions(ctx, redactState(pending, p2), p2).reactionCards).toEqual(pending.players[p2]?.hand);
   });
 
+  it("plays Changeling against a hidden hand, which the viewer receives still hidden", () => {
+    const { state, p1, p2 } = setupGame(standardRuleset(2));
+    let s = give(give(state, p1, "arcane_exchange"), p1, "changeling");
+    s = give(give(s, p2, "knight_errant"), p2, "festival_at_the_inn");
+    const [kept, changeling] = s.players[p1]?.hand as [string, string];
+    const view = redactState(s, p1);
+    expect(view.players[p2]?.hand).toEqual([HIDDEN_CARD, HIDDEN_CARD]);
+
+    // Hand sizes are public, so the viewer can find and play the swap.
+    expect(getLegalActions(ctx, view, p1).playableCards).toContain(changeling);
+    expect(enumerateCardTargets(ctx, view, p1, changeling)).toEqual([{ effect: "changeling", opponentId: p2 }]);
+    const r = engine.applyCommand(view, cmd(view, p1, { type: "play_card", cardId: changeling, target: { effect: "changeling", opponentId: p2 } }));
+    expect(r.error).toBeUndefined();
+    const after = r.newState as GameState;
+    // The prediction keeps the new hand hidden; only the server can reveal it.
+    expect(after.players[p1]?.hand).toEqual([HIDDEN_CARD, HIDDEN_CARD]);
+    expect(after.players[p2]?.hand).toEqual([kept]);
+    expect(getLegalActions(ctx, after, p1).mode).toBe("main");
+  });
+
   it("rejects playing a hidden card with a structured error", () => {
     const { s, p1 } = spellInHand("knight_errant");
     const view = redactState(s, null);

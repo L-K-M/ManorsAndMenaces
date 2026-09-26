@@ -10,6 +10,9 @@ import type {
   ApiErrorCode,
   CreateMatchRequest,
   GuestSessionResponse,
+  HistoryEntry,
+  MatchHistoryResponse,
+  MatchNotice,
   MatchSeatInfo,
   MatchView,
   SubmitCommandsRequest,
@@ -31,6 +34,7 @@ import {
   type PlayerId,
   type RulesEngine,
 } from "@manors-menaces/rules";
+import { actorOf, noticeFor, noticesAfter } from "./notices.js";
 import type { MatchRow, SeatRow, Store, UserRow } from "./store.js";
 
 export class HttpError extends Error {
@@ -86,6 +90,8 @@ export class MatchService {
   private closed = false;
   /** Presence callback set by the transport layer (WebSocket connections). */
   isConnected: (userId: string) => boolean = () => false;
+  /** Delivery of a notice to a user, set by the transport layer (WebSocket or Web Push). */
+  notify: (userId: string, notice: MatchNotice) => void = () => {};
 
   constructor(
     private readonly store: Store,
@@ -175,6 +181,7 @@ export class MatchService {
     });
     this.store.startMatch(matchId, state);
     this.emit(matchId, []);
+    this.announce(matchId, null, state);
     this.scheduleAi(matchId);
   }
 
@@ -251,46 +258,78 @@ export class MatchService {
       return { accepted: false, revision: fresh?.revision ?? match.revision, events: [], error: { code: "REVISION_MISMATCH" } };
     }
     this.emit(match.id, r.events);
+    this.announce(match.id, match.state, r.newState);
     this.scheduleAi(match.id);
     return { accepted: true, revision: r.newState.revision, events: r.events.map((e) => redactEvent(e, playerId)), state: redactState(r.newState, playerId) };
   }
 
   /**
-   * The events that already-committed commands produced, recomputed by
-   * replaying the history from the initial state (§62); events are not
-   * stored. Only idempotent retries after a lost response pay this cost.
+   * The events that already-committed commands produced. Only idempotent
+   * retries after a lost response pay for this replay.
    */
   private committedEvents(match: MatchRow, commandIds: Set<string>): GameEvent[] {
-    let state = match.initial_state;
-    if (!state) return [];
     const events: GameEvent[] = [];
     let remaining = commandIds.size;
-    for (const c of this.store.commandHistory(match.id)) {
-      if (remaining === 0) break;
-      const r = this.engine.applyCommand(state, c);
-      if (!r.accepted || !r.newState) {
-        // A history that no longer replays is a server bug; the retry still
-        // succeeds, only without its Chronicle entries.
-        console.error(`history of ${match.id} does not replay at ${c.commandId}`, r.error);
-        return [];
-      }
-      if (commandIds.has(c.commandId)) {
-        events.push(...r.events);
+    // A history that no longer replays is a server bug; the retry still
+    // succeeds, only without its Chronicle entries.
+    const complete = this.replay(match, (_revision, command, commandEvents) => {
+      if (commandIds.has(command.commandId)) {
+        events.push(...commandEvents);
         remaining--;
       }
-      state = r.newState;
-    }
+      return remaining > 0;
+    });
+    return complete ? events : [];
+  }
+
+  /**
+   * The match and every committed command's events as the viewer may see
+   * them (§105), so a player who (re)opens a match gets its Chronicle back,
+   * including the moves made while they were away.
+   */
+  history(matchId: string, user: UserRow): MatchHistoryResponse {
+    const match = this.view(matchId, user);
+    const row = this.store.match(matchId);
+    const entries: HistoryEntry[] = [];
+    const complete = !row || this.replay(row, (revision, _command, events) => void entries.push({ revision, events: events.map((e) => redactEvent(e, match.youAre)) }));
+    return { match, entries, complete };
+  }
+
+  /**
+   * The unredacted events of the commands after revision `since`, for a
+   * client that reconnects: the caller redacts them for its viewer.
+   */
+  eventsSince(matchId: string, since: number): GameEvent[] {
+    const match = this.store.match(matchId);
+    if (!match || since >= match.revision) return [];
+    const events: GameEvent[] = [];
+    this.replay(match, (revision, _command, commandEvents) => {
+      if (revision > since) events.push(...commandEvents);
+    });
     return events;
   }
 
-  // ------------------------------------------------------------------ AI seats
-
-  private actorOf(state: GameState): PlayerId | null {
-    if (state.status === "finished") return null;
-    if (state.pending?.kind === "reaction") return state.pending.eligiblePlayerIds[0] ?? null;
-    if (state.pending?.kind === "prophecy") return state.pending.playerId;
-    return state.activePlayerId;
+  /**
+   * Replays the history from the initial state (§62), handing `visit` each
+   * command's events; events are not stored. `visit` returns false once it
+   * has all it needs. Returns false if the history no longer replays.
+   */
+  private replay(match: MatchRow, visit: (revision: number, command: GameCommand, events: GameEvent[]) => boolean | void): boolean {
+    let state = match.initial_state;
+    if (!state) return true;
+    for (const { revision, command } of this.store.commandRows(match.id)) {
+      const r = this.engine.applyCommand(state, command);
+      if (!r.accepted || !r.newState) {
+        console.error(`history of ${match.id} does not replay at ${command.commandId}`, r.error);
+        return false;
+      }
+      if (visit(revision, command, r.events) === false) return true;
+      state = r.newState;
+    }
+    return true;
   }
+
+  // ------------------------------------------------------------------ AI seats
 
   /**
    * Schedules every AI seat that is due to act. AI turns run on in-memory
@@ -304,7 +343,7 @@ export class MatchService {
     if (this.closed || this.aiTimers.has(matchId)) return;
     const match = this.store.match(matchId);
     if (!match?.state) return;
-    const actor = this.actorOf(match.state);
+    const actor = actorOf(match.state);
     const seat = this.store.seats(matchId).find((s) => s.player_id === actor);
     if (!seat || seat.kind !== "ai") return;
     this.aiTimers.set(
@@ -318,7 +357,7 @@ export class MatchService {
 
   private runAiStep(matchId: string, seat: SeatRow): void {
     const match = this.store.match(matchId);
-    if (!match?.state || this.actorOf(match.state) !== seat.player_id) return;
+    if (!match?.state || actorOf(match.state) !== seat.player_id) return;
     const rng = createRng(seedRng(`${match.seed}:ai:${match.revision}`));
     const intent = chooseAction(this.engine, match.state, seat.player_id, { level: seat.ai_level ?? "normal", rng });
     if (!intent) {
@@ -345,6 +384,7 @@ export class MatchService {
     if (this.store.commitBatch(matchId, match.revision, r.newState, [command])) {
       this.aiFailures.delete(matchId);
       this.emit(matchId, r.events);
+      this.announce(matchId, match.state, r.newState);
     }
     this.scheduleAi(matchId);
   }
@@ -378,6 +418,18 @@ export class MatchService {
         Math.min(AI_RETRY_MS * 2 ** failures, AI_RETRY_MAX_MS),
       ),
     );
+  }
+
+  /** Tells the humans who must act now, or whose match just ended (spec §85). */
+  private announce(matchId: string, before: GameState | null, after: GameState): void {
+    const due = noticesAfter(before, after);
+    if (due.length === 0) return;
+    const seats = this.store.seats(matchId);
+    for (const { playerId, kind } of due) {
+      const seat = seats.find((s) => s.player_id === playerId);
+      if (seat?.kind !== "human" || !seat.user_id) continue;
+      this.notify(seat.user_id, noticeFor(matchId, kind, playerId, after));
+    }
   }
 
   private emit(matchId: string, events: GameEvent[]): void {

@@ -5,11 +5,16 @@
 import type {
   ApiErrorBody,
   ApiErrorCode,
+  ClientMessage,
   CreateMatchRequest,
   CreateMatchResponse,
+  EmailSettings,
   GuestSessionResponse,
   JoinMatchResponse,
+  MatchHistoryResponse,
+  MatchNotice,
   MatchView,
+  PushSubscriptionRequest,
   ServerMessage,
   SubmitCommandsResponse,
 } from "@manors-menaces/protocol";
@@ -129,16 +134,63 @@ export class OnlineClient {
   getMatch(matchId: string): Promise<MatchView> {
     return this.call(`/api/matches/${encodeURIComponent(matchId)}`);
   }
+  /** The match with every move's events, for its Chronicle. */
+  async history(matchId: string): Promise<MatchHistoryResponse> {
+    try {
+      return await this.call(`/api/matches/${encodeURIComponent(matchId)}/history`);
+    } catch (e) {
+      // A server from before the history endpoint: open the match without its
+      // Chronicle, which then says so. A missing match is still reported by getMatch.
+      if (!(e instanceof ApiError && e.status === 404)) throw e;
+      return { match: await this.getMatch(matchId), entries: [], complete: false };
+    }
+  }
   submit(matchId: string, expectedRevision: number, commands: GameCommand[]): Promise<SubmitCommandsResponse> {
     return this.call(`/api/matches/${encodeURIComponent(matchId)}/commands`, { matchId, expectedRevision, commands });
   }
 
   /**
-   * Subscribe to a match; reconnects with backoff until `close()`.
-   * The session token travels in the query string because browsers cannot set
-   * WebSocket headers; deploy behind TLS and keep query strings out of access logs.
+   * Subscribe to a match; reconnects with backoff until `close()`. With
+   * `since` (the revision on screen), each (re)connection's first update
+   * carries the events missed meanwhile.
    */
-  subscribe(matchId: string, onUpdate: (match: MatchView, events: GameEvent[]) => void, onStatus: (connected: boolean) => void): () => void {
+  subscribe(
+    matchId: string,
+    onUpdate: (match: MatchView, events: GameEvent[]) => void,
+    onStatus: (connected: boolean) => void,
+    since?: () => number,
+  ): () => void {
+    return this.socket(
+      (ws) => ws.send(JSON.stringify({ type: "subscribe", matchId, ...(since ? { since: since() } : {}) } satisfies ClientMessage)),
+      (msg) => {
+        if (msg.type === "match_update" && msg.match.matchId === matchId) onUpdate(msg.match, msg.events);
+      },
+      onStatus,
+    );
+  }
+
+  /**
+   * Listen for this guest's match notices (spec §85) while the app is open;
+   * reconnects with backoff until `close()`. The server sends them to every
+   * socket of the guest, so match sockets ignore them and only this one reads them.
+   */
+  watch(onNotice: (notice: MatchNotice) => void): () => void {
+    return this.socket(
+      () => {},
+      (msg) => {
+        if (msg.type === "notice") onNotice(msg.notice);
+      },
+      () => {},
+    );
+  }
+
+  /**
+   * A WebSocket that reconnects with backoff until the returned function is
+   * called. The session token travels in the query string because browsers
+   * cannot set WebSocket headers; deploy behind TLS and keep query strings out
+   * of access logs.
+   */
+  private socket(onOpen: (ws: WebSocket) => void, onMessage: (msg: ServerMessage) => void, onStatus: (connected: boolean) => void): () => void {
     let ws: WebSocket | null = null;
     let closed = false;
     let delay = 500;
@@ -146,17 +198,15 @@ export class OnlineClient {
     const open = () => {
       if (closed || !this.token) return;
       const url = this.serverUrl.replace(/^http/, "ws").replace(/\/$/, "") + `/api/ws?token=${encodeURIComponent(this.token)}`;
-      ws = new WebSocket(url);
-      ws.onopen = () => {
+      const socket = new WebSocket(url);
+      ws = socket;
+      socket.onopen = () => {
         delay = 500;
         onStatus(true);
-        ws?.send(JSON.stringify({ type: "subscribe", matchId }));
+        onOpen(socket);
       };
-      ws.onmessage = (e) => {
-        const msg = JSON.parse(String(e.data)) as ServerMessage;
-        if (msg.type === "match_update" && msg.match.matchId === matchId) onUpdate(msg.match, msg.events);
-      };
-      ws.onclose = () => {
+      socket.onmessage = (e) => onMessage(JSON.parse(String(e.data)) as ServerMessage);
+      socket.onclose = () => {
         onStatus(false);
         if (closed) return;
         timer = setTimeout(open, delay);
@@ -169,6 +219,27 @@ export class OnlineClient {
       if (timer) clearTimeout(timer);
       ws?.close();
     };
+  }
+
+  /** The server's VAPID key, for subscribing this browser to Web Push. */
+  pushKey(): Promise<{ publicKey: string }> {
+    return this.call("/api/push/key");
+  }
+  pushSubscribe(subscription: PushSubscriptionRequest): Promise<{ ok: true }> {
+    return this.call("/api/push/subscribe", subscription);
+  }
+  pushUnsubscribe(endpoint: string): Promise<{ ok: true }> {
+    return this.call("/api/push/unsubscribe", { endpoint });
+  }
+  emailSettings(): Promise<EmailSettings> {
+    return this.call("/api/email");
+  }
+  /** Emails `address` a confirmation link; turn emails start once it is opened. */
+  requestEmail(address: string): Promise<EmailSettings> {
+    return this.call("/api/email", { address });
+  }
+  removeEmail(): Promise<EmailSettings> {
+    return this.call("/api/email/remove", {});
   }
 }
 

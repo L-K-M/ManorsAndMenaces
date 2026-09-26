@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { cardDefIdOf, HIDDEN_CARD, type LegalActionSummary } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { startCard } from "../game/interaction.js";
@@ -20,6 +21,16 @@
 
   const playable = $derived(new Set(legal?.playableCards ?? []));
   const discarding = $derived(legal?.mode === "end" && legal.mustDiscard > 0);
+
+  // A choice about a card that has left the hand is stale: Changeling swaps
+  // whole hands, and the new cards must not inherit the old selection.
+  $effect(() => {
+    const inHand = new Set(hand);
+    untrack(() => {
+      if (discardSel.some((c) => !inHand.has(c))) discardSel = discardSel.filter((c) => inHand.has(c));
+      if (viewer && ui.cardId && !inHand.has(ui.cardId)) resetTool();
+    });
+  });
 
   async function click(cardId: string) {
     if (held) {
@@ -260,6 +271,11 @@
   }
   .card.story {
     border-color: #b8433a;
+  }
+  /* A Charter stays face up in front of you: royal paper, not parchment. */
+  .card.charter {
+    border-color: #2d6a8f;
+    background: linear-gradient(#fbfdfe, #e1ebf0);
   }
   .card.back {
     background: repeating-linear-gradient(45deg, #5a4a8a, #5a4a8a 6px, #6b5b9c 6px, #6b5b9c 12px);

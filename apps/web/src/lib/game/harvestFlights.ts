@@ -32,8 +32,11 @@ export interface HarvestPlan {
   badges: HarvestBadge[];
 }
 
-/** A Menace changing the yield matters more than a card adding to it. */
-const NOTE_PRIORITY: readonly HarvestNote[] = ["blocked_by_troll", "taken_by_dragon", "converted_by_witch", "druids_blessing"];
+/**
+ * A harvest blocked outright (Troll, Plague) matters most, then a Menace
+ * changing the yield, then a card adding to it.
+ */
+const NOTE_PRIORITY: readonly HarvestNote[] = ["blocked_by_troll", "sick", "taken_by_dragon", "converted_by_witch", "druids_blessing"];
 
 export function regionPoint(map: MapDefinition, regionId: RegionId): Point | null {
   const r = map.regions.find((x) => x.id === regionId);

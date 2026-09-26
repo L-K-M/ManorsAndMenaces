@@ -46,8 +46,8 @@ describe("card definitions (§19, §39)", () => {
   it("use every effect the engine implements, once each", () => {
     expect(CARDS.map((c) => c.effectId).sort()).toEqual([...CARD_EFFECT_IDS].sort());
   });
-  it("make up the 24-card prototype deck", () => {
-    expect(CARDS.reduce((n, c) => n + c.copies, 0)).toBe(24);
+  it("make up the 40-card deck", () => {
+    expect(CARDS.reduce((n, c) => n + c.copies, 0)).toBe(40);
   });
   it("reach the rules engine with their requirements", () => {
     for (const c of CARDS) {
@@ -55,22 +55,31 @@ describe("card definitions (§19, §39)", () => {
       expect(rules).toMatchObject({ effectId: c.effectId, copies: c.copies, type: c.type });
       expect(rules?.requiresMenace).toBe(c.requiresMenace);
       expect(rules?.requiresMenacePair).toBe(c.requiresMenacePair);
+      expect(rules?.setAside).toBe(c.setAside);
     }
+    expect(content.cards.filter((c) => c.setAside).map((c) => c.id)).toEqual(["ragnarok"]);
   });
 });
 
 describe("standard decks by player count", () => {
   const deckOf = (players: number) => newGame(players).cardDeck.map((c) => c.split("#")[0]);
-  it("2 players: no Dragon Whisperer and no Teleportation Mishap", () => {
+  it.each([2, 3, 4])("%i players: Ragnarök waits outside the draw pile", (players) => {
+    const s = newGame(players);
+    expect(s.setAsideCardIds).toEqual(["ragnarok#1"]);
+    expect(s.cardDeck.some((c) => c.startsWith("ragnarok#"))).toBe(false);
+  });
+  it("2 players: no Dragon Whisperer, Treasure Hunter or Teleportation Mishap", () => {
     const deck = deckOf(2);
-    expect(deck).toHaveLength(20);
+    expect(deck).toHaveLength(34);
     expect(deck).not.toContain("dragon_whisperer");
+    expect(deck).not.toContain("treasure_hunter");
     expect(deck).not.toContain("teleportation_mishap");
   });
   it.each([3, 4])("%i players: the full deck, since two Region Menaces can swap", (players) => {
     const deck = deckOf(players);
-    expect(deck).toHaveLength(24);
+    expect(deck).toHaveLength(39);
     expect(deck.filter((c) => c === "teleportation_mishap")).toHaveLength(2);
+    expect(deck.filter((c) => c === "treasure_hunter")).toHaveLength(1);
   });
   // Checked through target enumeration, not the predicate setup uses. A
   // Menace's kind of place never changes, so the opening board decides it.
@@ -112,10 +121,11 @@ describe("quest definitions (§27, §40)", () => {
   });
 
   // "Play N <type> cards" Quests must be reachable with the cards actually in
-  // the deck. Model a player who draws CARDS_DRAWN cards over a match
+  // the draw pile (set-aside cards such as Ragnarök join it only near the
+  // end). Model a player who draws CARDS_DRAWN cards over a match
   // (hypergeometric, ignoring reshuffles, which only help) and require a fair
-  // chance of drawing enough of that type. With 3 Heroes in the 2-player deck,
-  // Patron of Heroes at 3 gave under 2%; at 2 it gives about 20%.
+  // chance of drawing enough of that type. With 3 Heroes in the 20-card
+  // 2-player deck, Patron of Heroes at 3 gave under 2%; at 2 it gave about 20%.
   const CARDS_DRAWN = 6;
   const MIN_CHANCE = 0.15;
   const choose = (n: number, k: number): number => (k < 0 || k > n ? 0 : Array.from({ length: k }, (_, i) => (n - i) / (i + 1)).reduce((a, b) => a * b, 1));

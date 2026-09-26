@@ -8,16 +8,24 @@
 //   GET  /api/matches/:id              → MatchView (redacted for you)
 //   POST /api/matches/:id/commands     SubmitCommandsRequest → SubmitCommandsResponse
 //   GET  /api/matches/:id/replay       finished matches only
+//   GET  /api/push/key, POST /api/push/subscribe, POST /api/push/unsubscribe
+//   GET  /api/email                    → EmailSettings; POST /api/email { address }, POST /api/email/remove
+//   GET|POST /api/email/confirm?t=…     the link in a confirmation email (HTML)
+//   GET|POST /api/email/unsubscribe?u=…&t=…  the link in every turn email (HTML; RFC 8058 one-click POST)
 //   GET  /api/health
 //   WS   /api/ws?token=…               subscribe → match_update pushes
 // Anything else is served from WEB_DIST (the built web client), if set.
 
+import { randomBytes } from "node:crypto";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import { isSubmitCommandsRequest, type ApiErrorBody, type ClientMessage, type ServerMessage } from "@manors-menaces/protocol";
+import { isSubmitCommandsRequest, type ApiErrorBody, type ClientMessage, type EmailSettings, type ServerMessage } from "@manors-menaces/protocol";
 import { redactEvent, type GameEvent } from "@manors-menaces/rules";
+import { EmailNotices, emailPage, type MailConfig } from "./mail.js";
+import { text } from "./notices.js";
+import { generateVapidKeys, parseSubscription, sendPush, vapidKeysFromPem } from "./push.js";
 import { HttpError, MatchService } from "./service.js";
 import { Store } from "./store.js";
 
@@ -35,21 +43,45 @@ export interface AppOptions {
   trustProxy?: number;
   /** WebSocket ping interval; a socket that misses one ping is dropped (default 25 s). */
   heartbeatMs?: number;
+  /** Web Push for players whose app is closed (spec §85). */
+  push?: {
+    /** VAPID contact (RFC 8292): a mailto: or https: URL push services may use to reach the operator. */
+    subject?: string;
+    /** Replaces the global fetch for deliveries (tests). */
+    fetch?: typeof fetch;
+  };
+  /** Turn emails for players whose app is closed (spec §85); off when absent (mailConfigFromEnv). */
+  email?: MailConfig;
 }
+
+const NO_EMAIL: EmailSettings = { available: false, address: null, confirmed: false };
+
+// Pages behind email links: no scripts, nothing framed, and no token leaked
+// in a Referer when the page links on to the game.
+const EMAIL_PAGE_HEADERS = {
+  "content-type": "text/html; charset=utf-8",
+  "cache-control": "no-store",
+  "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+  "referrer-policy": "no-referrer",
+};
+
+/** VAPID contact when the operator sets none (VAPID_SUBJECT). */
+const DEFAULT_VAPID_SUBJECT = "https://github.com/L-K-M/ManorsAndMenaces";
 
 // WebSocket limits. A client sends one small frame per match it opens, so
 // these leave ample room while stopping a single socket from making the
 // server read, redact and send a match view thousands of times a second.
 // Commands travel over HTTP (64 KB body cap), never over the socket: the
 // largest valid ClientMessage is a subscribe with a server-issued match id
-// (`m_` + UUID), 71 bytes.
+// (`m_` + UUID) and the revision it shows, under 100 bytes.
 const WS_MAX_MESSAGE_BYTES = 4_096;
 const WS_MESSAGES_PER_SECOND = 5;
 const WS_MESSAGE_BURST = 20;
 const WS_MAX_SUBSCRIPTIONS = 10;
 /** RFC 6455 close code for a peer that breaks the server's usage policy. */
 const WS_POLICY_VIOLATION = 1008;
-const MAX_SOCKETS_PER_USER = 5;
+/** Each open tab uses two: one for notices, one for the match on screen. */
+const MAX_SOCKETS_PER_USER = 8;
 /** Longest address accepted from a forwarding header (a bracketed IPv6 address fits). */
 const MAX_FORWARDED_ADDRESS = 64;
 
@@ -125,6 +157,11 @@ function clientAddress(req: IncomingMessage, trustProxy: number): string {
 export function createApp(opts: AppOptions = {}): { server: Server; service: MatchService; store: Store; close: () => Promise<void> } {
   const store = new Store(opts.dbPath ?? ":memory:");
   const service = new MatchService(store, { aiDelayMs: opts.aiDelayMs ?? 700 });
+  // Created once and kept: browsers subscribe with this public key, so a new
+  // key would silently cut every existing subscription off.
+  const vapid = { keys: vapidKeysFromPem(store.settingOr("vapid_private_key", generateVapidKeys)), subject: opts.push?.subject ?? DEFAULT_VAPID_SUBJECT };
+  // The secret signs unsubscribe links, so like the VAPID key it is kept.
+  const email = opts.email ? new EmailNotices(store, opts.email, store.settingOr("email_secret", () => randomBytes(32).toString("base64url"))) : null;
   const cors = opts.corsOrigin ?? "*";
   const webDist = opts.webDist && existsSync(opts.webDist) ? resolve(opts.webDist) : null;
 
@@ -138,6 +175,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   const sweep = setInterval(() => {
     const cutoff = Date.now() - 60_000;
     for (const [k, b] of buckets) if (b.lastUsed < cutoff) buckets.delete(k);
+    email?.sweep();
   }, 30_000);
   sweep.unref();
   const allow = (req: IncomingMessage): boolean => {
@@ -167,6 +205,29 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
       "access-control-allow-methods": "GET, POST, OPTIONS",
     });
     res.end();
+  };
+
+  /** Answers the confirmation and unsubscribe links in emails. */
+  const emailLink = (req: IncomingMessage, res: ServerResponse, url: URL, notices: EmailNotices): void => {
+    req.resume(); // a form or one-click POST body carries nothing needed
+    const page = (status: number, title: string, body: string, button?: string): void => {
+      res.writeHead(status, EMAIL_PAGE_HEADERS);
+      res.end(emailPage(notices.publicUrl, title, body, button));
+    };
+    const post = req.method === "POST";
+    if (url.pathname === "/api/email/confirm") {
+      const token = url.searchParams.get("t") ?? "";
+      const address = post ? notices.confirm(token) : notices.pending(token);
+      if (!address) return page(410, text("email.link_expired_title"), text("email.link_expired_body"));
+      if (post) return page(200, text("email.confirmed_title"), text("email.confirmed_body", { address }));
+      return page(200, text("email.confirm_title"), text("email.confirm_ask", { address }), text("email.confirm_button"));
+    }
+    const userId = url.searchParams.get("u") ?? "";
+    if (!notices.canUnsubscribe(userId, url.searchParams.get("t") ?? "")) return page(403, text("email.link_invalid_title"), text("email.link_invalid_body"));
+    const address = notices.settings(userId).address;
+    if (post) notices.remove(userId);
+    if (post || !address) return page(200, text("email.unsubscribed_title"), text("email.unsubscribed_body"));
+    return page(200, text("email.unsubscribe_title"), text("email.unsubscribe_ask", { address }), text("email.unsubscribe_button"));
   };
 
   const readJson = (req: IncomingMessage): Promise<unknown> =>
@@ -252,8 +313,34 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         const body = await readObject(req);
         return send(res, 200, service.createGuest(body.displayName));
       }
+      if ((url.pathname === "/api/email/confirm" || url.pathname === "/api/email/unsubscribe") && (req.method === "GET" || req.method === "POST")) {
+        if (!email) throw new HttpError(404, "not found");
+        return emailLink(req, res, url, email);
+      }
       const user = service.authenticate(bearer(req));
       if (req.method === "GET" && url.pathname === "/api/me") return send(res, 200, { userId: user.id, displayName: user.display_name });
+      if (url.pathname === "/api/push/key" && req.method === "GET") return send(res, 200, { publicKey: vapid.keys.publicKey });
+      if (url.pathname === "/api/push/subscribe" && req.method === "POST") {
+        const sub = parseSubscription(await readObject(req));
+        if (!sub) throw new HttpError(400, "not a push subscription this server can deliver to");
+        if (!store.savePushSubscription(user.id, sub)) throw new HttpError(409, "this push endpoint belongs to another browser");
+        return send(res, 200, { ok: true });
+      }
+      if (url.pathname === "/api/push/unsubscribe" && req.method === "POST") {
+        const body = await readObject(req);
+        if (typeof body.endpoint === "string") store.removePushSubscription(body.endpoint, user.id);
+        return send(res, 200, { ok: true });
+      }
+      if (url.pathname === "/api/email" && req.method === "GET") return send(res, 200, email?.settings(user.id) ?? NO_EMAIL);
+      if (url.pathname === "/api/email" && req.method === "POST") {
+        if (!email) throw new HttpError(404, "this server does not send email");
+        return send(res, 200, await email.request(user.id, (await readObject(req)).address));
+      }
+      if (url.pathname === "/api/email/remove" && req.method === "POST") {
+        if (!email) throw new HttpError(404, "this server does not send email");
+        email.remove(user.id);
+        return send(res, 200, email.settings(user.id));
+      }
       if (url.pathname === "/api/matches" && req.method === "GET") return send(res, 200, service.listMatches(user));
       if (url.pathname === "/api/matches" && req.method === "POST") return send(res, 200, service.createMatch(user, (await readObject(req)) as never));
       if (url.pathname === "/api/matches/join" && req.method === "POST") {
@@ -268,6 +355,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
           if (!isSubmitCommandsRequest(body) || body.matchId !== matchId) throw new HttpError(400, "malformed command batch");
           return send(res, 200, service.submit(user, body));
         }
+        if (parts[3] === "history" && parts.length === 4 && req.method === "GET") return send(res, 200, service.history(matchId, user));
         if (parts[3] === "replay" && req.method === "GET") {
           const view = service.view(matchId, user);
           if (view.status !== "finished") throw new HttpError(409, "replays are available once the match is finished");
@@ -369,7 +457,17 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
           }
           if (!member) return;
           sub.matches.add(msg.matchId);
-          const update = updateFor(sub.userId, msg.matchId, []);
+          // A client that says which revision it already shows gets the
+          // events it missed (e.g. while reconnecting) with this first update.
+          const since = typeof msg.since === "number" && Number.isSafeInteger(msg.since) && msg.since >= 0 ? msg.since : null;
+          let missed: GameEvent[] = [];
+          try {
+            if (since !== null) missed = service.eventsSince(msg.matchId, since);
+          } catch (e) {
+            // As above: a failed replay must not take the server down.
+            console.error(e);
+          }
+          const update = updateFor(sub.userId, msg.matchId, missed);
           if (update) ws.send(update);
         } else if (msg.type === "unsubscribe") sub.matches.delete(msg.matchId);
         else if (msg.type === "ping") ws.send(JSON.stringify({ type: "hello", userId: sub.userId } satisfies ServerMessage));
@@ -404,6 +502,25 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     }
   };
   service.onMatchUpdate(broadcast);
+  // A notice goes to every socket of the user while the app is open anywhere
+  // (the client decides how to show it), else to their browsers by Web Push.
+  service.notify = (userId, notice) => {
+    const sockets = [...subs].filter(([, sub]) => sub.userId === userId).map(([ws]) => ws);
+    if (sockets.length > 0) {
+      const msg = JSON.stringify({ type: "notice", notice } satisfies ServerMessage);
+      for (const ws of sockets) ws.send(msg);
+      return;
+    }
+    for (const sub of store.pushSubscriptions(userId)) {
+      // Nothing here may reject unhandled: main.ts exits on that.
+      sendPush(sub, notice, vapid, opts.push?.fetch)
+        .then((result) => {
+          if (result === "gone" && !closing) store.removePushSubscription(sub.endpoint);
+        })
+        .catch((e: unknown) => console.error(`push to ${new URL(sub.endpoint).host} failed`, e));
+    }
+    email?.notify(userId, notice);
+  };
   // AI turns run on in-memory timers: restart the ones a restart dropped.
   service.resumeAll();
 

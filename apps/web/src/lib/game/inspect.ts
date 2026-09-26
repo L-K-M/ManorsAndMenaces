@@ -17,8 +17,24 @@ export type BannerRegionOf = (banner: Banner) => string | null;
 
 const committedRegion: BannerRegionOf = (b) => b.regionId;
 
+/** Sick with the Plague: the Banner produces nothing at its owner's next Harvest. */
+function isSick(s: GameState, bannerId: string): boolean {
+  return s.activeEffects.some((e) => e.kind === "sick" && e.bannerId === bannerId);
+}
+
+/** The burned Route's former owner, while only they may rebuild it (Fire Bolt). */
+function smoulderingOwner(s: GameState, routeId: string): string | null {
+  for (const e of s.activeEffects) if (e.kind === "smouldering" && e.routeId === routeId) return e.ownerId;
+  return null;
+}
+
 export function describePick(map: MapDefinition, s: GameState, p: Pick, bannerRegion: BannerRegionOf = committedRegion): Description | null {
   const playerName = (id: string) => s.players[id]?.displayName ?? "";
+  const occupant = (b: Banner) => {
+    const name = playerName(b.ownerId);
+    if (isSick(s, b.id)) return t("inspect.sick_banner", { name });
+    return b.settled ? name : t("inspect.unsettled", { name });
+  };
   switch (p.kind) {
     case "region": {
       const r = map.regions.find((x) => x.id === p.id);
@@ -32,7 +48,7 @@ export function describePick(map: MapDefinition, s: GameState, p: Pick, bannerRe
           t(r.capacity > 1 ? "inspect.region_rich" : "inspect.region", { resource, capacity: r.capacity }),
           occ.length
             ? t("inspect.banners", {
-                list: occ.map((b) => (b.settled ? playerName(b.ownerId) : t("inspect.unsettled", { name: playerName(b.ownerId) }))).join(", "),
+                list: occ.map(occupant).join(", "),
               })
             : t("inspect.no_banners"),
           ...(menace ? [`${t(`menace.${menace.type}.name`)}: ${t(`menace.${menace.type}.rules`)}`] : []),
@@ -74,15 +90,18 @@ export function describePick(map: MapDefinition, s: GameState, p: Pick, bannerRe
         lines: [
           where ? t("inspect.banner_in", { region: regionName(map, where) }) : t("inspect.banner_home"),
           t(b.settled ? "inspect.banner_settled" : "inspect.banner_unsettled"),
+          ...(isSick(s, b.id) ? [t("inspect.banner_sick", { name: playerName(b.ownerId) })] : []),
         ],
       };
     }
     case "route": {
       const route = map.routes.find((x) => x.id === p.id);
       const owner = s.routeOwners[p.id];
+      const embers = smoulderingOwner(s, p.id);
+      const smoulder = embers && t(s.activePlayerId === embers ? "inspect.smouldering_now" : "inspect.smouldering", { name: playerName(embers) });
       return {
         title: route ? t(`route.${route.kind}`) : t("inspect.route"),
-        lines: [owner ? t("inspect.owned_by", { name: playerName(owner) }) : t("inspect.unowned"), t("cost.route")],
+        lines: [owner ? t("inspect.owned_by", { name: playerName(owner) }) : t("inspect.unowned"), ...(smoulder ? [smoulder] : []), t("cost.route")],
       };
     }
     default:

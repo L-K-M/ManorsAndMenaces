@@ -22,7 +22,7 @@ import {
 //   │ R3 │ R4 │         R8 (stone)  below the bottom row
 //   s7 ─ s8 ─ s9
 //
-// R1 grain, R2 timber (capacity 2), R3 stone, R4 iron.
+// R1 grain, R2 timber (capacity 2), R3 stone, R4 iron. s8–s9 is a bridge.
 const S = (n: number): string => `s${n}`;
 const face = (id: string, resource: RulesContent["board"]["regions"][number]["resource"], sites: number[], capacity = 1) => ({
   id,
@@ -59,7 +59,8 @@ export const TEST_BOARD: BoardTopology = {
       ...(id === "s7" ? { tradePost: { resource: "stone" as const, give: 2 } } : {}),
     };
   }),
-  routes: edges.map(([a, b]) => ({ id: routeId(a, b), siteA: S(a), siteB: S(b), kind: "road" as const })),
+  // Only Fire Bolt tells Route kinds apart (it burns bridges first, §19.14).
+  routes: edges.map(([a, b]) => ({ id: routeId(a, b), siteA: S(a), siteB: S(b), kind: a === 8 && b === 9 ? ("bridge" as const) : ("road" as const) })),
   regions,
   landmarks: [
     { id: "royal_castle", siteId: "s1" },
@@ -81,7 +82,7 @@ export function testContent(): RulesContent {
     board: TEST_BOARD,
     cards: [
       { id: "wizard_interference", type: "spell", timing: ["main"], effectId: "wizard_interference", copies: 3 },
-      { id: "counterspell", type: "spell", timing: ["reaction"], effectId: "counterspell", copies: 2 },
+      { id: "counterspell", type: "spell", timing: ["reaction"], effectId: "counterspell", copies: 3 },
       { id: "knight_errant", type: "hero", timing: ["main"], effectId: "knight_errant", copies: 3 },
       { id: "druids_blessing", type: "spell", timing: ["main"], effectId: "druids_blessing", copies: 2 },
       { id: "teleportation_mishap", type: "spell", timing: ["main"], effectId: "teleportation_mishap", copies: 2, requiresMenacePair: true },
@@ -91,6 +92,16 @@ export function testContent(): RulesContent {
       { id: "very_minor_prophecy", type: "spell", timing: ["main"], effectId: "very_minor_prophecy", copies: 2 },
       { id: "fog_of_confusion", type: "spell", timing: ["main"], effectId: "fog_of_confusion", copies: 2 },
       { id: "dragon_whisperer", type: "hero", timing: ["main"], effectId: "dragon_whisperer", copies: 2, requiresMenace: "young_dragon" },
+      { id: "changeling", type: "spell", timing: ["main"], effectId: "changeling", copies: 1 },
+      { id: "ragnarok", type: "spell", timing: ["main"], effectId: "ragnarok", copies: 1, setAside: true },
+      { id: "fire_bolt", type: "spell", timing: ["main"], effectId: "fire_bolt", copies: 2 },
+      { id: "dragons_landing", type: "story", timing: ["main"], effectId: "dragons_landing", copies: 1 },
+      { id: "transmutation_magic", type: "spell", timing: ["main"], effectId: "transmutation_magic", copies: 2 },
+      { id: "the_plague", type: "spell", timing: ["main"], effectId: "the_plague", copies: 2 },
+      { id: "royal_insurance_policy", type: "charter", timing: ["main"], effectId: "royal_insurance_policy", copies: 2 },
+      { id: "robin_of_the_glade", type: "hero", timing: ["main"], effectId: "robin_of_the_glade", copies: 2 },
+      { id: "unreliable_bard", type: "hero", timing: ["main"], effectId: "unreliable_bard", copies: 1 },
+      { id: "treasure_hunter", type: "hero", timing: ["main"], effectId: "treasure_hunter", copies: 1, requiresMenace: "young_dragon" },
     ],
     quests: [
       { id: "kings_highway", renown: 2, conditionId: "kings_highway", exclusive: true },

@@ -1,9 +1,11 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type BrowserContext, type Page, type WebSocketRoute } from "@playwright/test";
+import { linkIn, mailTo } from "./outbox";
 
 // Online play (spec §58–60, §86): two browsers, invite code, synchronized setup.
 
-async function player(browser: Browser, name: string): Promise<Page> {
+async function player(browser: Browser, name: string, prepare?: (ctx: BrowserContext) => Promise<void>): Promise<Page> {
   const ctx = await browser.newContext();
+  await prepare?.(ctx);
   const page = await ctx.newPage();
   await page.goto("/");
   await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false })));
@@ -40,8 +42,8 @@ async function playSetup(pages: Page[]) {
   }
 }
 
-async function startMatch(browser: Browser): Promise<[Page, Page]> {
-  const alice = await player(browser, "Alice");
+async function startMatch(browser: Browser, prepareAlice?: (ctx: BrowserContext) => Promise<void>): Promise<[Page, Page]> {
+  const alice = await player(browser, "Alice", prepareAlice);
   await alice.getByRole("button", { name: /Create/ }).click();
   const code = ((await alice.locator(".code").textContent()) ?? "").trim();
   const bob = await player(browser, "Bob");
@@ -157,4 +159,196 @@ test("a rival's counters wait for the server to confirm your move", async ({ bro
 
   release();
   await expect(counters).not.toHaveText(before ?? "");
+});
+
+/** Opens the Chronicle tab and returns the log. */
+async function chronicle(page: Page) {
+  await page.getByRole("tab", { name: "Chronicle" }).click();
+  return page.getByRole("region", { name: "Game log" });
+}
+
+/** Ends turns until it is `who`'s turn, then returns once they can act. */
+async function untilTurnOf(who: Page, other: Page) {
+  // Wait a moment rather than count once: right after setup the button may not have rendered yet.
+  const othersTurn = await other
+    .getByRole("button", { name: /Assign Banners →/ })
+    .waitFor({ state: "visible", timeout: 5_000 })
+    .then(
+      () => true,
+      () => false,
+    );
+  if (othersTurn) {
+    await toBannerPhase(other);
+    await other.getByRole("button", { name: /End Turn/ }).click();
+  }
+  await expect(who.getByRole("button", { name: /Assign Banners →/ })).toBeVisible({ timeout: 20_000 });
+}
+
+test("reloading returns to the online match with its Chronicle", async ({ browser }) => {
+  const [alice, bob] = await startMatch(browser);
+  await playSetup([alice, bob]);
+  await untilTurnOf(bob, alice);
+  await expect(await chronicle(alice)).toContainText("Bob's turn");
+  const lines = await (await chronicle(alice)).locator("li").allTextContents();
+  expect(alice.url()).toMatch(/#\/match\//);
+
+  await alice.reload();
+  await expect(alice.locator(".board")).toBeVisible();
+  const log = await chronicle(alice);
+  await expect(log.locator("li")).toHaveText(lines);
+  // Nothing happened while the page reloaded.
+  await expect(log.locator("li.divider")).toHaveCount(0);
+  // Leaving the match drops it from the address, so a reload opens the title screen.
+  await alice.getByRole("button", { name: "Main menu" }).click();
+  await alice.getByRole("dialog", { name: "Menu" }).getByRole("button", { name: "Exit to title" }).click();
+  await alice.getByRole("dialog", { name: "Leave this game?" }).getByRole("button", { name: "Exit to title" }).click();
+  await expect(alice).not.toHaveURL(/#\/match\//);
+  await alice.reload();
+  await expect(alice.getByRole("button", { name: "Play online" })).toBeVisible();
+});
+
+test("a returning player finds the moves made while they were away", async ({ browser }) => {
+  const [alice, bob] = await startMatch(browser);
+  await playSetup([alice, bob]);
+  await untilTurnOf(bob, alice);
+  const link = alice.url();
+  const context = alice.context();
+  await alice.close();
+
+  await toBannerPhase(bob);
+  await bob.getByRole("button", { name: /End Turn/ }).click();
+
+  const back = await context.newPage();
+  await back.goto(link);
+  await expect(back.locator(".board")).toBeVisible();
+  // The Chronicle is already open at the divider.
+  await expect(back.getByRole("tab", { name: "Chronicle" })).toHaveAttribute("aria-selected", "true");
+  await expect(back.locator(".log li.divider")).toBeInViewport();
+  const log = await chronicle(back);
+  await expect(log.locator("li.divider")).toHaveText("Since your last visit");
+  await expect(log.locator("li.divider ~ li", { hasText: "Alice's turn" })).toHaveCount(1);
+  await expect(back.getByRole("button", { name: /Assign Banners →/ })).toBeVisible();
+});
+
+test("a dropped connection catches up on the moves it missed", async ({ browser }) => {
+  let socket: WebSocketRoute | null = null;
+  let offline = false;
+  const [alice, bob] = await startMatch(browser, (ctx) =>
+    ctx.routeWebSocket(/\/api\/ws/, (ws) => {
+      if (offline) return void ws.close();
+      socket = ws;
+      ws.connectToServer();
+    }),
+  );
+  await playSetup([alice, bob]);
+  await untilTurnOf(bob, alice);
+  const log = await chronicle(alice);
+  const turnLines = () => log.locator("li", { hasText: "Alice's turn" }).count();
+  const before = await turnLines();
+
+  offline = true;
+  await (socket as WebSocketRoute | null)?.close();
+  await toBannerPhase(bob);
+  await bob.getByRole("button", { name: /End Turn/ }).click();
+  await expect(bob.getByText(/Waiting for/)).toBeVisible();
+  offline = false;
+
+  // Back online, Alice's Chronicle gets Bob's end of turn, not only the new board.
+  await expect(alice.getByRole("button", { name: /Assign Banners →/ })).toBeVisible({ timeout: 20_000 });
+  await expect.poll(turnLines).toBe(before + 1);
+});
+
+test("a match link that is not yours opens the lobby and is dropped", async ({ browser }) => {
+  const page = await player(browser, "Dave");
+  await expect(page.getByRole("button", { name: /Create/ })).toBeVisible();
+  await page.goto("/#/match/m_missing");
+  await page.reload();
+  await expect(page.getByRole("alert")).toContainText("no such match");
+  await expect(page).not.toHaveURL(/#\/match\//);
+  await expect(page.getByRole("button", { name: /Create/ })).toBeVisible();
+});
+
+test("a player who left the match hears it is their turn and opens it from the notice", async ({ browser }) => {
+  const [alice, bob] = await startMatch(browser);
+  await playSetup([alice, bob]);
+  await untilTurnOf(bob, alice);
+  await alice.getByRole("button", { name: "Main menu" }).click();
+  await alice.getByRole("dialog", { name: "Menu" }).getByRole("button", { name: "Exit to title" }).click();
+  await alice.getByRole("dialog", { name: "Leave this game?" }).getByRole("button", { name: "Exit to title" }).click();
+  await expect(alice.getByRole("button", { name: "Play online" })).toBeVisible();
+  // Screen readers reliably read a live region only if it was there before the news.
+  const spoken = alice.getByRole("log", { name: "Match notices" });
+  await expect(spoken).toBeAttached();
+
+  await toBannerPhase(bob);
+  await bob.getByRole("button", { name: /End Turn/ }).click();
+
+  const notices = alice.getByRole("region", { name: "Match notices" });
+  await expect(notices).toContainText("Your turn");
+  await expect(notices).toContainText("Your move in the match with Bob.");
+  await expect(spoken.locator("p").last()).toHaveText("Your turn. Your move in the match with Bob.");
+  await notices.getByRole("button", { name: "Open" }).click();
+  await expect(alice.locator(".board")).toBeVisible();
+  await expect(alice.getByRole("button", { name: /Assign Banners →/ })).toBeVisible();
+  await expect(notices).toHaveCount(0);
+
+  // Bob has the match open: its turn needs no notice.
+  await toBannerPhase(alice);
+  await alice.getByRole("button", { name: /End Turn/ }).click();
+  await expect(bob.getByRole("button", { name: /Assign Banners →/ })).toBeVisible({ timeout: 20_000 });
+  await expect(bob.getByRole("region", { name: "Match notices" })).toHaveCount(0);
+});
+
+test("a notice goes away once its match is opened from the lobby", async ({ browser }) => {
+  const [alice, bob] = await startMatch(browser);
+  await playSetup([alice, bob]);
+  await untilTurnOf(bob, alice);
+  await alice.getByRole("button", { name: "Main menu" }).click();
+  await alice.getByRole("dialog", { name: "Menu" }).getByRole("button", { name: "Exit to title" }).click();
+  await alice.getByRole("dialog", { name: "Leave this game?" }).getByRole("button", { name: "Exit to title" }).click();
+
+  await toBannerPhase(bob);
+  await bob.getByRole("button", { name: /End Turn/ }).click();
+  const notices = alice.getByRole("region", { name: "Match notices" });
+  await expect(notices).toContainText("Your turn");
+
+  await alice.getByRole("button", { name: "Play online" }).click();
+  await alice.getByRole("button", { name: /Alice · Bob/ }).click();
+  await expect(alice.getByRole("button", { name: /Assign Banners →/ })).toBeVisible();
+  await expect(notices).toHaveCount(0);
+});
+
+test("a player who confirmed an address gets a turn email while the game is closed", async ({ browser }) => {
+  const address = `alice-${Date.now()}@example.test`;
+  const alice = await player(browser, "Alice");
+  await alice.getByLabel("Email me when it's my turn").fill(address);
+  await alice.getByRole("button", { name: "Send link" }).click();
+  await expect(alice.getByText(`Check ${address} for a link to confirm`)).toBeVisible();
+
+  const confirm = await alice.context().newPage();
+  await confirm.goto(linkIn(await mailTo(address, /confirm\?t=/), "/api/email/confirm"));
+  await expect(confirm.getByRole("heading", { name: "Turn on turn emails?" })).toBeVisible();
+  await confirm.getByRole("button", { name: "Turn on" }).click();
+  await expect(confirm.getByRole("heading", { name: "Turn emails are on" })).toBeVisible();
+  await confirm.close();
+  // Coming back from the mail app, the lobby checks again.
+  await alice.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(alice.getByText(`Turn emails go to ${address}.`)).toBeVisible();
+
+  await alice.getByRole("button", { name: /Create/ }).click();
+  const code = ((await alice.locator(".code").textContent()) ?? "").trim();
+  const bob = await player(browser, "Bob");
+  await bob.getByLabel("Invite code").fill(code);
+  await bob.getByRole("button", { name: "Join" }).click();
+  await expect(alice.locator(".board")).toBeVisible();
+  await playSetup([alice, bob]);
+  await untilTurnOf(bob, alice);
+  const matchId = /#\/match\/([\w-]+)/.exec(alice.url())?.[1];
+  await alice.close();
+
+  await toBannerPhase(bob);
+  await bob.getByRole("button", { name: /End Turn/ }).click();
+  const mail = await mailTo(address, /Your move in the match with Bob/);
+  expect(mail).toContain(`http://localhost:8788/#/match/${matchId}`);
+  expect(linkIn(mail, "/api/email/unsubscribe")).toMatch(/u=u_[\w-]+&t=[\w-]+$/);
 });

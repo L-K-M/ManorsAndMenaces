@@ -10,7 +10,7 @@ import { createContext, type RulesContext } from "./context.js";
 import { check, OK, RuleViolation, type RuleError, type RuleValidation } from "./errors.js";
 import type { GameEvent } from "./events.js";
 import { getQuestProgress } from "./quests.js";
-import { emptyResources, isResourceType, totalResources } from "./resources.js";
+import { emptyResources, isResourceType } from "./resources.js";
 import { seedRng, createRng } from "./rng.js";
 import {
   checkBuildManor,
@@ -19,7 +19,6 @@ import {
   checkWritTarget,
   computeBannerHarvest,
   getPlayerBanners,
-  getPlayerHoldings,
   getRenown,
   holdingAt,
   isLegalMenaceDestination,
@@ -29,6 +28,7 @@ import {
   type BuildCheck,
 } from "./selectors.js";
 import { Tx } from "./tx.js";
+import { finishGame, rankPlayers } from "./victory.js";
 import {
   RESOURCE_TYPES,
   type BannerId,
@@ -156,10 +156,11 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
   }
 
   let cardDeck: string[] = [];
+  const setAsideCardIds: string[] = [];
   if (ruleset.enableCards) {
     for (const def of ctx.content.cards) {
       if (!isCardUsableInRuleset(def, ruleset)) continue;
-      for (let i = 1; i <= def.copies; i++) cardDeck.push(`${def.id}#${i}`);
+      for (let i = 1; i <= def.copies; i++) (def.setAside ? setAsideCardIds : cardDeck).push(`${def.id}#${i}`);
     }
     cardDeck = rng.shuffle(cardDeck);
   }
@@ -182,6 +183,7 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
       holdingIds: [],
       routeIds: [],
       claimedQuestIds: [],
+      charters: [],
       stats: newStats(),
       marketTradesThisTurn: 0,
       nonReactionCardsPlayedThisTurn: 0,
@@ -220,6 +222,7 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
     menaces,
     cardDeck,
     discardPile: [],
+    setAsideCardIds,
     questDeck,
     revealedQuestIds,
     // The opening Quests are on show from round 1, when play begins.
@@ -481,6 +484,12 @@ function resolveHarvest(tx: Tx, playerId: PlayerId): void {
     const banner = s.banners[b.id];
     if (banner) banner.settled = true;
   }
+  // The Plague lasts for exactly one Harvest of each sick Banner's owner.
+  const cured = new Set(getPlayerBanners(s, playerId).map((b) => b.id));
+  if (s.activeEffects.some((e) => e.kind === "sick" && cured.has(e.bannerId))) {
+    s.activeEffects = s.activeEffects.filter((e) => !(e.kind === "sick" && cured.has(e.bannerId)));
+    tx.emit({ type: "effect_expired", effect: "plague", playerId });
+  }
   // Druid's Blessing applies to exactly one Harvest.
   if (s.activeEffects.some((e) => e.kind === "druids_blessing" && e.sourcePlayerId === playerId)) {
     s.activeEffects = s.activeEffects.filter((e) => !(e.kind === "druids_blessing" && e.sourcePlayerId === playerId));
@@ -502,6 +511,11 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   // last-seat test must match the seat wrap that advances s.round below.
   const claimableFrom = s.turnOrder.indexOf(playerId) === s.turnOrder.length - 1 ? s.round + 1 : s.round;
   while (s.ruleset.enableQuests && s.revealedQuestIds.length < s.ruleset.revealedQuestCount && s.questDeck.length > 0) revealTopQuest(tx, undefined, claimableFrom);
+  // A burned Route's owner had their turn to rebuild it (Fire Bolt, §19.14).
+  if (s.activeEffects.some((e) => e.kind === "smouldering" && e.ownerId === playerId)) {
+    s.activeEffects = s.activeEffects.filter((e) => !(e.kind === "smouldering" && e.ownerId === playerId));
+    tx.emit({ type: "effect_expired", effect: "smouldering", playerId });
+  }
   p.marketTradesThisTurn = 0;
   p.nonReactionCardsPlayedThisTurn = 0;
   p.writsIssuedThisTurn = 0;
@@ -515,12 +529,8 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   }
   // equalTurns: the game ends after the last seat of the round, best Renown wins.
   if (s.endTriggered && s.turnOrder.indexOf(playerId) === s.turnOrder.length - 1) winner = checkVictory(tx, true);
-  if (winner) {
-    s.status = "finished";
-    s.winnerId = winner;
-    tx.emit({ type: "game_won", playerId: winner, renown: getRenown(tx.ctx, s, winner) });
-    return;
-  }
+  if (winner) return finishGame(tx, winner);
+  foretellEndgame(tx);
   const idx = s.turnOrder.indexOf(playerId);
   const nextIdx = (idx + 1) % s.turnOrder.length;
   if (nextIdx === 0) {
@@ -536,18 +546,24 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
 function checkVictory(tx: Tx, anyPlayer = false): PlayerId | null {
   const s = tx.s;
   const eligible = anyPlayer ? [...s.turnOrder] : s.turnOrder.filter((id) => getRenown(tx.ctx, s, id) >= s.ruleset.targetRenown);
-  if (eligible.length === 0) return null;
-  const strongholds = (id: PlayerId): number => getPlayerHoldings(s, id).filter((h) => h.type === "stronghold").length;
-  const key = (id: PlayerId): number[] => {
-    const p = s.players[id] as PlayerState;
-    return [getRenown(tx.ctx, s, id), p.claimedQuestIds.length, strongholds(id), totalResources(p.resources), -s.turnOrder.indexOf(id)];
-  };
-  return [...eligible].sort((a, b) => {
-    const ka = key(a);
-    const kb = key(b);
-    for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return (kb[i] as number) - (ka[i] as number);
-    return 0;
-  })[0] as PlayerId;
+  return rankPlayers(tx.ctx, s, eligible)[0] ?? null;
+}
+
+/**
+ * The endgame omen (§19.13): once anyone is within `omenGap` Renown of the
+ * target, set-aside cards are shuffled into the draw pile, publicly.
+ */
+function foretellEndgame(tx: Tx): void {
+  const s = tx.s;
+  const waiting = s.setAsideCardIds ?? [];
+  if (waiting.length === 0) return;
+  const threshold = s.ruleset.targetRenown - BALANCE.ragnarok.omenGap;
+  if (!s.turnOrder.some((id) => getRenown(tx.ctx, s, id) >= threshold)) return;
+  for (const cardId of waiting) {
+    s.cardDeck.splice(tx.rng.nextInt(s.cardDeck.length + 1), 0, cardId);
+    tx.emit({ type: "card_foretold", cardId });
+  }
+  s.setAsideCardIds = [];
 }
 
 // ------------------------------------------------------------------ building
@@ -574,6 +590,8 @@ function buildRoute(tx: Tx, playerId: PlayerId, routeId: string, toll: unknown):
   payForBuild(tx, playerId, c, toll, undefined, "build_route");
   tx.s.routeOwners[routeId] = playerId;
   tx.player(playerId).routeIds.push(routeId);
+  // Rebuilding a burned Route puts out its embers (Fire Bolt, §19.14).
+  tx.s.activeEffects = tx.s.activeEffects.filter((e) => !(e.kind === "smouldering" && e.routeId === routeId));
   tx.emit({ type: "route_built", playerId, routeId, free: false });
 }
 
@@ -722,8 +740,16 @@ function reactionHolders(tx: Tx, sourcePlayerId: PlayerId): PlayerId[] {
 
 function resolveCard(tx: Tx, playerId: PlayerId, cardId: string, target: import("./types.js").CardTarget): void {
   resolveCardEffect(tx, playerId, target);
-  tx.discard(cardId);
+  // A Charter stays face up in front of its player (§18.1); everything else is discarded.
+  if (tx.ctx.cardOf(cardId).type === "charter") {
+    const p = tx.player(playerId);
+    p.charters = [...(p.charters ?? []), cardId];
+  } else {
+    tx.discard(cardId);
+  }
   tx.emit({ type: "card_resolved", playerId, cardId });
+  // Ragnarök (§19.13): the game ends once the card has resolved, best Renown first.
+  if (target.effect === "ragnarok") finishGame(tx, rankPlayers(tx.ctx, tx.s, tx.s.turnOrder)[0] as PlayerId, "ragnarok");
 }
 
 function react(tx: Tx, playerId: PlayerId, cardId: string): void {
@@ -864,9 +890,9 @@ function executeDebug(tx: Tx, cmd: DebugCommand): void {
       return;
     }
     case "debug_draw_card": {
-      const idx = s.cardDeck.findIndex((c) => c.startsWith(`${cmd.cardDefId}#`));
-      check(idx >= 0, "DECK_EMPTY");
-      const [card] = s.cardDeck.splice(idx, 1);
+      const pile = [s.cardDeck, s.setAsideCardIds ?? []].find((cards) => cards.some((c) => c.startsWith(`${cmd.cardDefId}#`)));
+      check(pile, "DECK_EMPTY");
+      const [card] = pile.splice(pile.findIndex((c) => c.startsWith(`${cmd.cardDefId}#`)), 1);
       tx.player(cmd.targetPlayerId).hand.push(card as string);
       return;
     }

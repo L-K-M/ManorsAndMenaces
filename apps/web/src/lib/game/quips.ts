@@ -27,7 +27,7 @@ export interface Quip {
 }
 
 /** Higher first: a rival with several things to say picks the weightiest. */
-const PRIORITY: readonly RivalQuipTrigger[] = ["win", "lose", "writ", "lead", "menace_hit", "near_you", "own_build"];
+const PRIORITY: readonly RivalQuipTrigger[] = ["win", "lose", "writ", "sabotaged", "lead", "menace_hit", "near_you", "own_build"];
 
 /** How talkative each moment is; routine building stays mostly quiet. */
 export const QUIP_CHANCE: Readonly<Record<RivalQuipTrigger, number>> = {
@@ -35,6 +35,7 @@ export const QUIP_CHANCE: Readonly<Record<RivalQuipTrigger, number>> = {
   near_you: 0.6,
   writ: 1,
   menace_hit: 0.4,
+  sabotaged: 0.75,
   lead: 1,
   win: 1,
   lose: 1,
@@ -85,6 +86,22 @@ export function detectQuipCandidates(scene: QuipScene): QuipCandidate[] {
         break;
       case "menace_moved":
         for (const rivalPid of Object.keys(rivals)) if (rivalPid !== e.byPlayerId && menaceHits(after, e.to, rivalPid)) add(rivalPid, "menace_hit");
+        break;
+      // Someone else's card struck the rival (its own misfires stay unremarked).
+      case "route_burned":
+      case "holding_destroyed":
+      case "holding_reduced":
+        if (e.byPlayerId !== e.ownerId) add(e.ownerId, "sabotaged");
+        break;
+      case "hands_swapped":
+        add(e.opponentId, "sabotaged");
+        break;
+      case "effect_started":
+        if (e.effect !== "plague") break;
+        for (const id of e.bannerIds) {
+          const ownerId = after.banners[id]?.ownerId;
+          if (ownerId && ownerId !== e.playerId) add(ownerId, "sabotaged");
+        }
         break;
       case "game_won":
         for (const rivalPid of Object.keys(rivals)) add(rivalPid, rivalPid === e.playerId ? "win" : "lose");

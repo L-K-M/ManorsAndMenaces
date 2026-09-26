@@ -13,6 +13,8 @@
 //   untouched. The online API and its WebSocket are never intercepted.
 // - A new release's worker waits until a page sends SKIP_WAITING, so a
 //   running game never has its files swapped underneath it (src/lib/pwa.svelte.ts).
+// - Turn notices pushed by the online server (spec §85) become notifications;
+//   clicking one opens its match in the app (src/lib/online/notices.svelte.ts).
 
 const MANIFEST = self.__PRECACHE_MANIFEST__;
 
@@ -59,6 +61,34 @@ self.addEventListener("fetch", (event) => {
   }
   const file = url.origin + url.pathname;
   if (PRECACHE.has(file)) event.respondWith(fromCache(file).then((cached) => cached ?? fetch(request)));
+});
+
+self.addEventListener("push", (event) => {
+  let notice = null;
+  try {
+    notice = event.data ? event.data.json() : null;
+  } catch {
+    // Unreadable: browsers still require a visible notification for every push.
+  }
+  const matchId = typeof notice?.matchId === "string" ? notice.matchId : null;
+  const options = { body: notice?.body ?? "", data: { matchId }, icon: new URL("./icons/icon-192.png", self.location.href).href };
+  // One notification per match: a newer notice replaces the older one.
+  if (matchId) options.tag = `match-${matchId}`;
+  event.waitUntil(self.registration.showNotification(notice?.title ?? "Manors & Menaces", options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const matchId = event.notification.data?.matchId ?? null;
+  const url = new URL(matchId ? `./#/match/${encodeURIComponent(matchId)}` : "./", self.location.href).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      const app = windows.find((w) => new URL(w.url).origin === self.location.origin);
+      if (!app) return self.clients.openWindow(url);
+      if (matchId) app.postMessage({ type: "OPEN_MATCH", matchId });
+      return app.focus();
+    }),
+  );
 });
 
 function fromCache(url) {

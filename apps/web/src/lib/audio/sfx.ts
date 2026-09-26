@@ -59,10 +59,14 @@ export function play(cue: Cue): void {
 export function playForEvents(events: GameEvent[]): void {
   const types = new Set(events.map((e) => e.type));
   if (types.has("game_won")) return play("win");
-  if (types.has("quest_claimed")) return play("quest");
-  if (types.has("royal_writ_issued")) return play("writ");
+  // Calamities and the omen outrank the card that caused them.
+  if (types.has("card_foretold") || types.has("dragon_landed") || types.has("route_burned")) return play("menace");
+  if (types.has("quest_claimed") || types.has("renown_gained")) return play("quest");
+  // A policy paying out is paperwork, like a Writ.
+  if (types.has("royal_writ_issued") || types.has("insurance_claimed")) return play("writ");
   if (types.has("menace_moved")) return play("menace");
-  if (types.has("card_played")) return play("spell");
+  // A Spell resolved after a reaction window arrives without its card_played.
+  if (types.has("card_played") || types.has("hands_swapped") || types.has("effect_started")) return play("spell");
   if (types.has("holding_built") || types.has("holding_upgraded")) return play("manor");
   if (types.has("route_built")) return play("route");
   if (types.has("card_bought")) return play("card");

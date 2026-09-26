@@ -16,6 +16,11 @@
 # Tauri system libraries; android needs the Android SDK + NDK and JDK 17 —
 # auto-detected from ANDROID_HOME/NDK_HOME/JAVA_HOME or their default install
 # locations — plus `rustup target add aarch64-linux-android …`.
+#
+# Before any build it checks Node against package.json and that pnpm is
+# reachable. The Android build uses rustup's toolchain when the rustc on PATH
+# (say, Homebrew's) lacks the Android targets. On macOS, when only the DMG
+# step fails, it retries once without the Finder window layout.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -60,9 +65,40 @@ if [[ $INSTALL -eq 1 ]]; then
   fi
 fi
 
-PNPM="pnpm"
-command -v pnpm >/dev/null 2>&1 || PNPM="corepack pnpm"
+if ! command -v node >/dev/null 2>&1; then
+  echo "!! Node.js not found: install the version in .nvmrc (with nvm: nvm install)" >&2
+  exit 1
+fi
 VERSION=$(node -p "require('./package.json').version")
+
+version_at_least() { # have want: compares major.minor.patch; missing parts count as 0
+  local h1 h2 h3 w1 w2 w3 rest
+  IFS=. read -r h1 h2 h3 rest <<<"${1%%-*}"
+  IFS=. read -r w1 w2 w3 rest <<<"${2%%-*}"
+  (( ${h1:-0} != ${w1:-0} )) && { (( ${h1:-0} > ${w1:-0} )); return; }
+  (( ${h2:-0} != ${w2:-0} )) && { (( ${h2:-0} > ${w2:-0} )); return; }
+  (( ${h3:-0} >= ${w3:-0} ))
+}
+
+# Every target starts with `pnpm install`, so settle Node and pnpm first:
+# an older Node's corepack fails with "Cannot find matching keyid", and
+# Node 25 and later ship no corepack at all.
+NODE_HAVE="$(node -p process.versions.node)"
+NODE_WANT="$(node -p "require('./package.json').engines.node.match(/\d+(\.\d+){0,2}/)[0]")"
+NODE_PROBLEM=""
+if ! version_at_least "$NODE_HAVE" "$NODE_WANT"; then
+  NODE_PROBLEM="Node $NODE_HAVE is older than the $NODE_WANT this project needs (with nvm: nvm install && nvm use)"
+fi
+if command -v pnpm >/dev/null 2>&1; then
+  PNPM="pnpm"
+elif command -v corepack >/dev/null 2>&1; then
+  PNPM="corepack pnpm"
+else
+  PNPM=""
+  NODE_PROBLEM="${NODE_PROBLEM:+$NODE_PROBLEM; }pnpm not found and Node $NODE_HAVE has no corepack: run npm install -g corepack && corepack enable"
+fi
+# Corepack otherwise stops to ask before downloading the pinned pnpm.
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 declare -a OK=() SKIPPED=() FAILED=()
 
 skip_or_fail() { # target reason
@@ -142,7 +178,59 @@ detect_android_toolchain() {
       return 1
     fi
   fi
-  return 0
+
+  detect_android_rust
+}
+
+ANDROID_RUST_TARGETS=(aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android)
+ANDROID_RUST_BIN=""
+ANDROID_RUST_NOTE=""
+
+missing_android_targets() { # rustc: prints the targets it has no std for
+  local target libdir missing=""
+  for target in "${ANDROID_RUST_TARGETS[@]}"; do
+    libdir="$("$1" --print target-libdir --target "$target" 2>/dev/null)"
+    if [[ -z "$libdir" ]] || ! ls "$libdir"/libstd-*.rlib >/dev/null 2>&1; then
+      missing="${missing:+$missing }$target"
+    fi
+  done
+  echo "$missing"
+}
+
+# `tauri android build` compiles for all four Android targets with the
+# cargo on PATH. A Rust without their standard library, typically
+# Homebrew's ahead of rustup's, fails deep inside cargo with "can't find
+# crate for `core`" even after `rustup target add`. So check up front, and
+# when only rustup's toolchain has the targets, put it first on PATH for
+# the Android build (ANDROID_RUST_BIN).
+detect_android_rust() {
+  ANDROID_RUST_BIN=""
+  ANDROID_RUST_NOTE="the rustc on PATH has the Android targets"
+  local path_rustc rustup_rustc missing=""
+  path_rustc="$(command -v rustc 2>/dev/null || true)"
+  if [[ -n "$path_rustc" ]]; then
+    missing="$(missing_android_targets "$path_rustc")"
+    [[ -z "$missing" ]] && return 0
+  fi
+
+  rustup_rustc="$(rustup which rustc 2>/dev/null || true)"
+  if [[ -n "$rustup_rustc" ]]; then
+    missing="$(missing_android_targets "$rustup_rustc")"
+    if [[ -n "$missing" ]]; then
+      ANDROID_FAIL="Rust has no standard library for $missing (run: rustup target add $missing)"
+      return 1
+    fi
+    ANDROID_RUST_BIN="$(dirname "$rustup_rustc")"
+    ANDROID_RUST_NOTE="rustup's toolchain in $ANDROID_RUST_BIN (${path_rustc:-no rustc on PATH}${path_rustc:+ lacks the Android targets})"
+    return 0
+  fi
+
+  if [[ -z "$path_rustc" ]]; then
+    ANDROID_FAIL="Rust toolchain not found (https://rustup.rs)"
+  else
+    ANDROID_FAIL="$path_rustc has no Android standard library and cannot get one: install Rust with rustup (https://rustup.rs), then run: rustup target add ${ANDROID_RUST_TARGETS[*]}"
+  fi
+  return 1
 }
 
 if [[ $CHECK -eq 1 ]]; then
@@ -151,17 +239,24 @@ if [[ $CHECK -eq 1 ]]; then
   echo "-- variant:  $VARIANT"
   echo "-- version:  $VERSION"
   echo "-- staged:   $DIST/"
+  echo "-- node:     ${NODE_PROBLEM:-$NODE_HAVE, $PNPM}"
   command -v cargo >/dev/null && echo "-- rust:     $(cargo --version)" || echo "-- rust:     missing (desktop will skip)"
   if detect_android_toolchain; then
     echo "-- sdk:      $ANDROID_HOME"
     echo "-- ndk:      $NDK_HOME"
     echo "-- java:     ${JAVA_HOME:-from PATH}"
+    echo "-- rust std: $ANDROID_RUST_NOTE"
   elif [[ $EXPLICIT -eq 1 ]]; then
     echo "-- android:  $ANDROID_FAIL (android will FAIL: requested explicitly)"
   else
     echo "-- android:  $ANDROID_FAIL (android will skip)"
   fi
   exit 0
+fi
+
+if [[ -n "$NODE_PROBLEM" ]]; then
+  echo "!! $NODE_PROBLEM" >&2
+  exit 1
 fi
 
 if [[ $CLEAN -eq 1 ]]; then
@@ -205,7 +300,25 @@ for target in "${TARGETS[@]}"; do
         continue
       fi
       DEBUG_FLAG=""; [[ $VARIANT == "debug" ]] && DEBUG_FLAG="--debug"
-      if $PNPM tauri build $DEBUG_FLAG; then
+      DMG_NOTE=""
+      BUILD_MARK="$(mktemp)"
+      $PNPM tauri build $DEBUG_FLAG
+      desktop_status=$?
+      # Tauri rewrites the .app's Info.plist on every build, so a fresh one
+      # means the .app is complete and bundle_dmg.sh failed after it. Its
+      # usual cause is the AppleScript that lays out the DMG window: it
+      # needs the terminal to have Automation access to Finder. Tauri skips
+      # that step when CI=true, so retry once without it (unless CI=true
+      # already skipped it).
+      if [[ $desktop_status -ne 0 && "$(uname)" == "Darwin" && "${CI:-}" != "true" ]] &&
+        [[ -n "$(find src-tauri/target -maxdepth 7 -path "*/$BUNDLE_PROFILE/bundle/macos/*.app/Contents/Info.plist" -newer "$BUILD_MARK" -print -quit 2>/dev/null)" ]]; then
+        echo ".. desktop: the .app was built but the DMG was not; retrying without the Finder window layout"
+        CI=true $PNPM tauri build $DEBUG_FLAG
+        desktop_status=$?
+        DMG_NOTE=" (DMG without its window layout; for that, let your terminal control Finder in System Settings > Privacy & Security > Automation)"
+      fi
+      rm -f "$BUILD_MARK"
+      if [[ $desktop_status -eq 0 ]]; then
         mkdir -p "$DIST/desktop"
         find src-tauri/target -path "*/$BUNDLE_PROFILE/bundle/*" -type f \
           \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.msi' -o -name '*.exe' \) \
@@ -229,7 +342,7 @@ for target in "${TARGETS[@]}"; do
           fi
           open -R "/Applications/$NAME" 2>/dev/null || true
         fi
-        OK+=("desktop → $DIST/desktop")
+        OK+=("desktop → $DIST/desktop$DMG_NOTE")
       else
         FAILED+=("desktop")
       fi
@@ -237,8 +350,9 @@ for target in "${TARGETS[@]}"; do
     android)
       echo "==> android (Tauri mobile, $VARIANT)"
       detect_android_toolchain || { skip_or_fail android "$ANDROID_FAIL"; continue; }
+      [[ -n "$ANDROID_RUST_BIN" ]] && echo ".. android: using $ANDROID_RUST_NOTE"
       DEBUG_FLAG=""; [[ $VARIANT == "debug" ]] && DEBUG_FLAG="--debug"
-      if $PNPM tauri android build --apk $DEBUG_FLAG; then
+      if PATH="${ANDROID_RUST_BIN:+$ANDROID_RUST_BIN:}$PATH" $PNPM tauri android build --apk $DEBUG_FLAG; then
         mkdir -p "$DIST/android"
         find src-tauri/gen/android/app/build/outputs -name '*.apk' -exec cp {} "$DIST/android/" \;
         OK+=("android → $DIST/android")

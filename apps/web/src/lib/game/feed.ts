@@ -6,10 +6,16 @@ import type { MapDefinition } from "@manors-menaces/content";
 import { RESOURCE_TYPES, type GameEvent, type GameState, type MenaceLocation, type PlayerId, type ResourceType } from "@manors-menaces/rules";
 import { t } from "../i18n.js";
 import { regionPoint, type Point } from "./harvestFlights.js";
-import { cardName, nameOf, regionName } from "./log.js";
+import { cardName, nameOf, regionName, routeEnds, routeName, siteName } from "./log.js";
+
+// Place names now live with the Chronicle's; kept importable from here.
+export { routeName, siteName };
 
 export interface FeedItem {
-  /** The player who acted; null for things nobody did (a Menace on its own). */
+  /**
+   * The player who acted (for a policy paying out, its holder); null for
+   * things nobody did (a Menace on its own, the dragon of Dragon's Landing).
+   */
   actorId: PlayerId | null;
   text: string;
   /** The board piece this touched, in board coordinates, if any. */
@@ -23,6 +29,8 @@ export interface FeedItem {
   againstViewer: boolean;
   /** The viewer's own harvest: shown as it lands, never in a digest. */
   self: boolean;
+  /** The endgame foretold (Ragnarök): drawn to stand out from ordinary moves. */
+  omen?: true;
 }
 
 /** Fewer than this many unseen actions are left to the live toasts alone. */
@@ -38,32 +46,9 @@ function sitePoint(map: MapDefinition, siteId: string): Point | null {
   return s ? { x: s.x, y: s.y } : null;
 }
 
-/** A Site by name: its landmark, else the first Region it touches. */
-export function siteName(map: MapDefinition, siteId: string): string {
-  const s = map.sites.find((x) => x.id === siteId);
-  if (!s) return "?";
-  if (s.landmarkId) return t(`landmark.${s.landmarkId}`);
-  return regionName(map, s.adjacentRegionIds[0]);
-}
-
-function routeEnds(map: MapDefinition, routeId: string) {
-  const r = map.routes.find((x) => x.id === routeId);
-  const a = r && map.sites.find((s) => s.id === r.siteA);
-  const b = r && map.sites.find((s) => s.id === r.siteB);
-  return a && b ? { a, b } : null;
-}
-
 function routePoint(map: MapDefinition, routeId: string): Point | null {
   const ends = routeEnds(map, routeId);
   return ends ? { x: (ends.a.x + ends.b.x) / 2, y: (ends.a.y + ends.b.y) / 2 } : null;
-}
-
-/** A Route by name: the Region both its ends touch, else its first end. */
-export function routeName(map: MapDefinition, routeId: string): string {
-  const ends = routeEnds(map, routeId);
-  if (!ends) return "?";
-  const shared = ends.a.adjacentRegionIds.find((id) => ends.b.adjacentRegionIds.includes(id));
-  return shared ? regionName(map, shared) : siteName(map, ends.a.id);
 }
 
 function locationPoint(map: MapDefinition, loc: MenaceLocation): Point | null {
@@ -104,6 +89,12 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
     if (actorId !== null && actorId === viewerId) return;
     out.push({ actorId, text, at, gains: null, againstViewer, self: false });
   };
+  // News for every viewer, the one it concerns included: where a random
+  // dragon came down, a policy paying out, an omen.
+  const tell = (actorId: PlayerId | null, text: string, at: Point | null, againstViewer: boolean) =>
+    out.push({ actorId, text, at, gains: null, againstViewer, self: false });
+  // Where this batch's dragon came down, for a policy that turned it away.
+  let landing: Point | null = null;
   // Banner moves arrive one event per Banner; tell them as one line each.
   const planted = new Map<PlayerId, { regions: string[]; home: number; at: Point | null }>();
   const flushBanners = () => {
@@ -190,10 +181,64 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
         add(e.playerId, t("feed.quest", { name: name(e.playerId), quest: t(`quest.${e.questId}.name`), renown: e.renown }));
         break;
       case "resource_transferred": {
-        // The payer is the one acting (a Writ's bribe is paid by its issuer),
-        // so a payment is news only to the player it was paid to.
+        const resource = t(`resource.${e.resource}`);
+        // A card (Robin of the Glade) takes from the payer: news to them.
+        // The caster took it themselves, so they get no item.
+        if (e.reason === "card_effect") {
+          if (e.fromPlayerId === viewerId) add(e.toPlayerId, t("feed.took_from_you", { amount: e.amount, resource, name: name(e.toPlayerId) }), null, true);
+          break;
+        }
+        // Otherwise the payer is the one acting (a Writ's bribe is paid by
+        // its issuer), so a payment is news only to the player it was paid to.
         if (e.toPlayerId !== viewerId) break;
-        add(e.fromPlayerId, t("feed.paid_you", { amount: e.amount, resource: t(`resource.${e.resource}`), name: name(e.fromPlayerId) }));
+        add(e.fromPlayerId, t("feed.paid_you", { amount: e.amount, resource, name: name(e.fromPlayerId) }));
+        break;
+      }
+      case "hands_swapped": {
+        const mine = e.opponentId === viewerId;
+        const text = mine
+          ? t("feed.hands_swapped_you", { name: name(e.playerId), count: e.opponentHandSize })
+          : t("feed.hands_swapped", { name: name(e.playerId), opponent: name(e.opponentId) });
+        add(e.playerId, text, null, mine);
+        break;
+      }
+      case "route_burned": {
+        const mine = e.ownerId === viewerId;
+        const params = { name: name(e.byPlayerId), owner: name(e.ownerId), place: routeName(map, e.routeId) };
+        add(e.byPlayerId, t(mine ? "feed.route_burned_you" : "feed.route_burned", params), routePoint(map, e.routeId), mine);
+        break;
+      }
+      case "dragon_landed":
+        landing = sitePoint(map, e.siteId);
+        break;
+      case "holding_destroyed":
+      case "holding_reduced": {
+        const mine = e.ownerId === viewerId;
+        const burned = e.type === "holding_destroyed";
+        const key = burned ? (mine ? "feed.dragon_burned_you" : "feed.dragon_burned") : mine ? "feed.dragon_reduced_you" : "feed.dragon_reduced";
+        tell(null, t(key, { owner: name(e.ownerId), place: siteName(map, e.siteId) }), sitePoint(map, e.siteId), mine);
+        break;
+      }
+      case "insurance_claimed": {
+        const card = t(`card.${e.against}.name`);
+        const text = e.playerId === viewerId ? t("feed.insured_you", { card }) : t("feed.insured", { name: name(e.playerId), card });
+        tell(e.playerId, text, e.against === "dragons_landing" ? landing : null, false);
+        break;
+      }
+      case "effect_started": {
+        if (e.effect !== "plague") break;
+        const yours = e.bannerIds.filter((id) => state.banners[id]?.ownerId === viewerId).length;
+        const params = { name: name(e.playerId), place: siteName(map, e.siteId) };
+        const text = yours > 0 ? t("feed.plague_you", { ...params, count: yours }) : t("feed.plague", { ...params, count: e.bannerIds.length });
+        add(e.playerId, text, sitePoint(map, e.siteId), yours > 0);
+        break;
+      }
+      case "renown_gained":
+        add(e.playerId, t("feed.bard", { name: name(e.playerId), amount: e.amount }));
+        break;
+      case "card_foretold": {
+        const text = t("feed.foretold", { card: cardName(e.cardId) });
+        out.push({ actorId: null, text, at: null, gains: null, againstViewer: false, self: false, omen: true });
         break;
       }
       case "harvest_completed": {

@@ -7,6 +7,7 @@ export type RuleErrorCode =
   | "INSUFFICIENT_RESOURCES"
   | "INVALID_PAYMENT"
   | "ROUTE_OCCUPIED"
+  | "ROUTE_SMOULDERING"
   | "SITE_OCCUPIED"
   | "ALREADY_STRONGHOLD"
   | "SITE_TOO_CLOSE"
@@ -58,6 +59,11 @@ export class RuleViolation extends Error {
   ) {
     super(`${code}${detail ? `: ${detail}` : ""}`);
   }
+}
+
+/** Exhaustiveness guard for switches over closed unions. */
+export function unreachable(x: never): never {
+  throw new Error(`Unhandled case: ${JSON.stringify(x)}`);
 }
 
 export function check(condition: unknown, code: RuleErrorCode, detail?: string): asserts condition {

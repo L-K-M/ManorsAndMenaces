@@ -5,12 +5,24 @@
 import { DatabaseSync } from "node:sqlite";
 import type { GameCommand, GameState, RulesetConfig } from "@manors-menaces/rules";
 import type { AiLevel, MatchStatus } from "@manors-menaces/protocol";
+import type { StoredSubscription } from "./push.js";
+
+/** Browsers per guest that get turn notices; older subscriptions are dropped. */
+const MAX_PUSH_SUBSCRIPTIONS_PER_USER = 10;
 
 export interface UserRow {
   id: string;
   display_name: string;
   token_hash: string;
   created_at: string;
+}
+
+export interface EmailRow {
+  user_id: string;
+  address: string;
+  confirm_hash: string | null;
+  requested_at: string;
+  confirmed_at: string | null;
 }
 
 export interface MatchRow {
@@ -90,6 +102,27 @@ export class Store {
         UNIQUE (match_id, command_id)
       );
       CREATE INDEX IF NOT EXISTS match_events_by_match ON match_events(match_id, revision);
+      CREATE TABLE IF NOT EXISTS server_settings (
+        name TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+      -- A browser has one endpoint; it follows whichever guest subscribed last.
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        endpoint TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS push_subscriptions_by_user ON push_subscriptions(user_id);
+      -- Turn emails: an address gets them once its owner confirms it (confirmed_at).
+      CREATE TABLE IF NOT EXISTS email_addresses (
+        user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        address TEXT NOT NULL,
+        confirm_hash TEXT UNIQUE,
+        requested_at TEXT NOT NULL,
+        confirmed_at TEXT
+      );
     `);
   }
 
@@ -109,6 +142,90 @@ export class Store {
 
   renameUser(id: string, displayName: string): void {
     this.db.prepare("UPDATE users SET display_name = ? WHERE id = ?").run(displayName, id);
+  }
+
+  // ------------------------------------------------------------------ settings
+
+  setting(name: string): string | null {
+    return (this.db.prepare("SELECT value FROM server_settings WHERE name = ?").get(name) as { value: string } | undefined)?.value ?? null;
+  }
+
+  /** The setting, created from `initial()` the first time it is asked for. */
+  settingOr(name: string, initial: () => string): string {
+    const existing = this.setting(name);
+    if (existing !== null) return existing;
+    this.db.prepare("INSERT OR IGNORE INTO server_settings (name, value) VALUES (?, ?)").run(name, initial());
+    return this.setting(name) as string;
+  }
+
+  // ------------------------------------------------------------------ push subscriptions
+
+  /**
+   * Saves a browser's subscription for `userId`, keeping their newest `keep`.
+   * A browser signing in as another guest brings the same keys, so the
+   * subscription moves to that guest. Another guest's endpoint with different
+   * keys is refused (returns false): the endpoint alone does not prove it is
+   * the same browser.
+   */
+  savePushSubscription(userId: string, sub: StoredSubscription, keep = MAX_PUSH_SUBSCRIPTIONS_PER_USER): boolean {
+    const existing = this.db.prepare("SELECT user_id, p256dh, auth FROM push_subscriptions WHERE endpoint = ?").get(sub.endpoint) as
+      | { user_id: string; p256dh: string; auth: string }
+      | undefined;
+    if (existing && existing.user_id !== userId && (existing.p256dh !== sub.p256dh || existing.auth !== sub.auth)) return false;
+    this.db
+      .prepare(
+        `INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth, created_at = excluded.created_at`,
+      )
+      .run(sub.endpoint, userId, sub.p256dh, sub.auth, this.now());
+    this.db
+      .prepare(
+        "DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint NOT IN (SELECT endpoint FROM push_subscriptions WHERE user_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?)",
+      )
+      .run(userId, userId, keep);
+    return true;
+  }
+
+  pushSubscriptions(userId: string): StoredSubscription[] {
+    return this.db.prepare("SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?").all(userId) as unknown as StoredSubscription[];
+  }
+
+  /** Removes a subscription; with `userId`, only if it is theirs. */
+  removePushSubscription(endpoint: string, userId?: string): void {
+    if (userId === undefined) this.db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").run(endpoint);
+    else this.db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?").run(endpoint, userId);
+  }
+
+  // ------------------------------------------------------------------ email addresses
+
+  emailAddress(userId: string): EmailRow | undefined {
+    return this.db.prepare("SELECT * FROM email_addresses WHERE user_id = ?").get(userId) as EmailRow | undefined;
+  }
+
+  /** Sets a new, unconfirmed address; `confirmHash` is the hash of the token its confirmation link carries. */
+  requestEmail(userId: string, address: string, confirmHash: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO email_addresses (user_id, address, confirm_hash, requested_at, confirmed_at) VALUES (?, ?, ?, ?, NULL)
+         ON CONFLICT(user_id) DO UPDATE SET address = excluded.address, confirm_hash = excluded.confirm_hash, requested_at = excluded.requested_at, confirmed_at = NULL`,
+      )
+      .run(userId, address, confirmHash, this.now());
+  }
+
+  /** The unconfirmed address a confirmation token belongs to, if it was asked for after `since`. */
+  pendingEmail(confirmHash: string, since: string): EmailRow | undefined {
+    return this.db.prepare("SELECT * FROM email_addresses WHERE confirm_hash = ? AND requested_at > ?").get(confirmHash, since) as EmailRow | undefined;
+  }
+
+  /** Confirms the address a token belongs to; each token works once. */
+  confirmEmail(confirmHash: string, since: string): EmailRow | undefined {
+    return this.db
+      .prepare("UPDATE email_addresses SET confirmed_at = ?, confirm_hash = NULL WHERE confirm_hash = ? AND requested_at > ? RETURNING *")
+      .get(this.now(), confirmHash, since) as EmailRow | undefined;
+  }
+
+  removeEmail(userId: string): void {
+    this.db.prepare("DELETE FROM email_addresses WHERE user_id = ?").run(userId);
   }
 
   // ------------------------------------------------------------------ matches
@@ -196,6 +313,13 @@ export class Store {
   commandHistory(id: string): GameCommand[] {
     return (this.db.prepare("SELECT payload FROM match_events WHERE match_id = ? ORDER BY revision").all(id) as { payload: string }[]).map(
       (r) => JSON.parse(r.payload) as GameCommand,
+    );
+  }
+
+  /** The committed commands with the revision each brought the match to, oldest first. */
+  commandRows(id: string): { revision: number; command: GameCommand }[] {
+    return (this.db.prepare("SELECT revision, payload FROM match_events WHERE match_id = ? ORDER BY revision").all(id) as { revision: number; payload: string }[]).map(
+      (r) => ({ revision: r.revision, command: JSON.parse(r.payload) as GameCommand }),
     );
   }
 

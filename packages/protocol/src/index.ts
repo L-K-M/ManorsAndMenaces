@@ -130,6 +130,25 @@ export interface SubmitCommandsResponse {
   error?: RuleError;
 }
 
+/** The events one committed command produced, as a given player may see them (§105). */
+export interface HistoryEntry {
+  /** The match revision this command brought the match to. */
+  revision: number;
+  events: GameEvent[];
+}
+
+/**
+ * GET /api/matches/:id/history: the match and the events of every command
+ * committed so far, for rebuilding the Chronicle when a player (re)opens it.
+ */
+export interface MatchHistoryResponse {
+  match: MatchView;
+  /** One entry per committed command, oldest first, up to `match.revision`. */
+  entries: HistoryEntry[];
+  /** False if the server could not replay the whole history; the entries then stop early. */
+  complete: boolean;
+}
+
 /**
  * Machine-readable reasons on HTTP error bodies. Older servers send only
  * `error`, so clients must also handle a missing `code`, and treat a code
@@ -149,14 +168,52 @@ export interface ApiErrorBody {
   code?: ApiErrorCode;
 }
 
+/** Why a player hears about a match they may not have open (spec §85). */
+export type NoticeKind = "your_turn" | "match_over";
+
+/**
+ * A notice for one player: over their WebSocket while the app is open
+ * anywhere, else as a Web Push message. Worded by the server, since the push
+ * service's notification shows it as is.
+ */
+export interface MatchNotice {
+  matchId: string;
+  kind: NoticeKind;
+  title: string;
+  body: string;
+}
+
+/** POST /api/push/subscribe: a browser's PushSubscription, as `toJSON()` gives it. */
+export interface PushSubscriptionRequest {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}
+
+/**
+ * GET /api/email, and the answer to POST /api/email ({ address }) and
+ * POST /api/email/remove: where this guest's turn emails go. `available` is
+ * false when the server has no way to send mail; `confirmed` stays false
+ * until the owner opens the link the server emailed.
+ */
+export interface EmailSettings {
+  available: boolean;
+  address: string | null;
+  confirmed: boolean;
+}
+
 /** Server → client push messages over WebSocket. */
 export type ServerMessage =
   | { type: "hello"; userId: string }
   | { type: "match_update"; match: MatchView; events: GameEvent[] }
+  | { type: "notice"; notice: MatchNotice }
   | { type: "error"; message: string };
 
-/** Client → server WebSocket messages. */
-export type ClientMessage = { type: "subscribe"; matchId: string } | { type: "unsubscribe"; matchId: string } | { type: "ping" };
+/**
+ * Client → server WebSocket messages. A subscribe answers with one
+ * match_update; with `since` (the revision the client already shows) that
+ * update carries the events after it, so a reconnecting client catches up.
+ */
+export type ClientMessage = { type: "subscribe"; matchId: string; since?: number } | { type: "unsubscribe"; matchId: string } | { type: "ping" };
 
 // ------------------------------------------------------------------ runtime guards
 
