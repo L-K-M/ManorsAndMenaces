@@ -92,8 +92,10 @@ describe("push contact (PUSH_CONTACT)", () => {
     }
   });
 
-  it("says what replaced VAPID_SUBJECT", () => {
-    expect(() => pushContactFromEnv({ VAPID_SUBJECT: "mailto:ops@example.org" })).toThrow(/VAPID_SUBJECT.*PUSH_CONTACT/);
+  it("says what replaced VAPID_SUBJECT, and what it takes", () => {
+    expect(() => pushContactFromEnv({ VAPID_SUBJECT: "https://ops.example.org" })).toThrow(/VAPID_SUBJECT.*PUSH_CONTACT.*email address.*https:/);
+    // Docker Compose passes the old name through, empty when it is not set.
+    expect(pushContactFromEnv({ VAPID_SUBJECT: "", PUSH_CONTACT: "ops@example.org" })).toBe("mailto:ops@example.org");
   });
 });
 
