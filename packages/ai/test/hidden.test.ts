@@ -86,7 +86,10 @@ describe("counterChance", () => {
   it("grows with the rival's hand", () => {
     const { state, p1, p2 } = position("knight_errant#1");
     const one = counterChance(ctx, redactState(state, p1), p1, "arcane_exchange#1");
-    const three = counterChance(ctx, redactState(withPlayer(state, p2, { hand: ["knight_errant#1", "knight_errant#2", "knight_errant#3"] }), p1), p1, "arcane_exchange#1");
+    // Every copy stays accounted for: the rival's cards leave the draw pile.
+    const bigHand = ["knight_errant#1", "knight_errant#2", "knight_errant#3"];
+    const grown = withPlayer({ ...state, cardDeck: state.cardDeck.filter((c) => !bigHand.includes(c)) }, p2, { hand: bigHand });
+    const three = counterChance(ctx, redactState(grown, p1), p1, "arcane_exchange#1");
     expect(three).toBeGreaterThan(one);
     expect(three).toBeLessThan(1);
   });
@@ -112,7 +115,7 @@ describe("card economy", () => {
   it("discards its least valuable cards, keeping a Counterspell", () => {
     const g = setupGame(standardRuleset(2));
     const hand = ["counterspell#1", "fog_of_confusion#1", "knight_errant#1", "druids_blessing#1", "arcane_exchange#1", "wizard_interference#1", "festival_at_the_inn#1", "very_minor_prophecy#1"];
-    let state = withPlayer(g.state, g.p1, { hand });
+    let state = withPlayer({ ...g.state, cardDeck: g.state.cardDeck.filter((c) => !hand.includes(c)) }, g.p1, { hand });
     state = act(state, g.p1, { type: "end_main_phase" });
     state = act(state, g.p1, { type: "assign_banners", assignments: {} });
     const choice = decide(state, g.p1);

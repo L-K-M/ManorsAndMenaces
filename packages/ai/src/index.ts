@@ -121,9 +121,9 @@ function chooseMainAction(engine: RulesEngine, fullState: GameState, playerId: P
     let score = results.reduce((sum, result) => sum + judge(result), 0) / results.length;
     // A Spell may be countered. Rivals' hands are hidden, so weigh that by
     // the chance one of them holds a Counterspell, from public cards only.
-    const p = intent.type === "play_card" ? counterChance(ctx, state, playerId, intent.cardId) : 0;
-    const countered = p > 0 && intent.type === "play_card" ? counteredOutcome(engine, state, playerId, intent) : null;
-    if (countered) score = (1 - p) * score + p * judge(countered);
+    const counterProb = intent.type === "play_card" ? counterChance(ctx, state, playerId, intent.cardId) : 0;
+    const countered = counterProb > 0 && intent.type === "play_card" ? counteredOutcome(engine, state, playerId, intent) : null;
+    if (countered) score = (1 - counterProb) * score + counterProb * judge(countered);
     scored.push({ intent, score });
   }
   scored.sort((a, b) => b.score - a.score);

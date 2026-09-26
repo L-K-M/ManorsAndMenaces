@@ -46,15 +46,17 @@ export function counterChance(ctx: RulesContext, state: GameState, playerId: Pla
  * it. Null if no rival holds a card or the engine refuses.
  */
 export function counteredOutcome(engine: RulesEngine, state: GameState, playerId: PlayerId, intent: Extract<CommandIntent, { type: "play_card" }>): GameState | null {
-  const def = reactionDefs(engine.ctx, state)[0];
-  if (!def) return null;
   const start = state.turnOrder.indexOf(playerId);
   const rivals = state.turnOrder.map((_, i) => state.turnOrder[(start + 1 + i) % state.turnOrder.length] as PlayerId).filter((id) => id !== playerId);
   const holderId = rivals.find((id) => (state.players[id]?.hand.length ?? 0) > 0);
   const holder = holderId ? state.players[holderId] : undefined;
   if (!holderId || !holder) return null;
   const seen = new Set(seenCards(state, playerId));
-  const counter = Array.from({ length: def.copies }, (_, i) => `${def.id}#${i + 1}`).find((c) => !seen.has(c)) ?? `${def.id}#1`;
+  // A reaction card the player has not seen, so the simulated one is one a rival could hold.
+  const counter = reactionDefs(engine.ctx, state)
+    .flatMap((d) => Array.from({ length: d.copies }, (_, i) => `${d.id}#${i + 1}`))
+    .find((c) => !seen.has(c));
+  if (!counter) return null;
   const armed: GameState = { ...state, players: { ...state.players, [holderId]: { ...holder, hand: [counter, ...holder.hand.slice(1)] } } };
   const command = (by: PlayerId, i: CommandIntent): GameCommand => ({ ...i, commandId: `ai-counter-${++seq}`, matchId: state.matchId, playerId: by }) as GameCommand;
   const played = engine.applyCommand(armed, command(playerId, intent));
