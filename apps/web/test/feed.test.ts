@@ -122,7 +122,7 @@ describe("feedItemsFor: second-wave cards", () => {
       text: `Bertram burned down your Route by ${routeName(map, route.id)}. Only you may rebuild it until your next turn ends`,
       againstViewer: true,
     });
-    expect(mine?.at).not.toBeNull();
+    expect(mine?.at).toBeTruthy();
     expect(theirs).toMatchObject({ text: `Bertram burned down Alice's Route by ${routeName(map, route.id)}`, againstViewer: false });
     expect(feedItemsFor([burned], state, map, "P2")).toEqual([]);
   });

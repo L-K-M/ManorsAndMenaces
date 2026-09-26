@@ -160,6 +160,7 @@ function ragnarokGame(): { initial: GameState; final: GameState; commands: GameC
     commands.push(...r.commands);
     state = r.state;
   }
+  if (state.status !== "finished") throw new Error(`ragnarokGame() stalled: unfinished after ${commands.length} commands`);
   return { initial, final: state, commands };
 }
 

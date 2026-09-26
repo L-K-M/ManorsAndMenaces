@@ -400,7 +400,8 @@
       {t("ui.reaction_intro", { name: gs.players[pendingReaction.sourcePlayerId]?.displayName ?? "" })}
       <b>{t(`card.${cardDefIdOf(pendingReaction.cardId)}.name`)}</b>{describeTarget() ? ` ${t("ui.reaction_on", { target: describeTarget() })}` : ""}.
     </p>
-    {#if describeOutcome()}<p class="help">{describeOutcome()}</p>{/if}
+    {@const outcome = describeOutcome()}
+    {#if outcome}<p class="help">{outcome}</p>{/if}
     <div class="grid">
       {#each legal.reactionCards as c}
         <button class="primary" onclick={() => session.perform({ type: "react", cardId: c })}>{t(`card.${cardDefIdOf(c)}.name`)}</button>

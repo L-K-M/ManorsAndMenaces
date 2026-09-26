@@ -115,6 +115,7 @@ async function drive(state: GameState, card: string): Promise<{ intent: CommandI
     const fields = step.pick === "arcane" || step.pick === "transmutation" ? { give: first?.give, receive: first?.receive } : { [step.field]: step.options[0] };
     await ix.finishCardWith(session, fields);
   }
+  if (performed.length === 0) throw new Error(`${card} finished its flow without sending a command`);
   return { intent: performed[0], dialogs };
 }
 
