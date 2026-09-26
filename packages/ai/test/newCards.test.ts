@@ -3,6 +3,7 @@ import {
   createRng,
   createRulesEngine,
   enumerateCardTargets,
+  getRenown,
   plagueBanners,
   seedRng,
   type CardRulesDefinition,
@@ -227,7 +228,7 @@ describe("helpful cards", () => {
 
   it("burns a Route of a rival close to winning", () => {
     let { state, p1, p2 } = position();
-    state = withPlayer(withPlayer(state, p1, { hand: ["fire_bolt#1"] }), p2, { bonusRenown: 6 });
+    state = withPlayer(withPlayer(state, p1, { hand: ["fire_bolt#1"] }), p2, { bonusRenown: state.ruleset.targetRenown - 4 - getRenown(engine.ctx, state, p2) });
     const intent = decide(state, p1);
     expect(intent).toMatchObject({ type: "play_card", cardId: "fire_bolt#1", target: { effect: "fire_bolt" } });
     if (intent?.type !== "play_card" || intent.target.effect !== "fire_bolt") return;

@@ -123,7 +123,7 @@
     </fieldset>
     <fieldset>
       <legend>{t("ui.rules")}</legend>
-      <label class="rule"><input type="radio" name="mode" value="standard" bind:group={mode} /> <b>{t("ui.standard")}</b> {t("ui.cards_royal_quests_12_renown", { target: standardRuleset(count).targetRenown })}</label>
+      <label class="rule"><input type="radio" name="mode" value="standard" bind:group={mode} /> <b>{t("ui.standard")}</b> {t("ui.cards_royal_quests_renown", { target: standardRuleset(count).targetRenown })}</label>
       <label class="rule"><input type="radio" name="mode" value="mvp" bind:group={mode} /> <b>{t("ui.core")}</b> {t("ui.banners_building_and_the_toll", { target: mvpRuleset().targetRenown })}</label>
     </fieldset>
     <details>

@@ -77,7 +77,7 @@ test("illustrated quests still award Renown and record completion", async ({ pag
   await card.getByRole("button", { name: "Claim", exact: true }).click();
   await expect(page.locator(".quests .done")).toContainText("Patron of Heroes — Alice");
   await expect(page.locator('.quest-art[data-quest-art="patron_of_heroes"]')).toHaveCount(0);
-  await expect(page.getByTitle("Alice: 1 of 12 Renown", { exact: true })).toBeVisible();
+  await expect(page.getByTitle("Alice: 1 of 15 Renown", { exact: true })).toBeVisible();
 });
 
 test("quest rules and rewards fit phone and short landscape panels @mobile", async ({ page }) => {

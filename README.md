@@ -37,7 +37,7 @@ Players can be told when it is their turn by Web Push or email. [`docs/notificat
 3. Spend resources on Routes (1 Timber + 1 Stone), Manors (1 Grain + 1 Timber + 1 Stone) and Strongholds (2 Grain + 2 Iron).
 4. Most Regions hold one Banner. Send a rival's settled Banner home with a **Royal Writ** (1 Essence + a 1-resource bribe paid to them).
 5. **Hire a Warden** (1 Essence + 1 Grain) to move a Menace — ideally onto someone else's problem.
-6. First to 12 Renown wins (10 with 4 players, and 10 in the Core rules). Manors are worth 1, Strongholds 2, Royal Quests 1–2.
+6. First to 15 Renown wins (13 with 4 players, and 10 in the Core rules). Manors are worth 1, Strongholds 2, Royal Quests 1–2.
 
 The in-game tutorial teaches all of this interactively.
 

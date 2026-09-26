@@ -231,6 +231,18 @@ test("an all-computer game can begin, with a note that you will watch", async ({
   await expect(page.locator(".round")).toBeVisible();
 });
 
+test("New Game shows the Renown target for each player count", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New game" }).click();
+  for (const [players, target] of [[2, 15], [3, 15], [4, 13]]) {
+    await page.getByRole("radio", { name: String(players), exact: true }).check({ force: true });
+    await expect(page.getByRole("radio", { name: new RegExp(`Standard.*${target} Renown`) })).toBeChecked();
+    await expect(page.getByRole("radio", { name: /Core.*10 Renown/ })).toBeVisible();
+  }
+  await page.getByRole("button", { name: "Begin" }).click();
+  await expect(page.locator(".scoreboard .renown small")).toHaveText(["/13", "/13", "/13", "/13"]);
+});
+
 test("Standard games retire unclaimed Quests unless New Game turns that off", async ({ page }) => {
   const countdown = page.getByText(`Leaves in ${BALANCE.questExpiryRounds} rounds`);
   for (const expiry of [true, false]) {
