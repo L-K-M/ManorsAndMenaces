@@ -147,7 +147,7 @@ To update to the latest code:
 ./update.sh
 ```
 
-It pulls `main`, rebuilds the image and restarts the server. Open games reconnect by themselves, and computer players carry on.
+It pulls `main`, rebuilds the image on the current Node 22 base image, so that Node and Debian security fixes arrive too, and restarts the server. Open games reconnect by themselves, and computer players carry on.
 
 Everything the server keeps (matches, players, invites, the Web Push keys) is in one SQLite database in the `manors-data` Docker volume. Back it up regularly. Stop the server for a moment while you copy it, so the copy is consistent:
 
