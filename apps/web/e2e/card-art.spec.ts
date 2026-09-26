@@ -21,6 +21,8 @@ async function dealPaintedCards(page: Page, ids = CARDS.map((c) => c.id), highCo
     await debug.getByRole("button", { name: "Draw specific card" }).click();
   }
   await debug.getByRole("button", { name: "Close", exact: true }).click();
+  const tray = page.locator(".tray-toggle");
+  if (await tray.isVisible() && await tray.getAttribute("aria-expanded") === "false") await tray.click();
   await expect(page.locator(".hand button.card")).toHaveCount(ids.length);
 }
 
@@ -41,7 +43,7 @@ test("every distinct card has its own painting and a larger readable preview", a
     const peek = page.locator(".hand .peek");
     await expect(peek).toBeVisible();
     await expect(peek.locator(".card-art")).toHaveAttribute("data-card-art", def.id);
-    expect((await peek.locator(".illustration").boundingBox())!.width).toBeGreaterThan((await card.locator(".illustration").boundingBox())!.width * 2);
+    expect((await peek.locator(".illustration").boundingBox())!.width).toBeGreaterThan((await card.locator(".illustration").boundingBox())!.width * 1.4);
     expect(await peek.locator(".rules").evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
     const box = (await peek.boundingBox())!;
     expect(box.y).toBeGreaterThanOrEqual(0);
@@ -122,4 +124,23 @@ test("empty-hand art keeps a vector fallback", async ({ page }) => {
   await dealPaintedCards(page, [], true);
   await expect(page.locator(".empty-art svg")).toBeVisible();
   await expect(page.locator(".empty-art img")).toHaveCount(0);
+});
+
+test("hands use portrait cards with prominent artwork on desktop and phone @mobile", async ({ page }) => {
+  await dealPaintedCards(page, ["festival_at_the_inn", "knight_errant", "wizard_interference"]);
+  for (const size of [{ width: 1400, height: 900 }, { width: 1280, height: 720 }, { width: 412, height: 915 }]) {
+    await page.setViewportSize(size);
+    await expect(page.locator(".game")).toHaveAttribute("data-layout", size.width === 412 ? "sheet" : "wide");
+    const tray = page.locator(".tray-toggle");
+    if (await tray.isVisible() && await tray.getAttribute("aria-expanded") === "false") await tray.click();
+    for (const card of await page.locator(".hand button.card").all()) {
+      await card.scrollIntoViewIfNeeded();
+      const box = (await card.boundingBox())!;
+      const art = (await card.locator(".illustration").boundingBox())!;
+      expect(box.height / box.width).toBeGreaterThan(1.35);
+      expect(art.width).toBeGreaterThan(box.width * 0.8);
+      expect(art.height).toBeGreaterThan(30);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
 });
