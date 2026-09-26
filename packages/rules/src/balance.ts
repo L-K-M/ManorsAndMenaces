@@ -2,8 +2,8 @@ import type { MenaceType, ResourceCost, RulesetConfig } from "./types.js";
 
 // All tunable numbers live here (spec §121). Do not scatter numbers in code.
 export const BALANCE = {
-  // 4 players race to 10 (spec §7.1; simulation §129.4: 12 made 4-player games ~21 turns long).
-  targetRenown: { standard: 12, standardFourPlayers: 10, mvp: 10 },
+  // Keep four-player games shorter on the more crowded board (spec §7).
+  targetRenown: { standard: 15, standardFourPlayers: 13, mvp: 10 },
   costs: {
     route: { timber: 1, stone: 1 },
     manor: { grain: 1, timber: 1, stone: 1 },

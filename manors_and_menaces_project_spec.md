@@ -237,7 +237,7 @@ Resource visibility is intentionally public to reduce memory burden and make tac
 
 # 7. Victory
 
-The standard game ends when a player reaches **12 Renown** (**10 Renown with 4 players**, see §129.4) and completes their current turn.
+The standard game ends when a player reaches **15 Renown** (**13 Renown with 4 players**) and completes their current turn.
 
 The MVP ruleset (no cards, no Quests) uses a target of **10 Renown**, because Holdings are its only Renown source (see §7.1).
 
@@ -2398,7 +2398,7 @@ Tutorial must explicitly teach:
 6. Menaces interfere with local rules.
 7. Cards move Menaces or Banners.
 8. Royal Quests score Renown.
-9. Reach 12 Renown to win.
+9. Reach the target Renown to win (Standard: 15, or 13 with 4 players; Core tutorial: 10).
 
 Tutorial should be interactive, not a wall of text.
 
@@ -3854,7 +3854,7 @@ Support a `RulesetConfig`.
 ```ts
 interface RulesetConfig {
   playerCount: number;
-  targetRenown: number;            // 12 standard, 10 MVP
+  targetRenown: number;            // 15 standard (13 with 4 players), 10 MVP
   activeMenaces: MenaceType[];     // §118
   enableCards: boolean;
   enableReactionCards: boolean;
@@ -4098,7 +4098,7 @@ Example:
 
 ```ts
 export const BALANCE = {
-  targetRenown: { standard: 12, mvp: 10 },
+  targetRenown: { standard: 15, standardFourPlayers: 13, mvp: 10 },
 
   costs: {
     route: { timber: 1, stone: 1 },
@@ -4242,7 +4242,7 @@ The core design is considered validated only if playtesting shows:
 4. Menaces add tactics rather than frustration;
 5. Market trading prevents resource deadlocks;
 6. roads and Holdings create meaningful spatial expansion;
-7. 12 Renown produces acceptable match length;
+7. 15 Renown (13 with 4 players) produces acceptable match length;
 8. cards do not dominate strategy;
 9. Quests create varied objectives;
 10. players want to replay with different Menaces/Quests.
@@ -4350,7 +4350,7 @@ Recommendation: ship **A** in the MVP, and log the telemetry in §67 and the bal
 
 Findings and open questions for human playtests:
 
-1. **4-player length.** The target is now 10 Renown with 4 players (§7). 17.6 turns is still above the 12–16 target; revealing 4 Quests did not help.
+1. **4-player length (historical).** This simulation originally set the target to 10 Renown with 4 players. The September 2026 playtest change supersedes it with 15 for 2–3 players and 13 for 4 players (§7). 17.6 turns is still above the 12–16 target; revealing 4 Quests did not help.
 2. **First-seat advantage with cards, 3 players.** Seat 1 wins ~60–65% of AI games when the card deck is in play, versus ~41–50% without cards. No single card causes it: excluding any one card leaves 57–63%. Neither aiming interference at the leader nor a starting bonus for later seats (`seatBonus`, up to 4 resources) closes the gap (best: 59%). `equalTurns` has no effect. Suspected cause: cards reward tempo, and the first seat reaches spare resources first. Test with people before changing rules. Candidate levers: card cost +1 Essence, one card per player per round (not per turn), or deal each later seat one starting card.
 3. **Harvest per turn** is ~2.4 early and ~4.5 later, still slightly below the §68 targets (3–5 mid-game, 4–7 late).
 4. **Hereditary Regions** remain common in AI play. The AI uses the Royal Writ cautiously (3–5 per game in 3-player games). If humans also leave Regions uncontested, try Writ variant B (§129.2).

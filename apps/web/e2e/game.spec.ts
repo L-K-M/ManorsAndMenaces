@@ -143,7 +143,7 @@ test("setup, first turn, build, harvest, warden, save and reload, victory", asyn
   // Win via debug Renown.
   await page.getByRole("button", { name: "Debug" }).click();
   const dialog = page.getByRole("dialog", { name: "Debug tools" });
-  await dialog.getByLabel("Bonus Renown").fill("12");
+  await dialog.getByLabel("Bonus Renown").fill(String(standardRuleset(2).targetRenown));
   await dialog.getByRole("button", { name: "Set bonus Renown" }).click();
   await dialog.getByRole("button", { name: "Close" }).click();
   await endTurn(page);
@@ -229,6 +229,18 @@ test("an all-computer game can begin, with a note that you will watch", async ({
   await expect(page.getByRole("button", { name: "Begin" })).toBeEnabled();
   await page.getByRole("button", { name: "Begin" }).click();
   await expect(page.locator(".round")).toBeVisible();
+});
+
+test("New Game shows the Renown target for each player count", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New game" }).click();
+  for (const [players, target] of [[2, 15], [3, 15], [4, 13]]) {
+    await page.getByRole("radio", { name: String(players), exact: true }).check({ force: true });
+    await expect(page.getByRole("radio", { name: new RegExp(`Standard.*${target} Renown`) })).toBeChecked();
+    await expect(page.getByRole("radio", { name: /Core.*10 Renown/ })).toBeVisible();
+  }
+  await page.getByRole("button", { name: "Begin" }).click();
+  await expect(page.locator(".scoreboard .renown small")).toHaveText(["/13", "/13", "/13", "/13"]);
 });
 
 test("Standard games retire unclaimed Quests unless New Game turns that off", async ({ page }) => {

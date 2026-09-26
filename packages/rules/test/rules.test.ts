@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createRng,
+  asyncRuleset,
   enumerateCardTargets,
   getHarvestPreview,
   getLegalActions,
@@ -418,9 +419,11 @@ describe("review regressions", () => {
 });
 
 describe("rulesets", () => {
-  it("targets 10 Renown with 4 players and 12 otherwise", () => {
-    expect(standardRuleset(4).targetRenown).toBe(10);
-    expect(standardRuleset(3).targetRenown).toBe(12);
+  it.each([[2, 15], [3, 15], [4, 13]])("targets the Standard and async Renown goal with %i players", (players, target) => {
+    expect(standardRuleset(players).targetRenown).toBe(target);
+    expect(asyncRuleset(players).targetRenown).toBe(target);
+  });
+  it("keeps Core at 10 Renown", () => {
     expect(mvpRuleset().targetRenown).toBe(10);
   });
   it("grants seatBonus resources when play begins", () => {
@@ -431,6 +434,24 @@ describe("rulesets", () => {
 });
 
 describe("victory (§7)", () => {
+  it.each([12, 14, 15])("checks the new Standard target at %i Renown", (renown) => {
+    const { state, p1 } = setupGame(standardRuleset(2));
+    const result = engine.applyDebugCommand(state, { type: "debug_set_bonus_renown", commandId: "target", matchId: "m1", playerId: p1, targetPlayerId: p1, value: renown - getRenown(ctx, state, p1) });
+    expect(result.accepted).toBe(true);
+    const ended = passTurn(result.newState as GameState);
+    expect(ended.status).toBe(renown >= 15 ? "finished" : "playing");
+    if (renown >= 15) expect(ended.winnerId).toBe(p1);
+  });
+  it.each([10, 12])("honors a saved Standard target of %i Renown", (targetRenown) => {
+    const { state, p1 } = setupGame({ ...standardRuleset(2), targetRenown });
+    const restored = JSON.parse(JSON.stringify(state)) as GameState;
+    const result = engine.applyDebugCommand(restored, { type: "debug_set_bonus_renown", commandId: "legacy-target", matchId: "m1", playerId: p1, targetPlayerId: p1, value: targetRenown - getRenown(ctx, restored, p1) });
+    expect(result.accepted).toBe(true);
+    const ended = passTurn(result.newState as GameState);
+    expect(ended.ruleset.targetRenown).toBe(targetRenown);
+    expect(ended.status).toBe("finished");
+    expect(ended.winnerId).toBe(p1);
+  });
   it("ends the game at end of turn when the target is reached", () => {
     const { state, p1 } = setupGame();
     const r = engine.applyDebugCommand(state, { type: "debug_set_bonus_renown", commandId: "x", matchId: "m1", playerId: p1, targetPlayerId: p1, value: 8 });

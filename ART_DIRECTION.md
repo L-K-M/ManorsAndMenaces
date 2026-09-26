@@ -757,3 +757,49 @@ file constant extraction, legacy lazy-loading and generator diagnostic polish.
 The updated PR will carry the passing 148-test browser result and the disabled
 road inheritance fix. Wait for CI and completed review on the new head, then
 merge; final Mac app already matches this implementation.
+
+
+## September 26 checkpoint: longer Standard games
+
+PR #47 completed two review rounds, passed all CI and merged as `2119341`.
+The coastal network is on main and the prior Mac build includes it.
+
+The user wants Standard games to last beyond 12 Renown. New Standard and
+async games now target 15 with 2–3 players and 13 with 4 players, retaining
+the existing two-point adjustment for a crowded board. Core stays at 10.
+Saved matches retain the explicit target in their ruleset; no migration or
+ruleset-version bump is needed because command behavior is still driven by
+that saved configuration. Setup copy and scoring already read the ruleset;
+renamed the setup translation key to remove its obsolete hard-coded number.
+Updated README and current spec guidance, preserving historical simulations.
+
+Normal-AI simulations (40 fixed-seed games each, current coastal map):
+- Three players, target 15: 40/40 finished, average 15.8 rounds (13–20).
+- Four players, target 15: 37/40 finished within 60 rounds; rejected default.
+- Four players, target 13: 40/40 finished, average 16.0 rounds (12–20).
+- Four players, old target 10: 40/40 finished, average 13.3 rounds (10–17).
+These samples measure pacing, not human balance. First-seat advantage persists
+(58% at both four-player targets 10 and 13); seat 3 won none of the 40 games
+at 13. Human playtesting and AI/seat balance remain open follow-ups.
+
+Regression tests first failed with the old targets. Added factory coverage for
+all player counts and async, victory below/at 15 and retained targets 10/12.
+The AI Fire Bolt fixture now expresses its rival score relative to the target.
+597 tests, typecheck, lint and the quest-award browser check passed with the
+initial 15-for-all candidate. Recheck the final 15/13 configuration before
+commit, push and PR review; final validation/status will be recorded here.
+Logs: `/tmp/mm-renown-*`.
+
+Final local validation for 15/13: `pnpm check` passed (597 tests, typecheck,
+lint, deterministic map check, production build and server smoke test).
+Two focused browser tests passed: changing player count updates the setup
+label and four-player scoreboard to 13; claiming a quest updates the 15-point
+scoreboard. The first sandboxed test run lacked local socket access; the
+complete rerun with socket access passed. PR CI and review are the remaining
+integration steps; consult the PR for their final status.
+
+PR #51: the full local browser run passed 148 tests with two intentional skips
+and found one stale victory fixture granting only 12 bonus Renown. Changed it
+to use the Standard target; its save/reload/victory flow then passed (20.8s).
+Typecheck and lint passed again. Mac `.app` rebuilt successfully. Pushing the
+test correction for final CI and review; production behavior is unchanged.

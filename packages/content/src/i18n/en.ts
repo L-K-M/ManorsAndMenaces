@@ -792,7 +792,7 @@ export const EN: Record<string, string> = {
   "ui.hard": "Hard",
   "ui.rules": "Rules",
   "ui.standard": "Standard",
-  "ui.cards_royal_quests_12_renown": "— cards, Royal Quests, {target} Renown",
+  "ui.cards_royal_quests_renown": "— cards, Royal Quests, {target} Renown",
   "ui.core": "Core",
   "ui.banners_building_and_the_toll": "— Banners, building and the Toll Troll only, {target} Renown",
   "ui.advanced": "Advanced",
