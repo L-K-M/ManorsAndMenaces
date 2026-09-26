@@ -59,3 +59,7 @@ See [AGENTS.md](AGENTS.md) for build, test and release commands.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+The bundled sound effects by Kenney and music by RandomMind are CC0 releases.
+See [sound sources and preparation notes](media-sources/audio/README.md) for
+credits, original files, license links and regeneration instructions.

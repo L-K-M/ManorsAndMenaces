@@ -804,6 +804,112 @@ to use the Standard target; its save/reload/victory flow then passed (20.8s).
 Typecheck and lint passed again. Mac `.app` rebuilt successfully. Pushing the
 test correction for final CI and review; production behavior is unchanged.
 
+## September 26 checkpoint: recorded storybook soundscape
+
+User requested well-selected free audio from Freesound/Pixabay or other free
+sources. Read their linked resource pages and verified per-pack CC0 licenses
+on Kenney's official pages and RandomMind's OpenGameArt music page. Selected
+wood/stone construction, paper/card handling, cloth Banners, coins, creaking
+Menaces, bell/glass accents and a pizzicato victory flourish. Optional music is
+RandomMind's “The Old Tower Inn” loop. Preserve the sound/music toggles and
+music-off default, add individual volume controls and a Test sound button.
+
+Sources, license links, hashes and exact preparation recipes are stored in
+`media-sources/audio/`; derived WAV effects and MP3 music are in
+`apps/web/public/audio/`. Regenerate with `node tools/generate-audio.mjs`.
+No remote audio is requested at runtime. Settings includes visible credits.
+
+Implementation in progress on `codex/storybook-soundscape`: replace oscillator
+cues with cached samples, own audio lifecycle in App, unlock from a gesture,
+pause while hidden, preserve music position, bound simultaneous effects, and
+invalidate delayed cues when muted/backgrounded. Unit coverage is in progress;
+next verify actual browser decoding/playback, mobile Settings layout, offline
+precache, complete checks, commit/push, review and merge. Browser audio can be
+measured but this session cannot hear audio input, so subjective listening is
+still a disclosed validation gap. Local diagnostics/audition are `/tmp/mm-audio*`.
+
+Audio validation update: all 13 WAV cues plus the MP3 music decode in Chromium,
+contain measurable signal, stay below clipping and meet the intended duration
+bounds. Six focused desktop/phone playback tests and four production/offline
+checks passed. Those tests caught and verified fixes for the native fetch
+receiver binding and volume-label overflow. Samples use relative URLs so the
+same bundle also works under a static-host subpath. `pnpm check` passed with
+613 tests, typecheck, lint, map validation and production/server smoke build.
+Full browser regression and Mac build are running before the PR checkpoint.
+
+Final local checkpoint: full browser run passed 154 tests with two intentional
+skips; one existing layout helper raced between counting and reading a setup
+status that vanished on the transition to Main. Made that read atomic and all
+three small-phone layout tests passed. All six final audio browser checks pass,
+including phone music restoration. Typecheck/lint pass after the helper fix.
+Mac release `.app` built successfully. Source-hash validation and regeneration
+were checked; FFmpeg's layered floating-point mix can differ by one 16-bit PCM
+quantization unit, so byte-identical regeneration is not promised. Retained the
+validated/bundled render. Subjective listening remains unverified.
+
+Ready for commit/push and PR CI/review. Required final steps: inspect review
+findings against the actual repository, wait for final CI, merge and return the
+local checkout to main. Source and licensing notes: `media-sources/audio/README.md`.
+
+PR #53 review checkpoint: first CI passed, including 155 browser tests and two
+intentional skips. Review identified intermediate 16-bit clipping in the audio
+generator. Independent float measurements confirmed resource and writ peaks
+above full scale (1.252 and 1.631). Changed the intermediate mix to float PCM and
+peak measurement to `astats` (unlike `volumedetect`, it preserves those peaks),
+then regenerated all effects. A standalone FFmpeg regression test first failed
+on the old pipeline (quiet/loud ratio 0.333 instead of 0.25), then passed with
+the fix. Run `node --test tools/generate-audio.test.mjs` with FFmpeg available.
+
+The review's claimed fade-in bug did not reproduce: a real Chromium
+OfflineAudioContext aged to 10 seconds rendered gain 0, 0.5 and 1 at restart,
+300ms and 600ms. Other comments overlooked preference cloning, existing error
+guards, settings migration and App wiring; English is the only locale. The
+recorded September 26, 2026 provenance date is correct. Optional music fade-out,
+cross-browser loop-seam listening and more descriptive malformed-recipe errors
+remain follow-up polish, not confirmed blockers. Subjective listening remains
+unverified. All ten audio/offline browser checks and lint passed after the
+regeneration; the standalone clipping regression passed. The Mac app is being
+rebuilt. Next push and inspect the second review/CI, then merge PR #53.
+
+## September 26 checkpoint: consolidate and clean branches
+
+Soundscape PR #53 is merged after two reviews and green CI; the clipping fix
+and final Mac app rebuild passed. User then requested merging all remaining
+work into main and removing obsolete branches.
+
+Merged reviewed, green PRs #48 (email aliases and outbox decoding) and #41
+(AI hidden information/card use), then #54 (Banner-placement explanations),
+whose final review found no actionable issues. All three passed their CI.
+
+Recovered three older follow-up commits on `codex/finish-branch-consolidation`:
+`ce54935` (only dialog spacing is still needed; the inspector's localization
+already exists in `game/inspect.ts`), `57b3746` (Chronicle setup retry), and
+`d113afa` (shared CORS headers and safer test URL parsing). The combined tests
+exposed two AI fixtures relying on the old Renown target. Keep their original
+scenario assertions and scale the rival's score with the target; explicitly
+test 12, 13 and 15. All 33 focused AI and six Chronicle/hotseat browser tests
+pass. The full local check passed with 646 tests before #54; the consolidation
+branch is now rebased onto all three merged PRs for final combined validation.
+
+Seven stale local branches were verified against their merged squash patches
+or ancestry, then deleted. Deleted remote `codex/save-icon-concept` (merged)
+and `fix/rules-guards` (deliberately rejected in PR #5/#31: its restrictions
+contradict the spec, and command cloning already handles its alias concern).
+Do not reintroduce those rejected rules. After the consolidation PR passes CI
+and review, merge it, delete the three recovered `fix/*` branches, prune and
+confirm that only main remains locally and remotely. No uncommitted user work
+or additional worktrees were present during the audit.
+
+## Home Banner badge
+
+A Banner waiting at home (unassigned, or sent home in the draft) wears a
+house badge: a parchment disc with the toolbar's home glyph, sitting on the
+lower right of the Banner's highlight ring and drawn above it. It is sized
+in screen pixels (`px(7, 7)`) so it stays legible at every zoom; a first
+version at the pole's foot was invisible at the default view and hidden by
+the ring. It replaces the unsettled dot, since a home Banner is always
+unsettled. Harvest notes treat it as an obstacle.
+
 ## Twelve more islands and a new layout every game
 
 Goal: the board should not look the same every game. New games now draw an

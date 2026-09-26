@@ -9,6 +9,8 @@ export interface Settings {
   textScale: number;
   sound: boolean;
   music: boolean;
+  soundVolume: number;
+  musicVolume: number;
   privacyCurtain: boolean;
   showRegionNames: boolean;
   /** Named AI rivals remark on the game in speech bubbles and the Chronicle. */
@@ -24,6 +26,8 @@ const defaults = (): Settings => ({
   textScale: 1,
   sound: true,
   music: false,
+  soundVolume: 0.65,
+  musicVolume: 0.35,
   privacyCurtain: true,
   showRegionNames: true,
   rivalChatter: true,

@@ -398,8 +398,7 @@
 {#if legal?.mode === "reaction" && pendingReaction}
   <Modal title={t("ui.counterspell")}>
     <p class="help">
-      {t("ui.reaction_intro", { name: gs.players[pendingReaction.sourcePlayerId]?.displayName ?? "" })}
-      <b>{t(`card.${cardDefIdOf(pendingReaction.cardId)}.name`)}</b>{describeTarget() ? ` ${t("ui.reaction_on", { target: describeTarget() })}` : ""}.
+      {t("ui.reaction_intro", { name: gs.players[pendingReaction.sourcePlayerId]?.displayName ?? "" })} <b>{t(`card.${cardDefIdOf(pendingReaction.cardId)}.name`)}</b>{describeTarget() ? ` ${t("ui.reaction_on", { target: describeTarget() })}` : ""}.
     </p>
     {@const outcome = describeOutcome()}
     {#if outcome}<p class="help">{outcome}</p>{/if}

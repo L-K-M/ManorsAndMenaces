@@ -19,6 +19,7 @@ import {
   type MenaceLocation,
   type MenaceType,
   type PlayerId,
+  type QuestId,
   type RegionId,
   type ResourceCost,
   type ResourceType,
@@ -107,6 +108,33 @@ export function getRenown(ctx: RulesContext, state: GameState, playerId: PlayerI
   for (const h of getPlayerHoldings(state, playerId)) renown += h.type === "manor" ? BALANCE.renown.manor : BALANCE.renown.stronghold;
   for (const q of p.claimedQuestIds) renown += ctx.quest(q).renown;
   return renown;
+}
+
+/** Where a player's Renown comes from (§7). The parts sum to `getRenown`. */
+export interface RenownSources {
+  total: number;
+  manors: { count: number; renown: number };
+  strongholds: { count: number; renown: number };
+  /** Claimed Royal Quests, in the order they were claimed. */
+  quests: { questId: QuestId; renown: number }[];
+  /** Renown granted outright, such as by the Unreliable Bard. */
+  bonus: number;
+}
+
+// Kept apart from getRenown, which the AI calls in its inner loops.
+export function getRenownSources(ctx: RulesContext, state: GameState, playerId: PlayerId): RenownSources {
+  const p = state.players[playerId];
+  const holdings = getPlayerHoldings(state, playerId);
+  const manors = holdings.filter((h) => h.type === "manor").length;
+  const strongholds = holdings.filter((h) => h.type === "stronghold").length;
+  const quests = (p?.claimedQuestIds ?? []).map((questId) => ({ questId, renown: ctx.quest(questId).renown }));
+  return {
+    total: getRenown(ctx, state, playerId),
+    manors: { count: manors, renown: manors * BALANCE.renown.manor },
+    strongholds: { count: strongholds, renown: strongholds * BALANCE.renown.stronghold },
+    quests,
+    bonus: p?.bonusRenown ?? 0,
+  };
 }
 
 // ------------------------------------------------------------------ network (§13)
@@ -225,6 +253,49 @@ export function getLegalInitialRoutes(ctx: RulesContext, state: GameState): Rout
 
 // ------------------------------------------------------------------ banners (§14)
 
+/** Why a Region next to a Banner's Holding can't take that Banner. */
+export type BannerRegionBlock =
+  /** Full, and one of the Banners filling it belongs to the same player. */
+  | "full_own"
+  /** Full of other players' Banners. */
+  | "full_rival"
+  /** The other Banner of the same Stronghold is there (§14). */
+  | "stronghold_pair";
+
+export interface BannerRegionOption {
+  regionId: RegionId;
+  blockedBy: BannerRegionBlock | null;
+}
+
+/**
+ * Every Region next to a Banner's Holding and whether the Banner may occupy
+ * it, given a (possibly draft) assignment map that overrides current
+ * positions. Lets a UI explain why a Banner has nowhere to go.
+ */
+export function getBannerRegionOptions(
+  ctx: RulesContext,
+  state: GameState,
+  bannerId: BannerId,
+  draft: Readonly<Record<BannerId, RegionId | null>> = {},
+): BannerRegionOption[] {
+  const banner = own(state.banners, bannerId);
+  if (!banner) return [];
+  const holding = state.holdings[banner.holdingId];
+  if (!holding) return [];
+  const positionOf = (b: Banner): RegionId | null => (b.id in draft ? (draft[b.id] ?? null) : b.regionId);
+  const siblings = Object.values(state.banners).filter((b) => b.holdingId === banner.holdingId && b.id !== bannerId);
+  return ctx.board.site(holding.siteId).adjacentRegionIds.map((regionId): BannerRegionOption => {
+    const region = ctx.board.region(regionId);
+    const occupants = Object.values(state.banners).filter((b) => b.id !== bannerId && positionOf(b) === regionId);
+    if (occupants.length >= region.capacity) {
+      const ownFull = occupants.some((b) => b.ownerId === banner.ownerId);
+      return { regionId, blockedBy: ownFull ? "full_own" : "full_rival" };
+    }
+    if (siblings.some((s) => positionOf(s) === regionId)) return { regionId, blockedBy: "stronghold_pair" };
+    return { regionId, blockedBy: null };
+  });
+}
+
 /**
  * Regions a Banner may legally occupy given a (possibly draft) assignment map
  * that overrides current positions. Does not include `null` (always legal).
@@ -235,19 +306,9 @@ export function getLegalBannerRegions(
   bannerId: BannerId,
   draft: Readonly<Record<BannerId, RegionId | null>> = {},
 ): RegionId[] {
-  const banner = own(state.banners, bannerId);
-  if (!banner) return [];
-  const holding = state.holdings[banner.holdingId];
-  if (!holding) return [];
-  const positionOf = (b: Banner): RegionId | null => (b.id in draft ? (draft[b.id] ?? null) : b.regionId);
-  const siblings = Object.values(state.banners).filter((b) => b.holdingId === banner.holdingId && b.id !== bannerId);
-  return ctx.board.site(holding.siteId).adjacentRegionIds.filter((regionId) => {
-    const region = ctx.board.region(regionId);
-    const occupants = Object.values(state.banners).filter((b) => b.id !== bannerId && positionOf(b) === regionId);
-    if (occupants.length >= region.capacity) return false;
-    if (siblings.some((s) => positionOf(s) === regionId)) return false;
-    return true;
-  });
+  return getBannerRegionOptions(ctx, state, bannerId, draft)
+    .filter((o) => o.blockedBy === null)
+    .map((o) => o.regionId);
 }
 
 /** Validates a complete assignment for all of one player's Banners. */

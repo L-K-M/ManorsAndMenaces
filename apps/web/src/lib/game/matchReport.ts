@@ -4,11 +4,11 @@
 // replay of the command history. Nothing here touches the DOM.
 
 import {
-  BALANCE,
   RESOURCE_TYPES,
   cardDefIdOf,
   getPlayerHoldings,
   getRenown,
+  getRenownSources,
   type GameCommand,
   type GameEvent,
   type GameState,
@@ -130,12 +130,9 @@ export function buildMatchReport(engine: RulesEngine, final: GameState, history:
 }
 
 export function renownBreakdown(engine: RulesEngine, state: GameState, playerId: PlayerId): RenownBreakdown {
-  const holdings = getPlayerHoldings(state, playerId);
-  const manors = holdings.filter((h) => h.type === "manor").length * BALANCE.renown.manor;
-  const strongholds = holdings.filter((h) => h.type === "stronghold").length * BALANCE.renown.stronghold;
-  const quests = (state.players[playerId]?.claimedQuestIds ?? []).reduce((sum, q) => sum + engine.ctx.quest(q).renown, 0);
-  const total = getRenown(engine.ctx, state, playerId);
-  return { total, manors, strongholds, quests, other: total - manors - strongholds - quests };
+  const s = getRenownSources(engine.ctx, state, playerId);
+  const quests = s.quests.reduce((sum, q) => sum + q.renown, 0);
+  return { total: s.total, manors: s.manors.renown, strongholds: s.strongholds.renown, quests, other: s.bonus };
 }
 
 function rankPlayers(state: GameState, result: (id: PlayerId) => PlayerResult): PlayerResult[] {

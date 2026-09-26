@@ -95,10 +95,13 @@ describe("Dragon's Landing: no peeking at the match RNG", () => {
     throw new Error("no seed strikes that player");
   }
 
-  it("declines a pool that is half its own, even when the real pick would spare it", () => {
-    let { state, p1, p2 } = position();
+  it.each([12, 13, 15])("declines a half-own pool despite a lucky real pick at a %i-Renown target", (targetRenown) => {
+    let { state, p1, p2 } = position({ ...standardRuleset(2), targetRenown });
     state = withManor(withManor(state, p1, "s4"), p2, "s5");
     state = withPlayer(state, p1, { hand: ["dragons_landing#1"] });
+    // Keep the rival threatening enough that a known lucky strike pays even
+    // with the higher victory target and the new cost of giving up this card.
+    state = withPlayer(state, p2, { bonusRenown: Math.ceil(targetRenown / 3) - getRenown(engine.ctx, state, p2) });
     const lucky = rngStriking(state, p1, p2);
     const unlucky = rngStriking(state, p1, p1);
 

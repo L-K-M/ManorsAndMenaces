@@ -7,7 +7,7 @@
   import { t } from "../i18n.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { onPick, type Highlights } from "../game/interaction.js";
-  import { BoardAlign, FLAME_PATH, LABEL, MENACE_OFFSET, PIECE_SCALE, SICK_MARK, bannerSlot, boardToScreen, labelLod, nameLineLength, noteSlots, placeNote, screenScale, strokeWidth, wrapLabel, type Circle, type Rect, type Segment } from "../game/board-view.js";
+  import { BoardAlign, FLAME_PATH, HOME_MARK, LABEL, MENACE_OFFSET, PIECE_SCALE, SICK_MARK, bannerSlot, boardToScreen, labelLod, nameLineLength, noteSlots, placeNote, screenScale, strokeWidth, wrapLabel, type Circle, type Rect, type Segment } from "../game/board-view.js";
   import { describePick } from "../game/inspect.js";
   import { regionName } from "../game/log.js";
   import { ui, type Pick } from "../stores/ui.svelte.js";
@@ -306,6 +306,9 @@
   const px = (screenPx: number, min = 0) => strokeWidth(screenPx, k, min);
   const siteRing = (hasHolding: boolean) => (hasHolding ? px(13, 30 * PIECE_SCALE) : px(9, 15));
   const bannerRing = $derived(px(11, 17));
+  /** The home badge sits on the Banner's ring, at 45° below right of its centre (3, -12). */
+  const homeR = $derived(px(7, 7));
+  const homeAt = $derived({ x: 3 + bannerRing * 0.71, y: -12 + bannerRing * 0.71 });
   const menaceRing = $derived(px(12, 32 * PIECE_SCALE));
   const postScale = $derived(Math.min(2.2, Math.max(1, 1 / k)));
 
@@ -372,6 +375,8 @@
       for (const [id, pos] of bannerPositions) {
         obstacles.circles.push({ x: pos.x + 3, y: pos.y - 11, r: 16 });
         if (sick.has(id)) obstacles.circles.push({ x: pos.x + SICK_AT.x, y: pos.y + SICK_AT.y, r: 7 });
+        const b = gs.banners[id];
+        if (b && bannerRegion(b) === null) obstacles.circles.push({ x: pos.x + homeAt.x, y: pos.y + homeAt.y, r: homeR });
       }
       for (const route of map.routes) {
         for (const { a, b } of roadGeometry.get(route.id)!.segments) {
@@ -733,12 +738,14 @@
       {@const theme = playerTheme(banner.ownerId)}
       {@const isHl = hl.banners.has(banner.id)}
       {@const selected = ui.selectedBannerId === banner.id}
+      {@const atHome = bannerRegion(banner) === null}
       {#if pos}
         <g
           class="banner"
           class:hl={isHl}
           class:selected
           class:mine={myBanners.has(banner.id)}
+          class:home={atHome}
           style="transform: translate({pos.x}px, {pos.y}px)"
           role="button"
           tabindex={isHl || !targeting ? 0 : -1}
@@ -758,7 +765,7 @@
           <path d="M-6,-24 L12,-19 L-6,-12 Z" fill={theme.color} stroke={theme.dark} stroke-width="1.5" opacity={banner.settled ? 1 : 0.75} />
           <line x1="-4.8" y1="-22.8" x2="9" y2="-19" stroke={theme.light} stroke-width="1.2" stroke-linecap="round" opacity="0.85" />
           <path d={emblemPath(theme.shape, 2.4)} transform="translate(0,-18)" fill={theme.light} pointer-events="none" />
-          {#if !banner.settled}<circle cx="-6" cy="4" r="2.5" fill="#fffaf0" stroke={theme.dark} />{/if}
+          {#if !banner.settled && !atHome}<circle cx="-6" cy="4" r="2.5" fill="#fffaf0" stroke={theme.dark} />{/if}
           {#if sick.has(banner.id)}
             <!-- The Plague: the flag turns sickly and a queasy face rides its tip -->
             <path d="M-6,-24 L12,-19 L-6,-12 Z" fill={SICK_MARK.color} opacity="0.55" pointer-events="none" />
@@ -774,6 +781,21 @@
           {#if isHl || selected}
             <circle cx="3" cy="-12" r={bannerRing} class="hl-casing" stroke-width={px(5, 6)} pointer-events="none" />
             <circle cx="3" cy="-12" r={bannerRing} class="hl-ring" stroke-width={px(2.5, 3)} pointer-events="none" />
+          {/if}
+          {#if atHome}
+            <!-- at home: a house badge on the ring's lower right, above any highlight -->
+            <g class="home-mark" transform="translate({homeAt.x},{homeAt.y})" pointer-events="none">
+              <circle r={homeR} fill="#fffaf0" stroke={theme.dark} stroke-width={px(1.5, 1.5)} />
+              <path
+                d={HOME_MARK.glyph}
+                transform="scale({(homeR * 1.3) / HOME_MARK.size}) translate(-12,-12)"
+                fill="none"
+                stroke="#3a2d1a"
+                stroke-width="2.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </g>
           {/if}
         </g>
       {/if}
@@ -1118,7 +1140,8 @@
       stroke: #ffd23f;
     }
   }
-  .banner.selected path {
+  /* The flag's own paths, not the home badge's glyph. */
+  .banner.selected > path {
     stroke: #ffcf1f;
     stroke-width: 3;
   }

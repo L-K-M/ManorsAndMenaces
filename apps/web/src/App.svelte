@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { onMount, untrack } from "svelte";
+  import { configureAudio, initializeAudio } from "./lib/audio/sfx.js";
   import { isSaveFile, type SaveFile } from "@manors-menaces/protocol";
   import { BALANCE, mvpRuleset } from "@manors-menaces/rules";
   import { t } from "./lib/i18n.js";
@@ -41,6 +42,9 @@
   let loadError: string | null = $state(null);
   // The logo sets the ampersand as a flourish when the title has one.
   const titleWords = t("app.title").split(" & ");
+
+  onMount(initializeAudio);
+  $effect(() => configureAudio({ sound: settings.sound, music: settings.music, soundVolume: settings.soundVolume, musicVolume: settings.musicVolume }));
 
   async function refreshSaves() {
     try {

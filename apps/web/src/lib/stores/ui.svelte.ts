@@ -1,6 +1,6 @@
 // Non-gameplay UI state (spec §45.3). Never serialized with the game.
 
-import type { BannerId, CardId, CardTarget, MenaceId, MenaceLocation, PlayerAction, RegionId } from "@manors-menaces/rules";
+import type { BannerId, CardId, CardTarget, MenaceId, MenaceLocation, PlayerAction, PlayerId, RegionId } from "@manors-menaces/rules";
 
 export type Tool = "none" | "route" | "manor" | "upgrade" | "writ" | "warden" | "card";
 
@@ -45,6 +45,8 @@ export interface UiState {
   /** The action a "Trade to afford" opened the Market for, if any. */
   marketGoal: PlayerAction | null;
   panel: "players" | "quests" | "log";
+  /** Player whose Renown sources are shown. */
+  renownOf: PlayerId | null;
   showDebug: boolean;
 }
 
@@ -61,6 +63,7 @@ export const ui: UiState = $state({
   dialog: null,
   marketGoal: null,
   panel: "players",
+  renownOf: null,
   showDebug: false,
 });
 

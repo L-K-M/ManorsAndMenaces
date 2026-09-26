@@ -19,8 +19,8 @@ async function startVsAi(page: Page, players = 2) {
 }
 
 async function status(page: Page): Promise<string> {
-  const el = page.locator(".actions .status").first();
-  return (await el.count()) ? ((await el.textContent()) ?? "") : "";
+  // Setup can end between locator calls; read its transient status atomically.
+  return page.locator(".actions .status").evaluateAll((els) => els[0]?.textContent ?? "");
 }
 
 /** Plays the human's setup; the AI plays its own. Ends in the first Main phase. */
@@ -399,6 +399,28 @@ test.describe("phone portrait 412x915", () => {
     await expect(side).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(side).toBeHidden();
+  });
+
+  test("tapping a player on the scoreboard shows where their Renown comes from", async ({ page }) => {
+    await startVsAi(page);
+    await completeSetup(page);
+    const chips = page.getByRole("list", { name: "Scoreboard" }).getByRole("button");
+    await expect(chips).toHaveCount(2);
+
+    // Each player founds two Manors in setup, and nothing else scores yet.
+    for (let i = 0; i < 2; i++) {
+      const chip = chips.nth(i);
+      const name = (await chip.locator(".name").textContent()) ?? "";
+      await chip.click();
+      const dialog = page.getByRole("dialog", { name: `Renown of ${name}` });
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText(/\b2 of \d+ Renown/);
+      await expect(dialog.getByRole("row")).toHaveCount(1);
+      await expect(dialog.getByRole("row", { name: /Manors/ })).toContainText(/×2\s*\+2/);
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden();
+      await expect(chip).toBeFocused();
+    }
   });
 
   test("purchase prices remain visible on phone action tiles", async ({ page }) => {

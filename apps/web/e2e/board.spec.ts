@@ -104,6 +104,23 @@ test.describe("targets", () => {
     const opacity = await page.locator(".veil").evaluate((el) => parseFloat(getComputedStyle(el).opacity));
     expect(opacity).toBeGreaterThanOrEqual(0.2);
   });
+
+  test("a Banner at home wears a house badge until it is placed", async ({ page }) => {
+    await startHotseat(page);
+    await completeSetup(page);
+    await expect(page.locator(".banner .home-mark")).toHaveCount(0);
+
+    await page.getByRole("button", { name: /Assign Banners →/ }).click();
+    const banner = page.locator(".banner.hl").first();
+    await banner.click();
+    await page.getByRole("button", { name: /Send home/ }).click();
+    await expect(page.locator(".banner.home .home-mark")).toHaveCount(1);
+    await expect(page.locator(".banner.home")).toHaveAttribute("aria-label", /at home/);
+
+    await page.locator(".banner.home").click();
+    await page.locator(".region.hl").first().click();
+    await expect(page.locator(".banner .home-mark")).toHaveCount(0);
+  });
 });
 
 test.describe("focus", () => {
