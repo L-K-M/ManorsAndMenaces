@@ -1076,7 +1076,7 @@
   .targeting .region:not(.hl),
   .targeting .route:not(.hl),
   .targeting .site:not(.hl),
-  .targeting .banner:not(.hl):not(.mine),
+  .targeting .banner:not(.hl),
   .targeting .menace:not(.hl) {
     pointer-events: none;
   }

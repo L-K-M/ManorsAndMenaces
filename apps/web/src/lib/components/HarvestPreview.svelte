@@ -51,16 +51,27 @@
     padding: 0;
     display: flex;
     flex-wrap: wrap;
-    gap: 0.25rem 0.8rem;
+    gap: 0.35rem;
   }
   .totals li {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
     font-variant-numeric: tabular-nums;
+    padding: 0.22rem 0.4rem;
+    border: 1px solid #a4864b55;
+    border-radius: 7px;
+    background: #fff9e877;
   }
-  .totals li.zero {
-    opacity: 0.45;
+  .totals li.zero .name {
+    color: var(--ink-soft);
+  }
+  .totals b {
+    margin-left: auto;
+    color: var(--accent-dark);
+  }
+  .totals li.zero b {
+    color: var(--ink-soft);
   }
   .name {
     font-size: 0.8rem;

@@ -15,6 +15,7 @@ const portraits = ["emperor-mumble", "grum", "madame-quill", "dame-brash", "tall
 const menaces = ["toll-troll", "young-dragon", "highwayman", "bog-witch", "goblin-tinkers"];
 const landmarks = ["royal_castle", "wizard_tower", "adventurers_inn", "dwarven_hall", "sacred_grove"];
 const assets = [
+  { source: "storybook/ui/empty-hand.png", output: "ui/empty-hand.png", size: 256 },
   { source: "manors-and-menaces-icon-concept.png", output: "manor-troll.png", size: 640 },
   ...portraits.map((name) => ({ source: `storybook/${name}.png`, output: `rivals/${name}.png`, size: 256 })),
   ...menaces.map((name) => ({ source: `storybook/menaces/${name}.png`, output: `menaces/${name}.png`, size: 256 })),

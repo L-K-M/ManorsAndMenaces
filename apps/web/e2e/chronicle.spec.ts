@@ -86,6 +86,11 @@ test("the Chronicle keeps the reader's scroll position and offers a jump pill", 
   await page.getByRole("button", { name: "Grant 5 of each resource" }).click();
   await page.getByRole("dialog", { name: "Debug tools" }).getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: /^Build Route/ }).click();
+  // Banners can overlap a short Route, but only highlighted targets may
+  // intercept its click while the build tool is active.
+  for (const banner of await page.locator(".banner").all()) {
+    await expect(banner).toHaveCSS("pointer-events", "none");
+  }
   await page.locator(".route.hl").first().click();
   await expect(page.locator(".log ol li").last()).toContainText(/built a Route/);
   await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBe(0);

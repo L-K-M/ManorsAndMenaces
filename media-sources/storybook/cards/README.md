@@ -1,9 +1,10 @@
 # Card paintings
 
-All eleven distinct cards in the 24-card prototype deck have individual
+All 21 distinct cards in the expanded 40-card deck have individual
 illustrations. These full-size PNG originals were generated with the built-in
 image tool, using `../../manors-and-menaces-icon-concept.png` as a style
-reference. `prompts.json` contains every exact prompt. No API/CLI generation
+reference. The second wave uses `knight_errant.png` to match the finished
+first-wave paintings. `prompts.json` contains every exact prompt and reference. No API/CLI generation
 fallback was used.
 
 | Card | Painting |
@@ -19,6 +20,16 @@ fallback was used.
 | Very Minor Prophecy | [View](very_minor_prophecy.png) |
 | Fog of Confusion | [View](fog_of_confusion.png) |
 | Dragon Whisperer | [View](dragon_whisperer.png) |
+| Changeling | [View](changeling.png) |
+| Ragnarök | [View](ragnarok.png) |
+| Fire Bolt | [View](fire_bolt.png) |
+| Dragon’s Landing | [View](dragons_landing.png) |
+| Transmutation Magic | [View](transmutation_magic.png) |
+| The Plague | [View](the_plague.png) |
+| Royal Insurance Policy | [View](royal_insurance_policy.png) |
+| Robin of the Glade | [View](robin_of_the_glade.png) |
+| The Unreliable Bard | [View](unreliable_bard.png) |
+| Treasure Hunter | [View](treasure_hunter.png) |
 
 The knight is Dame Alda, matching her revised flavor text. The cast also
 includes a woman wizard, goblin woman druid, goblin alchemist, male dragon
@@ -29,7 +40,8 @@ From the repository root, run `node tools/generate-card-art.mjs` to produce
 [Royal Quest paintings](../quests/README.md) alongside them. This optional artwork
 preparation uses `cwebp` from libwebp, as the title-scenery preparation does.
 Ordinary builds use the checked-in runtime copies without an image encoder.
-The eleven runtime paintings total about 712KB.
+The first eleven runtime paintings remain unchanged. Every card uses the same
+600 × 400 landscape format, including the set-aside Ragnarök card.
 
 The hand uses compact crops; the hover, keyboard and touch-hold preview shows
 larger illustrations. Prophecy ordering shows the same identifiable images.

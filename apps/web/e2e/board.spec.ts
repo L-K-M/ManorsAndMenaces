@@ -96,6 +96,11 @@ test.describe("targets", () => {
     expect(legal).toBeGreaterThan(0);
     await expect(page.locator(".veil")).toHaveCount(1);
     await expect(page.locator(".hl-edge")).toHaveCount(legal);
+    // Selecting a destination must still let you switch to another Banner.
+    const banners = page.locator(".banner.hl");
+    await expect(banners.last()).toHaveCSS("pointer-events", "auto");
+    await banners.last().click();
+    await expect(banners.last()).toHaveAttribute("aria-pressed", "true");
     const opacity = await page.locator(".veil").evaluate((el) => parseFloat(getComputedStyle(el).opacity));
     expect(opacity).toBeGreaterThanOrEqual(0.2);
   });
