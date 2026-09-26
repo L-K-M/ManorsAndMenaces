@@ -797,3 +797,9 @@ label and four-player scoreboard to 13; claiming a quest updates the 15-point
 scoreboard. The first sandboxed test run lacked local socket access; the
 complete rerun with socket access passed. PR CI and review are the remaining
 integration steps; consult the PR for their final status.
+
+PR #51: the full local browser run passed 148 tests with two intentional skips
+and found one stale victory fixture granting only 12 bonus Renown. Changed it
+to use the Standard target; its save/reload/victory flow then passed (20.8s).
+Typecheck and lint passed again. Mac `.app` rebuilt successfully. Pushing the
+test correction for final CI and review; production behavior is unchanged.

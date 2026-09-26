@@ -143,7 +143,7 @@ test("setup, first turn, build, harvest, warden, save and reload, victory", asyn
   // Win via debug Renown.
   await page.getByRole("button", { name: "Debug" }).click();
   const dialog = page.getByRole("dialog", { name: "Debug tools" });
-  await dialog.getByLabel("Bonus Renown").fill("12");
+  await dialog.getByLabel("Bonus Renown").fill(String(standardRuleset(2).targetRenown));
   await dialog.getByRole("button", { name: "Set bonus Renown" }).click();
   await dialog.getByRole("button", { name: "Close" }).click();
   await endTurn(page);
