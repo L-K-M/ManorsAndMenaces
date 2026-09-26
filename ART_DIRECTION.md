@@ -1,6 +1,6 @@
 # Storybook visual refresh
 
-Last updated: 2026-09-26. Second-wave cards and empty-hand polish in progress.
+Last updated: 2026-09-26. New Game player grouping in progress.
 
 ## User request and scope
 
@@ -561,3 +561,26 @@ Check full-deck coverage, large text, narrow layouts and fallback rendering.
   Log: `/tmp/mm-wave2-board-final.log`. Review round two had only an optional
   nonempty-selector assertion, deferred under the minor-feedback stopping rule.
   Await final CI and review for the ownership-marker restoration before merging.
+
+
+## New Game player grouping
+
+The second-wave art pass merged through PR #43 as `1d27d63`. Final CI passed
+143 browser tests (two intentional skips); three review rounds had no unresolved
+blockers. The final Mac app bundle also rebuilt successfully.
+
+The next screenshot showed that names, AI controls and rival pickers visually
+ran together. On `codex/new-game-player-panels`, each player now has a numbered
+fieldset with their portrait/emblem, a player-colour left edge and a paper
+background. All their controls and their rival motto live inside that boundary.
+The rival picker uses the panel width instead of the old portrait indentation.
+Phone layouts give the name its own row. High contrast retains numbered groups
+and ink borders, so ownership does not depend on colour.
+
+The new accessibility/containment regression failed before the change. All 20
+look and rival browser checks now pass, including four-player forms at 150% text
+on desktop and phone, high contrast, changing a player to human, and reaching
+Begin. Visually reviewed desktop and 360px phone layouts; reset the preview
+viewport afterward. Typecheck and lint passed. Logs:
+`/tmp/mm-player-groups-before.log`, `/tmp/mm-player-groups-e2e.log`.
+Next: submit for CI/review and merge once checks pass.

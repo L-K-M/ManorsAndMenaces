@@ -24,9 +24,10 @@
     flex-wrap: wrap;
     align-items: baseline;
     gap: 0.2rem 0.6rem;
-    margin: -0.15rem 0 0.2rem 2.55rem;
+    margin: 0;
   }
   select {
+    width: 100%;
     font-size: 0.85rem;
     max-width: 100%;
     min-width: 0;

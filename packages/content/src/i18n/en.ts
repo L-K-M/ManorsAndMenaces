@@ -803,6 +803,7 @@ export const EN: Record<string, string> = {
   "ui.finish_tutorial": "Finish tutorial and keep playing",
   "ui.no_human_seats": "Every seat is a computer, so you will watch them play.",
   "ui.number_of_players": "Number of players",
+  "ui.player_number": "Player {n}",
   "ui.random": "random",
   "ui.pass_to": "Pass to",
   "ui.tap_to_begin_turn": "Tap to begin turn",
