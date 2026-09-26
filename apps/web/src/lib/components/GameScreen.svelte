@@ -15,6 +15,7 @@
   import ActionBar from "./ActionBar.svelte";
   import Announcer from "./Announcer.svelte";
   import Board from "./Board.svelte";
+  import CardMagic from "./CardMagic.svelte";
   import BoardHud from "./BoardHud.svelte";
   import DebugPanel from "./DebugPanel.svelte";
   import Dialogs from "./Dialogs.svelte";
@@ -217,6 +218,7 @@
       <button onclick={zoomToMine} aria-label={t("ui.zoom_to_my_holdings")}><ToolIcon name="locate" /></button>
     </div>
     <BoardHud {session} />
+    <CardMagic {session} />
     <RivalQuips {session} />
     <Overlays {session} {tutorial} {onexit} {onrematch} />
     {#if tutorial}<TutorialCoach {session} onfinish={onexit} />{/if}
@@ -290,7 +292,7 @@
   .game {
     /* The action bar's two rows: the turn status (#11) and the tools. */
     --bar-h: 5.1rem;
-    --tray-h: 8.75rem;
+    --tray-h: 14rem;
     --peek-h: 12rem;
     --dock-rule: 3px solid var(--edge);
     position: relative;
@@ -299,7 +301,7 @@
     overflow: clip;
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem);
-    grid-template-rows: auto minmax(0, 1fr) min(calc(var(--bar-h) + var(--tray-h) + 1.4rem + 3px + env(safe-area-inset-bottom)), 42dvh);
+    grid-template-rows: auto minmax(0, 1fr) min(calc(var(--bar-h) + var(--tray-h) + 1.4rem + 3px + env(safe-area-inset-bottom)), 37dvh);
     grid-template-areas:
       "top top"
       "board side"
@@ -623,6 +625,9 @@
     overscroll-behavior: contain;
     /* The tray scrolls, so there is room to read whole cards. */
     --rules-lines: none;
+    --hand-card-height: auto;
+    --hand-art-min: 8rem;
+    --card-rows: auto 8rem auto 1fr;
     --flavor-display: block;
   }
   [data-layout="rail"] .tray .preview {
@@ -721,6 +726,9 @@
     padding-top: 0.5rem;
     /* Room to read whole cards here. */
     --rules-lines: none;
+    --hand-card-height: auto;
+    --hand-art-min: 8rem;
+    --card-rows: auto 8rem auto 1fr;
     --flavor-display: block;
   }
   [data-layout="sheet"] .tray .preview {
