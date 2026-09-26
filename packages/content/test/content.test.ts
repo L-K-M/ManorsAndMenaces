@@ -6,6 +6,8 @@ import {
   RULESET_VERSION,
   clone,
   createRulesEngine,
+  getLegalActions,
+  type CommandIntent,
   enumerateCardTargets,
   evaluateQuestCondition,
   standardRuleset,
@@ -180,5 +182,30 @@ describe("rulesContentFor", () => {
     } finally {
       delete MAPS[broken.id];
     }
+  });
+});
+
+
+describe("Standard opening hands on the real map", () => {
+  it.each([2, 3, 4])("deals exactly two private cards to all %i seats when setup finishes", (players) => {
+    let state = newGame(players);
+    const initialDeck = state.cardDeck.length;
+    for (let step = 0; state.status === "setup" && step < 30; step++) {
+      expect(Object.values(state.players).every((p) => p.hand.length === 0)).toBe(true);
+      const playerId = state.activePlayerId;
+      const legal = getLegalActions(engine.ctx, state, playerId);
+      const intent: CommandIntent = legal.mode === "setup_manor"
+        ? { type: "place_initial_manor", siteId: legal.initialManorSites[0]! }
+        : legal.mode === "setup_route"
+          ? { type: "place_initial_route", routeId: legal.initialRoutes[0]! }
+          : { type: "assign_initial_banners", assignments: {} };
+      const result = engine.applyCommand(state, { ...intent, matchId: state.matchId, playerId, commandId: `setup-${step}` });
+      expect(result.accepted, JSON.stringify(result.error)).toBe(true);
+      state = result.newState!;
+    }
+    expect(state.status).toBe("playing");
+    for (const player of Object.values(state.players)) expect(player.hand).toHaveLength(2);
+    expect(state.cardDeck).toHaveLength(initialDeck - 2 * players);
+    expect(new Set(Object.values(state.players).flatMap((p) => p.hand)).size).toBe(2 * players);
   });
 });

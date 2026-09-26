@@ -184,6 +184,9 @@ export function formatEvents(events: GameEvent[], state: GameState, map: MapDefi
           push(t("log.hoard_taken", { menace: menaceName(state, e.menaceId), amount: -e.delta, resource: t(`resource.${e.resource}`) }), null, "info", e);
         }
         break;
+      case "cards_dealt":
+        push(t(`log.cards_dealt_${e.reason}`, { name: nameOf(state, e.playerId), count: e.count }), e.playerId, "info", e);
+        break;
       case "card_bought":
         push(t("log.card_bought", { name: nameOf(state, e.playerId) }), e.playerId, "info", e);
         break;

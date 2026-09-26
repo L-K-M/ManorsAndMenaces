@@ -154,6 +154,9 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
         );
         break;
       }
+      case "cards_dealt":
+        out.push({ actorId: e.playerId, text: t(`log.cards_dealt_${e.reason}`, { name: name(e.playerId), count: e.count }), at: null, gains: null, againstViewer: false, self: e.playerId === viewerId });
+        break;
       case "card_bought":
         add(e.playerId, t("feed.card_bought", { name: name(e.playerId) }));
         break;

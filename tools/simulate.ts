@@ -56,6 +56,9 @@ interface GameStats {
   trades: number;
   cards: number;
   bought: number;
+  dealt: number;
+  firstCardRound: number | null;
+  earlyCards: number;
   quests: number;
   produced: Record<string, number>;
   /** Cards played (countered ones included) and cards countered, by card definition id. */
@@ -100,6 +103,9 @@ function playOne(i: number): GameStats {
     trades: 0,
     cards: 0,
     bought: 0,
+    dealt: 0,
+    firstCardRound: null,
+    earlyCards: 0,
     quests: 0,
     produced: Object.fromEntries(RESOURCE_TYPES.map((r) => [r, 0])),
     plays: {},
@@ -133,10 +139,13 @@ function playOne(i: number): GameStats {
       if (e.type === "market_traded") stats.trades++;
       if (e.type === "card_played") {
         stats.cards++;
+        stats.firstCardRound ??= before.round;
+        if (before.round <= 3) stats.earlyCards++;
         bump(stats.plays, cardDefIdOf(e.cardId));
       }
       if (e.type === "card_cancelled") bump(stats.countered, cardDefIdOf(e.cardId));
       if (e.type === "card_bought") stats.bought++;
+      if (e.type === "cards_dealt") stats.dealt += e.count;
       if (e.type === "quest_claimed") stats.quests++;
       if (e.type === "resource_gained" && e.reason === "harvest") stats.produced[e.resource] = (stats.produced[e.resource] ?? 0) + e.amount;
       if (e.type === "harvest_completed") (s.round <= 6 ? stats.harvestMid : stats.harvestLate).push(e.total);
@@ -203,6 +212,9 @@ console.log(`per game:            writs ${avg(results.map((r) => r.writs)).toFix
 console.log(`produced per game:   ${JSON.stringify(produced)}`);
 console.log(`hereditary regions:  games where a contestable Region was held by one player > 60% of the match: ${pct(results.filter((r) => r.maxHoldShare > 0.6).length)}   target ≤ 25%`);
 if (DECK.length > 0) printCardTelemetry();
+
+const firstCards = results.flatMap((r) => r.firstCardRound === null ? [] : [r.firstCardRound]);
+console.log(`card access:         first play avg round ${avg(firstCards).toFixed(1)} (${firstCards.length}/${GAMES} games); plays by round 3 ${avg(results.map((r) => r.earlyCards)).toFixed(1)}; free cards ${avg(results.map((r) => r.dealt)).toFixed(1)}`);
 
 /** Per-card plays and the second-wave outcomes; printed only when the ruleset deals cards. */
 function printCardTelemetry(): void {

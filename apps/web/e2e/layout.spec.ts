@@ -79,7 +79,7 @@ async function fillHand(page: Page, count = 4) {
   }
   await dialog.getByRole("button", { name: "Close" }).click();
   // The hand header and the phone tray toggle both show the count.
-  await expect(page.getByText(new RegExp(`\\b${count}/7\\b`)).first()).toBeVisible();
+  await expect(page.getByText(new RegExp(`\\b${count + BALANCE.initialCards}/7\\b`)).first()).toBeVisible();
 }
 
 /** Names of the hand's cards whose rules text is cut off. */

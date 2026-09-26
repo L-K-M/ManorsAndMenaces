@@ -129,6 +129,7 @@ test("setup, first turn, build, harvest, warden, save and reload, victory", asyn
 
   // Save, reload, continue.
   await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("button", { name: "Saved." })).toBeVisible();
   const roundText = await page.locator(".round").textContent();
   await page.reload();
   await page.getByRole("button", { name: "Continue" }).click();

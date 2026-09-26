@@ -116,6 +116,11 @@ function stage(matchId: string, deal: { playerId: PlayerId; cardDefId: string }[
   const row = app.store.match(matchId);
   if (!row?.state) throw new Error("no state");
   let s = row.state;
+  // These scenarios specify exact hands, independently of starting draws.
+  for (const player of Object.values(s.players)) {
+    s.cardDeck.push(...player.hand);
+    player.hand = [];
+  }
   const debug = (c: Record<string, unknown>) => {
     const r = engine.applyDebugCommand(s, { commandId: "stage", matchId, playerId: essenceFor, ...c } as never);
     if (!r.newState) throw new Error(r.error?.code);
