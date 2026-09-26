@@ -50,7 +50,9 @@ const CONFIRMATIONS_PER_GUEST_PER_DAY = 5;
  * one allowance, or a string of aliases floods one inbox.
  */
 function mailboxKey(address: string): string {
-  return address.toLowerCase().replace(/\+[^@]*@/, "@");
+  const at = address.lastIndexOf("@");
+  const local = address.slice(0, at).replace(/\+.*$/, "");
+  return at < 0 ? address.toLowerCase() : `${local}${address.slice(at)}`.toLowerCase();
 }
 // SMTP servers that hang must not hold a lobby request for minutes
 // (nodemailer waits up to two minutes to connect by default).
