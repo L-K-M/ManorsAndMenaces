@@ -119,6 +119,16 @@ describe("email notices", () => {
     expect(mails).toHaveLength(1);
   });
 
+  it("show the address on their pages as text, never as markup", async () => {
+    await start();
+    const ann = await guest("Ann");
+    // Legal in an address, and meaningful in HTML.
+    await api("/api/email", ann.token, { address: "o'neil&co@example.org" });
+    const asking = await page(link(mails[0], "/api/email/confirm"));
+    expect(asking.html).toContain("o&#39;neil&#38;co@example.org");
+    expect(asking.html).not.toContain("o'neil&co");
+  });
+
   it("do not confirm with a link that is unknown, used or out of date", async () => {
     await start();
     const ann = await guest("Ann");

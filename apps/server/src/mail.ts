@@ -76,6 +76,8 @@ export function mailConfigFromEnv(env: Record<string, string | undefined>): Mail
     throw new Error(`PUBLIC_URL must be the http(s) address players open the game at, like https://play.example.org, not "${env.PUBLIC_URL}"`);
   }
   const from = (env.MAIL_FROM as string).trim();
+  // Every email carries it as a header, so a stray line break would corrupt them all.
+  if (/[\r\n]/.test(from)) throw new Error("MAIL_FROM must be one line, like: Manors & Menaces <turns@example.org>");
   const base = publicUrl.href.replace(/\/+$/, "");
   if (outbox) return { from, publicUrl: base, transport: outboxTransport(outbox) };
 
@@ -112,7 +114,11 @@ const message = (e: unknown): string => (e instanceof Error ? e.message : String
 
 /** Turn emails for the guests of one server. */
 export class EmailNotices {
-  /** When recent confirmation emails went out, per `address:` and `guest:` key. */
+  /**
+   * When recent confirmation emails went out, per `address:` and `guest:` key.
+   * Kept in memory, so a restart resets the daily limits; they exist to stop
+   * floods, which a restart now and then does not re-enable.
+   */
   private readonly confirmationsSent = new Map<string, number[]>();
 
   constructor(

@@ -170,7 +170,7 @@ Any provider with SMTP works: your own mail server, Fastmail, Mailgun, Amazon SE
 - Confirmation links carry a one-time token. Only its hash is stored, and it expires after 24 hours.
 - Unsubscribe links are signed with a secret kept in the database, so they keep working without storing anything per email.
 - An address gets turn emails only after its owner presses **Turn on** on the confirmation page. So nobody can sign up someone else.
-- Each address receives at most three confirmation emails a day, and each guest can request at most five.
+- Each address receives at most three confirmation emails a day, and each guest can request at most five. The counts are kept in memory, so a restart resets them.
 - Turn emails are plain text, marked `Auto-Submitted: auto-generated` so out-of-office replies are not sent back. They carry `List-Unsubscribe` and `List-Unsubscribe-Post` headers (RFC 8058) for one-click unsubscribe.
 
 ### About the Android app

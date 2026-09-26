@@ -5,6 +5,7 @@ import { OUTBOX } from "./e2e/outbox";
 // development-only debug panel (§100) is available for setting up scenarios.
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/clear-outbox.ts",
   timeout: 90_000,
   retries: process.env.CI ? 1 : 0,
   use: { baseURL: "http://localhost:5174", trace: "retain-on-failure", viewport: { width: 1400, height: 900 } },

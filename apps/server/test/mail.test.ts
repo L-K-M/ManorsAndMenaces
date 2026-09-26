@@ -18,6 +18,8 @@ describe("mail configuration", () => {
     expect(() => mailConfigFromEnv({ ...complete, SMTP_URL: "smtps://u:p@smtp.example.org", PUBLIC_URL: "play.example.org" })).toThrow(/PUBLIC_URL/);
     expect(() => mailConfigFromEnv({ ...complete, SMTP_URL: "http://smtp.example.org" })).toThrow(/SMTP_URL/);
     expect(() => mailConfigFromEnv({ ...complete, SMTP_URL: "smtps://u:p@smtp.example.org", MAIL_OUTBOX_DIR: "/tmp/x" })).toThrow(/not both/);
+    // Every email carries it as a header, so a stray line break would corrupt them all.
+    expect(() => mailConfigFromEnv({ ...complete, SMTP_URL: "smtps://u:p@smtp.example.org", MAIL_FROM: "Turns <turns@example.org>\nBcc: x@example.org" })).toThrow(/MAIL_FROM/);
   });
 
   it("builds links from the public address without a trailing slash", () => {
@@ -45,14 +47,15 @@ async function fakeSmtpServer() {
   const server = createServer((socket) => {
     let mail = { from: "", to: [] as string[], data: "" };
     let inData = false;
-    let buffered = "";
+    // Bytes, not text, until a line is complete: a chunk may end mid-character.
+    let buffered = Buffer.alloc(0);
     socket.write("220 fake ESMTP\r\n");
-    socket.on("data", (chunk) => {
-      buffered += chunk.toString("utf8");
+    socket.on("data", (chunk: Buffer) => {
+      buffered = Buffer.concat([buffered, chunk]);
       let end: number;
       while ((end = buffered.indexOf("\r\n")) >= 0) {
-        const line = buffered.slice(0, end);
-        buffered = buffered.slice(end + 2);
+        const line = buffered.subarray(0, end).toString("utf8");
+        buffered = buffered.subarray(end + 2);
         if (inData) {
           if (line === ".") {
             inData = false;

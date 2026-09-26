@@ -12,9 +12,13 @@
   let settings: EmailSettings | null = $state(null);
   let address = $state("");
 
+  /** Bumped by every change of settings, so an answer that was already on its way cannot undo it. */
+  let generation = 0;
   async function load() {
-    // Quietly: an older server, or a moment offline, just leaves this hidden.
-    settings = await client.emailSettings().catch(() => settings);
+    const asked = ++generation;
+    // Quietly: an older server, or a moment offline, just leaves this as it was.
+    const next = await client.emailSettings().catch(() => null);
+    if (next && asked === generation) settings = next;
   }
   $effect(() => {
     void load();
@@ -33,16 +37,21 @@
 
   async function send() {
     const next = await guard(() => client.requestEmail(address.trim()));
-    if (next) settings = next;
+    if (next) update(next);
   }
   async function remove() {
     const next = await guard(() => client.removeEmail());
-    if (next) settings = next;
+    if (next) update(next);
+  }
+  function update(next: EmailSettings) {
+    generation++;
+    settings = next;
   }
 </script>
 
 {#if settings?.available}
-  <div class="emails">
+  <!-- Live: the form, "check your inbox" and "emails go to" replace each other here. -->
+  <div class="emails" aria-live="polite">
     {#if settings.address}
       <p>{settings.confirmed ? t("ui.turn_emails_on", { address: settings.address }) : t("ui.turn_emails_pending", { address: settings.address })}</p>
       <button type="button" disabled={busy} onclick={remove}>{settings.confirmed ? t("ui.turn_emails_stop") : t("ui.turn_emails_cancel")}</button>
