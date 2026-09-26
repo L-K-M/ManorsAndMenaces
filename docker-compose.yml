@@ -20,6 +20,12 @@ services:
       # Contact for Web Push services (turn notices to players whose app is
       # closed): mailto:you@example.org or an https: URL of yours.
       VAPID_SUBJECT: ${VAPID_SUBJECT:-https://github.com/L-K-M/ManorsAndMenaces}
+      # Turn emails, for players who confirm an address in the lobby. All
+      # three are needed; leave SMTP_URL empty to keep email off. See
+      # docs/notifications.md.
+      SMTP_URL: ${SMTP_URL:-} # smtps://user:password@smtp.example.org
+      MAIL_FROM: ${MAIL_FROM:-} # Manors & Menaces <turns@example.org>
+      PUBLIC_URL: ${PUBLIC_URL:-} # https://play.example.org, where players open the game
     volumes:
       - manors-data:/data # SQLite database
 volumes:

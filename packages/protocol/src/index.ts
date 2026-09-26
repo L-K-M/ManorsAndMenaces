@@ -189,6 +189,18 @@ export interface PushSubscriptionRequest {
   keys: { p256dh: string; auth: string };
 }
 
+/**
+ * GET /api/email, and the answer to POST /api/email ({ address }) and
+ * POST /api/email/remove: where this guest's turn emails go. `available` is
+ * false when the server has no way to send mail; `confirmed` stays false
+ * until the owner opens the link the server emailed.
+ */
+export interface EmailSettings {
+  available: boolean;
+  address: string | null;
+  confirmed: boolean;
+}
+
 /** Server → client push messages over WebSocket. */
 export type ServerMessage =
   | { type: "hello"; userId: string }

@@ -14,6 +14,7 @@
   import { lastSeenRevision, watchSeen } from "./seen.js";
   import { onNotice, watchNotices } from "./notices.svelte.js";
   import { disablePush, enablePush, pushState, type PushState } from "./push.js";
+  import TurnEmails from "./TurnEmails.svelte";
   import ToolIcon from "../components/ToolIcon.svelte";
 
   let { onopen, onback }: { onopen: (s: GameSession) => void; onback: () => void } = $props();
@@ -70,9 +71,12 @@
     await sessionChanged();
   }
 
+  /** Remounts the turn email setting, which belongs to the guest. */
+  let guestKey = $state(0);
   /** A new guest session: hear its notices, and move this browser's push subscription to it. */
   async function sessionChanged() {
     watchNotices();
+    guestKey++;
     if ((await pushState()) === "on") pushSetting = await enablePush(client).catch(() => pushSetting);
   }
 
@@ -273,6 +277,7 @@
         <small class="muted">{pushSetting === "denied" ? t("ui.turn_notifications_denied") : t("ui.turn_notifications_hint")}</small>
       </label>
     {/if}
+    {#key guestKey}<TurnEmails {client} {guard} {busy} />{/key}
     <h3>{t("ui.your_matches")} <button class="ghost" onclick={refresh} aria-label={t("ui.refresh")}><ToolIcon name="refresh" size={20} /></button></h3>
     {#if matches.length === 0}<p class="muted">{t("ui.no_matches_yet")}</p>{/if}
     <ul class="matches">

@@ -8,16 +8,23 @@
 //   GET  /api/matches/:id              → MatchView (redacted for you)
 //   POST /api/matches/:id/commands     SubmitCommandsRequest → SubmitCommandsResponse
 //   GET  /api/matches/:id/replay       finished matches only
+//   GET  /api/push/key, POST /api/push/subscribe, POST /api/push/unsubscribe
+//   GET  /api/email                    → EmailSettings; POST /api/email { address }, POST /api/email/remove
+//   GET|POST /api/email/confirm?t=…     the link in a confirmation email (HTML)
+//   GET|POST /api/email/unsubscribe?u=…&t=…  the link in every turn email (HTML; RFC 8058 one-click POST)
 //   GET  /api/health
 //   WS   /api/ws?token=…               subscribe → match_update pushes
 // Anything else is served from WEB_DIST (the built web client), if set.
 
+import { randomBytes } from "node:crypto";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import { isSubmitCommandsRequest, type ApiErrorBody, type ClientMessage, type ServerMessage } from "@manors-menaces/protocol";
+import { isSubmitCommandsRequest, type ApiErrorBody, type ClientMessage, type EmailSettings, type ServerMessage } from "@manors-menaces/protocol";
 import { redactEvent, type GameEvent } from "@manors-menaces/rules";
+import { EmailNotices, emailPage, type MailConfig } from "./mail.js";
+import { text } from "./notices.js";
 import { generateVapidKeys, parseSubscription, sendPush, vapidKeysFromPem } from "./push.js";
 import { HttpError, MatchService } from "./service.js";
 import { Store } from "./store.js";
@@ -43,7 +50,20 @@ export interface AppOptions {
     /** Replaces the global fetch for deliveries (tests). */
     fetch?: typeof fetch;
   };
+  /** Turn emails for players whose app is closed (spec §85); off when absent (mailConfigFromEnv). */
+  email?: MailConfig;
 }
+
+const NO_EMAIL: EmailSettings = { available: false, address: null, confirmed: false };
+
+// Pages behind email links: no scripts, nothing framed, and no token leaked
+// in a Referer when the page links on to the game.
+const EMAIL_PAGE_HEADERS = {
+  "content-type": "text/html; charset=utf-8",
+  "cache-control": "no-store",
+  "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+  "referrer-policy": "no-referrer",
+};
 
 /** VAPID contact when the operator sets none (VAPID_SUBJECT). */
 const DEFAULT_VAPID_SUBJECT = "https://github.com/L-K-M/ManorsAndMenaces";
@@ -140,6 +160,8 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   // Created once and kept: browsers subscribe with this public key, so a new
   // key would silently cut every existing subscription off.
   const vapid = { keys: vapidKeysFromPem(store.settingOr("vapid_private_key", generateVapidKeys)), subject: opts.push?.subject ?? DEFAULT_VAPID_SUBJECT };
+  // The secret signs unsubscribe links, so like the VAPID key it is kept.
+  const email = opts.email ? new EmailNotices(store, opts.email, store.settingOr("email_secret", () => randomBytes(32).toString("base64url"))) : null;
   const cors = opts.corsOrigin ?? "*";
   const webDist = opts.webDist && existsSync(opts.webDist) ? resolve(opts.webDist) : null;
 
@@ -153,6 +175,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   const sweep = setInterval(() => {
     const cutoff = Date.now() - 60_000;
     for (const [k, b] of buckets) if (b.lastUsed < cutoff) buckets.delete(k);
+    email?.sweep();
   }, 30_000);
   sweep.unref();
   const allow = (req: IncomingMessage): boolean => {
@@ -182,6 +205,29 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
       "access-control-allow-methods": "GET, POST, OPTIONS",
     });
     res.end();
+  };
+
+  /** Answers the confirmation and unsubscribe links in emails. */
+  const emailLink = (req: IncomingMessage, res: ServerResponse, url: URL, notices: EmailNotices): void => {
+    req.resume(); // a form or one-click POST body carries nothing needed
+    const page = (status: number, title: string, body: string, button?: string): void => {
+      res.writeHead(status, EMAIL_PAGE_HEADERS);
+      res.end(emailPage(notices.publicUrl, title, body, button));
+    };
+    const post = req.method === "POST";
+    if (url.pathname === "/api/email/confirm") {
+      const token = url.searchParams.get("t") ?? "";
+      const address = post ? notices.confirm(token) : notices.pending(token);
+      if (!address) return page(410, text("email.link_expired_title"), text("email.link_expired_body"));
+      if (post) return page(200, text("email.confirmed_title"), text("email.confirmed_body", { address }));
+      return page(200, text("email.confirm_title"), text("email.confirm_ask", { address }), text("email.confirm_button"));
+    }
+    const userId = url.searchParams.get("u") ?? "";
+    if (!notices.canUnsubscribe(userId, url.searchParams.get("t") ?? "")) return page(403, text("email.link_invalid_title"), text("email.link_invalid_body"));
+    const address = notices.settings(userId).address;
+    if (post) notices.remove(userId);
+    if (post || !address) return page(200, text("email.unsubscribed_title"), text("email.unsubscribed_body"));
+    return page(200, text("email.unsubscribe_title"), text("email.unsubscribe_ask", { address }), text("email.unsubscribe_button"));
   };
 
   const readJson = (req: IncomingMessage): Promise<unknown> =>
@@ -267,6 +313,10 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         const body = await readObject(req);
         return send(res, 200, service.createGuest(body.displayName));
       }
+      if ((url.pathname === "/api/email/confirm" || url.pathname === "/api/email/unsubscribe") && (req.method === "GET" || req.method === "POST")) {
+        if (!email) throw new HttpError(404, "not found");
+        return emailLink(req, res, url, email);
+      }
       const user = service.authenticate(bearer(req));
       if (req.method === "GET" && url.pathname === "/api/me") return send(res, 200, { userId: user.id, displayName: user.display_name });
       if (url.pathname === "/api/push/key" && req.method === "GET") return send(res, 200, { publicKey: vapid.keys.publicKey });
@@ -280,6 +330,16 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         const body = await readObject(req);
         if (typeof body.endpoint === "string") store.removePushSubscription(body.endpoint, user.id);
         return send(res, 200, { ok: true });
+      }
+      if (url.pathname === "/api/email" && req.method === "GET") return send(res, 200, email?.settings(user.id) ?? NO_EMAIL);
+      if (url.pathname === "/api/email" && req.method === "POST") {
+        if (!email) throw new HttpError(404, "this server does not send email");
+        return send(res, 200, await email.request(user.id, (await readObject(req)).address));
+      }
+      if (url.pathname === "/api/email/remove" && req.method === "POST") {
+        if (!email) throw new HttpError(404, "this server does not send email");
+        email.remove(user.id);
+        return send(res, 200, email.settings(user.id));
       }
       if (url.pathname === "/api/matches" && req.method === "GET") return send(res, 200, service.listMatches(user));
       if (url.pathname === "/api/matches" && req.method === "POST") return send(res, 200, service.createMatch(user, (await readObject(req)) as never));
@@ -459,6 +519,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         })
         .catch((e: unknown) => console.error(`push to ${new URL(sub.endpoint).host} failed`, e));
     }
+    email?.notify(userId, notice);
   };
   // AI turns run on in-memory timers: restart the ones a restart dropped.
   service.resumeAll();
