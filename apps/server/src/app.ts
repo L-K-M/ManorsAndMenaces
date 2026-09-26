@@ -447,8 +447,8 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         // A bad session must not use up a place on the invite.
         const token = bearer(req);
         const user = token === null ? null : service.authenticate(token);
-        const found = inviteFor(req, body.code ?? null, invites);
-        if (!found) throw new HttpError(403, "this invite does not work", "INVITE_INVALID");
+        const found = inviteFor(req, body.code, invites);
+        if (!found) throw new HttpError(403, "send the invite code", "INVITE_INVALID");
         if (user) invites.admit(user.id, found.invite);
         return send(res, 200, { ok: true }, found.headers);
       }

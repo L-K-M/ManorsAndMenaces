@@ -60,7 +60,7 @@
     {#if left > 0}
       <form onsubmit={(e) => (e.preventDefault(), make())}>
         <label>{t("ui.friend_invite_name")} <input bind:value={name} maxlength="40" required autocomplete="off" /></label>
-        <button disabled={busy}>{t("ui.friend_invite_make")}</button>
+        <button disabled={busy || !name.trim()}>{t("ui.friend_invite_make")}</button>
       </form>
     {/if}
     {#if settings.invites.length}

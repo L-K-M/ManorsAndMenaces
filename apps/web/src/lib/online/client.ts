@@ -271,7 +271,8 @@ export class OnlineClient {
   }
   /** The link that opens this server's game with an invite. */
   inviteLink(code: string): string {
-    return `${this.serverUrl.replace(/\/$/, "")}/invite/${code}`;
+    // An empty address means this site (call() fetches relative to it), but a link must say where.
+    return `${this.serverUrl.trim().replace(/\/+$/, "") || location.origin}/invite/${code}`;
   }
 }
 

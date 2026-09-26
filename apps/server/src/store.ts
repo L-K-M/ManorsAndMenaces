@@ -147,8 +147,8 @@ export class Store {
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         invited_by TEXT REFERENCES invites(id),
-        max_devices INTEGER,
-        quota INTEGER NOT NULL,
+        max_devices INTEGER CHECK (max_devices IS NULL OR max_devices > 0),
+        quota INTEGER NOT NULL CHECK (quota >= 0),
         expires_at TEXT,
         created_at TEXT NOT NULL,
         revoked_at TEXT
@@ -273,11 +273,15 @@ export class Store {
 
   // ------------------------------------------------------------------ invites
 
-  /** Adds an invite; false if its id or code is taken. */
+  /**
+   * Adds an invite; false if its id or code is taken. Other broken rules
+   * (the CHECKs) still throw: ON CONFLICT covers only uniqueness, where
+   * OR IGNORE would skip them silently.
+   */
   createInvite(invite: InviteRow): boolean {
     const res = this.db
       .prepare(
-        "INSERT OR IGNORE INTO invites (id, code, name, invited_by, max_devices, quota, expires_at, created_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO invites (id, code, name, invited_by, max_devices, quota, expires_at, created_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
       )
       .run(invite.id, invite.code, invite.name, invite.invited_by, invite.max_devices, invite.quota, invite.expires_at, invite.created_at, invite.revoked_at);
     return Number(res.changes) === 1;

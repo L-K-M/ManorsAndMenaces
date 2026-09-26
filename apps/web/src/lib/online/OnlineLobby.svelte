@@ -278,7 +278,8 @@
       {/if}
       <details>
         <summary>{t("ui.server")}</summary>
-        <label>{t("ui.server_address")} <input bind:value={serverUrl} /></label>
+        <!-- The invite field is for the server that asked; another may not want one. -->
+        <label>{t("ui.server_address")} <input bind:value={serverUrl} oninput={() => (inviteNeeded = false)} /></label>
       </details>
       <div class="row">
         <button type="button" onclick={onback}>{t("ui.back")}</button>

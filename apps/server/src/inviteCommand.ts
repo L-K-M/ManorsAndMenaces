@@ -57,7 +57,7 @@ export function invitesCommand(args: string[], opts: InvitesCommandOptions): num
       const name = inviteName(words.join(" "));
       if (!name) throw new UsageError("create needs the name of the person the invite is for");
       const uses = count(flags.uses, "--uses", 1);
-      const days = count(flags.days, "--days", 1);
+      const days = count(flags.days, "--days", 1, MAX_DAYS);
       const quota = count(flags.invites, "--invites", 0) ?? INVITES_PER_PERSON;
       const invite = invites.create({ name, maxDevices: uses, days, quota });
       out(`Invite for ${invite.name} (id ${invite.id}): ${devices(uses)}, ${invite.expires_at ? `link open until ${day(invite.expires_at)}` : "no expiry"}, ${quota} invites of their own.`);
@@ -121,11 +121,16 @@ function parse(args: string[], names: string[]): { words: string[]; flags: Recor
   return { words, flags };
 }
 
-/** A whole number of at least `min`, or null when the option is absent. */
-function count(value: string | undefined, option: string, min: number): number | null {
+/** A hundred years: far enough for "no hurry", and well inside the dates JavaScript can hold. */
+const MAX_DAYS = 36_500;
+
+/** A whole number from `min` to `max`, or null when the option is absent. */
+function count(value: string | undefined, option: string, min: number, max = Number.MAX_SAFE_INTEGER): number | null {
   if (value === undefined) return null;
   const n = Number(value);
-  if (!/^\d+$/.test(value) || !Number.isSafeInteger(n) || n < min) throw new UsageError(`${option} must be a whole number of at least ${min}, not "${value}"`);
+  if (!/^\d+$/.test(value) || !Number.isSafeInteger(n) || n < min || n > max) {
+    throw new UsageError(`${option} must be a whole number ${max === Number.MAX_SAFE_INTEGER ? `of at least ${min}` : `from ${min} to ${max}`}, not "${value}"`);
+  }
   return n;
 }
 

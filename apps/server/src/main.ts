@@ -62,7 +62,12 @@ function fail(message: string, error?: unknown): never {
 
 const dbPath = process.env.DB_PATH ?? resolve(process.cwd(), "data/manors.sqlite");
 
-if (process.argv[2] === "invites") process.exit(invitesCommand(process.argv.slice(3), { dbPath, publicUrl: process.env.PUBLIC_URL || undefined }));
+if (process.argv[2] === "invites") {
+  const status = invitesCommand(process.argv.slice(3), { dbPath, publicUrl: process.env.PUBLIC_URL || undefined });
+  // Output to a pipe may still be on its way (macOS); exit once it is out.
+  await Promise.all([process.stdout, process.stderr].map((stream) => new Promise((done) => stream.write("", done))));
+  process.exit(status);
+}
 
 const trustProxy = Number(process.env.TRUST_PROXY ?? 0);
 if (!Number.isInteger(trustProxy) || trustProxy < 0) fail(`TRUST_PROXY must be a whole number of proxies (0 or more), not "${process.env.TRUST_PROXY}"`);

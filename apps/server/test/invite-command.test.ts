@@ -71,8 +71,10 @@ describe("the invites command", () => {
     await startServer();
     const anna = codeIn(run("create", "Anna").out);
     const guest = await fetch(`${base}/api/guest`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ displayName: "Annie", inviteCode: anna }) });
+    expect(guest.status).toBe(200);
     const { token } = (await guest.json()) as { token: string };
-    await fetch(`${base}/api/invites`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ name: "Bert" }) });
+    const made = await fetch(`${base}/api/invites`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ name: "Bert" }) });
+    expect(made.status).toBe(200);
     const listed = run("list").out;
     expect(listed).toContain("players: Annie");
     expect(listed).toContain("1 of 10 invites made");
@@ -101,7 +103,7 @@ describe("the invites command", () => {
 
   it("explains its usage when an argument is wrong", async () => {
     await startServer();
-    for (const args of [["create"], ["create", "Anna", "--uses", "0"], ["create", "Anna", "--days", "soon"], ["create", "Anna", "--colour", "red"], ["create", "Anna", "--uses"], ["revoke"], ["frobnicate"]]) {
+    for (const args of [["create"], ["create", "Anna", "--uses", "0"], ["create", "Anna", "--days", "soon"], ["create", "Anna", "--days", "999999999"], ["create", "Anna", "--colour", "red"], ["create", "Anna", "--uses"], ["revoke"], ["frobnicate"]]) {
       const result = run(...args);
       expect(result.status, args.join(" ")).toBe(1);
       expect(result.err, args.join(" ")).toContain("Usage:");

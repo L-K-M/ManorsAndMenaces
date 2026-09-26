@@ -27,6 +27,8 @@ const ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz";
 /** 12 characters: about 59 bits, far beyond guessing at the API's rate limit. */
 const CODE_LENGTH = 12;
 const ID_LENGTH = 6;
+/** Draws of a fresh id and code before giving up; one clash is already rare. */
+const MAX_ID_DRAWS = 10;
 const MAX_NAME_LENGTH = 40;
 const DAY_MS = 24 * 60 * 60_000;
 
@@ -84,7 +86,7 @@ export class Invites {
   create(opts: NewInvite): InviteRow {
     const name = inviteName(opts.name);
     if (!name) throw new Error("An invite needs the name of the person it is for");
-    for (;;) {
+    for (let attempt = 0; attempt < MAX_ID_DRAWS; attempt++) {
       const now = Date.now();
       const invite: InviteRow = {
         id: randomString(ID_LENGTH),
@@ -100,6 +102,7 @@ export class Invites {
       // A clash of random ids is rare; draw again.
       if (this.store.createInvite(invite)) return invite;
     }
+    throw new Error(`No free invite id after ${MAX_ID_DRAWS} draws`);
   }
 
   /** The invite `code` names if it can still admit a device, else null. */

@@ -70,11 +70,20 @@ async function invitedPlayer(code: string, name: string) {
 function socketOpens(token: string, cookie: string | null = null): Promise<boolean> {
   return new Promise((resolve) => {
     const ws = new WebSocket(`${base.replace("http", "ws")}/api/ws?token=${token}`, cookie ? { headers: { cookie } } : {});
+    // A handshake that never finishes counts as refused, rather than hanging the test.
+    const timer = setTimeout(() => {
+      ws.terminate();
+      resolve(false);
+    }, 2_000);
     ws.on("open", () => {
+      clearTimeout(timer);
       ws.close();
       resolve(true);
     });
-    ws.on("error", () => resolve(false));
+    ws.on("error", () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
   });
 }
 
@@ -210,10 +219,20 @@ describe("an invite-only server", () => {
 
     // A guest session from before: the code admits it.
     const old = app.service.createGuest("Old");
+    expect((await client.api("/api/invites/accept", old.token, {})).data.code).toBe("INVITE_INVALID");
     expect((await client.api("/api/invites/accept", old.token, { code: "nosuchcode" })).data.code).toBe("INVITE_INVALID");
     expect((await client.api("/api/invites/accept", old.token, { code: anna.code })).status).toBe(200);
     expect((await client.api("/api/matches", old.token)).status).toBe(200);
     expect(invites.list()[0]).toMatchObject({ devices: 2, players: ["Anna", "Old"] });
+  });
+
+  it("keeps invites that admit no device or allow negative invites out of the database", async () => {
+    await start();
+    expect(() => invites.create({ name: "Nobody", maxDevices: 0 })).toThrow(/CHECK/);
+    expect(() => invites.create({ name: "Nobody", quota: -1 })).toThrow(/CHECK/);
+    // A clash of random ids is not an error: create() draws again.
+    const taken = invites.create({ name: "Anna" });
+    expect(app.store.createInvite({ ...taken, code: "another-code" })).toBe(false);
   });
 
   it("admits a guest session from before through the browser's invite", async () => {
