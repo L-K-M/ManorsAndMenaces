@@ -170,17 +170,21 @@ describe("AI playouts", () => {
   // Route burning, Holding destruction, hand swaps and Charters) actually get
   // played and the invariants above see their results.
   const CARD_HEAVY_PLAYERS = [2, 3, 4] as const;
+  // Seeds whose games between them resolve every card event checked below.
+  // Any change to the AI or the deck can shift them; pick new ones if so.
+  const CARD_HEAVY_SEEDS: Record<(typeof CARD_HEAVY_PLAYERS)[number], string> = { 2: "cards-2p-b", 3: "cards-3p-c", 4: "cards-4p-b" };
   const cardGameEvents = new Map<number, Set<GameEvent["type"]>>();
   /** Plays and checks the card-heavy game for this seat count once per run; returns its event types. */
   function cardHeavyGame(players: number): Set<GameEvent["type"]> {
     const played = cardGameEvents.get(players);
     if (played) return played;
     const rs = standardRuleset(players);
-    const { initial, final, steps, won } = playGame(players, rs, `cards-${players}p`, { freeCardEachTurn: true });
+    const seed = CARD_HEAVY_SEEDS[players as (typeof CARD_HEAVY_PLAYERS)[number]];
+    const { initial, final, steps, won } = playGame(players, rs, seed, { freeCardEachTurn: true });
     expectWinner(final, won, rs.targetRenown);
     const replayed = replaySteps(initial, steps);
     expect(hashState(replayed.state)).toBe(hashState(final));
-    console.log(`cards-${players}p`, "rounds", final.round, "steps", steps.length, describeWin(final, won));
+    console.log(seed, "rounds", final.round, "steps", steps.length, describeWin(final, won));
     cardGameEvents.set(players, replayed.eventTypes);
     return replayed.eventTypes;
   }
@@ -191,11 +195,11 @@ describe("AI playouts", () => {
     }, 120_000);
   }
 
-  // The Plague is never cast and no Stronghold is reduced in these seeds;
-  // new-cards.test.ts covers both.
+  // new-cards.test.ts covers each card on its own; this checks they also
+  // resolve in whole games. The Plague's effect_started is not unique to it.
   it("card-heavy games exercise the second-wave cards", () => {
     const seen = new Set(CARD_HEAVY_PLAYERS.flatMap((players) => [...cardHeavyGame(players)]));
-    for (const type of ["route_burned", "holding_destroyed", "hands_swapped", "insurance_claimed"] as const) expect(seen, type).toContain(type);
+    for (const type of ["route_burned", "holding_destroyed", "holding_reduced", "hands_swapped", "insurance_claimed"] as const) expect(seen, type).toContain(type);
   }, 360_000);
 });
 

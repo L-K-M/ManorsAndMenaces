@@ -16,6 +16,7 @@ import {
   passesSpacing,
   plagueBanners,
   rankPlayers,
+  redactState,
   seedRng,
   type Banner,
   type BannerId,
@@ -32,7 +33,8 @@ import {
   type GameCommand,
 } from "@manors-menaces/rules";
 import { mainPhaseCandidates } from "./candidates.js";
-import { evaluate, resourceNeeds } from "./evaluate.js";
+import { cardWorth, evaluate, resourceNeeds } from "./evaluate.js";
+import { counterChance, counteredOutcome } from "./hidden.js";
 import { regionOccupancy, siteValue } from "./expansion.js";
 
 export { evaluate, resourceNeeds, WEIGHTS } from "./evaluate.js";
@@ -71,7 +73,11 @@ export function chooseAction(engine: RulesEngine, state: GameState, playerId: Pl
       return { type: "assign_banners", assignments: optimizeBanners(ctx, state, playerId, opts) };
     case "end": {
       const p = state.players[playerId];
-      if (legal.mustDiscard > 0 && p) return { type: "discard_cards", cardIds: p.hand.slice(0, legal.mustDiscard) };
+      if (legal.mustDiscard > 0 && p) {
+        // Keep the cards worth most; the order of equals stays as held.
+        const byWorth = [...p.hand].sort((a, b) => cardWorth(ctx, state, a) - cardWorth(ctx, state, b));
+        return { type: "discard_cards", cardIds: byWorth.slice(0, legal.mustDiscard) };
+      }
       return { type: "end_turn" };
     }
     case "reaction":
@@ -87,8 +93,11 @@ export function chooseAction(engine: RulesEngine, state: GameState, playerId: Pl
 
 // ------------------------------------------------------------------ main phase
 
-function chooseMainAction(engine: RulesEngine, state: GameState, playerId: PlayerId, opts: AiOptions): CommandIntent {
+function chooseMainAction(engine: RulesEngine, fullState: GameState, playerId: PlayerId, opts: AiOptions): CommandIntent {
   const ctx = engine.ctx;
+  // Plan only on what this player may know (§105): rivals' hands, the draw
+  // pile and the RNG state are hidden, so no choice can depend on them.
+  const state = redactState(fullState, playerId);
   const endMain: CommandIntent = { type: "end_main_phase" };
   const p = state.players[playerId];
   const actionsSoFar = (p?.marketTradesThisTurn ?? 0) + (p?.writsIssuedThisTurn ?? 0) + (p?.wardensHiredThisTurn ?? 0);
@@ -104,13 +113,18 @@ function chooseMainAction(engine: RulesEngine, state: GameState, playerId: Playe
     // alone; look one step further.
     const tradeLike = intent.type === "trade" || (intent.type === "play_card" && TRADING_EFFECTS.has(intent.target.effect));
     const lookAhead = opts.level !== "easy" && (tradeLike || (opts.level === "hard" && intent.type !== "claim_quest"));
-    let total = 0;
-    for (const result of results) {
+    const judge = (result: GameState): number => {
       const score = evaluate(ctx, result, playerId);
-      total += lookAhead ? Math.max(score, bestFollowUp(engine, result, playerId)) : score;
-    }
+      return lookAhead ? Math.max(score, bestFollowUp(engine, result, playerId)) : score;
+    };
     // Every outcome is equally likely (see `outcomes`).
-    scored.push({ intent, score: total / results.length });
+    let score = results.reduce((sum, result) => sum + judge(result), 0) / results.length;
+    // A Spell may be countered. Rivals' hands are hidden, so weigh that by
+    // the chance one of them holds a Counterspell, from public cards only.
+    const p = intent.type === "play_card" ? counterChance(ctx, state, playerId, intent.cardId) : 0;
+    const countered = p > 0 && intent.type === "play_card" ? counteredOutcome(engine, state, playerId, intent) : null;
+    if (countered) score = (1 - p) * score + p * judge(countered);
+    scored.push({ intent, score });
   }
   scored.sort((a, b) => b.score - a.score);
   const threshold = baseline + (opts.level === "easy" ? 0.5 : 0.05);

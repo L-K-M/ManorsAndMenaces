@@ -12,8 +12,12 @@ import {
   getQuestProgress,
   getRenown,
   checkBuildManor,
+  HIDDEN_CARD,
   insurancePolicyOf,
+  isCardUsableInRuleset,
   menaceInRegion,
+  type CardEffectId,
+  type CardId,
   type GameState,
   type PlayerId,
   type ResourceType,
@@ -27,7 +31,6 @@ export const WEIGHTS = {
   questProgress: 1.5,
   networkReach: 1.2,
   diversity: 1,
-  cardValue: 0.8,
   menacePressureOnOpponents: 0.15,
   menacePressureOnSelf: 1,
   wasted: 0.8,
@@ -58,6 +61,11 @@ export const WEIGHTS = {
   win: 1000,
 };
 
+/** Below this many cards in hand, the next card is a (minor) goal. */
+const CARD_GOAL_HAND = 3;
+/** Weight of that goal against building (0.45 each). */
+const CARD_GOAL_WEIGHT = 0.3;
+
 /**
  * How much the player currently wants each resource, based on what their next
  * builds need. Scarce inputs for the next affordable goal weigh more.
@@ -78,8 +86,8 @@ export function resourceNeeds(ctx: RulesContext, state: GameState, playerId: Pla
   // Route is counted however far the planned Site is: saving for the whole
   // path at once made the AI hoard instead of building step by step.
   goals.push({ cost: buildable ? BALANCE.costs.manor : addCost(BALANCE.costs.route, BALANCE.costs.manor), weight: 0.45 });
-  if (state.ruleset.enableCards && state.cardDeck.length + state.discardPile.length > 0 && p.hand.length < 2) {
-    goals.push({ cost: BALANCE.costs.card, weight: 0.15 });
+  if (state.ruleset.enableCards && state.cardDeck.length + state.discardPile.length > 0 && p.hand.length < CARD_GOAL_HAND) {
+    goals.push({ cost: BALANCE.costs.card, weight: CARD_GOAL_WEIGHT });
   }
   for (const goal of goals) {
     for (const r of RESOURCE_TYPES) {
@@ -156,6 +164,88 @@ export function threat(ctx: RulesContext, state: GameState, playerId: PlayerId):
   return 0.5 + getRenown(ctx, state, playerId) / state.ruleset.targetRenown;
 }
 
+/**
+ * Scale from measured gains to hand worth. Above 1 because a card held now
+ * is also a choice later and progress toward the card Quests (Arcane
+ * Scholar, Patron of Heroes), which a single measurement misses. Tuned with
+ * `pnpm simulate` so the AI buys cards when it has resources to spare and
+ * plays most of what it buys.
+ */
+const WORTH_SCALE = 1.5;
+
+function scaleWorth(base: Record<CardEffectId, number>): Record<CardEffectId, number> {
+  return Object.fromEntries(Object.entries(base).map(([k, v]) => [k, v * WORTH_SCALE])) as Record<CardEffectId, number>;
+}
+
+/**
+ * What holding each card is worth, in evaluation units: roughly what playing
+ * it at a good moment gains, discounted because that moment may not come.
+ * Playing a card gives this up, so the AI plays one when its effect beats
+ * keeping it, and buys one when the cards it could draw are worth more than
+ * the Grain, Iron and Essence they cost.
+ */
+export const CARD_WORTH: Record<CardEffectId, number> = scaleWorth({
+  // Measured: the typical evaluation gain of playing each card at the start
+  // of a Main phase, over AI-vs-AI games, discounted so a card is played at
+  // a decent moment rather than held for a perfect one. Cards whose effect
+  // the evaluator cannot see (Fog, Prophecy) are worth little to the AI.
+  wizard_interference: 0.35,
+  // Defensive: its worth is the Spells it may stop.
+  counterspell: 1,
+  knight_errant: 0.8,
+  druids_blessing: 0.9,
+  teleportation_mishap: 0.35,
+  bribe_the_troll: 0.45,
+  arcane_exchange: 0.6,
+  festival_at_the_inn: 0.65,
+  very_minor_prophecy: 0.1,
+  fog_of_confusion: 0.1,
+  dragon_whisperer: 0.8,
+  changeling: 0.6,
+  // Wins the game when it can be played; held for that moment.
+  ragnarok: 3,
+  fire_bolt: 0.5,
+  dragons_landing: 0.75,
+  transmutation_magic: 1.2,
+  the_plague: 0.3,
+  royal_insurance_policy: 0.7,
+  robin_of_the_glade: 0.55,
+  // +1 Renown, but only while a rival leads by 2 or more.
+  unreliable_bard: 3,
+  treasure_hunter: 0.4,
+});
+
+/** Cards beyond this many add nothing: one can be played per turn. */
+const VALUED_CARDS = 4;
+
+/**
+ * Worth of a card whose identity the player does not know (a rival's card
+ * after Changeling, or the next draw): the average over the cards this
+ * ruleset deals, by copies.
+ */
+function unknownCardWorth(ctx: RulesContext, state: GameState): number {
+  let total = 0;
+  let copies = 0;
+  for (const def of ctx.content.cards) {
+    if (!isCardUsableInRuleset(def, state.ruleset)) continue;
+    // A set-aside Ragnarök cannot be drawn until the omen (§19.13).
+    if (def.setAside && (state.setAsideCardIds ?? []).length > 0) continue;
+    total += CARD_WORTH[def.effectId] * def.copies;
+    copies += def.copies;
+  }
+  return copies > 0 ? total / copies : 0;
+}
+
+export function cardWorth(ctx: RulesContext, state: GameState, cardId: CardId): number {
+  return cardId === HIDDEN_CARD ? unknownCardWorth(ctx, state) : CARD_WORTH[ctx.cardOf(cardId).effectId];
+}
+
+/** Worth of the player's hand: its best few cards. */
+export function handValue(ctx: RulesContext, state: GameState, playerId: PlayerId): number {
+  const worths = (state.players[playerId]?.hand ?? []).map((c) => cardWorth(ctx, state, c)).sort((a, b) => b - a);
+  return worths.slice(0, VALUED_CARDS).reduce((a, b) => a + b, 0);
+}
+
 /** Value of the state for `playerId` (higher is better). */
 export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId): number {
   const p = state.players[playerId];
@@ -192,7 +282,6 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
     const prog = getQuestProgress(ctx, state, playerId, q);
     quest += (prog.current / prog.target) * ctx.quest(q).renown;
   }
-  const cards = p.hand.length;
 
   let opponents = 0;
   let opponentRenown = 0;
@@ -226,7 +315,7 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
     WEIGHTS.buildOptions * Math.min(buildOptions, 2) +
     WEIGHTS.expansion * expansion +
     WEIGHTS.diversity * 0.5 * diversity +
-    WEIGHTS.cardValue * Math.min(cards, 4) +
+    handValue(ctx, state, playerId) +
     WEIGHTS.insurance * insured +
     WEIGHTS.menacePressureOnOpponents * opponents -
     WEIGHTS.rivalRoutes * rivalRoutes -
