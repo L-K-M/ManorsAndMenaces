@@ -163,10 +163,13 @@ To restore a backup, replace the database with all of its files, in a container 
 
 ```sh
 docker compose stop manors
-docker compose run --rm -v "$HOME/manors-backup-2026-09-26-093000:/backup:ro" manors \
-  sh -c 'rm -f /data/manors.sqlite* && cp /backup/manors.sqlite* /data/'
+docker compose run --rm -v "$HOME/manors-backup-2026-09-26-093000:/backup:ro" manors sh -c '
+  test -f /backup/manors.sqlite || { echo "No manors.sqlite in the backup folder; nothing changed" >&2; exit 1; }
+  rm -f /data/manors.sqlite* && cp /backup/manors.sqlite* /data/'
 docker compose start manors
 ```
+
+If the folder holds no `manors.sqlite`, say because its name is mistyped, the restore stops before it deletes anything.
 
 [`docs/notifications.md`](docs/notifications.md) explains how players get turn notifications (Android in detail) and what the server needs for them.
 
