@@ -287,7 +287,8 @@ describe("candidate pruning", () => {
   });
 
   it("keeps Fire Bolt's Routes on an uninsured rival when the insured leader has more", () => {
-    let { state, p1, p2 } = position();
+    // The rivals' Renown below is set for a 15-Renown game.
+    let { state, p1, p2 } = position(standardRuleset(2, { targetRenown: 15 }));
     const withRoutes = (s: GameState, ownerId: PlayerId, ids: string[]): GameState =>
       withPlayer({ ...s, routeOwners: { ...s.routeOwners, ...Object.fromEntries(ids.map((id) => [id, ownerId])) } }, ownerId, {
         routeIds: [...(s.players[ownerId] as PlayerState).routeIds, ...ids],

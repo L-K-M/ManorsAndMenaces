@@ -44,7 +44,7 @@
   </header>
   {#if !minimized}
     <p class="lesson">{steps[index]?.text}</p>
-    <p class="todo">→ {t(steps[index]?.taskKey ?? "tutorial.task.1")}</p>
+    <p class="todo">→ {t(steps[index]?.taskKey ?? "tutorial.task.1", { target: session.draft.ruleset.targetRenown })}</p>
     {#if index === steps.length - 1}
       <button type="button" class="primary finish" onclick={() => (dismissed = true)}>{t("ui.finish_tutorial")}</button>
     {/if}

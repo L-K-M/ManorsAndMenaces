@@ -200,11 +200,16 @@ describe("Greenvale map", () => {
 });
 
 describe("AI playouts", () => {
+  // These games check invariants and determinism over whole games, not their
+  // length, so they keep the goals their seeds were chosen with: 15 Renown,
+  // or 13 with 4 players. At the higher default goals some AI games on The
+  // Greenvale fill every Site before anyone wins (spec §129.5).
+  const playoutRuleset = (players: number): RulesetConfig => ({ ...standardRuleset(players), targetRenown: players >= 4 ? 13 : 15 });
   for (const [players, rs, name] of [
     [3, mvpRuleset(), "mvp-3p"],
-    [2, standardRuleset(2), "std-2p"],
-    [3, standardRuleset(3), "std-3p"],
-    [4, standardRuleset(4), "std-4p"],
+    [2, playoutRuleset(2), "std-2p"],
+    [3, playoutRuleset(3), "std-3p"],
+    [4, playoutRuleset(4), "std-4p"],
   ] as const) {
     it(`${name}: finishes with a winner and keeps invariants`, () => {
       const { initial, final, commands, won } = playGame(players, rs, name);
@@ -227,7 +232,7 @@ describe("AI playouts", () => {
     const seed = `cards-${players}p${suffix}`;
     const played = cardGameEvents.get(seed);
     if (played) return played;
-    const rs = standardRuleset(players);
+    const rs = playoutRuleset(players);
     const { initial, final, steps, won } = playGame(players, rs, seed, { freeCardEachTurn: true });
     expectWinner(final, won, rs.targetRenown);
     const replayed = replaySteps(initial, steps);

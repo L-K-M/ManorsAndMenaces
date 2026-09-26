@@ -10,6 +10,7 @@
   import RivalPortrait from "./RivalPortrait.svelte";
   import type { BoardChoice, NewGameOptions } from "../game/session.svelte.js";
   import { rememberName, rememberedName } from "../game/playerName.js";
+  import { rememberRenownGoal, rememberedRenownGoal, renownGoal } from "../game/renownGoal.js";
 
   let { onstart, onback }: { onstart: (opts: NewGameOptions) => void; onback: () => void } = $props();
 
@@ -26,6 +27,10 @@
   // every Quest on offer until claimed.
   let questExpiry = $state(true);
   let cardIncome = $state(true);
+  // The Renown to win (§7) follows the rules and player count until you pick
+  // one; the goal you last picked comes back.
+  let pickedGoal: number | null = $state(rememberedRenownGoal());
+  const goal = $derived(renownGoal(mode, count, pickedGoal));
   const KINDS = NAMES.map((_, i) => (i === 0 ? "human" : "ai") as "human" | "ai");
   // Start the line-up at a random rival so new games meet different faces.
   const initialRivals = assignRivals(KINDS, Math.floor(Math.random() * RIVALS.length));
@@ -71,6 +76,7 @@
   function start() {
     const you = seats.slice(0, count).findIndex((s) => s.kind === "human");
     if (you >= 0 && !isAutoName(you)) rememberName(seats[you]?.name ?? "");
+    if (pickedGoal !== null && goal.value === pickedGoal) rememberRenownGoal(pickedGoal);
     const chosen: SeatConfig[] = seats.slice(0, count).map((s, i) => ({
       playerId: `P${i + 1}`,
       displayName: s.name.trim() || `Player ${i + 1}`,
@@ -78,8 +84,9 @@
       ...(s.kind === "ai" ? { aiLevel: s.level, ...(s.rivalId ? { rivalId: s.rivalId } : {}) } : {}),
       color: i,
     }));
+    const options = { targetRenown: goal.value };
     const ruleset: RulesetConfig =
-      mode === "mvp" ? mvpRuleset() : { ...standardRuleset(count), questExpiryRounds: questExpiry ? BALANCE.questExpiryRounds : 0, initialCards: cardIncome ? BALANCE.initialCards : 0, cardDrawEveryRounds: cardIncome ? BALANCE.cardDrawEveryRounds : 0 };
+      mode === "mvp" ? mvpRuleset(options) : { ...standardRuleset(count, options), questExpiryRounds: questExpiry ? BALANCE.questExpiryRounds : 0, initialCards: cardIncome ? BALANCE.initialCards : 0, cardDrawEveryRounds: cardIncome ? BALANCE.cardDrawEveryRounds : 0 };
     const board: BoardChoice = island ? { kind: "drawn", islandId: island } : { kind: "drawn" };
     onstart({ seats: chosen, ruleset, board, ...(seed.trim() ? { seed: seed.trim() } : {}) });
   }
@@ -142,8 +149,14 @@
     </fieldset>
     <fieldset>
       <legend>{t("ui.rules")}</legend>
-      <label class="rule"><input type="radio" name="mode" value="standard" bind:group={mode} /> <b>{t("ui.standard")}</b> {t("ui.cards_royal_quests_renown", { target: standardRuleset(count).targetRenown })}</label>
-      <label class="rule"><input type="radio" name="mode" value="mvp" bind:group={mode} /> <b>{t("ui.core")}</b> {t("ui.banners_building_and_the_toll", { target: mvpRuleset().targetRenown })}</label>
+      <label class="rule"><input type="radio" name="mode" value="standard" bind:group={mode} /> <b>{t("ui.standard")}</b> {t("ui.cards_royal_quests_renown", { target: renownGoal("standard", count, pickedGoal).value })}</label>
+      <label class="rule"><input type="radio" name="mode" value="mvp" bind:group={mode} /> <b>{t("ui.core")}</b> {t("ui.banners_building_and_the_toll", { target: renownGoal("mvp", count, pickedGoal).value })}</label>
+      <label class="goal">
+        {t("ui.renown_to_win")}
+        <select bind:value={() => goal.value, (target) => (pickedGoal = target)}>
+          {#each goal.choices as n (n)}<option value={n}>{n === goal.usual ? t("ui.renown_goal_usual", { target: n }) : n}</option>{/each}
+        </select>
+      </label>
     </fieldset>
     <details>
       <summary>{t("ui.advanced")}</summary>
@@ -253,6 +266,13 @@
     display: flex;
     gap: 0.4rem;
     align-items: baseline;
+  }
+  .goal {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+    margin-top: 0.3rem;
   }
   .check {
     display: flex;

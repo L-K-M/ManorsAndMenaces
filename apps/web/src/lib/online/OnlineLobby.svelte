@@ -9,6 +9,7 @@
   import { historyLog } from "../game/log.js";
   import { missedPlays } from "../game/plays.js";
   import { rememberName, rememberedName } from "../game/playerName.js";
+  import { rememberRenownGoal, rememberedRenownGoal, renownGoal } from "../game/renownGoal.js";
   import { ui } from "../stores/ui.svelte.js";
   import { GameSession } from "../game/session.svelte.js";
   import { ApiError, OnlineClient, inviteCodeFrom, onlineTransport } from "./client.js";
@@ -37,6 +38,9 @@
   let matches: MatchView[] = $state([]);
   let seatCount = $state(2);
   let rules: "standard" | "mvp" | "async" = $state("standard");
+  // The Renown to win (§7), as on New Game: the default until you pick one.
+  let pickedGoal: number | null = $state(rememberedRenownGoal());
+  const goal = $derived(renownGoal(rules, seatCount, pickedGoal));
   let aiCount = $state(0);
   let aiLevel: AiLevel = $state("normal");
   let joinCode = $state(new URLSearchParams(location.hash.replace(/^#\/?join\/?/, "code=")).get("code") ?? "");
@@ -176,18 +180,22 @@
       Array.from({ length: Math.min(aiCount, seatCount - 1) }, () => "ai" as const),
       Math.floor(Math.random() * RIVALS.length),
     );
+    const targetRenown = goal.value;
     const res = await guard(() =>
       client.createMatch({
         displayName: name.trim() || "Guest",
         seatCount,
         rulesetName: rules,
+        targetRenown,
         aiSeats: rivalIds.map((id) => {
           const rival = rivalById(id);
           return { displayName: rival ? rivalName(rival) : "Robot", level: aiLevel };
         }),
       }),
     );
-    if (res) await openMatch(res.matchId);
+    if (!res) return;
+    if (targetRenown === pickedGoal) rememberRenownGoal(targetRenown);
+    await openMatch(res.matchId);
   }
   async function join() {
     const res = await guard(() => client.joinMatch(joinCode.trim(), name.trim() || "Guest"));
@@ -318,6 +326,11 @@
             <option value="standard">{t("ui.standard_live")}</option>
             <option value="async">{t("ui.asynchronous_no_reactions")}</option>
             <option value="mvp">{t("ui.core")}</option>
+          </select>
+        </label>
+        <label>{t("ui.renown_to_win")}
+          <select bind:value={() => goal.value, (target) => (pickedGoal = target)}>
+            {#each goal.choices as n (n)}<option value={n}>{n === goal.usual ? t("ui.renown_goal_usual", { target: n }) : n}</option>{/each}
           </select>
         </label>
         <button class="primary" disabled={busy}>{t("ui.create_get_invite_link")}</button>

@@ -16,7 +16,8 @@ function newGame(): GameState {
     matchId: "quip-test",
     seed: "quip-seed",
     rulesetVersion: RULESET_VERSION,
-    ruleset: standardRuleset(3),
+    // The lead test's Renown is set for a 15-Renown game.
+    ruleset: standardRuleset(3, { targetRenown: 15 }),
     players: ["P1", "P2", "P3"].map((id) => ({ id, displayName: id })),
   });
 }
