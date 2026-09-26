@@ -36,6 +36,7 @@
   import Modal from "./Modal.svelte";
   import ResourceIcon from "./ResourceIcon.svelte";
   import ToolIcon from "./ToolIcon.svelte";
+  import CardArt from "./CardArt.svelte";
 
   let { session, legal }: { session: GameSession; legal: LegalActionSummary | null } = $props();
   const gs = $derived(session.draft);
@@ -416,7 +417,9 @@
     <p class="help">{t("ui.the_top_of_the_draw")}</p>
     <ol class="order">
       {#each order as c, i (c)}
+        {@const def = session.ctx.cardOf(c)}
         <li>
+          <div class="prophecy-art"><CardArt id={def.effectId} type={def.type} /></div>
           <span>{t(`card.${cardDefIdOf(c)}.name`)}</span>
           <button aria-label={t("ui.move_up")} disabled={i === 0} onclick={() => move(i, -1)}><ToolIcon name="arrow-up" size={20} /></button>
           <button aria-label={t("ui.move_down")} disabled={i === order.length - 1} onclick={() => move(i, 1)}><ToolIcon name="arrow-down" size={20} /></button>
@@ -482,6 +485,12 @@
   }
   .order span {
     flex: 1;
+    min-width: 0;
+  }
+  .prophecy-art {
+    flex: none;
+    width: 3rem;
+    height: 2rem;
   }
   .victims {
     margin: 0.2rem 0 0.6rem;

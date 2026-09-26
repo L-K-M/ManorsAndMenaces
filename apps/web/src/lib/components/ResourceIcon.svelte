@@ -11,6 +11,8 @@
      hand-drawn detail. The silhouette alone identifies the resource. -->
 <svg width={size} height={size} viewBox="-12 -12 24 24" role={label ? "img" : "presentation"} aria-label={label ? t(`resource.${resource}`) : undefined} class="res" data-resource={resource}>
   <circle r="11.2" fill={c.fill} stroke={c.dark} stroke-width="1.4" />
+  <circle r="9.1" fill="none" stroke={c.dark} stroke-opacity="0.3" stroke-width="0.6" />
+  <path d="M-7,7 A9.8,9.8 0 0 0 8.9,3.8" fill="none" stroke={c.dark} stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round" />
   <path d="M-8.2,-4.6 A9.4,9.4 0 0 1 4.4,-8.3" fill="none" stroke="#fff" stroke-opacity="0.55" stroke-width="1.3" stroke-linecap="round" />
   <g transform="scale(0.8)" stroke-linecap="round" stroke-linejoin="round">
     <path d={RESOURCE_GLYPHS[resource]} fill={c.dark} stroke={c.dark} stroke-width={resource === "grain" ? 2 : 1.2} />

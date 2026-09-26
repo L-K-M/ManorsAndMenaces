@@ -39,9 +39,10 @@ test("the title screen is an illustrated realm with the menu on a card @mobile",
   const vignette = page.locator(".vignette");
   await expect(vignette).toBeVisible();
   await expect(vignette).toHaveAttribute("aria-hidden", "true");
-  // One banner per player colour on the castle, plus the dragon's smoke.
-  await expect(vignette.locator(".flag")).toHaveCount(4);
-  await expect(vignette.locator(".puff")).toHaveCount(3);
+  const landscape = vignette.locator(".landscape");
+  await expect(landscape).toBeVisible();
+  await expect.poll(() => landscape.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThanOrEqual(960);
+  expect(await landscape.evaluate((el) => getComputedStyle(el).objectFit)).toBe("cover");
   await expect(page.getByText("Build wisely. Trouble wanders.")).toBeVisible();
 
   const viewport = page.viewportSize()!;
@@ -68,27 +69,44 @@ test("with an autosave, the whole title card fits short screens", async ({ page 
   for (const size of [
     { width: 1024, height: 600 },
     { width: 360, height: 640 },
+    { width: 1400, height: 900 },
   ]) {
     await page.setViewportSize(size);
     // The card, its last button and the version chip, not just the buttons.
     expect(await page.evaluate(() => document.documentElement.scrollHeight), `${size.width}x${size.height}`).toBeLessThanOrEqual(size.height);
+    const menu = (await page.locator(".menu").boundingBox())!;
+    const resume = (await page.getByRole("button", { name: /^Continue/ }).boundingBox())!;
+    expect(resume.x + resume.width).toBeLessThanOrEqual(menu.x + menu.width);
   }
 });
 
-test("the title vignette holds still when animation is off", async ({ page }) => {
+test("title scenery respects animation settings and reduced motion", async ({ page }) => {
   await openTitle(page);
-  const flag = page.locator(".vignette .flag").first();
-  expect(await flag.evaluate((el) => getComputedStyle(el).animationName)).not.toBe("none");
+  const mote = page.locator(".vignette .mote").first();
+  expect(await mote.evaluate((el) => getComputedStyle(el).animationName)).not.toBe("none");
 
   await openTitle(page, { animationSpeed: "off" });
   await expect(page.locator(".vignette")).toHaveClass(/still/);
-  expect(await flag.evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
-  expect(
-    await page
-      .locator(".vignette .cloud-track")
-      .first()
-      .evaluate((el) => getComputedStyle(el).animationName),
-  ).toBe("none");
+  expect(await mote.evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
+
+  await openTitle(page);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  expect(await mote.evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
+  expect(await page.locator(".vignette").evaluate((el) => el.getAnimations({ subtree: true }).filter((animation) => animation.playState === "running").length)).toBe(0);
+});
+
+test("title menu stays usable without scenery and in high contrast @mobile", async ({ page }) => {
+  await page.route("**/art/title-coast*.webp", (route) => route.abort());
+  await openTitle(page);
+  await expect(page.locator(".vignette .landscape")).toHaveCount(0);
+  await page.getByRole("button", { name: "New game", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Begin", exact: true })).toBeVisible();
+
+  await page.unroute("**/art/title-coast*.webp");
+  await openTitle(page, { highContrast: true });
+  await expect(page.locator(".vignette .landscape")).toBeHidden();
+  expect(await page.locator(".vignette").evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(255, 248, 232)");
+  await expect(page.getByRole("button", { name: "New game", exact: true })).toBeVisible();
 });
 
 test("radio options are compact selectable cards", async ({ page }) => {
@@ -173,4 +191,26 @@ test("high contrast drops the paper texture and gradients", async ({ page }) => 
   // --paper-sheet feeds background-image, so it must stay a valid <image>.
   await primary.click();
   expect(await page.locator("section.panel").first().evaluate((el) => getComputedStyle(el).backgroundImage)).toMatch(/^linear-gradient/);
+});
+
+test("storybook portraits load for every rival and keep vector high-contrast alternatives @mobile", async ({ page }) => {
+  await openTitle(page);
+  await page.getByRole("button", { name: "New game", exact: true }).click();
+  await page.getByRole("radio", { name: "2", exact: true }).check({ force: true });
+  const portraits = {
+    lord_mumble: "emperor-mumble", grum: "grum", madame_quill: "madame-quill",
+    sir_brash: "dame-brash", tally_nib: "tally-nib", lady_fennick: "lady-fennick",
+  };
+  for (const [id, file] of Object.entries(portraits)) {
+    await page.getByLabel("Player 2 rival", { exact: true }).selectOption(id);
+    const image = page.locator(".portrait image");
+    await expect(image).toHaveAttribute("href", `/art/rivals/${file}.png`);
+    const response = await page.request.get(`/art/rivals/${file}.png`);
+    expect(response.ok()).toBe(true);
+    expect(response.headers()["content-type"]).toContain("image/png");
+  }
+  await openTitle(page, { highContrast: true });
+  await page.getByRole("button", { name: "New game", exact: true }).click();
+  await expect(page.locator(".portrait").first()).toBeVisible();
+  await expect(page.locator(".portrait image")).toHaveCount(0);
 });

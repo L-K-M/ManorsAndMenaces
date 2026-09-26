@@ -7,6 +7,7 @@
   import type { PlayerTheme } from "../../theme.js";
 
   let { type, theme }: { type: "manor" | "stronghold"; theme: PlayerTheme } = $props();
+  const paintId = $props.id();
 
   // Outer outlines, used for the cast shadow.
   const SILHOUETTE = {
@@ -15,7 +16,15 @@
   } as const;
 </script>
 
-<g class="piece {type}">
+<g class="piece {type}" style="--wall-paint: url(#{paintId}-wall); --roof-paint: url(#{paintId}-roof)">
+  <defs>
+    <linearGradient id="{paintId}-wall" x2="0.7" y2="1">
+      <stop stop-color="#fff5d7" /><stop offset="1" stop-color="#e6c793" />
+    </linearGradient>
+    <linearGradient id="{paintId}-roof" x2="0.5" y2="1">
+      <stop stop-color={theme.light} /><stop offset="0.25" stop-color={theme.color} /><stop offset="1" stop-color={theme.dark} />
+    </linearGradient>
+  </defs>
   <path d={SILHOUETTE[type]} transform="translate(3.5,3)" class="cast" />
   {#if type === "manor"}
     <!-- side wall, gable front, roof, chimney, door and window -->
@@ -27,6 +36,9 @@
     <path d="M-5.5,-11 L-14,0 M-5.5,-11 L3,0" stroke={theme.dark} class="trim" />
     <path d="M-8,13 L-8,6.5 Q-5.5,3.8 -3,6.5 L-3,13 Z" fill={theme.dark} class="door" />
     <path class="window" d="M7,4.8 L11,3.8 L11,7.4 L7,8.4 Z" />
+    <path d="M-1,-5 L10,-8 M1.5,-1.8 L12.8,-4.8" fill="none" stroke={theme.dark} stroke-width="0.7" opacity="0.5" />
+    <path class="masonry" d="M-12,3 h3 M-1,7 h2 M-12,10 h2 M5,10 l3,-1" />
+    <circle cx="-4.2" cy="9" r="0.6" fill="#e9bc57" />
   {:else}
     <!-- two round towers with conical roofs either side of a crenellated keep -->
     <path class="wall side" d="M9,15 L9,-4 L19,-4 L19,15 Z" />
@@ -37,6 +49,8 @@
     <path d="M-4.5,15 L-4.5,5 A4.5,4.5 0 0,1 4.5,5 L4.5,15 Z" fill={theme.dark} class="door" />
     <path class="window" d="M-15,3 L-13,3 L-13,7 L-15,7 Z M13,3 L15,3 L15,7 L13,7 Z" />
     <path class="edge wall-edge" d="M-18.6,14.5 L-18.6,-3.6 M-8.6,-3 L-8.6,-10.6 L-5.4,-10.6" />
+    <path class="masonry" d="M-17,0 h3 M-12,10 h2 M-7,-4 h4 M3,0 h3 M11,11 h4 M15,0 h2" />
+    <path d="M-17.5,-8 h7 M11,-8 h7" stroke={theme.dark} stroke-width="0.8" opacity="0.5" />
   {/if}
 </g>
 
@@ -46,16 +60,17 @@
     opacity: 0.28;
   }
   .wall {
-    fill: #f4ead3;
-    stroke: #5a4a32;
-    stroke-width: 1.5;
+    fill: var(--wall-paint);
+    stroke: #44321e;
+    stroke-width: 1.8;
     stroke-linejoin: round;
   }
   .wall.side {
-    fill: #d9c9a8;
+    fill: #cfb582;
   }
   .roof {
-    stroke-width: 1.6;
+    fill: var(--roof-paint);
+    stroke-width: 1.9;
     stroke-linejoin: round;
   }
   .trim {
@@ -81,5 +96,11 @@
   }
   .window {
     fill: #4b3c28;
+  }
+  .masonry {
+    fill: none;
+    stroke: #b29463;
+    stroke-width: 1;
+    stroke-linecap: round;
   }
 </style>

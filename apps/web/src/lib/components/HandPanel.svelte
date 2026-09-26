@@ -5,6 +5,7 @@
   import { startCard } from "../game/interaction.js";
   import { currentActor, type GameSession } from "../game/session.svelte.js";
   import { ui, resetTool } from "../stores/ui.svelte.js";
+  import CardArt from "./CardArt.svelte";
 
   let { session, legal }: { session: GameSession; legal: LegalActionSummary | null } = $props();
   const viewer = $derived(session.viewerId);
@@ -51,10 +52,27 @@
   // The dock shows compact cards with clamped rules text; hovering one with a
   // mouse (or tabbing to it) shows the whole card above it. It is positioned
   // against the viewport so the hand's scroll box cannot clip it.
-  let peek: { cardId: string; x: number; top: number; bottom: number } | null = $state(null);
+  let peek: { cardId: string; x: number; top: number; bottom: number; viewportHeight: number } | null = $state(null);
+  let peekHeight = $state(0);
+  const peekTop = $derived.by(() => {
+    if (!peek) return 0;
+    return Math.max(8, Math.min(
+      peek.viewportHeight - peekHeight - 8,
+      peek.top > peek.viewportHeight * 0.4 ? peek.top - peekHeight - 8 : peek.bottom + 8,
+    ));
+  });
+  // Illustrations make previews taller. Measure the actual card (including
+  // wrapped rules and large text) before clamping it inside the viewport.
+  function measurePeek(node: HTMLElement) {
+    const measure = () => { peekHeight = node.getBoundingClientRect().height; };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return { destroy: () => observer.disconnect() };
+  }
   function placePeek(el: HTMLElement, cardId: string) {
     const r = el.getBoundingClientRect();
-    peek = { cardId, x: r.left + r.width / 2, top: r.top, bottom: r.bottom };
+    peek = { cardId, x: r.left + r.width / 2, top: r.top, bottom: r.bottom, viewportHeight: window.innerHeight };
   }
   function showPeek(e: PointerEvent | FocusEvent, cardId: string) {
     if (e instanceof PointerEvent && (e.pointerType !== "mouse" || !matchMedia("(hover: hover)").matches)) return;
@@ -95,6 +113,8 @@
   }
 </script>
 
+<svelte:window onresize={hidePeek} />
+
 {#if session.draft.ruleset.enableCards}
   <section class="hand" aria-label={t("ui.your_hand")}>
     <h3>
@@ -110,7 +130,22 @@
         {hiddenNote}
       </p>
     {:else if viewer && hand.length === 0}
-      <p class="empty">{t("hand.empty", { action: t("action.buy_card"), cost: t("cost.card") })}</p>
+      <div class="empty-hand">
+        <svg class="empty-art" viewBox="0 0 120 88" aria-hidden="true">
+          <ellipse cx="60" cy="78" rx="43" ry="5" fill="#614728" opacity="0.12" />
+          <g stroke="#80633e" stroke-width="1.6" stroke-linejoin="round">
+            <rect x="22" y="16" width="43" height="58" rx="5" transform="rotate(-16 44 66)" fill="#e3c98b" />
+            <rect x="56" y="13" width="43" height="58" rx="5" transform="rotate(16 76 66)" fill="#eedbb0" />
+            <rect x="38" y="8" width="45" height="65" rx="5" fill="#36563a" />
+            <rect x="43" y="13" width="35" height="55" rx="3" fill="none" stroke="#d6b76d" stroke-width="1" />
+            <path d="m49 39 11-10 12 10v17H49z" fill="#fff0ca" />
+            <path d="m46 40 14-15 15 15h-6l-9-9-8 9z" fill="#b95338" />
+            <path d="M57 56v-9a3 3 0 0 1 6 0v9" fill="#80633e" />
+            <path d="m27 3 1.5 5.5L34 10l-5.5 1.5L27 17l-1.5-5.5L20 10l5.5-1.5z M97 49l1.5 4.5L103 55l-4.5 1.5L97 61l-1.5-4.5L91 55l4.5-1.5z" fill="#e2b452" stroke="none" />
+          </g>
+        </svg>
+        <p class="empty">{t("hand.empty", { action: t("action.buy_card"), cost: t("cost.card") })}</p>
+      </div>
     {/if}
     <ul onscroll={hidePeek}>
       {#each hand as cardId (cardId)}
@@ -137,8 +172,9 @@
               onfocus={(e) => showPeek(e, cardId)}
               onblur={hidePeek}
             >
-              <span class="type">{t(`card.type.${def.type}`)}{def.timing.includes("reaction") ? t("card.reaction_suffix") : ""}</span>
+              <span class="card-heading"><span class="type">{t(`card.type.${def.type}`)}{def.timing.includes("reaction") ? t("card.reaction_suffix") : ""}</span></span>
               <strong>{t(`card.${id}.name`)}</strong>
+              <span class="illustration"><CardArt id={def.effectId} type={def.type} /></span>
               <span class="rules">{t(`card.${id}.rules`)}</span>
               <em class="flavor">{t(`card.${id}.flavor`)}</em>
             </button>
@@ -149,15 +185,15 @@
     {#if peek && hand.includes(peek.cardId)}
       {@const def = session.ctx.cardOf(peek.cardId)}
       {@const id = cardDefIdOf(peek.cardId)}
-      {@const above = peek.top > window.innerHeight * 0.4}
       <div
         class="card peek {def.type}"
-        class:above
-        style="--x: {peek.x}px; --y: {above ? peek.top : peek.bottom}px"
+        use:measurePeek
+        style="--x: {peek.x}px; --y: {peekTop}px"
         aria-hidden="true"
       >
-        <span class="type">{t(`card.type.${def.type}`)}{def.timing.includes("reaction") ? t("card.reaction_suffix") : ""}</span>
+        <span class="card-heading"><span class="type">{t(`card.type.${def.type}`)}{def.timing.includes("reaction") ? t("card.reaction_suffix") : ""}</span></span>
         <strong>{t(`card.${id}.name`)}</strong>
+              <span class="illustration"><CardArt id={def.effectId} type={def.type} /></span>
         <span class="rules">{t(`card.${id}.rules`)}</span>
         <em class="flavor">{t(`card.${id}.flavor`)}</em>
       </div>
@@ -220,6 +256,31 @@
     font-size: 0.85rem;
     opacity: 0.7;
   }
+  .empty-hand {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex: 1;
+    min-height: 0;
+    padding: 0.35rem 0.8rem;
+    border: 1px dashed #80633e55;
+    border-radius: 10px;
+    background: #fff8e833;
+  }
+  .empty-art {
+    width: 6.5rem;
+    max-height: 100%;
+    height: 5rem;
+    flex: none;
+  }
+  .empty-hand .empty {
+    max-width: 26rem;
+    opacity: 1;
+    color: var(--ink-soft);
+  }
+  .empty-hand + ul:empty {
+    display: none;
+  }
   .hidden {
     display: flex;
     align-items: center;
@@ -231,18 +292,21 @@
   }
   .card {
     flex: none;
-    width: 12.5rem;
+    width: 17rem;
     min-height: 0;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
+    display: grid;
+    grid-template-columns: 4.8rem minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    column-gap: 0.6rem;
+    row-gap: 0.2rem;
     text-align: left;
     padding: 0.45rem 0.55rem;
     border-radius: 10px;
-    border: 2px solid #8a7650;
-    background: linear-gradient(#fffdf6, #f2e6c8);
-    opacity: 0.7;
+    border: 2px solid var(--card-ink, var(--edge));
+    background: var(--paper-sheet);
+    box-shadow: inset 0 0 0 3px #fff9e8, inset 0 0 0 4px #b5944d55, 0 2px 3px #3c291c26;
+    opacity: 1;
     cursor: default;
     /* A held press previews the card instead of selecting its text. */
     user-select: none;
@@ -261,16 +325,19 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent);
   }
   .card.spell {
-    border-color: #7a5bb8;
+    --card-ink: #77568f;
   }
   .card.hero {
-    border-color: #b8761c;
+    --card-ink: #ad722a;
   }
   .card.trick {
-    border-color: #4d6b3a;
+    --card-ink: #4d6b3a;
   }
   .card.story {
-    border-color: #b8433a;
+    --card-ink: #b8433a;
+  }
+  .card.charter {
+    --card-ink: #8a6740;
   }
   /* A Charter stays face up in front of you: royal paper, not parchment. */
   .card.charter {
@@ -278,7 +345,7 @@
     background: linear-gradient(#fbfdfe, #e1ebf0);
   }
   .card.back {
-    background: repeating-linear-gradient(45deg, #5a4a8a, #5a4a8a 6px, #6b5b9c 6px, #6b5b9c 12px);
+    background: url("/art/manor-troll.png") center / 95% auto no-repeat, var(--forest-panel);
     min-height: 6rem;
     width: 4rem;
   }
@@ -287,6 +354,33 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
     opacity: 0.7;
+  }
+  .card-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 1.5rem;
+    color: var(--card-ink);
+    flex: none;
+  }
+  .card-heading, strong, .rules, .flavor { grid-column: 2; }
+  .card-heading { grid-row: 1; }
+  strong { grid-row: 2; }
+  .rules { grid-row: 3; }
+  .flavor { grid-row: 4; }
+  .illustration {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    align-self: start;
+    width: 100%;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border: 1px solid #84613766;
+    border-radius: 6px;
+  }
+  .card:not(.playable):not(.peek) {
+    border-color: color-mix(in srgb, var(--card-ink, var(--edge)) 45%, var(--parchment));
   }
   strong {
     font-size: 0.9rem;
@@ -329,18 +423,22 @@
   }
   .peek {
     position: fixed;
+    display: flex;
+    flex-direction: column;
     z-index: 40;
     left: clamp(0.5rem, calc(var(--x) - 7.5rem), calc(100vw - 15.5rem));
-    top: calc(var(--y) + 0.5rem);
+    top: var(--y);
     width: 15rem;
     opacity: 1;
     box-shadow: 0 12px 32px #0004;
     pointer-events: none;
   }
-  .peek.above {
-    top: calc(var(--y) - 0.5rem);
-    translate: 0 -100%;
+  .peek .illustration {
+    flex: none;
+    aspect-ratio: 3 / 2;
+    height: clamp(3rem, 19dvh, 9rem);
   }
+  .peek .card-heading { height: auto; }
   .peek strong {
     white-space: normal;
   }

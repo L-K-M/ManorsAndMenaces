@@ -80,6 +80,9 @@ describe("seatRival", () => {
   it("recognises an old or online AI seat by its rival's name", () => {
     expect(seatRival(seat({ displayName: rivalName(grum) }))?.id).toBe("grum");
     expect(seatRival(seat({ displayName: "Lord Mumble" }))?.id).toBe("lord_mumble");
+    expect(seatRival(seat({ displayName: "Sir Brash" }))?.id).toBe("sir_brash");
+    expect(seatRival(seat({ displayName: "Emperor Mumble" }))?.id).toBe("lord_mumble");
+    expect(seatRival(seat({ displayName: "Dame Brash" }))?.id).toBe("sir_brash");
   });
 
   it("never gives a human seat a rival", () => {

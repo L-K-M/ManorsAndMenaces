@@ -149,6 +149,7 @@
     border-radius: 10px;
     margin: 0 0 0.8rem;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.45rem;
     /* Fieldsets default to min-width: min-content, which pushed the form
        past the edge of small phones. */

@@ -11,6 +11,8 @@
   import { animationScale } from "../stores/settings.svelte.js";
   import { MENACE_THEME, PLAYER_THEMES, RESOURCE_GLYPHS, emblemPath, type PlayerTheme } from "../theme.js";
   import ResourceIcon from "./ResourceIcon.svelte";
+  import RivalPortrait from "./RivalPortrait.svelte";
+  import { seatRival } from "../game/rivals.js";
   import ToolIcon from "./ToolIcon.svelte";
 
   let { session, tutorial = false, onexit, onrematch }: { session: GameSession; tutorial?: boolean; onexit: () => void; onrematch: () => void } = $props();
@@ -204,11 +206,13 @@
               {#each report.standings as r, i (r.playerId)}
                 {@const th = themeOf(r.playerId)}
                 {@const seat = session.seat(r.playerId)}
+                {@const rival = seatRival(seat)}
                 <li style="--pc: {th.color}; --pd: {th.dark}" class:first={i === 0}>
                   <span class="rank">{i + 1}</span>
-                  <svg width="24" height="24" viewBox="-12 -12 24 24" aria-hidden="true"
+                  {#if rival}<RivalPortrait portrait={rival.portrait} theme={th} size={36} />
+                  {:else}<svg width="24" height="24" viewBox="-12 -12 24 24" aria-hidden="true"
                     ><path d={emblemPath(th.shape, 8)} fill={th.color} stroke={th.dark} stroke-width="1.5" /></svg
-                  >
+                  >{/if}
                   <div class="who">
                     <div class="line">
                       <strong>{r.name}</strong>
@@ -581,7 +585,7 @@
   }
   .standings li {
     display: grid;
-    grid-template-columns: 1.6rem 24px minmax(0, 1fr);
+    grid-template-columns: 1.6rem 36px minmax(0, 1fr);
     align-items: center;
     gap: 0.5rem;
     padding: 0.35rem 0.55rem;

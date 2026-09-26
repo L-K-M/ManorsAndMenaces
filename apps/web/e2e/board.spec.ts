@@ -233,6 +233,65 @@ type Box = { x: number; y: number; width: number; height: number };
 const overlaps = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
 test.describe("hover card placement", () => {
+  test("landmark inspectors reuse the board paintings and keep the site details", async ({ page }) => {
+    await startHotseat(page);
+    await completeSetup(page);
+    const ids = await page.locator("svg.board [data-landmark]").evaluateAll((els) => els.map((el) => el.getAttribute("data-landmark")!));
+    for (const id of ids) {
+      const site = page.locator("svg.board .site").filter({ has: page.locator(`[data-landmark="${id}"]`) });
+      const source = await site.locator("image").getAttribute("href");
+      // Keyboard activation uses the same site target as a tap, without
+      // aiming at decorative artwork that deliberately ignores the pointer.
+      await site.press("Enter");
+      const inspector = page.locator("aside.inspect");
+      await expect(inspector).toBeVisible();
+      await expect(inspector.locator("image")).toHaveAttribute("href", source!);
+      await expect(inspector).toContainText("Touches:");
+      expect((await inspector.locator(".inspect-art").boundingBox())!.width).toBeGreaterThan(80);
+      await inspector.getByRole("button", { name: "Close", exact: true }).click();
+      await expect(inspector).toHaveCount(0);
+    }
+  });
+
+  test("illustrated inspectors stay inside short and phone boards with large text @mobile", async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await startHotseat(page, { textScale: 1.5 });
+    await completeSetup(page);
+    for (const size of [{ width: 844, height: 390 }, { width: 360, height: 640 }]) {
+      await page.setViewportSize(size);
+      await expect(page.locator(".game")).toHaveAttribute("data-layout", size.width === 360 ? "sheet" : "rail");
+      await page.locator("svg.board .menace").first().press("Enter");
+      const inspector = page.locator("aside.inspect");
+      await expect(inspector.locator(".inspect-art [data-menace]")).toBeVisible();
+      const box = (await inspector.boundingBox())!;
+      const board = (await page.locator(".board-wrap").boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(board.x);
+      expect(box.y).toBeGreaterThanOrEqual(board.y);
+      expect(box.x + box.width).toBeLessThanOrEqual(board.x + board.width);
+      expect(box.y + box.height).toBeLessThanOrEqual(board.y + board.height);
+      expect(await inspector.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+      await inspector.locator("p").last().scrollIntoViewIfNeeded();
+      await expect(inspector.locator("p").last()).toBeInViewport();
+      await inspector.getByRole("button", { name: "Close", exact: true }).click();
+      await expect(inspector).toHaveCount(0);
+    }
+  });
+
+  test("illustrated inspectors retain vector art in high contrast", async ({ page }) => {
+    await startHotseat(page, { highContrast: true });
+    await completeSetup(page);
+    const castle = page.locator("svg.board .site").filter({ has: page.locator('[data-landmark="royal_castle"]') });
+    await castle.press("Enter");
+    const inspector = page.locator("aside.inspect");
+    await expect(inspector.locator(".landmark-art")).toBeVisible();
+    await expect(inspector.locator("image")).toHaveCount(0);
+    expect(await inspector.locator(".landmark-art path").count()).toBeGreaterThan(5);
+    await inspector.getByRole("button", { name: "Close", exact: true }).click();
+    await page.locator("svg.board .menace").first().press("Enter");
+    await expect(inspector.locator(".figure")).toBeVisible();
+    await expect(inspector.locator("image")).toHaveCount(0);
+  });
+
   test("clicking a hovered piece swaps the hover card for the inspector", async ({ page }) => {
     await startHotseat(page);
     await completeSetup(page);

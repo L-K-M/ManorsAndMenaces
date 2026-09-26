@@ -178,6 +178,7 @@
 <div class="game" inert={!!session.curtainFor} data-layout={layout} class:no-cards={!cardsEnabled} class:tray-open={trayOpen} style="--sheet-overlap: {sheetOverlap}px">
   <header class="topbar">
     <button class="ghost icon" onclick={() => (ui.dialog = "menu")} aria-label={t("ui.main_menu")} aria-haspopup="dialog"><ToolIcon name="menu" /></button>
+    <img class="brand-mark" src={`${import.meta.env.BASE_URL}art/manor-troll.png`} alt="" width="40" height="40" />
     <h1>{t("app.title")}</h1>
     <span class="round">{t("ui.round_n", { n: Math.max(1, gs.round) })}</span>
     <div class="score"><ScoreStrip {session} /></div>
@@ -287,7 +288,7 @@
     --bar-h: 5.1rem;
     --tray-h: 8.75rem;
     --peek-h: 12rem;
-    --dock-rule: 3px solid #8a7650;
+    --dock-rule: 3px solid var(--edge);
     position: relative;
     height: 100dvh;
     /* clip, not hidden: a hidden overflow box can still be scrolled by focus. */
@@ -311,13 +312,23 @@
     align-items: center;
     gap: 0.6rem;
     padding: max(0.3rem, env(safe-area-inset-top)) max(0.6rem, env(safe-area-inset-right)) 0.3rem max(0.6rem, env(safe-area-inset-left));
-    background: var(--wood);
+    background: var(--forest-panel);
     color: #fffaf0;
+    box-shadow: inset 0 -2px 0 #c79a4b, 0 2px 8px #182a2340;
   }
   .topbar h1 {
     margin: 0;
     font: 700 1.2rem/1 var(--font-display);
     white-space: nowrap;
+  }
+  .brand-mark {
+    flex: none;
+    object-fit: contain;
+  }
+  @media (max-width: 700px) {
+    .brand-mark {
+      display: none;
+    }
   }
   .topbar .ghost {
     color: #fffaf0;
@@ -374,10 +385,11 @@
   }
   .side {
     grid-area: side;
-    background: var(--parchment);
+    background: var(--panel-face);
     border-left: var(--dock-rule);
     overflow-y: auto;
-    padding: 0.5rem;
+    padding: 0.65rem;
+    box-shadow: inset 4px 0 12px #59432c15;
   }
   .tabs {
     display: flex;
@@ -389,7 +401,7 @@
     min-height: 44px;
   }
   .tabs button[aria-selected="true"] {
-    background: var(--accent);
+    background: var(--primary-face);
     color: #fff;
   }
   .badge {
@@ -423,8 +435,9 @@
     grid-template-rows: auto minmax(0, 1fr);
     gap: 0.4rem;
     padding: 0.5rem max(0.75rem, env(safe-area-inset-right)) calc(0.5rem + env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
-    background: var(--parchment);
+    background: var(--panel-face);
     border-top: var(--dock-rule);
+    box-shadow: inset 0 2px 0 #fff7df, 0 -3px 12px #3b30231a;
   }
   .actions {
     container: actionbar / inline-size;

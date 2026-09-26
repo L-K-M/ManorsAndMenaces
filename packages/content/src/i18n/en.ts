@@ -45,7 +45,7 @@ export const EN: Record<string, string> = {
   "card.counterspell.flavor": "\"No.\" — the complete text of most successful counterspells.",
   "card.knight_errant.name": "Knight Errant",
   "card.knight_errant.rules": "Move one Menace to any legal location, even if a Warden guards it.",
-  "card.knight_errant.flavor": "Sir Aldous has never met a problem he could not relocate.",
+  "card.knight_errant.flavor": "Dame Alda has never met a problem she could not relocate.",
   "card.druids_blessing.name": "Druid's Blessing",
   "card.druids_blessing.rules": "Choose one of your Banners, even one at home. At your next Harvest, if its Region makes Grain or Timber, gain 1 extra of what it produces.",
   "card.druids_blessing.flavor": "The druid insists the turnips asked nicely.",
@@ -126,12 +126,13 @@ export const EN: Record<string, string> = {
   "quest.far_reaches.description": "Own two Holdings at least 6 Routes apart.",
   "quest.the_safer_road.name": "The Safer Road",
   "quest.the_safer_road.description": "Twice, move a Menace away from something of yours.",
+  "ui.quest_progress": "{name} progress",
 
   // ---------------------------------------------------------------- menaces
   "menace.toll_troll.name": "Toll Troll",
   "menace.toll_troll.rules": "Banners in its Region produce nothing.",
   "menace.toll_troll.flavor": "Grum insists the bridge was his first. Records concerning the matter are unfortunately damp.",
-  "menace.highwayman.name": "Highwayman",
+  "menace.highwayman.name": "Highwaywoman",
   "menace.highwayman.rules": "Its Route stays owned, but building through it costs its owner 1 extra resource.",
   "menace.highwayman.flavor": "Stand and deliver. Or, ideally, stand and pay a modest fee.",
   "menace.young_dragon.name": "Young Dragon",
@@ -499,8 +500,8 @@ export const EN: Record<string, string> = {
   "ui.rival_label": "{name}, {title}",
   "ui.rival_portrait": "{name}, {title}: {motto}",
 
-  "rival.lord_mumble.name": "Lord Mumble",
-  "rival.lord_mumble.title": "the Cautious Builder",
+  "rival.lord_mumble.name": "Emperor Mumble",
+  "rival.lord_mumble.title": "the Cautious Goblin Emperor",
   "rival.lord_mumble.motto": "Measure twice. Build once. Apologise thrice.",
   "rival.lord_mumble.quip.own_build.1": "Another Manor. Nothing flashy. Flashy attracts dragons.",
   "rival.lord_mumble.quip.own_build.2": "Sturdy walls, modest windows, no trolls. Perfect.",
@@ -594,7 +595,7 @@ export const EN: Record<string, string> = {
   "rival.madame_quill.quip.lose.2": "I'll buy out your kingdom next time.",
   "rival.madame_quill.quip.lose.3": "Well played. Invoice to follow.",
 
-  "rival.sir_brash.name": "Sir Brash",
+  "rival.sir_brash.name": "Dame Brash",
   "rival.sir_brash.title": "the Writ-Happy Knight",
   "rival.sir_brash.motto": "Why negotiate when you can notarise?",
   "rival.sir_brash.quip.own_build.1": "A fortress! Well, a Manor. It has a flag!",
