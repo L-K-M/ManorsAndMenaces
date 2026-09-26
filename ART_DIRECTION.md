@@ -537,7 +537,20 @@ Check full-deck coverage, large text, narrow layouts and fallback rendering.
   use a fresh test game when reviewing their artwork.
 - Mac release packaging passed; the updated app is in
   `src-tauri/target/release/bundle/macos/Manors & Menaces.app`. The installed
-  application and its current session were not replaced. Native visual
-  inspection of this pass remains unverified. Log: `/tmp/mm-wave2-desktop.log`.
-- Implementation and local verification are complete. Submit this branch for
-  CI and automated review, inspect the findings, then merge per AGENTS.md.
+  application was not replaced. Opened the packaged app and loaded the current
+  Grum/Madame Quill/Alice save: the painted empty hand and resource badges render
+  correctly in WebKit, with the save still at the same setup step. Log:
+  `/tmp/mm-wave2-desktop.log`.
+- PR #43 is open. The first automated review completed without a confirmed
+  blocker; missing-file and alpha warnings were checked against the tracked
+  assets and actual rendering. Unused legacy copy cleanup is deferred.
+- Browser CI timed out. A full local run reproduced Banners intercepting Route
+  clicks in both setup and the Chronicle test. The board exempted owned Banners
+  from its inactive-target hit-area rule even though assignment already marks
+  every selectable Banner as highlighted. Removed that exemption. The stronger
+  Chronicle regression failed before the fix and now passes in 9.4 seconds;
+  the companion Banner-switching check also passes. Typecheck and lint pass.
+  Rechecking the full browser suite alongside the next CI run. Logs:
+  `/tmp/mm-banner-before.log`,
+  `/tmp/mm-wave2-full-e2e-fixed.log`. CI and latest-revision review must pass
+  before merging.
