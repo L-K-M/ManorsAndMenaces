@@ -29,6 +29,10 @@
 //                 like https://play.example.org; email links point there.
 //   MAIL_OUTBOX_DIR  instead of SMTP_URL, for development: write each email to
 //                 this directory as an .eml file rather than sending it.
+//   BACKGROUND_PING_SECONDS  how often the Android app's background connection
+//                 is pinged (default 600, 60 to 3600). Every ping wakes the
+//                 phone; lower it only when a proxy closes idle WebSockets
+//                 sooner (Cloudflare Free/Pro: 100 s, so 90).
 //   See docs/notifications.md.
 //
 // Fatal errors (the port is taken, an uncaught exception) exit with status 1
@@ -50,6 +54,11 @@ function fail(message: string, error?: unknown): never {
 const trustProxy = Number(process.env.TRUST_PROXY ?? 0);
 if (!Number.isInteger(trustProxy) || trustProxy < 0) fail(`TRUST_PROXY must be a whole number of proxies (0 or more), not "${process.env.TRUST_PROXY}"`);
 
+const backgroundPingSeconds = Number(process.env.BACKGROUND_PING_SECONDS ?? 600);
+if (!Number.isInteger(backgroundPingSeconds) || backgroundPingSeconds < 60 || backgroundPingSeconds > 3600) {
+  fail(`BACKGROUND_PING_SECONDS must be a whole number of seconds from 60 to 3600, not "${process.env.BACKGROUND_PING_SECONDS}"`);
+}
+
 let email: MailConfig | null = null;
 try {
   email = mailConfigFromEnv(process.env);
@@ -66,6 +75,7 @@ const app = createApp({
   corsOrigin: process.env.CORS_ORIGIN ?? "*",
   aiDelayMs: Number(process.env.AI_DELAY_MS ?? 700),
   trustProxy,
+  backgroundHeartbeatMs: backgroundPingSeconds * 1000,
   ...(process.env.VAPID_SUBJECT ? { push: { subject: process.env.VAPID_SUBJECT } } : {}),
   ...(email ? { email } : {}),
 });

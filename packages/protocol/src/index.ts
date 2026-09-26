@@ -181,7 +181,16 @@ export interface MatchNotice {
   kind: NoticeKind;
   title: string;
   body: string;
+  /** The match revision the notice is about, so a client can tell a new turn from one it already announced. */
+  revision: number;
 }
+
+/**
+ * How a WebSocket connection is used (`/api/ws?mode=`). The Android app keeps
+ * a "background" connection while it is closed: it gets notices, but it does
+ * not make its player look online and is pinged only every few minutes.
+ */
+export type SocketMode = "app" | "background";
 
 /** POST /api/push/subscribe: a browser's PushSubscription, as `toJSON()` gives it. */
 export interface PushSubscriptionRequest {
@@ -206,6 +215,13 @@ export type ServerMessage =
   | { type: "hello"; userId: string }
   | { type: "match_update"; match: MatchView; events: GameEvent[] }
   | { type: "notice"; notice: MatchNotice }
+  /**
+   * Background connections only: the turns waiting for this player, sent once
+   * on connecting, and how often this connection gets a keepalive.
+   */
+  | { type: "pending_notices"; notices: MatchNotice[]; keepaliveMs: number }
+  /** Background connections only: sent with each ping, which the Android app cannot see itself. */
+  | { type: "keepalive" }
   | { type: "error"; message: string };
 
 /**

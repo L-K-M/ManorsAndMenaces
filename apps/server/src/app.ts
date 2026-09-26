@@ -21,7 +21,7 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import { isSubmitCommandsRequest, type ApiErrorBody, type ClientMessage, type EmailSettings, type ServerMessage } from "@manors-menaces/protocol";
+import { isSubmitCommandsRequest, type ApiErrorBody, type ClientMessage, type EmailSettings, type ServerMessage, type SocketMode } from "@manors-menaces/protocol";
 import { redactEvent, type GameEvent } from "@manors-menaces/rules";
 import { EmailNotices, emailPage, type MailConfig } from "./mail.js";
 import { text } from "./notices.js";
@@ -43,6 +43,8 @@ export interface AppOptions {
   trustProxy?: number;
   /** WebSocket ping interval; a socket that misses one ping is dropped (default 25 s). */
   heartbeatMs?: number;
+  /** The same for background connections (`?mode=background`, default 10 min; BACKGROUND_PING_SECONDS). */
+  backgroundHeartbeatMs?: number;
   /** Web Push for players whose app is closed (spec §85). */
   push?: {
     /** VAPID contact (RFC 8292): a mailto: or https: URL push services may use to reach the operator. */
@@ -80,6 +82,13 @@ const WS_MESSAGE_BURST = 20;
 const WS_MAX_SUBSCRIPTIONS = 10;
 /** RFC 6455 close code for a peer that breaks the server's usage policy. */
 const WS_POLICY_VIOLATION = 1008;
+/**
+ * Pings to a background connection (the Android app while it is closed)
+ * keep mobile networks from dropping the idle connection, and wake the phone
+ * each time: every 10 minutes costs about 150 wake-ups a day instead of the
+ * 3,500 that the 25 s app heartbeat would.
+ */
+const BACKGROUND_HEARTBEAT_MS = 10 * 60_000;
 /** Each open tab uses two: one for notices, one for the match on screen. */
 const MAX_SOCKETS_PER_USER = 8;
 /** Longest address accepted from a forwarding header (a bracketed IPv6 address fits). */
@@ -374,13 +383,17 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   const wss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_MESSAGE_BYTES });
   interface Subscriber {
     userId: string;
+    mode: SocketMode;
+    /** When the last ping went out; background connections are pinged on their own schedule. */
+    lastPingAt: number;
     matches: Set<string>;
     messages: TokenBucket;
     /** Cleared on every ping and set again by the pong. */
     alive: boolean;
   }
   const subs = new Map<WebSocket, Subscriber>();
-  service.isConnected = (userId) => [...subs.values()].some((s) => s.userId === userId);
+  // A background connection hears notices but is not "the app is open".
+  service.isConnected = (userId) => [...subs.values()].some((s) => s.userId === userId && s.mode === "app");
   // Tell other members when someone connects or disconnects.
   let closing = false;
   const presenceChanged = (userId: string): void => {
@@ -394,14 +407,21 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   // Heartbeat: a half-open connection (say, a phone that lost its network)
   // never fires "close", so it would look online and hold one of the user's
   // socket slots. Drop every socket that did not answer the previous ping.
+  const backgroundHeartbeatMs = opts.backgroundHeartbeatMs ?? BACKGROUND_HEARTBEAT_MS;
+  const keepalive = JSON.stringify({ type: "keepalive" } satisfies ServerMessage);
   const heartbeat = setInterval(() => {
+    const now = Date.now();
     for (const [ws, sub] of subs) {
+      if (sub.mode === "background" && now - sub.lastPingAt < backgroundHeartbeatMs) continue;
       if (!sub.alive) {
         ws.terminate(); // its "close" handler updates presence
         continue;
       }
       sub.alive = false;
+      sub.lastPingAt = now;
       ws.ping();
+      // In the same wake-up: the phone's WebSocket library answers pings unseen.
+      if (sub.mode === "background") ws.send(keepalive);
     }
   }, opts.heartbeatMs ?? 25_000);
   heartbeat.unref();
@@ -424,12 +444,22 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
       socket.write("HTTP/1.1 429 Too Many Requests\r\n\r\n");
       return socket.destroy();
     }
+    const mode: SocketMode = url.searchParams.get("mode") === "background" ? "background" : "app";
     wss.handleUpgrade(req, socket, head, (ws) => {
-      const sub: Subscriber = { userId: user.id, matches: new Set(), messages: new TokenBucket(WS_MESSAGES_PER_SECOND, WS_MESSAGE_BURST), alive: true };
+      const sub: Subscriber = { userId: user.id, mode, lastPingAt: Date.now(), matches: new Set(), messages: new TokenBucket(WS_MESSAGES_PER_SECOND, WS_MESSAGE_BURST), alive: true };
       subs.set(ws, sub);
-      presenceChanged(user.id);
+      if (mode === "app") presenceChanged(user.id);
       const hello: ServerMessage = { type: "hello", userId: user.id };
       ws.send(JSON.stringify(hello));
+      if (mode === "background") {
+        // A reconnecting phone may have missed notices sent into a connection
+        // its network had already dropped: tell it what is waiting now.
+        try {
+          ws.send(JSON.stringify({ type: "pending_notices", notices: service.pendingNotices(user.id), keepaliveMs: backgroundHeartbeatMs } satisfies ServerMessage));
+        } catch (e) {
+          console.error(e); // main.ts exits on uncaught exceptions
+        }
+      }
       ws.on("pong", () => (sub.alive = true));
       // ws closes the socket itself on protocol errors (1009 for an oversized
       // frame); without a listener the error would also be an uncaught exception.
@@ -474,7 +504,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
       });
       ws.on("close", () => {
         subs.delete(ws);
-        presenceChanged(user.id);
+        if (mode === "app") presenceChanged(user.id);
       });
     });
   });

@@ -37,8 +37,9 @@ export function noticeFor(matchId: string, kind: NoticeKind, playerId: PlayerId,
     .filter(([id]) => id !== playerId)
     .map(([, p]) => p.displayName);
   const names = others.join(", ");
-  if (kind === "your_turn") return { matchId, kind, title: text("notify.your_turn_title"), body: text("notify.your_turn_body", { names }) };
+  const revision = state.revision;
+  if (kind === "your_turn") return { matchId, kind, revision, title: text("notify.your_turn_title"), body: text("notify.your_turn_body", { names }) };
   const winner = state.winnerId ? state.players[state.winnerId] : undefined;
   const body = !winner ? text("notify.match_over_body", { names }) : state.winnerId === playerId ? text("notify.you_won_body", { names }) : text("notify.won_body", { name: winner.displayName });
-  return { matchId, kind, title: text("notify.match_over_title"), body };
+  return { matchId, kind, revision, title: text("notify.match_over_title"), body };
 }
