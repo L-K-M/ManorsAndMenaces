@@ -1,9 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
+import { OUTBOX } from "./e2e/outbox";
 
 // UI end-to-end tests (spec §66.5). Runs against the Vite dev server so the
 // development-only debug panel (§100) is available for setting up scenarios.
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/clear-outbox.ts",
   timeout: 90_000,
   retries: process.env.CI ? 1 : 0,
   use: { baseURL: "http://localhost:5174", trace: "retain-on-failure", viewport: { width: 1400, height: 900 } },
@@ -18,7 +20,16 @@ export default defineConfig({
       // Online server for e2e/online.spec.ts: in-memory DB, fast AI.
       command: "tsx ../server/src/main.ts",
       url: "http://localhost:8788/api/health",
-      env: { PORT: "8788", DB_PATH: ":memory:", AI_DELAY_MS: "50", WEB_DIST: "/nonexistent" },
+      env: {
+        PORT: "8788",
+        DB_PATH: ":memory:",
+        AI_DELAY_MS: "50",
+        WEB_DIST: "/nonexistent",
+        // Turn emails land in files the tests read (e2e/outbox.ts).
+        MAIL_OUTBOX_DIR: OUTBOX,
+        MAIL_FROM: "Manors & Menaces <turns@example.test>",
+        PUBLIC_URL: "http://localhost:8788",
+      },
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
     },

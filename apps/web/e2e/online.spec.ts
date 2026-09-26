@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page, type WebSocketRoute } from "@playwright/test";
+import { linkIn, mailTo } from "./outbox";
 
 // Online play (spec §58–60, §86): two browsers, invite code, synchronized setup.
 
@@ -315,4 +316,39 @@ test("a notice goes away once its match is opened from the lobby", async ({ brow
   await alice.getByRole("button", { name: /Alice · Bob/ }).click();
   await expect(alice.getByRole("button", { name: /Assign Banners →/ })).toBeVisible();
   await expect(notices).toHaveCount(0);
+});
+
+test("a player who confirmed an address gets a turn email while the game is closed", async ({ browser }) => {
+  const address = `alice-${Date.now()}@example.test`;
+  const alice = await player(browser, "Alice");
+  await alice.getByLabel("Email me when it's my turn").fill(address);
+  await alice.getByRole("button", { name: "Send link" }).click();
+  await expect(alice.getByText(`Check ${address} for a link to confirm`)).toBeVisible();
+
+  const confirm = await alice.context().newPage();
+  await confirm.goto(linkIn(await mailTo(address, /confirm\?t=/), "/api/email/confirm"));
+  await expect(confirm.getByRole("heading", { name: "Turn on turn emails?" })).toBeVisible();
+  await confirm.getByRole("button", { name: "Turn on" }).click();
+  await expect(confirm.getByRole("heading", { name: "Turn emails are on" })).toBeVisible();
+  await confirm.close();
+  // Coming back from the mail app, the lobby checks again.
+  await alice.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(alice.getByText(`Turn emails go to ${address}.`)).toBeVisible();
+
+  await alice.getByRole("button", { name: /Create/ }).click();
+  const code = ((await alice.locator(".code").textContent()) ?? "").trim();
+  const bob = await player(browser, "Bob");
+  await bob.getByLabel("Invite code").fill(code);
+  await bob.getByRole("button", { name: "Join" }).click();
+  await expect(alice.locator(".board")).toBeVisible();
+  await playSetup([alice, bob]);
+  await untilTurnOf(bob, alice);
+  const matchId = /#\/match\/([\w-]+)/.exec(alice.url())?.[1];
+  await alice.close();
+
+  await toBannerPhase(bob);
+  await bob.getByRole("button", { name: /End Turn/ }).click();
+  const mail = await mailTo(address, /Your move in the match with Bob/);
+  expect(mail).toContain(`http://localhost:8788/#/match/${matchId}`);
+  expect(linkIn(mail, "/api/email/unsubscribe")).toMatch(/u=u_[\w-]+&t=[\w-]+$/);
 });
