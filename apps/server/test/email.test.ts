@@ -236,6 +236,19 @@ describe("email notices", () => {
     expect(mails).toHaveLength(8);
   });
 
+  it("count a mailbox's +tag aliases toward its one daily limit", async () => {
+    await start();
+    // Each alias reaches the same inbox, so each guest's alias counts against it.
+    for (const [i, name] of ["A", "B", "C"].entries()) {
+      expect((await api("/api/email", (await guest(name)).token, { address: `victim+${i}@example.org` })).status).toBe(200);
+    }
+    expect((await api("/api/email", (await guest("D")).token, { address: "Victim+other@Example.org" })).status).toBe(429);
+    expect((await api("/api/email", (await guest("E")).token, { address: "victim@example.org" })).status).toBe(429);
+    // Another mailbox is not held back.
+    expect((await api("/api/email", (await guest("F")).token, { address: "victim2@example.org" })).status).toBe(200);
+    expect(mails).toHaveLength(4);
+  });
+
   it("say so when the confirmation email cannot be sent", async () => {
     await start();
     const ann = await guest("Ann");

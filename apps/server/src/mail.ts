@@ -43,6 +43,15 @@ const DAY_MS = 24 * 3600_000;
 // and per guest (stopping one guest from mailing many people).
 const CONFIRMATIONS_PER_ADDRESS_PER_DAY = 3;
 const CONFIRMATIONS_PER_GUEST_PER_DAY = 5;
+
+/**
+ * The mailbox an address delivers to, for the per-address limit: most large
+ * providers deliver "name+tag@host" to "name@host", so every alias must share
+ * one allowance, or a string of aliases floods one inbox.
+ */
+function mailboxKey(address: string): string {
+  return address.toLowerCase().replace(/\+[^@]*@/, "@");
+}
 // SMTP servers that hang must not hold a lobby request for minutes
 // (nodemailer waits up to two minutes to connect by default).
 const SMTP_TIMEOUTS = { connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 20_000 };
@@ -149,7 +158,7 @@ export class EmailNotices {
     if (current?.confirmed_at && current.address.toLowerCase() === address.toLowerCase()) return this.settings(userId);
 
     const now = Date.now();
-    const keys = [`address:${address.toLowerCase()}`, `guest:${userId}`];
+    const keys = [`address:${mailboxKey(address)}`, `guest:${userId}`];
     const limits = [CONFIRMATIONS_PER_ADDRESS_PER_DAY, CONFIRMATIONS_PER_GUEST_PER_DAY];
     if (keys.some((key, i) => this.recent(key, now).length >= (limits[i] as number))) throw new HttpError(429, "too many confirmation emails today; try again tomorrow");
     // Failed sends count too, so a broken mail server is not hammered.
