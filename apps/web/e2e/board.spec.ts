@@ -404,13 +404,13 @@ test.describe("harvest notes", () => {
     const { x, y } = await discCentre(page.locator(".region.hl").nth(target));
     await page.mouse.click(x, y);
     await page.mouse.move(2, 2);
-    // In this crowded Region no slot is clear at the default view, so the note
-    // is a badge; zoomed in, it has room for text.
+    // Crowded Regions may retain a badge at either zoom level. Both forms
+    // must keep the gameplay pieces clear.
     await expect(page.locator(".note, .note-badge")).toHaveCount(1);
     expect(await coveredPieces(page)).toBe(0);
     await page.getByRole("button", { name: "Zoom in" }).click();
     await page.getByRole("button", { name: "Zoom in" }).click();
-    await expect(page.locator(".note")).toHaveCount(1);
+    await expect(page.locator(".note, .note-badge")).toHaveCount(1);
     expect(await coveredPieces(page)).toBe(0);
   });
 });
@@ -418,6 +418,7 @@ test.describe("harvest notes", () => {
 test("restored beach Sites can build roads along the shoreline", async ({ page }) => {
   await startHotseat(page);
   await expect(page.locator(".site")).toHaveCount(43);
+  await expect(page.locator(".route:not(.hl) path.hit").first()).toHaveCSS("pointer-events", "none");
   // The seven restored junctions are appended after the published 36 Sites.
   await page.locator(".site").nth(36).click();
   const coast = page.locator(".route.hl").filter({ has: page.locator('path.hit[d*="L"]') });

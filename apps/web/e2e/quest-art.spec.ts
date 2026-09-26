@@ -6,7 +6,7 @@ import { RULESET_VERSION, createRulesEngine, standardRuleset } from "@manors-men
 // Import an isolated presentation fixture through the real save-file flow.
 // Partial and complete conditions exercise the rules selector and claim action.
 function questSave(ids: string[]): SaveFile {
-  const engine = createRulesEngine(rulesContentFor());
+  const engine = createRulesEngine(rulesContentFor("greenvale"));
   const seats = ["Alice", "Bertram", "Cordelia"].map((displayName, i) => ({ playerId: `P${i + 1}`, displayName, kind: "human" as const, color: i }));
   const state = engine.createGame({ matchId: "quest-art-review", seed: "quest-art", rulesetVersion: RULESET_VERSION,
     ruleset: standardRuleset(3), players: seats.map((s) => ({ id: s.playerId, displayName: s.displayName })) });

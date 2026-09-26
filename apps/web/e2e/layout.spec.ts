@@ -230,7 +230,6 @@ test.describe("laptop 1366x768", () => {
     await expect(page.locator(".site.hl").first()).toBeVisible();
     const setup = await boardBox(page);
     await completeSetup(page);
-    await expect(page.getByRole("button", { name: /^Claim / })).toBeVisible();
     await expect(page.locator(".tools .chip.lack").first()).toBeVisible();
     await expectPrices(page);
     expect(Math.abs((await boardBox(page)).height - setup.height)).toBeLessThanOrEqual(1);

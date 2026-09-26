@@ -923,9 +923,11 @@
     stroke: transparent;
     stroke-width: 22;
   }
+  .route {
+    pointer-events: stroke;
+  }
   .route .hit {
     fill: none;
-    pointer-events: stroke;
   }
   .route path {
     stroke-linejoin: round;

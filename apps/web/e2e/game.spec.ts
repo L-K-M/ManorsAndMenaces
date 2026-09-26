@@ -32,7 +32,7 @@ async function beginHotseat(page: Page, rules: "standard" | "mvp" = "standard") 
 
 /** A finished hot-seat game with its full history, played by the AI (three players by default). */
 function finishedSave(seed = "e2e-finished", names = ["Ysolde", "Wat", "Maud"], ruleset: RulesetConfig = standardRuleset(3)): SaveFile {
-  const engine = createRulesEngine(rulesContentFor());
+  const engine = createRulesEngine(rulesContentFor("greenvale"));
   const seats = names.map((displayName, i) => ({ playerId: `P${i + 1}`, displayName, kind: "human" as const, color: i }));
   const initialState = engine.createGame({
     matchId: `local-${seed}`,

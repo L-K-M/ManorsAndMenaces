@@ -713,3 +713,29 @@ failed to keep a note visible with the denser road network.
 Logs: `/tmp/mm-coast-check.log`, `/tmp/mm-coast-e2e.log`,
 `/tmp/mm-coast-regressions.log`. The localhost:5175 preview contains a fresh
 Alice/Madame Quill/Dame Brash game with a coastal Manor and road.
+
+Browser follow-up: the full run had 143 passes, two intentional skips and five
+failures. Three were stale fixtures/expectations: finished saves now use the
+legacy engine matching their map ID; the price-layout test no longer assumes a
+quest happens to be claimable after setup; crowded harvest notes may correctly
+remain badges when no slot is clear. A real camera regression came from putting
+`pointer-events: stroke` directly on road hit paths, overriding the disabled
+Route group's `none`. Put it on the Route group instead so children inherit the
+correct interaction state. Its existing double-click test failed consistently
+before the fix, then passed; the coastal browser test additionally checks that
+disabled roads inherit `none`. All five focused checks now pass, as do updated
+typecheck/lint. An unrelated turn-email assertion failed once because the test
+helper decodes 7-bit text as quoted-printable; it passed on recheck. Defer that
+helper correction rather than changing notification code in this map PR.
+
+The new and legacy maps each finished all 40 standard three-player AI games.
+Average length: 13.6 versus 13.8 rounds; no seat won more than 40% on the new
+map. The existing hereditary-region heuristic misses its target equally on
+both maps (55% versus a 25% target), and AI card use remains low. No balance
+retuning is included. Logs: `/tmp/mm-coast-simulation.log` and
+`/tmp/mm-coast-baseline.log`. The final Mac `.app` build succeeded. PR #47 is
+awaiting its first review; the verified browser follow-up is ready to push.
+
+Final local browser rerun: 148 passed, two intentional skips, no retries or
+failures (`/tmp/mm-coast-e2e-final.log`). Verified the retained legacy map object
+is exactly equal to `origin/main`'s published map, including all geometry.
