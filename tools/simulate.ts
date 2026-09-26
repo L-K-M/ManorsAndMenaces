@@ -66,6 +66,9 @@ const DECK = RULESET.enableCards ? ctx.content.cards.filter((c) => isCardUsableI
 
 interface GameStats {
   finished: boolean;
+  /** Seed and map, to replay a game that stalled. */
+  seed: string;
+  mapId: string;
   rounds: number;
   winnerSeat: number | null;
   winnerRenown: number;
@@ -101,7 +104,8 @@ interface GameStats {
 
 function playOne(i: number): GameStats {
   const seed = `sim-${RULES}-${PLAYERS}-${i}`;
-  const engine = engineFor(mapIdFor(seed));
+  const mapId = mapIdFor(seed);
+  const engine = engineFor(mapId);
   const ctx = engine.ctx;
   let s: GameState = engine.createGame({
     matchId: `sim-${i}`,
@@ -113,6 +117,8 @@ function playOne(i: number): GameStats {
   const rng = createRng(seedRng(`sim-ai-${i}`));
   const stats: GameStats = {
     finished: false,
+    seed,
+    mapId,
     rounds: 0,
     winnerSeat: null,
     winnerRenown: 0,
@@ -217,6 +223,7 @@ const produced = Object.fromEntries(RESOURCE_TYPES.map((r) => [r, Math.round(avg
 
 console.log(`\n${GAMES} games · ${PLAYERS} players · ${RULES} · AI ${LEVEL} · map ${MAP} · ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 console.log(`finished:            ${finished.length}/${GAMES} (stalled at round ${MAX_ROUNDS}: ${GAMES - finished.length})`);
+for (const r of results.filter((x) => !x.finished)) console.log(`  stalled:           seed ${r.seed} on ${r.mapId}`);
 console.log(`rounds (turns/player): avg ${avg(finished.map((r) => r.rounds)).toFixed(1)}  min ${Math.min(...finished.map((r) => r.rounds))}  max ${Math.max(...finished.map((r) => r.rounds))}   target 12–16`);
 console.log(`winner renown:       avg ${avg(finished.map((r) => r.winnerRenown)).toFixed(1)} (holdings ${avg(finished.map((r) => r.renownSources.holdings)).toFixed(1)}, quests ${avg(finished.map((r) => r.renownSources.quests)).toFixed(1)}, bonus ${avg(finished.map((r) => r.renownSources.bonus)).toFixed(1)})`);
 console.log(`seat win rates:      ${seatWins.map((w, k) => `seat${k + 1} ${pct(w)}`).join("  ")}   target: none > ${PLAYERS === 4 ? "30" : "45"}%`);

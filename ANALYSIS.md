@@ -505,7 +505,7 @@ Common constraint: regenerating `greenvale` renumbers every id, and `isSaveFile`
 
 #### content-single-map: Only one hand-committed map, although the generator can already make more
 - Also covers: `og-random-maps`
-- Severity: medium | Effort: L | Delight: 5 | Status: confirmed / partially confirmed
+- Severity: medium | Effort: L | Delight: 5 | Status: done (13 islands, a new layout every game); seat fairness on drawn layouts open
 - Files: `packages/content/src/index.ts:15,42,53`, `tools/generate-map.mjs:19,45,61-69,167,360-366,407-408,426,434-435`, `apps/server/src/service.ts:48,72,106`, `apps/web/src/lib/game/session.svelte.ts:120,124`, `apps/web/src/lib/game/engine.ts:6-17`, `apps/web/src/lib/components/NewGame.svelte:61-66`, `packages/protocol/src/index.ts:26,41`, `packages/content/src/validate.ts`, `manors_and_menaces_project_spec.md:288-300`
 - Evidence: `MAPS = { greenvale }`. The generator hard-codes the id, name and output path. The server pins `MAP_ID`, while the web client already handles `mapId`. `--seed 1..20 --check` gives valid statistics in under a second each. The generator uses `Math.sin/cos/atan2/hypot`, which are not guaranteed bit-identical across V8 and JavaScriptCore (Tauri on macOS and Linux), so regenerating from an id on another platform is unsafe.
 - Proposal:
@@ -515,6 +515,7 @@ Common constraint: regenerating `greenvale` renumbers every id, and `isSaveFile`
   4. Random realms are generated **once**, on the creating side: embed `map?: MapDefinition` in the SaveFile (schema bump with a migration where a missing map means greenvale) and in MatchView (a `map_json` column). Add a `registerMap(def)` registry in `apps/web/src/lib/game/engine.ts` that validates and caches, and have `fromSave` register first. The server keeps an engine cache per map and validates the `mapId`.
   5. NewGame gets a Realm picker (Greenvale / Random realm with an optional seed / Small realm for 2 players) with SVG thumbnails.
   6. Tests: `generateMap(14)` deep-equals GREENVALE; `validateMap` passes for seeds 1 to 50; a 3-AI playout on 5 seeds; `pnpm simulate --map`.
+- Done, differently from the proposal: twelve generated islands join The Greenvale (`tools/islands.mjs`; `pnpm map:generate` and `map:check` cover all of them), committed as data rather than generated at run time, so floating-point differences between engines never matter. Every new game, local or online, draws an island and a layout of it from the game seed (`packages/content/src/layout.ts`): each Region's Resource (keeping like Regions apart), the rich Regions, Region names and the Trading Posts, with the Region Menaces starting by the generator's rule. The map id is `<island>@<layout>`, so saves, the server and the AI worker needed no new fields; only integer and exactly rounded arithmetic decides a layout. New Game has an Island choice (any island by default). The islands were screened from seeds 1 to 300 by the island-shape, coastal-network and sea-ornament tests (now run on every island) and by terrain art across 100 layouts each. Terrain art now falls back to smaller motifs so no Region is bare on any layout. Balance, 480 Normal AI games, 3 players, Standard: The Greenvale as published has seat win rates 43/20/37%, 15.7 rounds, harvest 2.48/5.11 and 0 stalls; drawn layouts on all islands 50/28/22%, 15.1 rounds, harvest 2.62/5.52 and 1 stall at round 60. The published layout happened to favour seat 3; drawn layouts move the edge to seat 1 (see `ai-seat-one-dominance`; `seatBonus` or layout fairness constraints from `content-opening-imbalance` are the levers). Still open: random realms generated per game, and a version check so an older app refuses a map it lacks (`spec-versioning-never-enforced`).
 - From the previous analysis: `MAP_ID = "greenvale"` is hard-coded in `service.ts:48,72,106` and `createMatch` ignores the client's `mapId`. Also wanted: a map preview in the lobby and a random-map option. See `tools-generate-map-robustness` for generator bugs to fix during step 1.
 
 #### content-card-pool-thin: 11 unique cards, no Charter cards, 1 Trick and 1 Story (spec target 72/24)
@@ -1008,7 +1009,7 @@ What already matches Kolonists: bank and Trading Post trades, a paid displacemen
 
 | Feature players expect | Status | Entry |
 |---|---|---|
-| Several or random boards | One fixed map; the generator is CLI-only | `content-single-map` |
+| Several or random boards | Done: 13 islands, a new layout every game | `content-single-map` |
 | End-game stats, graphs, awards | In flight | #18 |
 | Animated production, resources flying to players | In flight | #23 |
 | Opponent action feed | In flight (toasts, digest); log detail open | #23, `vis-opponent-actions-invisible` |
