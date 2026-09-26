@@ -870,3 +870,32 @@ remain follow-up polish, not confirmed blockers. Subjective listening remains
 unverified. All ten audio/offline browser checks and lint passed after the
 regeneration; the standalone clipping regression passed. The Mac app is being
 rebuilt. Next push and inspect the second review/CI, then merge PR #53.
+
+## September 26 checkpoint: consolidate and clean branches
+
+Soundscape PR #53 is merged after two reviews and green CI; the clipping fix
+and final Mac app rebuild passed. User then requested merging all remaining
+work into main and removing obsolete branches.
+
+Merged reviewed, green PRs #48 (email aliases and outbox decoding) and #41
+(AI hidden information/card use), then #54 (Banner-placement explanations),
+whose final review found no actionable issues. All three passed their CI.
+
+Recovered three older follow-up commits on `codex/finish-branch-consolidation`:
+`ce54935` (only dialog spacing is still needed; the inspector's localization
+already exists in `game/inspect.ts`), `57b3746` (Chronicle setup retry), and
+`d113afa` (shared CORS headers and safer test URL parsing). The combined tests
+exposed two AI fixtures relying on the old Renown target. Keep their original
+scenario assertions and scale the rival's score with the target; explicitly
+test 12, 13 and 15. All 33 focused AI and six Chronicle/hotseat browser tests
+pass. The full local check passed with 646 tests before #54; the consolidation
+branch is now rebased onto all three merged PRs for final combined validation.
+
+Seven stale local branches were verified against their merged squash patches
+or ancestry, then deleted. Deleted remote `codex/save-icon-concept` (merged)
+and `fix/rules-guards` (deliberately rejected in PR #5/#31: its restrictions
+contradict the spec, and command cloning already handles its alias concern).
+Do not reintroduce those rejected rules. After the consolidation PR passes CI
+and review, merge it, delete the three recovered `fix/*` branches, prune and
+confirm that only main remains locally and remotely. No uncommitted user work
+or additional worktrees were present during the audit.

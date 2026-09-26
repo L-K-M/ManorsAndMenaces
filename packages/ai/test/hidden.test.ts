@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRng, createRulesEngine, redactState, seedRng, type CommandIntent, type GameCommand, type GameState, type PlayerId, type PlayerState } from "@manors-menaces/rules";
+import { createRng, createRulesEngine, getRenown, redactState, seedRng, type CommandIntent, type GameCommand, type GameState, type PlayerId, type PlayerState } from "@manors-menaces/rules";
 import { chooseAction, evaluate } from "../src/index.js";
 import { counterChance, counteredOutcome } from "../src/hidden.js";
 import { CARD_WORTH, cardWorth, handValue } from "../src/evaluate.js";
@@ -129,15 +129,17 @@ describe("card economy", () => {
 
 describe("cards the evaluator cannot see through", () => {
   /** p1 holds `card` and nothing to spend; p2 leads, so interference is worth aiming at them. */
-  function holding(card: string): { state: GameState; p1: PlayerId; p2: PlayerId } {
-    const g = setupGame(standardRuleset(2));
+  function holding(card: string, targetRenown = standardRuleset(2).targetRenown): { state: GameState; p1: PlayerId; p2: PlayerId } {
+    const g = setupGame({ ...standardRuleset(2), targetRenown });
     let state = withPlayer({ ...g.state, cardDeck: g.state.cardDeck.filter((c) => c !== card) }, g.p1, { hand: [card], resources: { grain: 0, timber: 0, stone: 0, iron: 0, essence: 0 } });
-    state = withPlayer(state, g.p2, { bonusRenown: 6 });
+    // Threat scales with progress toward victory, so keep the leader two-thirds
+    // of the way there when the game's Renown target changes.
+    state = withPlayer(state, g.p2, { bonusRenown: Math.ceil(targetRenown * 2 / 3) - getRenown(ctx, state, g.p2) });
     return { state, p1: g.p1, p2: g.p2 };
   }
 
-  it("fogs a Route of the leader", () => {
-    const { state, p1, p2 } = holding("fog_of_confusion#1");
+  it.each([12, 13, 15])("fogs a Route of the leader with a %i-Renown target", (targetRenown) => {
+    const { state, p1, p2 } = holding("fog_of_confusion#1", targetRenown);
     const choice = decide(state, p1);
     expect(choice).toMatchObject({ type: "play_card", cardId: "fog_of_confusion#1" });
     const routeId = choice?.type === "play_card" && choice.target.effect === "fog_of_confusion" ? choice.target.routeId : "";
