@@ -37,8 +37,11 @@
   import ResourceIcon from "./ResourceIcon.svelte";
   import ToolIcon from "./ToolIcon.svelte";
   import CardArt from "./CardArt.svelte";
+  import FullCard from "./FullCard.svelte";
 
-  let { session, legal }: { session: GameSession; legal: LegalActionSummary | null } = $props();
+  // `holdDecisions`: a card another player played is on screen first
+  // (PlayedCardDialog), so the Counterspell and Prophecy decisions wait.
+  let { session, legal, holdDecisions = false }: { session: GameSession; legal: LegalActionSummary | null; holdDecisions?: boolean } = $props();
   const gs = $derived(session.draft);
   const me = $derived(legal ? gs.players[legal.playerId] : undefined);
 
@@ -395,8 +398,10 @@
   </Modal>
 {/if}
 
-{#if legal?.mode === "reaction" && pendingReaction}
+{#if legal?.mode === "reaction" && pendingReaction && !holdDecisions}
   <Modal title={t("ui.counterspell")}>
+    <!-- The Spell in full: reading it here stands in for its played-card dialog. -->
+    <FullCard def={session.ctx.cardOf(pendingReaction.cardId)} />
     <p class="help">
       {t("ui.reaction_intro", { name: gs.players[pendingReaction.sourcePlayerId]?.displayName ?? "" })} <b>{t(`card.${cardDefIdOf(pendingReaction.cardId)}.name`)}</b>{describeTarget() ? ` ${t("ui.reaction_on", { target: describeTarget() })}` : ""}.
     </p>
@@ -411,7 +416,7 @@
   </Modal>
 {/if}
 
-{#if legal?.mode === "prophecy"}
+{#if legal?.mode === "prophecy" && !holdDecisions}
   <Modal title={t("card.very_minor_prophecy.name")}>
     <p class="help">{t("ui.the_top_of_the_draw")}</p>
     <ol class="order">

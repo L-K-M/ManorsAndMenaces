@@ -8,7 +8,9 @@
 
   $effect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    const first = el?.querySelector<HTMLElement>("button, [href], input, select, [tabindex]:not([tabindex='-1'])");
+    // A dialog may name its main control (data-autofocus); otherwise the
+    // first control takes focus, the close button when there is one.
+    const first = el?.querySelector<HTMLElement>("[data-autofocus]") ?? el?.querySelector<HTMLElement>("button, [href], input, select, [tabindex]:not([tabindex='-1'])");
     first?.focus();
     return () => previous?.focus?.();
   });

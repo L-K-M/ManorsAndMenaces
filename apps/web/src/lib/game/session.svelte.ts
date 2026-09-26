@@ -26,6 +26,7 @@ import { mapIdForNewGame } from "@manors-menaces/content";
 import { engineFor, mapFor } from "./engine.js";
 import { EventBus } from "./eventBus.js";
 import { formatEvents, noticeEntry, rebuildLog, type LogEntry } from "./log.js";
+import type { PlayNotice } from "./plays.js";
 import { initialView, nextView, privacyMode, revealView, type PrivacyMode, type PrivacyView } from "./privacy.js";
 import { autosavesToPrune, describeSave, exportFileName, manualSaveId, newAutosaveId, replayPending, saveLabel } from "./saves.js";
 import { recordGame } from "./telemetry.js";
@@ -124,6 +125,8 @@ export class GameSession {
   presence: Record<PlayerId, boolean> = $state.raw({});
   /** Online: this client's seat. */
   readonly onlinePlayerId: PlayerId | null;
+  /** Online: the cards others played since this device last showed the match, to read first (PlayQueue). */
+  readonly missedPlays: readonly PlayNotice[];
   /** The last autosave failed (e.g. storage blocked); the UI offers Export instead. */
   autosaveFailed = $state(false);
 
@@ -139,6 +142,10 @@ export class GameSession {
   private aiProblemKey = "";
   /** The AI problem shown as `error`, if any (the Chronicle keeps the record). */
   private aiNotice: { text: string; stuck: boolean; shownAt: number } | null = null;
+  /** Reasons for computer players to wait before their next move (see holdAi). */
+  private readonly aiHolds = new Set<() => boolean>();
+  /** Wakes a computer player waiting on a hold, to check again. */
+  private aiWake: (() => void) | null = null;
   private destroyed = false;
   /** Every batch of events, for animation and feedback layers. */
   readonly events = new EventBus<SessionEvents>();
@@ -163,6 +170,7 @@ export class GameSession {
     pending?: GameCommand[];
     transport?: Transport;
     onlinePlayerId?: PlayerId | null;
+    missedPlays?: readonly PlayNotice[];
     autosave?: boolean;
     /** Keep writing this autosave slot (resuming it); default: a new slot. */
     autosaveSlot?: string;
@@ -176,6 +184,7 @@ export class GameSession {
     this.initialState = opts.initialState;
     this.commandHistory = [...(opts.history ?? [])];
     this.onlinePlayerId = opts.onlinePlayerId ?? null;
+    this.missedPlays = opts.missedPlays ?? [];
     this.transport = opts.transport ?? this.localTransport();
     this.autosaveEnabled = this.transport.kind === "local" && opts.autosave !== false;
     this.autosaveSlot = opts.autosaveSlot ?? newAutosaveId(opts.state.matchId);
@@ -258,8 +267,11 @@ export class GameSession {
     return this.seats.find((s) => s.kind === "human")?.playerId ?? null;
   }
 
-  /** Local games only: read each time, as the curtain setting can change mid-game. */
-  private privacyMode(): PrivacyMode {
+  /**
+   * Local games only: read each time, as the curtain setting can change
+   * mid-game. Public for the PlayQueue, which tells hot-seat humans apart.
+   */
+  privacyMode(): PrivacyMode {
     return privacyMode(this.seats.filter((s) => s.kind === "human").length, settings.privacyCurtain);
   }
 
@@ -505,7 +517,35 @@ export class GameSession {
 
     const wait = aiPaceDelayMs(aiStepPace(step), animationScale()) - (performance.now() - started);
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    // Checked last, right before the move is shown: a card played a moment
+    // ago may still be waiting for the viewer's OK.
+    while (this.aiHeld() && !this.destroyed) await new Promise<void>((wake) => (this.aiWake = wake));
     return step;
+  }
+
+  /**
+   * Local computer players wait before each move while `held()` is true,
+   * such as while a card another player played waits on screen for the
+   * viewer's OK. Call resumeAi() when it may have become false. Returns the
+   * function that removes the hold. Online, the server paces its computers.
+   */
+  holdAi(held: () => boolean): () => void {
+    this.aiHolds.add(held);
+    return () => {
+      this.aiHolds.delete(held);
+      this.resumeAi();
+    };
+  }
+
+  /** A hold may have ended: a waiting computer player checks again. */
+  resumeAi(): void {
+    const wake = this.aiWake;
+    this.aiWake = null;
+    wake?.();
+  }
+
+  private aiHeld(): boolean {
+    return [...this.aiHolds].some((held) => held());
   }
 
   /** Show an AI failure as an error and in the Chronicle, once per seat and turn. */
@@ -634,6 +674,7 @@ export class GameSession {
     void this.flushAutosave();
     this.destroyed = true;
     if (this.aiTimer) clearTimeout(this.aiTimer);
+    this.resumeAi();
     this.ai.dispose();
     this.transport.close?.();
   }
