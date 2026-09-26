@@ -74,6 +74,21 @@ test("targeting keeps creature artwork saturated without enabling unavailable ta
   await expect(creature).toHaveAttribute("tabindex", "-1");
 });
 
+test("Holdings and Menaces stand out from the resource discs @mobile", async ({ page }) => {
+  await startHotseat(page);
+  await page.locator(".site.hl").first().click();
+  const disc = (await page.locator('.region circle[r="17"]').first().boundingBox())!;
+  const manor = page.locator(".holding .piece.manor");
+  await expect(manor).toBeVisible();
+  expect((await manor.boundingBox())!.width).toBeGreaterThan(disc.width * 1.15);
+  for (const image of await page.locator(".menace .painted image").all()) {
+    expect((await image.boundingBox())!.width).toBeGreaterThan(disc.width * 1.9);
+  }
+  // The larger figures must not intercept the free Route being placed next.
+  await page.locator(".route.hl").first().click();
+  await expect(page.locator(".route[aria-label*='owned by']")).toHaveCount(1);
+});
+
 test("painted menaces load with transparent backgrounds", async ({ page }) => {
   await startHotseat(page);
   await expect(page.locator(".menace .painted image")).toHaveCount(2);

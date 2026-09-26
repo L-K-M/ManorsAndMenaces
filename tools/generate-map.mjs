@@ -166,6 +166,9 @@ let edges = [...edgeMap.values()];
 // Merge sites that sit too close together (tiny Voronoi edges) — they read as
 // one point on the board. Collapse the shorter edge into its midpoint.
 const sites = siteList.map(([, v]) => ({ x: v.x, y: v.y, cells: new Set(v.cells), coast: v.onCoast }));
+// Keep the original polygon vertices attached to the surviving junction, too.
+// Moving only the graph leaves a tiny border behind under the merged Site.
+const mergedInto = sites.map((_, i) => i);
 const MIN_EDGE = 38;
 for (;;) {
   let shortest = null;
@@ -180,6 +183,7 @@ for (;;) {
   sites[b].cells.forEach((c) => sites[a].cells.add(c));
   sites[a].coast = sites[a].coast || sites[b].coast;
   sites[b].dead = true;
+  mergedInto[b] = a;
   edges = edges
     .map(([x, y]) => [x === b ? a : x, y === b ? a : y])
     .filter(([x, y]) => x !== y);
@@ -191,6 +195,22 @@ for (;;) {
     return true;
   });
 }
+
+const junctionPoint = (point) => {
+  let site = siteIndex.get(vkey(point));
+  if (site === undefined) return point;
+  while (mergedInto[site] !== site) site = mergedInto[site];
+  return [sites[site].x, sites[site].y];
+};
+// This is display geometry only. Keep the original cells for the resource,
+// landmark and identity decisions below so published saves keep their graph.
+const displayCells = cells.map((cell) => {
+  const points = cell.map(junctionPoint);
+  return points.filter((p, i) => {
+    const previous = points[(i + points.length - 1) % points.length];
+    return p[0] !== previous[0] || p[1] !== previous[1];
+  });
+});
 
 // Drop coast sites that touch only 2 regions until the site count is 36,
 // preferring those with the lowest degree (least important to the network).
@@ -427,13 +447,13 @@ const routeDefs = edges.map(([a, b], i) => ({
   kind: ROUTE_KINDS[Math.floor(rand() * ROUTE_KINDS.length)],
 }));
 const regionDefs = regionOrder.map((c) => {
-  const [lx, ly] = centroid(cells[c].map(shapePoint));
+  const [lx, ly] = centroid(displayCells[c].map(shapePoint));
   return {
     id: regionId.get(c),
     name: regionName.get(c),
     resource: resources[c],
     capacity: rich.has(c) ? 2 : 1,
-    path: pathOf(cells[c]),
+    path: pathOf(displayCells[c]),
     labelX: r1(lx),
     labelY: r1(ly),
     adjacentSiteIds: alive.filter((s) => sites[s].cells.has(c)).map((s) => siteId.get(s)).sort(),
