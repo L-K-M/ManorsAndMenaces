@@ -9,6 +9,7 @@ import {
   dragonsLandingTargets,
   enumerateCardTargets,
   getActionAvailability,
+  getBannerRegionOptions,
   getLegalActions,
   getLegalBannerRegions,
   getLegalMenaceDestinations,
@@ -18,6 +19,7 @@ import {
   plagueBanners,
   type ActionAvailability,
   type BannerId,
+  type BannerRegionOption,
   type CardTarget,
   type CommandIntent,
   type GameState,
@@ -42,6 +44,8 @@ import {
   type Pick,
   type TargetField,
 } from "../stores/ui.svelte.js";
+import { listText } from "./feed.js";
+import { regionName } from "./log.js";
 import type { GameSession } from "./session.svelte.js";
 
 export interface Highlights {
@@ -54,9 +58,20 @@ export interface Highlights {
   locations: Set<string>;
   /** Short instruction for the current step. */
   hint: string | null;
+  /** Parameters for `hint`. */
+  hintParams: Record<string, string | number>;
 }
 
-const empty = (): Highlights => ({ sites: new Set(), routes: new Set(), regions: new Set(), banners: new Set(), menaces: new Set(), locations: new Set(), hint: null });
+const empty = (): Highlights => ({
+  sites: new Set(),
+  routes: new Set(),
+  regions: new Set(),
+  banners: new Set(),
+  menaces: new Set(),
+  locations: new Set(),
+  hint: null,
+  hintParams: {},
+});
 
 export function legalFor(session: GameSession): LegalActionSummary | null {
   const actor = session.localActor;
@@ -107,6 +122,20 @@ export function tradeToAfford(action: PlayerAction): void {
   ui.dialog = "market";
 }
 
+/**
+ * Says why a Banner has no Region to go to. Only a Banner at home can get
+ * here: a placed Banner may always stay where it is.
+ */
+function explainNoRoom(session: GameSession, options: readonly BannerRegionOption[], h: Highlights): void {
+  const ownFull = options.filter((o) => o.blockedBy === "full_own").map((o) => regionName(session.map, o.regionId));
+  if (ownFull.length > 0) {
+    h.hint = "hint.banner_blocked_own";
+    h.hintParams = { regions: listText(ownFull) };
+    return;
+  }
+  h.hint = options.some((o) => o.blockedBy === "stronghold_pair") ? "hint.banner_blocked_pair" : "hint.banner_blocked_full";
+}
+
 export function computeHighlights(session: GameSession, legal: LegalActionSummary | null): Highlights {
   const h = empty();
   if (!legal) return h;
@@ -124,10 +153,14 @@ export function computeHighlights(session: GameSession, legal: LegalActionSummar
     case "setup_banners":
     case "banner_assignment": {
       for (const b of getPlayerBanners(state, legal.playerId)) h.banners.add(b.id);
-      if (ui.selectedBannerId) {
-        getLegalBannerRegions(ctx, state, ui.selectedBannerId, ui.bannerDraft).forEach((r) => h.regions.add(r));
-        h.hint = "hint.banner_region";
-      } else h.hint = "hint.banner_select";
+      if (!ui.selectedBannerId) {
+        h.hint = "hint.banner_select";
+        return h;
+      }
+      const options = getBannerRegionOptions(ctx, state, ui.selectedBannerId, ui.bannerDraft);
+      for (const o of options) if (o.blockedBy === null) h.regions.add(o.regionId);
+      if (h.regions.size > 0) h.hint = "hint.banner_region";
+      else explainNoRoom(session, options, h);
       return h;
     }
     case "main":

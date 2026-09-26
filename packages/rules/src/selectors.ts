@@ -253,6 +253,49 @@ export function getLegalInitialRoutes(ctx: RulesContext, state: GameState): Rout
 
 // ------------------------------------------------------------------ banners (§14)
 
+/** Why a Region next to a Banner's Holding can't take that Banner. */
+export type BannerRegionBlock =
+  /** Full, and one of the Banners filling it belongs to the same player. */
+  | "full_own"
+  /** Full of other players' Banners. */
+  | "full_rival"
+  /** The other Banner of the same Stronghold is there (§14). */
+  | "stronghold_pair";
+
+export interface BannerRegionOption {
+  regionId: RegionId;
+  blockedBy: BannerRegionBlock | null;
+}
+
+/**
+ * Every Region next to a Banner's Holding and whether the Banner may occupy
+ * it, given a (possibly draft) assignment map that overrides current
+ * positions. Lets a UI explain why a Banner has nowhere to go.
+ */
+export function getBannerRegionOptions(
+  ctx: RulesContext,
+  state: GameState,
+  bannerId: BannerId,
+  draft: Readonly<Record<BannerId, RegionId | null>> = {},
+): BannerRegionOption[] {
+  const banner = own(state.banners, bannerId);
+  if (!banner) return [];
+  const holding = state.holdings[banner.holdingId];
+  if (!holding) return [];
+  const positionOf = (b: Banner): RegionId | null => (b.id in draft ? (draft[b.id] ?? null) : b.regionId);
+  const siblings = Object.values(state.banners).filter((b) => b.holdingId === banner.holdingId && b.id !== bannerId);
+  return ctx.board.site(holding.siteId).adjacentRegionIds.map((regionId): BannerRegionOption => {
+    const region = ctx.board.region(regionId);
+    const occupants = Object.values(state.banners).filter((b) => b.id !== bannerId && positionOf(b) === regionId);
+    if (occupants.length >= region.capacity) {
+      const ownFull = occupants.some((b) => b.ownerId === banner.ownerId);
+      return { regionId, blockedBy: ownFull ? "full_own" : "full_rival" };
+    }
+    if (siblings.some((s) => positionOf(s) === regionId)) return { regionId, blockedBy: "stronghold_pair" };
+    return { regionId, blockedBy: null };
+  });
+}
+
 /**
  * Regions a Banner may legally occupy given a (possibly draft) assignment map
  * that overrides current positions. Does not include `null` (always legal).
@@ -263,19 +306,9 @@ export function getLegalBannerRegions(
   bannerId: BannerId,
   draft: Readonly<Record<BannerId, RegionId | null>> = {},
 ): RegionId[] {
-  const banner = own(state.banners, bannerId);
-  if (!banner) return [];
-  const holding = state.holdings[banner.holdingId];
-  if (!holding) return [];
-  const positionOf = (b: Banner): RegionId | null => (b.id in draft ? (draft[b.id] ?? null) : b.regionId);
-  const siblings = Object.values(state.banners).filter((b) => b.holdingId === banner.holdingId && b.id !== bannerId);
-  return ctx.board.site(holding.siteId).adjacentRegionIds.filter((regionId) => {
-    const region = ctx.board.region(regionId);
-    const occupants = Object.values(state.banners).filter((b) => b.id !== bannerId && positionOf(b) === regionId);
-    if (occupants.length >= region.capacity) return false;
-    if (siblings.some((s) => positionOf(s) === regionId)) return false;
-    return true;
-  });
+  return getBannerRegionOptions(ctx, state, bannerId, draft)
+    .filter((o) => o.blockedBy === null)
+    .map((o) => o.regionId);
 }
 
 /** Validates a complete assignment for all of one player's Banners. */
