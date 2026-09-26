@@ -63,6 +63,12 @@ export const WEIGHTS = {
 
 /** Below this many cards in hand, the next card is a (minor) goal. */
 export const CARD_GOAL_HAND = 3;
+/**
+ * Cards become a goal only once the player has this many Holdings. Saving
+ * for them from the start slowed every opening, which in 200-game runs
+ * widened the first seat's lead (2p 57% to 64%, 3p 36% to 44%).
+ */
+const CARD_GOAL_HOLDINGS = 3;
 /** Weight of that goal against building (0.45 each). */
 const CARD_GOAL_WEIGHT = 0.3;
 
@@ -86,7 +92,7 @@ export function resourceNeeds(ctx: RulesContext, state: GameState, playerId: Pla
   // Route is counted however far the planned Site is: saving for the whole
   // path at once made the AI hoard instead of building step by step.
   goals.push({ cost: buildable ? BALANCE.costs.manor : addCost(BALANCE.costs.route, BALANCE.costs.manor), weight: 0.45 });
-  if (state.ruleset.enableCards && state.cardDeck.length + state.discardPile.length > 0 && p.hand.length < CARD_GOAL_HAND) {
+  if (state.ruleset.enableCards && state.cardDeck.length + state.discardPile.length > 0 && p.hand.length < CARD_GOAL_HAND && holdings.length >= CARD_GOAL_HOLDINGS) {
     goals.push({ cost: BALANCE.costs.card, weight: CARD_GOAL_WEIGHT });
   }
   for (const goal of goals) {

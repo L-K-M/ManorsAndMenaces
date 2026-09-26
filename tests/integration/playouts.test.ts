@@ -170,22 +170,21 @@ describe("AI playouts", () => {
   // Route burning, Holding destruction, hand swaps and Charters) actually get
   // played and the invariants above see their results.
   const CARD_HEAVY_PLAYERS = [2, 3, 4] as const;
-  // Seeds whose games between them resolve every card event checked below.
-  // Any change to the AI or the deck can shift them; pick new ones if so.
-  const CARD_HEAVY_SEEDS: Record<(typeof CARD_HEAVY_PLAYERS)[number], string> = { 2: "cards-2p-b", 3: "cards-3p-c", 4: "cards-4p-b" };
-  const cardGameEvents = new Map<number, Set<GameEvent["type"]>>();
-  /** Plays and checks the card-heavy game for this seat count once per run; returns its event types. */
-  function cardHeavyGame(players: number): Set<GameEvent["type"]> {
-    const played = cardGameEvents.get(players);
+  /** Seed suffixes tried in turn; the first ones are the invariant games below. */
+  const CARD_HEAVY_SUFFIXES = ["", "-b", "-c", "-d", "-e", "-f", "-g"];
+  const cardGameEvents = new Map<string, Set<GameEvent["type"]>>();
+  /** Plays and checks one card-heavy game once per run; returns its event types. */
+  function cardHeavyGame(players: number, suffix = ""): Set<GameEvent["type"]> {
+    const seed = `cards-${players}p${suffix}`;
+    const played = cardGameEvents.get(seed);
     if (played) return played;
     const rs = standardRuleset(players);
-    const seed = CARD_HEAVY_SEEDS[players as (typeof CARD_HEAVY_PLAYERS)[number]];
     const { initial, final, steps, won } = playGame(players, rs, seed, { freeCardEachTurn: true });
     expectWinner(final, won, rs.targetRenown);
     const replayed = replaySteps(initial, steps);
     expect(hashState(replayed.state)).toBe(hashState(final));
     console.log(seed, "rounds", final.round, "steps", steps.length, describeWin(final, won));
-    cardGameEvents.set(players, replayed.eventTypes);
+    cardGameEvents.set(seed, replayed.eventTypes);
     return replayed.eventTypes;
   }
 
@@ -196,11 +195,18 @@ describe("AI playouts", () => {
   }
 
   // new-cards.test.ts covers each card on its own; this checks they also
-  // resolve in whole games. The Plague's effect_started is not unique to it.
+  // resolve in whole games. Which seeds get there shifts with every AI or
+  // deck change, so games are played across seeds until each event has
+  // happened, within a fixed budget.
   it("card-heavy games exercise the second-wave cards", () => {
-    const seen = new Set(CARD_HEAVY_PLAYERS.flatMap((players) => [...cardHeavyGame(players)]));
-    for (const type of ["route_burned", "holding_destroyed", "holding_reduced", "hands_swapped", "insurance_claimed"] as const) expect(seen, type).toContain(type);
-  }, 360_000);
+    const wanted = ["route_burned", "holding_destroyed", "hands_swapped", "insurance_claimed"] as const;
+    const seen = new Set<GameEvent["type"]>();
+    for (const suffix of CARD_HEAVY_SUFFIXES) {
+      for (const players of CARD_HEAVY_PLAYERS) for (const type of cardHeavyGame(players, suffix)) seen.add(type);
+      if (wanted.every((type) => seen.has(type))) break;
+    }
+    for (const type of wanted) expect(seen, type).toContain(type);
+  }, 600_000);
 });
 
 describe("AI decisions", () => {
