@@ -5,7 +5,7 @@
 
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { chooseAction, fallbackIntents } from "@manors-menaces/ai";
-import { GREENVALE_MAP, rulesContentFor } from "@manors-menaces/content";
+import { mapIdForNewGame, rulesContentFor } from "@manors-menaces/content";
 import type {
   ApiErrorCode,
   CreateMatchRequest,
@@ -32,6 +32,7 @@ import {
   type GameEvent,
   type GameState,
   type PlayerId,
+  type RulesContent,
   type RulesEngine,
 } from "@manors-menaces/rules";
 import { actorOf, noticeFor, noticesAfter } from "./notices.js";
@@ -51,7 +52,6 @@ export interface MatchListener {
   (matchId: string, events: GameEvent[]): void;
 }
 
-const MAP_ID = GREENVALE_MAP.id;
 /** Pause before an AI seat that found no usable move tries again; it doubles on each failure in a row. */
 const AI_RETRY_MS = 5_000;
 /** Cap on that growing pause, so a match stuck on a bug does not flood the log. */
@@ -82,7 +82,8 @@ function canonicalJson(x: unknown): string {
 }
 
 export class MatchService {
-  private readonly engines = new Map<string, RulesEngine>();
+  /** One engine per rules content object, released with it (content is cached per map with a limit). */
+  private readonly engines = new WeakMap<RulesContent, RulesEngine>();
   private readonly listeners = new Set<MatchListener>();
   private readonly aiTimers = new Map<string, ReturnType<typeof setTimeout>>();
   /** AI steps in a row that failed, per match; sets the retry delay. */
@@ -99,10 +100,11 @@ export class MatchService {
   ) {}
 
   private engineFor(mapId: string): RulesEngine {
-    let engine = this.engines.get(mapId);
+    const content = rulesContentFor(mapId);
+    let engine = this.engines.get(content);
     if (!engine) {
-      engine = createRulesEngine(rulesContentFor(mapId));
-      this.engines.set(mapId, engine);
+      engine = createRulesEngine(content);
+      this.engines.set(content, engine);
     }
     return engine;
   }
@@ -138,7 +140,9 @@ export class MatchService {
     const ruleset = req.rulesetName === "mvp" ? mvpRuleset() : req.rulesetName === "async" ? asyncRuleset(seatCount) : standardRuleset(seatCount);
     const matchId = `m_${randomUUID()}`;
     const inviteCode = randomBytes(5).toString("base64url").toUpperCase().replace(/[^A-Z0-9]/g, "X").slice(0, 6);
-    this.store.createMatch({ id: matchId, ruleset, rulesVersion: RULESET_VERSION, mapId: MAP_ID, seed: randomBytes(16).toString("hex"), inviteCode });
+    // Each match is played on an island and a layout drawn from its seed.
+    const seed = randomBytes(16).toString("hex");
+    this.store.createMatch({ id: matchId, ruleset, rulesVersion: RULESET_VERSION, mapId: mapIdForNewGame(seed), seed, inviteCode });
     const humanSeats = seatCount - aiSeats.length;
     for (let seat = 0; seat < seatCount; seat++) {
       const ai = seat >= humanSeats ? aiSeats[seat - humanSeats] : undefined;

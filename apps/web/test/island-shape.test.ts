@@ -1,9 +1,8 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { GREENVALE_MAP as map, LEGACY_GREENVALE_MAP } from "@manors-menaces/content";
+import { ISLANDS, LEGACY_GREENVALE_MAP, type MapDefinition } from "@manors-menaces/content";
 import { edgeDistance, inside, polygonPoints, signedArea, type Pt } from "../src/lib/art/geometry.js";
 
-const coast = polygonPoints(map.coastline);
 const cross = (a: Pt, b: Pt, c: Pt) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
 function convexHull(points: Pt[]): Pt[] {
   const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
@@ -17,9 +16,47 @@ function convexHull(points: Pt[]): Pt[] {
   };
   return [...half(sorted), ...half(sorted.reverse())];
 }
-const onLand = (p: Pt) => inside(p, coast) || edgeDistance(p, coast) < 1;
 
-describe("island geography", () => {
+/** Everything a save relies on (ids, connections, Resources, landmarks, Menace starts), without the drawing. */
+function fingerprint(map: MapDefinition): string {
+  const { coastline: _coastline, sites, routes, regions, ...rest } = map;
+  const gameplay = {
+    ...rest,
+    sites: sites.map(({ x: _x, y: _y, ...s }) => s),
+    routes: routes.map(({ points: _points, ...r }) => r),
+    regions: regions.map(({ path: _path, labelX: _x, labelY: _y, ...r }) => r),
+  };
+  return createHash("sha256").update(JSON.stringify(gameplay)).digest("hex");
+}
+
+describe("published boards", () => {
+  it("keeps every island's connections and save-game identities", () => {
+    // As above: saves and online matches name these islands, so a change here
+    // needs a new island id rather than a new fingerprint.
+    expect(Object.fromEntries(ISLANDS.map((m) => [m.id, fingerprint(m)]))).toEqual(ISLAND_FINGERPRINTS);
+  });
+});
+
+const ISLAND_FINGERPRINTS: Record<string, string> = {
+  "greenvale-coastal-v2": "c0ca0eb72ca57ac843fdc2833eb50b74cbbae90cd69e7b92d353d7e9c3c64a4b",
+  "ashmere": "bdd3e8cf281457f645adadfb13d187586c524b884b6a287a6880cd49553aa9c3",
+  "brightwater": "2fa415b0f5d7e456738c2f54e10893c45f13231096f794d29577fb49ed18c305",
+  "dunmarrow": "917ed2714801f487f5eabe4667f8c53b7f7147f7a8f434d14607bf89f92643e7",
+  "emberreach": "74d92475e5e65b31ca7cc4bab5d8326fec474d180d1bc988b536c05d222beb12",
+  "hollowmere": "188fbf65314229b79078d5b7a8bff6f6b2cefa69248cfbbd97b03b02ba6065e0",
+  "kingsbarrow": "1dd3dc645af52207b041f7093a379a98eea88851375389871cf78cf18a3ba03e",
+  "mistholm": "98b211f54bf0ccacfe2ed2bd3792854f7181c52f83564d4e520228d0b841770c",
+  "ravensholt": "e24e13c31c578e294334d8db8a18f55925fa9be9dd194e325dc95421bf8d7533",
+  "silverfen": "c01dd9cf97dea0ab620f027e360adc88d58df614fa27de85f9a75a7266e87b9c",
+  "stagmoor": "4030d74f26625c84eee7af74ee6914299752b50b84fe20384785a2f91972aec3",
+  "thornwold": "0e608093a555d2ca04fd1c7243606099d5ae21a34986101ee833cb1058055bdc",
+  "wyrmsend": "4d337769089131bf784a6e47543bdb67933f94d7a3d24212cfe778e81e47956b",
+};
+
+describe.each(ISLANDS.map((m) => [m.id, m] as const))("island geography of %s", (_, map) => {
+  const coast = polygonPoints(map.coastline);
+  const onLand = (p: Pt) => inside(p, coast) || edgeDistance(p, coast) < 1;
+
   it("has substantial bays rather than small ripples around an oval", () => {
     const hull = convexHull(coast);
     expect(signedArea(coast) / signedArea(hull)).toBeLessThan(0.9);

@@ -29,8 +29,20 @@ describe("planRematch", () => {
     if (plan.kind !== "local") return;
     expect(plan.options.seats).toEqual(seats);
     expect(plan.options.ruleset).toEqual(mvpRuleset());
-    expect(plan.options.mapId).toBe("greenvale");
+    expect(plan.options.board).toEqual({ kind: "fixed", mapId: "greenvale" });
     expect(plan.options.seed).toBeUndefined();
+  });
+
+  it("repeats the New Game island choice, so each game deals new land", () => {
+    const drawn = { ...finished, mapId: "greenvale-coastal-v2@123", transport: "local" as const, tutorial: false };
+    const boardAfter = (board?: { kind: "drawn"; islandId?: string }) => {
+      const plan = planRematch({ ...drawn, ...(board ? { board } : {}) });
+      return plan.kind === "local" ? plan.options.board : plan.kind;
+    };
+    expect(boardAfter({ kind: "drawn" })).toEqual({ kind: "drawn" });
+    expect(boardAfter({ kind: "drawn", islandId: "greenvale-coastal-v2" })).toEqual({ kind: "drawn", islandId: "greenvale-coastal-v2" });
+    // A game continued from a save forgot the choice: stay on its island.
+    expect(boardAfter()).toEqual({ kind: "drawn", islandId: "greenvale-coastal-v2" });
   });
 
   it("returns online players to the lobby instead of starting a local game", () => {

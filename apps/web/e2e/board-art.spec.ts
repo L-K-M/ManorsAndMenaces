@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { ISLANDS } from "@manors-menaces/content";
+import { clickRoute, clickSite, pick } from "./pick";
 
 // The illustrated board: terrain, landmark art, Menace figures, the sea
 // cartouche, and how settings (animation, high contrast) change them.
@@ -34,7 +36,7 @@ test("landmarks, Menaces and the map name are drawn as art", async ({ page }) =>
   // A Manor built on the Royal Castle stands in front of it, not over it.
   const castleSite = page.locator(".site", { has: page.locator('[data-landmark="royal_castle"]') });
   await expect(castleSite).toHaveClass(/\bhl\b/);
-  await castleSite.click();
+  await clickSite(page, castleSite);
   await expect(castleSite.locator(".holding")).toBeVisible();
   const art = (await castleSite.locator("[data-landmark]").boundingBox())!;
   const holding = (await castleSite.locator(".holding").boundingBox())!;
@@ -52,8 +54,8 @@ test("landmarks, Menaces and the map name are drawn as art", async ({ page }) =>
   // Animation is off in these settings, so nothing idles.
   await expect(page.locator(".figure.idle")).toHaveCount(0);
 
-  // The map's name sits on a cartouche in the sea.
-  await expect(page.locator("svg.board .map-name")).toHaveText("The Greenvale");
+  // The island's name sits on a cartouche in the sea.
+  await expect(page.locator("svg.board .map-name")).toHaveText(new RegExp(`^(${ISLANDS.map((i) => i.name).join("|")})$`));
 
   // Terrain art is decoration: it never takes the pointer.
   const terrain = page.locator("svg.board .terrain");
@@ -76,7 +78,7 @@ test("targeting keeps creature artwork saturated without enabling unavailable ta
 
 test("Holdings and Menaces stand out from the resource discs @mobile", async ({ page }) => {
   await startHotseat(page);
-  await page.locator(".site.hl").first().click();
+  await pick(page.locator(".site.hl").first());
   const disc = (await page.locator('.region circle[r="17"]').first().boundingBox())!;
   const manor = page.locator(".holding .piece.manor");
   await expect(manor).toBeVisible();
@@ -85,7 +87,7 @@ test("Holdings and Menaces stand out from the resource discs @mobile", async ({ 
     expect((await image.boundingBox())!.width).toBeGreaterThan(disc.width * 1.9);
   }
   // The larger figures must not intercept the free Route being placed next.
-  await page.locator(".route.hl").first().click();
+  await clickRoute(page, page.locator(".route.hl").first());
   await expect(page.locator(".route[aria-label*='owned by']")).toHaveCount(1);
 });
 
@@ -221,7 +223,7 @@ async function expectRoutesLit(page: Page) {
 
 test("highlighted Routes stay clearly visible over the terrain art", async ({ page }) => {
   await startHotseat(page);
-  await page.locator(".site.hl").first().click();
+  await pick(page.locator(".site.hl").first());
   await expectRoutesLit(page);
 });
 
@@ -244,14 +246,14 @@ test("highlighted Routes stay visible on a busy main-phase board", async ({ page
   for (let k = 0; k < 30 && !(await mainTurn.count()); k++) {
     const status = page.locator(".actions .status").first();
     const s = (await status.count()) ? ((await status.textContent()) ?? "") : "";
-    if (/place a Manor/.test(s)) await page.locator(".site.hl").first().click();
-    else if (/free Route/.test(s)) await page.locator(".route.hl").first().click();
+    if (/place a Manor/.test(s)) await pick(page.locator(".site.hl").first());
+    else if (/free Route/.test(s)) await pick(page.locator(".route.hl").first());
     else if (/starting Banners/.test(s)) {
       const n = await page.locator(".banner.hl").count();
       for (let i = 0; i < n; i++) {
         await page.locator(".banner.hl").nth(i).click();
         const regions = page.locator(".region.hl");
-        if (await regions.count()) await regions.first().click();
+        if (await regions.count()) await pick(regions.first());
       }
       await page.getByRole("button", { name: /Confirm Banners/ }).click();
     }

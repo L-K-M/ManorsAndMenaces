@@ -1,7 +1,8 @@
 import { clone, type BoardTopology, type RulesContent } from "@manors-menaces/rules";
+import { recentCache } from "./cache.js";
 import { CARDS } from "./cards.js";
+import { mapById } from "./maps.js";
 import { GREENVALE_MAP } from "./maps/greenvale.js";
-import { LEGACY_GREENVALE_MAP } from "./maps/greenvale-legacy.js";
 import { QUESTS } from "./quests.js";
 import type { MapDefinition } from "./types.js";
 import { validateMap } from "./validate.js";
@@ -16,8 +17,8 @@ export { validateMap, maximumIndependentSet, type MapValidation } from "./valida
 export { GREENVALE_MAP } from "./maps/greenvale.js";
 
 export { LEGACY_GREENVALE_MAP } from "./maps/greenvale-legacy.js";
-
-export const MAPS: Record<string, MapDefinition> = { [GREENVALE_MAP.id]: GREENVALE_MAP, [LEGACY_GREENVALE_MAP.id]: LEGACY_GREENVALE_MAP };
+export { ISLANDS, MAPS, mapById, mapIdForNewGame, parseMapId, type ParsedMapId } from "./maps.js";
+export { drawLayout } from "./layout.js";
 
 /** Strip geometry: the rules engine only sees topology (spec §103). */
 export function toBoardTopology(map: MapDefinition): BoardTopology {
@@ -37,13 +38,15 @@ export function toBoardTopology(map: MapDefinition): BoardTopology {
   };
 }
 
-const contentCache = new Map<string, RulesContent>();
+/** Rules content kept ready, drawn layouts included; see recentCache. */
+const CONTENTS_KEPT = 64;
+const contentCache = recentCache<RulesContent>(CONTENTS_KEPT);
 
 /** The rules content bundle for a map (cached so engine contexts are reused). */
 export function rulesContentFor(mapId: string = GREENVALE_MAP.id): RulesContent {
   const cached = contentCache.get(mapId);
   if (cached) return cached;
-  const map = MAPS[mapId];
+  const map = mapById(mapId);
   if (!map) throw new Error(`Unknown map ${mapId}`);
   // A malformed map breaks games in confusing ways much later (§102), so the
   // web client, the server and the tools all refuse one here, once per map.

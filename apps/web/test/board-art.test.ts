@@ -1,18 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
-import { GREENVALE_MAP } from "@manors-menaces/content";
+import { ISLANDS, mapById, type MapDefinition } from "@manors-menaces/content";
 import { CLEARANCE, terrainArt } from "../src/lib/art/terrain.js";
 import { CARTOUCHE, RIPPLES, coastArt } from "../src/lib/art/coast.js";
 import { edgeDistance, inside, offsetPolygon, polygonPoints, segmentDistance } from "../src/lib/art/geometry.js";
 import { RIVER_HALF, riverAcross, routeGeometry } from "../src/lib/art/routes.js";
 import { bannerSlot } from "../src/lib/game/board-view.js";
 
-const map = GREENVALE_MAP;
-const coast = polygonPoints(map.coastline);
-const regions = new Map(map.regions.map((r) => [r.id, r]));
-const sites = new Map(map.sites.map((s) => [s.id, s]));
-const art = terrainArt(map);
+// Every island, and a layout drawn on each: the art follows each Region's
+// Resource and name, which a layout changes.
+const BOARDS = ISLANDS.flatMap((island) => [island, mapById(`${island.id}@1`) as MapDefinition]).map((m) => [m.id, m] as const);
 
-describe("terrain illustration", () => {
+describe.each(BOARDS)("terrain illustration on %s", (_, map) => {
+  const coast = polygonPoints(map.coastline);
+  const regions = new Map(map.regions.map((r) => [r.id, r]));
+  const sites = new Map(map.sites.map((s) => [s.id, s]));
+  const art = terrainArt(map);
+
   it("is deterministic per map and cached per map object", () => {
     const again = terrainArt({ ...map });
     expect(again).not.toBe(art);
@@ -28,7 +31,8 @@ describe("terrain illustration", () => {
   });
 
   it("scatters a bounded number of motifs, some in every Region", () => {
-    expect(art.motifs.length).toBeGreaterThan(150);
+    // About four per Region on average, whichever Resources a layout deals where.
+    expect(art.motifs.length).toBeGreaterThan(4 * map.regions.length);
     expect(art.motifs.length).toBeLessThan(700);
     // The smallest Regions give most of their room to the label stack (name,
     // disc, pips and the Banner row below them), so two motifs is the floor.
@@ -124,7 +128,22 @@ describe("terrain illustration", () => {
   });
 });
 
-describe("shoreline and sea ornaments", () => {
+describe("terrain on the layouts games draw", () => {
+  it.each(ISLANDS.map((m) => [m.id, m] as const))("leaves no Region of %s bare and shows every iron mine", (_, island) => {
+    for (let layout = 0; layout < 10; layout++) {
+      const map = mapById(`${island.id}@${layout * 104729}`) as MapDefinition;
+      const art = terrainArt(map);
+      for (const r of map.regions) {
+        const own = art.motifs.filter((m) => m.regionId === r.id);
+        expect(own.length, `${map.id} ${r.id}`).toBeGreaterThan(0);
+        if (r.resource === "iron") expect(own.some((m) => m.kind === "mine"), `${map.id} ${r.id}`).toBe(true);
+      }
+    }
+  });
+});
+
+describe.each(ISLANDS.map((m) => [m.id, m] as const))("shoreline and sea ornaments on %s", (_, map) => {
+  const coast = polygonPoints(map.coastline);
   const sea = coastArt(map);
 
   it("draws ripples outside the island", () => {

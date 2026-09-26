@@ -41,7 +41,7 @@
   const barMax = $derived(Math.max(report.targetRenown, ...report.standings.map((r) => r.renown.total)));
   // Label the button with what App's rematch() will actually do.
   const rematchKind = $derived(
-    planRematch({ transport: session.transport.kind, tutorial, seats: session.seats, mapId: session.mapId, initialState: session.initialState }).kind,
+    planRematch({ transport: session.transport.kind, tutorial, seats: session.seats, mapId: session.mapId, ...(session.board ? { board: session.board } : {}), initialState: session.initialState }).kind,
   );
   const rematchLabel = $derived(rematchKind === "lobby" ? t("ui.back_to_lobby") : rematchKind === "new_game" ? t("ui.play_real_game") : t("ui.play_again"));
 

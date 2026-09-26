@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick } from "./pick";
 
 async function start(page: Page, income = true) {
   await page.goto("/");
@@ -17,8 +18,8 @@ async function start(page: Page, income = true) {
   await page.getByRole("button", { name: "Begin", exact: true }).click();
   for (let step = 0; step < 20 && !(await page.getByRole("button", { name: /Assign Banners →/ }).count()); step++) {
     const status = await page.locator(".actions .status").evaluateAll((els) => els[0]?.textContent ?? "");
-    if (/place a Manor/.test(status)) await page.locator(".site.hl").first().click();
-    else if (/free Route/.test(status)) await page.locator(".route.hl").first().click();
+    if (/place a Manor/.test(status)) await pick(page.locator(".site.hl").first());
+    else if (/free Route/.test(status)) await pick(page.locator(".route.hl").first());
     else if (/starting Banners/.test(status)) await page.getByRole("button", { name: /Confirm Banners/ }).click();
   }
   await expect(page.getByRole("button", { name: /Assign Banners →/ })).toBeVisible();
