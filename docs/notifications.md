@@ -145,7 +145,7 @@ The Docker image serves the web client and the API from one address, which is wh
 
 ### HTTPS
 
-Browsers allow Web Push only on HTTPS pages, and the one-click unsubscribe that mail apps offer needs an HTTPS link. Put the server behind a reverse proxy with a certificate (Caddy, nginx, Traefik), and pass WebSocket upgrades on `/api/ws` through, since the in-app notices use that connection. If the proxy is the only way in, set `TRUST_PROXY` (see `docker-compose.yml`).
+Browsers allow Web Push only on HTTPS pages, and the one-click unsubscribe that mail apps offer needs an HTTPS link. Put the server behind a reverse proxy with a certificate (Caddy, nginx, Traefik), and pass WebSocket upgrades on `/api/ws` through, since the in-app notices use that connection. If the proxy is the only way in, set `TRUST_PROXY` (see `.env.example`). [Hosting a server](../README.md#hosting-a-server) has an example with Caddy.
 
 ### Idle WebSockets and the Android app
 
@@ -166,7 +166,7 @@ There is nothing to configure.
 
 ### Email
 
-Email is off until you set all three of these (in `docker-compose.yml` or the environment):
+Email is off until you set all three of these (in `.env` for Docker Compose, or in the environment):
 
 | Variable | Example | Meaning |
 | --- | --- | --- |

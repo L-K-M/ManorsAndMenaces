@@ -1,13 +1,14 @@
-# Self-hosted online server. Every tunable is ${VAR:-default}.
+# Self-hosted online server. Every tunable is ${VAR:-default}; set them in
+# .env next to this file (start from .env.example, which explains each).
 services:
   manors:
     build: .
     image: ${IMAGE:-ghcr.io/l-k-m/manorsandmenaces:latest}
     restart: unless-stopped
     ports:
-      - "${PORT:-8787}:8787" # host port for the web client + API
+      - "${PORT:-8787}:8787" # host port, or address:port, for the web client + API
     environment:
-      CORS_ORIGIN: ${CORS_ORIGIN:-*} # restrict to your web origin in production
+      CORS_ORIGIN: ${CORS_ORIGIN:-*} # keep * for the desktop and Android apps
       AI_DELAY_MS: ${AI_DELAY_MS:-700} # pause between server-side AI moves
       # Behind a reverse proxy (nginx, Caddy, Traefik) every player arrives from
       # the proxy's address and shares one rate limit. Set this to the number of
