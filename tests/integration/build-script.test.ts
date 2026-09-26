@@ -162,6 +162,7 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
       const { status, output } = run(["android"]);
 
       const androidBuild = pnpmCalls().find((call) => call.startsWith("tauri android build"));
+      expect(androidBuild).toContain("tauri android build --apk --debug | ");
       expect(androidBuild).toContain(`PATH=${rustup}:`);
       expect(output).toContain(rustup);
       expect(status).toBe(0);
@@ -172,6 +173,13 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
 
       expect(run(["android"]).status).toBe(0);
       expect(pnpmCalls().find((call) => call.startsWith("tauri android build"))).toContain(`PATH=${bin}`);
+    });
+
+    it("builds a release APK when explicitly requested", () => {
+      onPath(rustToolchain("rustup", ANDROID_TARGETS));
+
+      expect(run(["android", "--release"]).status).toBe(0);
+      expect(pnpmCalls().find((call) => call.startsWith("tauri android build"))).toContain("tauri android build --apk | ");
     });
 
     it("names the missing targets before starting cargo", () => {
@@ -207,9 +215,10 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
     });
   });
 
-  describe("macOS desktop bundles", () => {
-    const APP = "src-tauri/target/release/bundle/macos/Test.app/Contents";
-    const DMG = "src-tauri/target/release/bundle/dmg";
+  describe.each(["debug", "release"])("macOS desktop bundles (%s)", (variant) => {
+    const APP = `src-tauri/target/${variant}/bundle/macos/Test.app/Contents`;
+    const DMG = `src-tauri/target/${variant}/bundle/dmg`;
+    const args = variant === "debug" ? ["desktop"] : ["desktop", "--release"];
 
     beforeEach(() => onPath(rustToolchain("rustup", [])));
 
@@ -219,10 +228,11 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
       // at once could carry the same time as the script's start marker.
       fakeTauriBuild(`sleep 0.05\nmkdir -p "${APP}" && : > "${APP}/Info.plist"\n[ "$CI" = true ] || exit 1\nmkdir -p "${DMG}" && : > "${DMG}/Test.dmg"`);
 
-      const { status, output } = run(["desktop"]);
+      const { status, output } = run(args);
 
       const builds = pnpmCalls().filter((call) => call.startsWith("tauri build"));
       expect(builds).toHaveLength(2);
+      expect(builds.every((call) => call.startsWith(variant === "debug" ? "tauri build --debug | " : "tauri build | "))).toBe(true);
       expect(builds[1]).toContain("CI=true");
       expect(existsSync(join(repo, "dist", "desktop", "Test.dmg"))).toBe(true);
       expect(output).toContain("Automation");
@@ -232,7 +242,7 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
     it("does not retry when CI=true already skipped the Finder layout", () => {
       fakeTauriBuild(`mkdir -p "${APP}" && : > "${APP}/Info.plist"\nexit 1`);
 
-      const { status } = run(["desktop"], { CI: "true" });
+      const { status } = run(args, { CI: "true" });
 
       expect(pnpmCalls().filter((call) => call.startsWith("tauri build"))).toHaveLength(1);
       expect(status).toBe(1);
@@ -241,7 +251,7 @@ describe.skipIf(process.platform === "win32")("scripts/build.sh", () => {
     it("does not retry a build that failed before the .app was bundled", () => {
       fakeTauriBuild("exit 1");
 
-      const { status } = run(["desktop"]);
+      const { status } = run(args);
 
       expect(pnpmCalls().filter((call) => call.startsWith("tauri build"))).toHaveLength(1);
       expect(status).toBe(1);

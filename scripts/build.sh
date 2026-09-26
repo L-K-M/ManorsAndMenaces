@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Builds every Manors & Menaces target and stages the results in dist/.
 #
-# Usage: scripts/build.sh [target...] [--debug] [--clean] [--check] [--install]
+# Usage: scripts/build.sh [target...] [--debug|--release] [--clean] [--check] [--install]
 #   targets: web server desktop android   (default: all that this machine can build)
 #   A missing toolchain skips a target on a default run, but fails when the
 #   target was named explicitly.
 #
-#   --debug    debug variants: Tauri desktop --debug, Android debug APK
+#   --debug    debug variants (default): Tauri desktop --debug, signed Android debug APK
+#   --release  release variants (Android APKs need a configured signing key)
 #   --clean    remove dist/ and the Rust build tree first
 #   --check    print the plan (targets, toolchains, outputs) and exit
 #   --install  after the desktop build, install the .app into /Applications
@@ -30,7 +31,7 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 fi
 
 DIST="dist"
-VARIANT="release"
+VARIANT="debug"
 CLEAN=0
 CHECK=0
 INSTALL=0
@@ -40,6 +41,7 @@ TARGETS=()
 for arg in "$@"; do
   case "$arg" in
     --debug) VARIANT="debug" ;;
+    --release) VARIANT="release" ;;
     --clean) CLEAN=1 ;;
     --check) CHECK=1 ;;
     --install) INSTALL=1 ;;
