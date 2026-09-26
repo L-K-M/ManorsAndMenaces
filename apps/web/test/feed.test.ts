@@ -241,6 +241,10 @@ describe("keepAimedAtViewer", () => {
     }
   });
 
+  it("keeps nothing when there is no room", () => {
+    expect(keepAimedAtViewer([swap, ...builds], 0)).toEqual([]);
+  });
+
   it("keeps the newest lines when nothing was aimed at the viewer", () => {
     expect(keepAimedAtViewer(builds, 3)).toEqual(builds.slice(-3));
   });

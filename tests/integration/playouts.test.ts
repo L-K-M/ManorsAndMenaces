@@ -84,7 +84,11 @@ function checkHandsExplained(before: GameState, after: GameState, events: readon
       const e = redactEvent(raw, id);
       if (e.type === "cards_dealt" && e.playerId === id) expected.push(...(e.cardIds ?? []));
       if (e.type === "card_bought" && e.playerId === id && e.cardId) expected.push(e.cardId);
-      if ((e.type === "card_played" || e.type === "card_discarded") && e.playerId === id) expected.splice(expected.indexOf(e.cardId), 1);
+      if ((e.type === "card_played" || e.type === "card_discarded") && e.playerId === id) {
+        const at = expected.indexOf(e.cardId);
+        expect(at, `${id}'s ${e.type} of ${e.cardId} from their hand`).toBeGreaterThanOrEqual(0);
+        expected.splice(at, 1);
+      }
       if (e.type === "hands_swapped" && (e.playerId === id || e.opponentId === id)) {
         expect(hand, `${id}'s swapped hand`).toHaveLength(e.playerId === id ? e.handSize : e.opponentHandSize);
         expected = [...hand];

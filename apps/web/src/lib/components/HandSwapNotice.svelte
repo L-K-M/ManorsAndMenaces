@@ -18,7 +18,8 @@
 </script>
 
 {#if swap && viewer}
-  <div class="swap-notice">
+  <!-- The Announcer says a hand was swapped; this adds which cards. -->
+  <div class="swap-notice" role="status">
     <p>
       <strong>{t("hand.swapped", { name: session.draft.players[swap.by]?.displayName ?? "" })}</strong>
       {t("hand.swapped_cards", { gave: cards(swap.gave), got: cards(swap.got) })}
