@@ -2,6 +2,18 @@ import { createRng, seedRng } from "@manors-menaces/rules";
 import { recentCache } from "./cache.js";
 import { drawLayout } from "./layout.js";
 import { GREENVALE_MAP } from "./maps/greenvale.js";
+import { ASHMERE_MAP } from "./maps/ashmere.js";
+import { BRIGHTWATER_MAP } from "./maps/brightwater.js";
+import { DUNMARROW_MAP } from "./maps/dunmarrow.js";
+import { EMBERREACH_MAP } from "./maps/emberreach.js";
+import { HOLLOWMERE_MAP } from "./maps/hollowmere.js";
+import { KINGSBARROW_MAP } from "./maps/kingsbarrow.js";
+import { MISTHOLM_MAP } from "./maps/mistholm.js";
+import { RAVENSHOLT_MAP } from "./maps/ravensholt.js";
+import { SILVERFEN_MAP } from "./maps/silverfen.js";
+import { STAGMOOR_MAP } from "./maps/stagmoor.js";
+import { THORNWOLD_MAP } from "./maps/thornwold.js";
+import { WYRMSEND_MAP } from "./maps/wyrmsend.js";
 import { LEGACY_GREENVALE_MAP } from "./maps/greenvale-legacy.js";
 import type { MapDefinition } from "./types.js";
 
@@ -10,7 +22,21 @@ import type { MapDefinition } from "./types.js";
 // saves, the server and the AI worker carry like any other map id.
 
 /** The islands new games are drawn from (§11). */
-export const ISLANDS: readonly MapDefinition[] = [GREENVALE_MAP];
+export const ISLANDS: readonly MapDefinition[] = [
+  GREENVALE_MAP,
+  ASHMERE_MAP,
+  BRIGHTWATER_MAP,
+  DUNMARROW_MAP,
+  EMBERREACH_MAP,
+  HOLLOWMERE_MAP,
+  KINGSBARROW_MAP,
+  MISTHOLM_MAP,
+  RAVENSHOLT_MAP,
+  SILVERFEN_MAP,
+  STAGMOOR_MAP,
+  THORNWOLD_MAP,
+  WYRMSEND_MAP,
+];
 
 /** Every published map a save or match may name, whether or not new games still use it. */
 export const MAPS: Record<string, MapDefinition> = Object.fromEntries([...ISLANDS, LEGACY_GREENVALE_MAP].map((m) => [m.id, m]));

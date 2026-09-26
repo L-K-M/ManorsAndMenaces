@@ -148,7 +148,8 @@ function placeRegionMenaces(island: MapDefinition, map: MapDefinition): MapDefin
   const cy = map.height / 2;
   // Multiplication, not **, so every JavaScript engine orders them alike.
   const offCentre = (r: RegionDefinition) => (r.labelX - cx) * (r.labelX - cx) + (r.labelY - cy) * (r.labelY - cy);
-  const mostCentral = (regions: RegionDefinition[]) => regions.reduce<RegionDefinition | undefined>((best, r) => (!best || offCentre(r) < offCentre(best) ? r : best), undefined);
+  const mostCentral = (regions: RegionDefinition[]) =>
+    regions.reduce<RegionDefinition | undefined>((best, r) => (!best || offCentre(r) < offCentre(best) ? r : best), undefined);
 
   const taken = new Set<string>();
   return island.menaceStarts.map((start) => {
@@ -156,7 +157,8 @@ function placeRegionMenaces(island: MapDefinition, map: MapDefinition): MapDefin
     if (location.kind !== "region") return clone(start);
     const home = island.regions.find((r) => r.id === location.regionId)?.resource;
     const free = map.regions.filter((r) => !taken.has(r.id));
-    const region = mostCentral(free.filter((r) => r.resource === home && r.capacity === 1)) ?? mostCentral(free.filter((r) => r.resource === home)) ?? mostCentral(free);
+    const region =
+      mostCentral(free.filter((r) => r.resource === home && r.capacity === 1)) ?? mostCentral(free.filter((r) => r.resource === home)) ?? mostCentral(free);
     if (!region) throw new Error(`${island.id} has no Region left for the ${start.menaceType}`);
     taken.add(region.id);
     return { menaceType: start.menaceType, location: { kind: "region", regionId: region.id } };

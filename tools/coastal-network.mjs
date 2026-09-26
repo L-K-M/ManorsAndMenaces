@@ -1,8 +1,8 @@
 // Expand the published board without renumbering its existing content. Geometry
 // comes from the region boundaries, including junctions the old graph pruned.
-export function withCoastalNetwork(legacy) {
+export function withCoastalNetwork(legacy, id) {
   const map = structuredClone(legacy);
-  map.id = "greenvale-coastal-v2";
+  map.id = id;
   const key = (p) => `${p.x},${p.y}`;
   const vertex = new Map();
   const edges = new Map();

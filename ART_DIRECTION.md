@@ -803,3 +803,34 @@ and found one stale victory fixture granting only 12 bonus Renown. Changed it
 to use the Standard target; its save/reload/victory flow then passed (20.8s).
 Typecheck and lint passed again. Mac `.app` rebuilt successfully. Pushing the
 test correction for final CI and review; production behavior is unchanged.
+
+## Twelve more islands and a new layout every game
+
+Goal: the board should not look the same every game. New games now draw an
+island from thirteen (The Greenvale plus twelve generated ones, listed in
+`tools/islands.mjs`) and deal its land anew from the game seed: which
+Resource each Region yields, the rich Regions, Region names (a name follows
+its Resource) and the Trading Posts (`packages/content/src/layout.ts`). Coast,
+Sites, Routes and landmarks stay as generated. The tutorial and saves from
+before this change keep The Greenvale exactly as published.
+
+How the islands were chosen: seeds 1 to 300 through `generate-map.mjs`, then
+the island-shape, coastal-network and sea-ornament tests (which now run on
+every island). About a quarter passed those. Of these, the kept islands are
+the ones whose terrain art stayed full across 100 drawn layouts; most
+rejects had one tiny Region that a long name and its label stack crowd out.
+Balance was checked with `pnpm simulate --map drawn:ISLAND`.
+
+Terrain art had only ever been checked on The Greenvale's own layout. On
+drawn layouts a small Region with a long name or large motifs was sometimes
+left with one motif or none, and an iron Region could miss its mine. The
+scatter now retries with smaller motifs (0.55–0.75, then 0.4–0.5 of full
+size) until every Region has two, and the mine tries anywhere in the Region
+and then smaller. These passes run only where a Region would fall short, so
+The Greenvale's published art is byte-identical. Across 100 layouts per
+island no Region is bare and every iron Region has its mine; at most 2 in 100
+layouts leave one Region with a single motif.
+
+Open: the generated islands share The Greenvale's bay template (rotated per
+seed) and name tables, so their silhouettes rhyme; a wider set of coast
+shapes and island-specific names would be the next step.
