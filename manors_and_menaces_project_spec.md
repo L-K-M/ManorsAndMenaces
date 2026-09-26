@@ -2444,6 +2444,8 @@ Generate legal candidate actions:
 - Quest claims;
 - Banner configurations.
 
+The AI plans only on what its player could see (§105): it simulates candidates on the redacted view, so rivals' hands, the draw pile and the RNG state never change its choice. Because a simulated Spell there never meets a Counterspell, each Spell is scored as a blend of resolving and being countered, weighted by the chance that a rival holds a Counterspell, counted from public cards only. A random outcome, such as Dragon's Landing's target, is averaged over the possible results.
+
 ## 57.2 Evaluation
 
 Score resulting states.

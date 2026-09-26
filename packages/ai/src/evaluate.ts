@@ -12,8 +12,12 @@ import {
   getQuestProgress,
   getRenown,
   checkBuildManor,
+  HIDDEN_CARD,
   insurancePolicyOf,
+  isCardUsableInRuleset,
   menaceInRegion,
+  type CardEffectId,
+  type CardId,
   type GameState,
   type PlayerId,
   type ResourceType,
@@ -27,7 +31,6 @@ export const WEIGHTS = {
   questProgress: 1.5,
   networkReach: 1.2,
   diversity: 1,
-  cardValue: 0.8,
   menacePressureOnOpponents: 0.15,
   menacePressureOnSelf: 1,
   wasted: 0.8,
@@ -58,6 +61,17 @@ export const WEIGHTS = {
   win: 1000,
 };
 
+/** Below this many cards in hand, the next card is a (minor) goal. */
+export const CARD_GOAL_HAND = 3;
+/**
+ * Cards become a goal only once the player has this many Holdings. Saving
+ * for them from the start slowed every opening, which in 200-game runs
+ * widened the first seat's lead (2p 57% to 64%, 3p 36% to 44%).
+ */
+const CARD_GOAL_HOLDINGS = 3;
+/** Weight of that goal against building (0.45 each). */
+const CARD_GOAL_WEIGHT = 0.3;
+
 /**
  * How much the player currently wants each resource, based on what their next
  * builds need. Scarce inputs for the next affordable goal weigh more.
@@ -78,8 +92,8 @@ export function resourceNeeds(ctx: RulesContext, state: GameState, playerId: Pla
   // Route is counted however far the planned Site is: saving for the whole
   // path at once made the AI hoard instead of building step by step.
   goals.push({ cost: buildable ? BALANCE.costs.manor : addCost(BALANCE.costs.route, BALANCE.costs.manor), weight: 0.45 });
-  if (state.ruleset.enableCards && state.cardDeck.length + state.discardPile.length > 0 && p.hand.length < 2) {
-    goals.push({ cost: BALANCE.costs.card, weight: 0.15 });
+  if (state.ruleset.enableCards && state.cardDeck.length + state.discardPile.length > 0 && p.hand.length < CARD_GOAL_HAND && holdings.length >= CARD_GOAL_HOLDINGS) {
+    goals.push({ cost: BALANCE.costs.card, weight: CARD_GOAL_WEIGHT });
   }
   for (const goal of goals) {
     for (const r of RESOURCE_TYPES) {
@@ -156,6 +170,120 @@ export function threat(ctx: RulesContext, state: GameState, playerId: PlayerId):
   return 0.5 + getRenown(ctx, state, playerId) / state.ruleset.targetRenown;
 }
 
+/**
+ * Scale from measured gains to hand worth. Above 1 because a card held now
+ * is also a choice later and progress toward the card Quests (Arcane
+ * Scholar, Patron of Heroes), which a single measurement misses. Tuned with
+ * `pnpm simulate` so the AI buys cards when it has resources to spare and
+ * plays most of what it buys.
+ */
+const WORTH_SCALE = 1.5;
+
+function scaleWorth(base: Record<CardEffectId, number>): Record<CardEffectId, number> {
+  return Object.fromEntries(Object.entries(base).map(([k, v]) => [k, v * WORTH_SCALE])) as Record<CardEffectId, number>;
+}
+
+/**
+ * What holding each card is worth, in evaluation units: roughly what playing
+ * it at a good moment gains, discounted because that moment may not come.
+ * Playing a card gives this up, so the AI plays one when its effect beats
+ * keeping it, and buys one when the cards it could draw are worth more than
+ * the Grain, Iron and Essence they cost.
+ */
+export const CARD_WORTH: Record<CardEffectId, number> = scaleWorth({
+  // Measured: the typical evaluation gain of playing each card at the start
+  // of a Main phase, over AI-vs-AI games, discounted so a card is played at
+  // a decent moment rather than held for a perfect one. Fog and Prophecy
+  // are valued by what `FOGGED_ROUTE` and `foresightWorth` credit them.
+  wizard_interference: 0.35,
+  // Defensive: its worth is the Spells it may stop.
+  counterspell: 1,
+  knight_errant: 0.8,
+  druids_blessing: 0.9,
+  teleportation_mishap: 0.35,
+  bribe_the_troll: 0.45,
+  arcane_exchange: 0.6,
+  festival_at_the_inn: 0.65,
+  very_minor_prophecy: 0.2,
+  fog_of_confusion: 0.25,
+  dragon_whisperer: 0.8,
+  changeling: 0.6,
+  // Wins the game when it can be played; held for that moment.
+  ragnarok: 3,
+  fire_bolt: 0.5,
+  dragons_landing: 0.75,
+  transmutation_magic: 1.2,
+  the_plague: 0.3,
+  royal_insurance_policy: 0.7,
+  robin_of_the_glade: 0.55,
+  // +1 Renown, but only while a rival leads by 2 or more.
+  unreliable_bard: 3,
+  treasure_hunter: 0.4,
+});
+
+/**
+ * A rival's fogged Route counts this much of an open one: it still stands,
+ * but cannot extend their network until the fog lifts (§19.10).
+ */
+const FOGGED_ROUTE = 0.5;
+
+/**
+ * What seeing the top 3 cards and ordering them is worth (Very Minor
+ * Prophecy, §19.9), which the evaluator cannot see: the best of three
+ * random draws over an average one, for the one draw of them the player is
+ * likely to get.
+ */
+export function foresightWorth(ctx: RulesContext, state: GameState): number {
+  const worths: number[] = [];
+  for (const def of ctx.content.cards) {
+    if (!isCardUsableInRuleset(def, state.ruleset)) continue;
+    for (let i = 0; i < def.copies; i++) worths.push(CARD_WORTH[def.effectId]);
+  }
+  const n = worths.length;
+  if (n < 3) return 0;
+  worths.sort((a, b) => a - b);
+  // E[max of 3 drawn without replacement]: the i-th smallest is the max when both others are below it.
+  const triples = (n * (n - 1) * (n - 2)) / 6;
+  let best = 0;
+  worths.forEach((w, i) => (best += (w * ((i * (i - 1)) / 2)) / triples));
+  const mean = worths.reduce((a, b) => a + b, 0) / n;
+  return FORESIGHT_SHARE * (best - mean);
+}
+
+/** Share of the ordered cards' edge the prophet keeps: rivals may draw first. */
+const FORESIGHT_SHARE = 0.5;
+
+/** Cards beyond this many add nothing: one can be played per turn. */
+const VALUED_CARDS = 4;
+
+/**
+ * Worth of a card whose identity the player does not know (a rival's card
+ * after Changeling, or the next draw): the average over the cards this
+ * ruleset deals, by copies.
+ */
+function unknownCardWorth(ctx: RulesContext, state: GameState): number {
+  let total = 0;
+  let copies = 0;
+  for (const def of ctx.content.cards) {
+    if (!isCardUsableInRuleset(def, state.ruleset)) continue;
+    // A set-aside Ragnarök cannot be drawn until the omen (§19.13).
+    if (def.setAside && (state.setAsideCardIds ?? []).length > 0) continue;
+    total += CARD_WORTH[def.effectId] * def.copies;
+    copies += def.copies;
+  }
+  return copies > 0 ? total / copies : 0;
+}
+
+export function cardWorth(ctx: RulesContext, state: GameState, cardId: CardId): number {
+  return cardId === HIDDEN_CARD ? unknownCardWorth(ctx, state) : CARD_WORTH[ctx.cardOf(cardId).effectId];
+}
+
+/** Worth of the player's hand: its best few cards. */
+export function handValue(ctx: RulesContext, state: GameState, playerId: PlayerId): number {
+  const worths = (state.players[playerId]?.hand ?? []).map((c) => cardWorth(ctx, state, c)).sort((a, b) => b - a);
+  return worths.slice(0, VALUED_CARDS).reduce((a, b) => a + b, 0);
+}
+
 /** Value of the state for `playerId` (higher is better). */
 export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId): number {
   const p = state.players[playerId];
@@ -192,15 +320,15 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
     const prog = getQuestProgress(ctx, state, playerId, q);
     quest += (prog.current / prog.target) * ctx.quest(q).renown;
   }
-  const cards = p.hand.length;
 
   let opponents = 0;
   let opponentRenown = 0;
   let opponentHarvest = 0;
-  // Only the second wave's interference cards change these (Fire Bolt,
+  // Only interference cards change these (Fire Bolt, Fog of Confusion,
   // Changeling, Dragon's Landing), so they leave every other comparison
   // between candidates as it was.
   let rivalRoutes = 0;
+  const fogged = new Set(state.activeEffects.flatMap((e) => (e.kind === "fog" ? [e.routeId] : [])));
   let rivalCards = 0;
   let rivalRenown = 0;
   for (const id of state.turnOrder) {
@@ -211,7 +339,7 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
     opponentRenown = Math.max(opponentRenown, theirRenown);
     rivalRenown += weight * theirRenown;
     opponentHarvest += weight * getHarvestPreview(ctx, state, id).total;
-    rivalRoutes += weight * (state.players[id]?.routeIds.length ?? 0);
+    rivalRoutes += weight * (state.players[id]?.routeIds ?? []).reduce((n, r) => n + (fogged.has(r) ? FOGGED_ROUTE : 1), 0);
     rivalCards += weight * Math.min(state.players[id]?.hand.length ?? 0, 4);
   }
   const insured = insurancePolicyOf(ctx, state, playerId) ? 1 : 0;
@@ -226,7 +354,7 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
     WEIGHTS.buildOptions * Math.min(buildOptions, 2) +
     WEIGHTS.expansion * expansion +
     WEIGHTS.diversity * 0.5 * diversity +
-    WEIGHTS.cardValue * Math.min(cards, 4) +
+    handValue(ctx, state, playerId) +
     WEIGHTS.insurance * insured +
     WEIGHTS.menacePressureOnOpponents * opponents -
     WEIGHTS.rivalRoutes * rivalRoutes -

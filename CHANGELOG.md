@@ -17,6 +17,12 @@
   then lets a leader end the game at once. A third Counterspell keeps pace
   with the new Spells. The balance simulator reports per-card plays and
   the new cards' effects.
+- The AI no longer reads hidden information: it plans on what its player
+  can see and weighs each Spell by the chance a rival holds a Counterspell.
+  It values each card by what it tends to be worth, so it buys and plays
+  cards two to three times as often, uses Fog of Confusion and Very Minor
+  Prophecy, and discards its weakest cards. It saves for cards only once
+  its opening is built, which keeps the first seat's lead from growing.
 - Svelte/SVG web client and an online server, with Playwright E2E tests
   covering create/join/setup across two browsers.
 - Tauri desktop shell (macOS universal, Linux, Windows) and an unsigned
