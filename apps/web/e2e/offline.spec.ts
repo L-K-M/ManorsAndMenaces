@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
+import { CUES, MUSIC_URL, cueUrl } from "../src/lib/audio/cues.js";
 
 // Offline play and updates of the installed web app (spec §76). The service
 // worker only registers in production builds, so these tests build the app
@@ -119,6 +120,13 @@ test.describe("installed web app", () => {
     await context.setOffline(true);
     await page.reload();
     await expect(page.getByRole("button", { name: "New game" })).toBeVisible();
+
+    // Samples must work even if the player never enabled audio while online.
+    const audioFiles = [...(Object.keys(CUES) as (keyof typeof CUES)[]).map(cueUrl), MUSIC_URL];
+    expect(await page.evaluate(async (urls) => Promise.all(urls.map(async (url) => {
+      const response = await fetch(url);
+      return response.ok && (await response.arrayBuffer()).byteLength > 1000;
+    })), audioFiles)).toEqual(audioFiles.map(() => true));
 
     // A cold start: a fresh tab, not just a reload of this one.
     const fresh = await context.newPage();

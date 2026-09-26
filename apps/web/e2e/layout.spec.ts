@@ -19,8 +19,8 @@ async function startVsAi(page: Page, players = 2) {
 }
 
 async function status(page: Page): Promise<string> {
-  const el = page.locator(".actions .status").first();
-  return (await el.count()) ? ((await el.textContent()) ?? "") : "";
+  // Setup can end between locator calls; read its transient status atomically.
+  return page.locator(".actions .status").evaluateAll((els) => els[0]?.textContent ?? "");
 }
 
 /** Plays the human's setup; the AI plays its own. Ends in the first Main phase. */

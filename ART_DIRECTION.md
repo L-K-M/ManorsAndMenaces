@@ -803,3 +803,50 @@ and found one stale victory fixture granting only 12 bonus Renown. Changed it
 to use the Standard target; its save/reload/victory flow then passed (20.8s).
 Typecheck and lint passed again. Mac `.app` rebuilt successfully. Pushing the
 test correction for final CI and review; production behavior is unchanged.
+
+## September 26 checkpoint: recorded storybook soundscape
+
+User requested well-selected free audio from Freesound/Pixabay or other free
+sources. Read their linked resource pages and verified per-pack CC0 licenses
+on Kenney's official pages and RandomMind's OpenGameArt music page. Selected
+wood/stone construction, paper/card handling, cloth Banners, coins, creaking
+Menaces, bell/glass accents and a pizzicato victory flourish. Optional music is
+RandomMind's “The Old Tower Inn” loop. Preserve the sound/music toggles and
+music-off default, add individual volume controls and a Test sound button.
+
+Sources, license links, hashes and exact preparation recipes are stored in
+`media-sources/audio/`; derived WAV effects and MP3 music are in
+`apps/web/public/audio/`. Regenerate with `node tools/generate-audio.mjs`.
+No remote audio is requested at runtime. Settings includes visible credits.
+
+Implementation in progress on `codex/storybook-soundscape`: replace oscillator
+cues with cached samples, own audio lifecycle in App, unlock from a gesture,
+pause while hidden, preserve music position, bound simultaneous effects, and
+invalidate delayed cues when muted/backgrounded. Unit coverage is in progress;
+next verify actual browser decoding/playback, mobile Settings layout, offline
+precache, complete checks, commit/push, review and merge. Browser audio can be
+measured but this session cannot hear audio input, so subjective listening is
+still a disclosed validation gap. Local diagnostics/audition are `/tmp/mm-audio*`.
+
+Audio validation update: all 13 WAV cues plus the MP3 music decode in Chromium,
+contain measurable signal, stay below clipping and meet the intended duration
+bounds. Six focused desktop/phone playback tests and four production/offline
+checks passed. Those tests caught and verified fixes for the native fetch
+receiver binding and volume-label overflow. Samples use relative URLs so the
+same bundle also works under a static-host subpath. `pnpm check` passed with
+613 tests, typecheck, lint, map validation and production/server smoke build.
+Full browser regression and Mac build are running before the PR checkpoint.
+
+Final local checkpoint: full browser run passed 154 tests with two intentional
+skips; one existing layout helper raced between counting and reading a setup
+status that vanished on the transition to Main. Made that read atomic and all
+three small-phone layout tests passed. All six final audio browser checks pass,
+including phone music restoration. Typecheck/lint pass after the helper fix.
+Mac release `.app` built successfully. Source-hash validation and regeneration
+were checked; FFmpeg's layered floating-point mix can differ by one 16-bit PCM
+quantization unit, so byte-identical regeneration is not promised. Retained the
+validated/bundled render. Subjective listening remains unverified.
+
+Ready for commit/push and PR CI/review. Required final steps: inspect review
+findings against the actual repository, wait for final CI, merge and return the
+local checkout to main. Source and licensing notes: `media-sources/audio/README.md`.

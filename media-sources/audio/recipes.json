@@ -1,0 +1,149 @@
+{
+  "resource": [
+    {
+      "source": "coins"
+    }
+  ],
+  "banner": [
+    {
+      "source": "cloth"
+    },
+    {
+      "source": "wood",
+      "delay": 0.12,
+      "gain": 0.35,
+      "rate": 1.2
+    }
+  ],
+  "route": [
+    {
+      "source": "wood"
+    },
+    {
+      "source": "wood",
+      "delay": 0.15,
+      "rate": 0.9,
+      "gain": 0.7
+    }
+  ],
+  "manor": [
+    {
+      "source": "stone",
+      "gain": 0.6
+    },
+    {
+      "source": "wood",
+      "delay": 0.16,
+      "rate": 0.85
+    }
+  ],
+  "upgrade": [
+    {
+      "source": "stone",
+      "gain": 0.6
+    },
+    {
+      "source": "wood",
+      "delay": 0.16,
+      "rate": 0.85
+    },
+    {
+      "source": "bell",
+      "delay": 0.35,
+      "gain": 0.25,
+      "rate": 1.5
+    }
+  ],
+  "spell": [
+    {
+      "source": "glass",
+      "rate": 1
+    },
+    {
+      "source": "glass",
+      "rate": 1.25,
+      "delay": 0.09,
+      "gain": 0.7
+    },
+    {
+      "source": "glass",
+      "rate": 1.5,
+      "delay": 0.18,
+      "gain": 0.5
+    }
+  ],
+  "menace": [
+    {
+      "source": "creak",
+      "rate": 0.85,
+      "gain": 0.65
+    },
+    {
+      "source": "step",
+      "rate": 0.8,
+      "delay": 0.12
+    },
+    {
+      "source": "step",
+      "rate": 0.75,
+      "delay": 0.35,
+      "gain": 0.7
+    }
+  ],
+  "card": [
+    {
+      "source": "paper"
+    }
+  ],
+  "quest": [
+    {
+      "source": "glass",
+      "rate": 1
+    },
+    {
+      "source": "glass",
+      "rate": 1.25,
+      "delay": 0.13
+    },
+    {
+      "source": "bell",
+      "rate": 1.5,
+      "delay": 0.26,
+      "gain": 0.35
+    }
+  ],
+  "turn": [
+    {
+      "source": "bell",
+      "rate": 1.5
+    }
+  ],
+  "error": [
+    {
+      "source": "wood",
+      "rate": 0.65
+    },
+    {
+      "source": "wood",
+      "rate": 0.6,
+      "delay": 0.12,
+      "gain": 0.5
+    }
+  ],
+  "win": [
+    {
+      "source": "pizzicato"
+    }
+  ],
+  "writ": [
+    {
+      "source": "book"
+    },
+    {
+      "source": "wood",
+      "delay": 0.15,
+      "rate": 1.15,
+      "gain": 0.3
+    }
+  ]
+}
