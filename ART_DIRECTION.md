@@ -622,4 +622,44 @@ All 12 final artwork browser checks passed. The first sandboxed full check
 could not complete local server tests; the successful run used local networking.
 Logs: `/tmp/mm-junction-check-final.log`,
 `/tmp/mm-piece-art-final.log`, `/tmp/mm-board-size-e2e.log`.
-Next: submit for CI/review and merge once checks pass.
+Merged through PR #45 as `649780b`. All CI jobs passed, including 147 browser
+tests with two intentional skips. One review round completed with no confirmed
+important findings. The speculative degenerate-outline concern did not reproduce
+in the published map or a sweep of 200 seeds; reverting individual polygons
+would restore the junction bug. Minor assertion diagnostics and landmark-only
+hit/harvest-note refinements were deferred. The Mac app bundle rebuilt.
+
+## Always-visible action prices
+
+The next screenshot showed costs disappearing from unaffordable action buttons.
+The toolbar deliberately hid its price chips when the row got crowded, and
+removed them entirely on small screens or for actions blocked by a non-resource
+reason. On `codex/always-visible-action-costs`, every purchase action keeps its
+resource price below its label, including disabled actions. Chips show the
+required amount instead of inventory/price fractions, with larger resource
+icons. Shortages retain their red treatment. Accessible names and tooltips
+include both the price and the reason an action is unavailable.
+
+Removed the measuring/ResizeObserver logic and cost-hiding breakpoints. On
+narrow screens the action strip scrolls horizontally, keeping each price with
+its button and leaving the turn controls visible. The board retains its fixed
+phase-independent size. Costs still come from the rules availability selector;
+no gameplay prices or legality changed.
+
+Both new price-visibility regressions failed before the change and passed
+afterward. All 26 responsive-layout and turn-flow checks passed, including
+large text, phone/landscape layouts, trade-to-afford and phase controls.
+Typecheck and lint passed. Visually reviewed desktop and 390px phone layouts,
+including scrolling to the later purchase actions; reset viewport afterward.
+The isolated localhost:5175 preview is now an Alice/Lady Fennick test game in
+Main with some unaffordable actions, suitable for reviewing the price chips.
+Logs: `/tmp/mm-costs-before.log`, `/tmp/mm-costs-after.log`,
+`/tmp/mm-costs-layout.log`.
+
+PR #46 is open. The first review had only minor findings. Added underlining to
+missing-resource amounts so shortages do not rely on colour alone. The proposed
+missing-cost guard is unnecessary: ActionAvailability requires a cost and the
+selector initializes it for every action before checking blocked states.
+The base button rule already retains a 44px minimum height, and the phone
+touch-target audit passed. Initial Mac packaging succeeded; rebuild after the
+final CSS change and wait for latest-commit CI/review before merging.
