@@ -47,7 +47,7 @@ test("computer seats are distinct named rivals who quip when they build", async 
   const bubble = page.locator(".players .player .quip");
   for (let k = 0; k < 8 && !(await bubble.count()); k++) {
     const status = (await page.locator(".actions .status").first().textContent()) ?? "";
-    if (/place a Manor/.test(status)) await page.locator(".site.hl").first().click();
+    if (/place a Manor/.test(status)) await pick(page.locator(".site.hl").first());
     else if (/free Route/.test(status)) await pick(page.locator(".route.hl").first());
     await page.waitForTimeout(400);
   }
@@ -104,7 +104,7 @@ test("a quip said just before the privacy curtain waits for the reveal", async (
   await curtain.getByRole("button", { name: "Tap to begin turn" }).click();
   for (let k = 0; k < 8 && !(await curtain.count()); k++) {
     const status = (await page.locator(".actions .status").first().textContent()) ?? "";
-    if (/place a Manor/.test(status)) await page.locator(".site.hl").first().click();
+    if (/place a Manor/.test(status)) await pick(page.locator(".site.hl").first());
     else if (/free Route/.test(status)) await pick(page.locator(".route.hl").first());
     await page.waitForTimeout(400);
   }

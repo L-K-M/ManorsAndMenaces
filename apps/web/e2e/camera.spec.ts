@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick } from "./pick";
 
 // Board camera (spec §48): drag, wheel, pinch-wheel, keyboard and framing.
 
@@ -218,7 +219,7 @@ test("arrow keys scroll the side panel after clicking in it, not the board", asy
 
 test("a new targeting step brings off-screen targets into view @mobile", async ({ page }) => {
   await startHotseat(page);
-  await page.locator(".site.hl").first().click();
+  await pick(page.locator(".site.hl").first());
   // Zoom right in, so most of the island is off-screen, then place the
   // Route from the keyboard (it need not be on screen for that).
   for (let i = 0; i < 8; i++) await page.keyboard.press("+");
@@ -242,7 +243,7 @@ test("a new targeting step brings off-screen targets into view @mobile", async (
 
 test("arrow keys do not pan the board behind the privacy curtain", async ({ page }) => {
   await startHotseat(page);
-  await page.locator(".site.hl").first().click();
+  await pick(page.locator(".site.hl").first());
   await zoomIn(page, 2);
   await page.locator(".route.hl").first().focus();
   await page.keyboard.press("Enter");

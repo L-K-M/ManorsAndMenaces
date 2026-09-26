@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { pick } from "./pick";
+import { clickSite, pick } from "./pick";
 
 // Board readability (targets, labels, focus, hover, motion settings).
 
@@ -37,7 +37,7 @@ async function completeSetup(page: Page) {
   for (let k = 0; k < 12; k++) {
     await passCurtain(page);
     const s = await status(page);
-    if (/place a Manor/.test(s)) await page.locator(".site.hl").first().click();
+    if (/place a Manor/.test(s)) await pick(page.locator(".site.hl").first());
     else if (/free Route/.test(s)) await pick(page.locator(".route.hl").first());
     else if (/starting Banners/.test(s)) {
       const n = await page.locator(".banner.hl").count();
@@ -129,7 +129,7 @@ test.describe("targets", () => {
 test.describe("focus", () => {
   test("clicking a board piece leaves no focus rectangle", async ({ page }) => {
     await startHotseat(page);
-    await page.locator(".site.hl").first().click();
+    await clickSite(page, page.locator(".site.hl").first());
     const outline = await page.evaluate(() => getComputedStyle(document.activeElement as Element).outlineStyle);
     expect(outline).toBe("none");
   });

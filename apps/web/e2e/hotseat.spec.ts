@@ -39,7 +39,7 @@ async function untilHumanMainTurn(page: Page): Promise<void> {
     if (await curtainButton(page).count()) await curtainButton(page).click();
     if (await page.getByRole("button", { name: /Assign Banners →/ }).count()) return;
     const s = await status(page);
-    if (/place a Manor/.test(s)) await page.locator(".site.hl").first().click();
+    if (/place a Manor/.test(s)) await pick(page.locator(".site.hl").first());
     else if (/free Route/.test(s)) await pick(page.locator(".route.hl").first());
     else if (/starting Banners/.test(s)) {
       const n = await page.locator(".banner.hl").count();

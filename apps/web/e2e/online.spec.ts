@@ -28,7 +28,7 @@ async function playSetup(pages: Page[]) {
   for (let i = 0; i < 12; i++) {
     for (const p of pages) {
       const s = await status(p);
-      if (/place a Manor/.test(s)) await p.locator(".site.hl").first().click();
+      if (/place a Manor/.test(s)) await pick(p.locator(".site.hl").first());
       else if (/free Route/.test(s)) await pick(p.locator(".route.hl").first());
       else if (/starting Banners/.test(s)) {
         const n = await p.locator(".banner.hl").count();

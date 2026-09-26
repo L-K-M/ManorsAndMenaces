@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { pick } from "./pick";
+import { clickRoute, pick } from "./pick";
 
 // Chronicle auto-scroll stickiness: the log follows new entries only while it
 // is pinned to the bottom; reading history must survive new entries arriving.
@@ -36,7 +36,7 @@ async function assignAllBanners(page: Page) {
 async function completeSetup(page: Page) {
   for (let k = 0; k < 60; k++) {
     const s = await status(page);
-    if (/place a Manor/.test(s)) await page.locator(".site.hl").first().click();
+    if (/place a Manor/.test(s)) await pick(page.locator(".site.hl").first());
     else if (/free Route/.test(s)) await pick(page.locator(".route.hl").first());
     else if (/starting Banners/.test(s)) await assignAllBanners(page);
     else if (/thinking|waiting/i.test(s) || !s) await page.waitForTimeout(250);
@@ -92,7 +92,7 @@ test("the Chronicle keeps the reader's scroll position and offers a jump pill", 
   for (const banner of await page.locator(".banner").all()) {
     await expect(banner).toHaveCSS("pointer-events", "none");
   }
-  await pick(page.locator(".route.hl").first());
+  await clickRoute(page, page.locator(".route.hl").first());
   await expect(page.locator(".log ol li").last()).toContainText(/built a Route/);
   await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBe(0);
   await expect(pill).toBeVisible();

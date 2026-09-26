@@ -72,7 +72,7 @@ async function completeSetup(page: Page) {
   for (let k = 0; k < 12; k++) {
     await passCurtain(page);
     const s = await status(page);
-    if (/place a Manor/.test(s)) await page.locator(".site.hl").first().click();
+    if (/place a Manor/.test(s)) await pick(page.locator(".site.hl").first());
     else if (/free Route/.test(s)) await pick(page.locator(".route.hl").first());
     else if (/starting Banners/.test(s)) await assignAllBanners(page);
     else break;
