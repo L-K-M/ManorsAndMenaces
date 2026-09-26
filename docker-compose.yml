@@ -30,6 +30,10 @@ services:
       SMTP_URL: ${SMTP_URL:-} # smtps://user:password@smtp.example.org
       MAIL_FROM: ${MAIL_FROM:-} # Manors & Menaces <turns@example.org>
       PUBLIC_URL: ${PUBLIC_URL:-} # https://play.example.org, where players open the game
+      # Open the game only to people with a personal invite. Make invites with
+      # `docker compose exec manors node server.mjs invites create NAME`; see
+      # docs/invites.md.
+      INVITE_ONLY: ${INVITE_ONLY:-false}
     volumes:
       - manors-data:/data # SQLite database
 volumes:

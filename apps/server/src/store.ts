@@ -25,6 +25,22 @@ export interface EmailRow {
   confirmed_at: string | null;
 }
 
+export interface InviteRow {
+  id: string;
+  /** The secret in the invite link. Kept readable: whoever made an invite may copy its link again. */
+  code: string;
+  name: string;
+  /** The invite whose holder made this one; null for the server's operator. */
+  invited_by: string | null;
+  max_devices: number | null;
+  /** Invites this one's holder may make. */
+  quota: number;
+  /** When the link stops admitting new devices; devices already in stay in. */
+  expires_at: string | null;
+  created_at: string;
+  revoked_at: string | null;
+}
+
 export interface MatchRow {
   id: string;
   status: MatchStatus;
@@ -123,6 +139,33 @@ export class Store {
         requested_at TEXT NOT NULL,
         confirmed_at TEXT
       );
+      -- Invite-only servers (INVITE_ONLY): personal invites, the devices that
+      -- accepted each (a browser keeps its pass in a cookie), and the guest
+      -- sessions each admits.
+      CREATE TABLE IF NOT EXISTS invites (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        invited_by TEXT REFERENCES invites(id),
+        max_devices INTEGER,
+        quota INTEGER NOT NULL,
+        expires_at TEXT,
+        created_at TEXT NOT NULL,
+        revoked_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS invites_by_inviter ON invites(invited_by);
+      CREATE TABLE IF NOT EXISTS invite_devices (
+        pass_hash TEXT PRIMARY KEY,
+        invite_id TEXT NOT NULL REFERENCES invites(id) ON DELETE CASCADE,
+        accepted_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS invite_devices_by_invite ON invite_devices(invite_id);
+      CREATE TABLE IF NOT EXISTS guest_invites (
+        user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        invite_id TEXT NOT NULL REFERENCES invites(id) ON DELETE CASCADE,
+        admitted_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS guest_invites_by_invite ON guest_invites(invite_id);
     `);
   }
 
@@ -226,6 +269,86 @@ export class Store {
 
   removeEmail(userId: string): void {
     this.db.prepare("DELETE FROM email_addresses WHERE user_id = ?").run(userId);
+  }
+
+  // ------------------------------------------------------------------ invites
+
+  /** Adds an invite; false if its id or code is taken. */
+  createInvite(invite: InviteRow): boolean {
+    const res = this.db
+      .prepare(
+        "INSERT OR IGNORE INTO invites (id, code, name, invited_by, max_devices, quota, expires_at, created_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(invite.id, invite.code, invite.name, invite.invited_by, invite.max_devices, invite.quota, invite.expires_at, invite.created_at, invite.revoked_at);
+    return Number(res.changes) === 1;
+  }
+
+  invite(id: string): InviteRow | undefined {
+    return this.db.prepare("SELECT * FROM invites WHERE id = ?").get(id) as InviteRow | undefined;
+  }
+
+  inviteByCode(code: string): InviteRow | undefined {
+    return this.db.prepare("SELECT * FROM invites WHERE code = ?").get(code) as InviteRow | undefined;
+  }
+
+  /** Every invite, oldest first. */
+  invites(): InviteRow[] {
+    return this.db.prepare("SELECT * FROM invites ORDER BY created_at, rowid").all() as unknown as InviteRow[];
+  }
+
+  /** The invites an invite's holder made, oldest first. */
+  invitesMadeBy(inviteId: string): InviteRow[] {
+    return this.db.prepare("SELECT * FROM invites WHERE invited_by = ? ORDER BY created_at, rowid").all(inviteId) as unknown as InviteRow[];
+  }
+
+  revokeInvite(id: string): boolean {
+    return Number(this.db.prepare("UPDATE invites SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL").run(this.now(), id).changes) === 1;
+  }
+
+  /** Deletes an invite no device has accepted; false if it was used or is not there. */
+  deleteUnusedInvite(id: string): boolean {
+    const res = this.db
+      .prepare(
+        "DELETE FROM invites WHERE id = ? AND NOT EXISTS (SELECT 1 FROM invite_devices WHERE invite_id = ?) AND NOT EXISTS (SELECT 1 FROM guest_invites WHERE invite_id = ?) AND NOT EXISTS (SELECT 1 FROM invites WHERE invited_by = ?)",
+      )
+      .run(id, id, id, id);
+    return Number(res.changes) === 1;
+  }
+
+  addInviteDevice(inviteId: string, passHash: string): void {
+    this.db.prepare("INSERT INTO invite_devices (pass_hash, invite_id, accepted_at) VALUES (?, ?, ?)").run(passHash, inviteId, this.now());
+  }
+
+  inviteDeviceCount(inviteId: string): number {
+    return (this.db.prepare("SELECT COUNT(*) AS n FROM invite_devices WHERE invite_id = ?").get(inviteId) as { n: number }).n;
+  }
+
+  /** The invite a device's pass belongs to. */
+  inviteByPass(passHash: string): InviteRow | undefined {
+    return this.db.prepare("SELECT i.* FROM invite_devices d JOIN invites i ON i.id = d.invite_id WHERE d.pass_hash = ?").get(passHash) as InviteRow | undefined;
+  }
+
+  /** Admits a guest session through an invite, in place of any earlier one. */
+  admitGuest(userId: string, inviteId: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO guest_invites (user_id, invite_id, admitted_at) VALUES (?, ?, ?)
+         ON CONFLICT(user_id) DO UPDATE SET invite_id = excluded.invite_id, admitted_at = excluded.admitted_at`,
+      )
+      .run(userId, inviteId, this.now());
+  }
+
+  inviteOfGuest(userId: string): InviteRow | undefined {
+    return this.db.prepare("SELECT i.* FROM guest_invites g JOIN invites i ON i.id = g.invite_id WHERE g.user_id = ?").get(userId) as InviteRow | undefined;
+  }
+
+  /** The names of the guest sessions an invite admitted, in the order they came in. */
+  inviteGuestNames(inviteId: string): string[] {
+    return (
+      this.db.prepare("SELECT u.display_name FROM guest_invites g JOIN users u ON u.id = g.user_id WHERE g.invite_id = ? ORDER BY g.admitted_at, g.rowid").all(inviteId) as {
+        display_name: string;
+      }[]
+    ).map((r) => r.display_name);
   }
 
   // ------------------------------------------------------------------ matches

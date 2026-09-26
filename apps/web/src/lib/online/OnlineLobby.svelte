@@ -10,12 +10,13 @@
   import { rememberName, rememberedName } from "../game/playerName.js";
   import { ui } from "../stores/ui.svelte.js";
   import { GameSession } from "../game/session.svelte.js";
-  import { ApiError, OnlineClient, onlineTransport } from "./client.js";
+  import { ApiError, OnlineClient, inviteCodeFrom, onlineTransport } from "./client.js";
   import { clearMatchRoute, matchRoute, setMatchRoute } from "./route.js";
   import { lastSeenRevision, watchSeen } from "./seen.js";
   import { onNotice, watchNotices } from "./notices.svelte.js";
   import { allowInBackground, disableTurnNotices, enableTurnNotices, followSession, turnNoticeSetting, type TurnNoticeSetting } from "./turnNotices.js";
   import TurnEmails from "./TurnEmails.svelte";
+  import FriendInvites from "./FriendInvites.svelte";
   import ToolIcon from "../components/ToolIcon.svelte";
 
   let { onopen, onback }: { onopen: (s: GameSession) => void; onback: () => void } = $props();
@@ -24,6 +25,9 @@
   let name = $state(client.displayName || rememberedName());
   let serverUrl = $state(client.serverUrl);
   let signedIn = $state(!!client.token);
+  /** The server is invite-only and wants this device's invite (the apps ask once; a browser on the server's own site has it). */
+  let inviteNeeded = $state(false);
+  let siteInvite = $state("");
   let error: string | null = $state(null);
   let notice: string | null = $state(null);
   let busy = $state(false);
@@ -52,7 +56,13 @@
         return await fn();
       }
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      if (e instanceof ApiError && e.inviteRequired) {
+        // Back to the form, which now asks for the invite.
+        inviteNeeded = true;
+        signedIn = false;
+        return undefined;
+      }
+      error = e instanceof ApiError && e.code === "INVITE_INVALID" ? t("ui.site_invite_invalid") : e instanceof Error ? e.message : String(e);
       errorStatus = e instanceof ApiError ? e.status : null;
       return undefined;
     } finally {
@@ -86,7 +96,8 @@
     client.serverUrl = serverUrl.trim();
     rememberName(name);
     await guard(async () => {
-      await client.ensureGuest(name.trim() || "Guest");
+      await client.ensureGuest(name.trim() || "Guest", inviteNeeded ? inviteCodeFrom(siteInvite) : undefined);
+      inviteNeeded = false;
       signedIn = true;
       await sessionChanged();
       await refresh();
@@ -261,6 +272,10 @@
   {#if !signedIn}
     <form onsubmit={(e) => (e.preventDefault(), signIn())}>
       <label>{t("ui.your_name")} <input bind:value={name} maxlength="24" required /></label>
+      {#if inviteNeeded}
+        <label>{t("ui.site_invite")} <input bind:value={siteInvite} required autocomplete="off" /></label>
+        <small class="muted">{t("ui.site_invite_hint")}</small>
+      {/if}
       <details>
         <summary>{t("ui.server")}</summary>
         <label>{t("ui.server_address")} <input bind:value={serverUrl} /></label>
@@ -335,6 +350,7 @@
         </li>
       {/each}
     </ul>
+    {#key guestKey}<FriendInvites {client} {guard} {busy} />{/key}
     <button onclick={onback}>{t("ui.back")}</button>
   {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}

@@ -61,6 +61,11 @@ export function isSaveFile(x: unknown): x is SaveFile {
 
 // ------------------------------------------------------------------ online API
 
+/**
+ * POST /api/guest { displayName, inviteCode? }. An invite-only server wants
+ * an invite: the browser's (from accepting an invite link on the server's
+ * own site) or, from the apps, `inviteCode`.
+ */
 export interface GuestSessionResponse {
   token: string;
   userId: string;
@@ -156,8 +161,12 @@ export interface MatchHistoryResponse {
  * - INVALID_SESSION (401): the token is missing or unknown; start a new session.
  * - COMMAND_ID_CONFLICT (409): a command id was already used for a different command.
  * - DUPLICATE_COMMAND_ID (400): one batch repeats a command id.
+ * - INVITE_REQUIRED (403): the server is invite-only and this device has not
+ *   accepted an invite (or its invite was revoked); ask for an invite code.
+ * - INVITE_INVALID (403): the invite code is unknown, revoked, expired or
+ *   already used on as many devices as it allows.
  */
-export type ApiErrorCode = "INVALID_SESSION" | "COMMAND_ID_CONFLICT" | "DUPLICATE_COMMAND_ID";
+export type ApiErrorCode = "INVALID_SESSION" | "COMMAND_ID_CONFLICT" | "DUPLICATE_COMMAND_ID" | "INVITE_REQUIRED" | "INVITE_INVALID";
 
 /**
  * Body of every non-2xx HTTP response this server sends. A proxy in front of
@@ -208,6 +217,38 @@ export interface EmailSettings {
   available: boolean;
   address: string | null;
   confirmed: boolean;
+}
+
+/** An invite a player made for someone else to join an invite-only server. */
+export interface FriendInvite {
+  id: string;
+  /** Who it is for. */
+  name: string;
+  /** The secret in its link, `<server>/invite/<code>`, which the apps also accept on its own. */
+  code: string;
+  /** Devices that have accepted it. */
+  devices: number;
+  /** Devices it admits in all; null for any number. */
+  maxDevices: number | null;
+  createdAt: string;
+  /** The server's operator withdrew it: its devices no longer get in. */
+  revoked: boolean;
+}
+
+/**
+ * GET /api/invites, and the answer to POST /api/invites ({ name }) and
+ * POST /api/invites/withdraw ({ id }): the invites this player made. On an
+ * invite-only server every invited person may make up to `quota` invites,
+ * shared by all their devices; an unused one can be withdrawn to free its
+ * place. `available` is false when the server is open to everyone.
+ * POST /api/invites/accept ({ code }) admits this guest session (and, in a
+ * browser on the server's own site, this browser) through an invite.
+ */
+export interface InviteSettings {
+  available: boolean;
+  quota: number;
+  /** Oldest first. */
+  invites: FriendInvite[];
 }
 
 /** Server → client push messages over WebSocket. */

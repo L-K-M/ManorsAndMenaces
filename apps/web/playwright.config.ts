@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { INVITE_DB } from "./e2e/invites";
 import { OUTBOX } from "./e2e/outbox";
 
 // UI end-to-end tests (spec §66.5). Runs against the Vite dev server so the
@@ -30,6 +31,15 @@ export default defineConfig({
         MAIL_FROM: "Manors & Menaces <turns@example.test>",
         PUBLIC_URL: "http://localhost:8788",
       },
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+    {
+      // Invite-only server for e2e/invites.spec.ts; its database is a file
+      // the operator's invites command can reach (e2e/invites.ts).
+      command: "tsx ../server/src/main.ts",
+      url: "http://localhost:8789/api/health",
+      env: { PORT: "8789", DB_PATH: INVITE_DB, AI_DELAY_MS: "50", WEB_DIST: "/nonexistent", INVITE_ONLY: "true" },
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
     },

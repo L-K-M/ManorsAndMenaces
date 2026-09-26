@@ -12,22 +12,37 @@
 //   GET  /api/email                    → EmailSettings; POST /api/email { address }, POST /api/email/remove
 //   GET|POST /api/email/confirm?t=…     the link in a confirmation email (HTML)
 //   GET|POST /api/email/unsubscribe?u=…&t=…  the link in every turn email (HTML; RFC 8058 one-click POST)
+//   GET  /api/invites                  → InviteSettings; POST /api/invites { name }, POST /api/invites/withdraw { id }
+//   POST /api/invites/accept           { code }: admits this device and guest session (invite-only servers)
+//   GET|POST /invite/:code              an invite link (HTML; invite-only servers)
 //   GET  /api/health
 //   WS   /api/ws?token=…               subscribe → match_update pushes
-// Anything else is served from WEB_DIST (the built web client), if set.
+// Anything else is served from WEB_DIST (the built web client), if set. On an
+// invite-only server (inviteOnly) only to browsers that accepted an invite,
+// and the API and WebSocket only to guest sessions an invite admitted.
 
 import { randomBytes } from "node:crypto";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import { isSubmitCommandsRequest, type ApiErrorBody, type ClientMessage, type EmailSettings, type ServerMessage, type SocketMode } from "@manors-menaces/protocol";
+import {
+  isSubmitCommandsRequest,
+  type ApiErrorBody,
+  type ClientMessage,
+  type EmailSettings,
+  type InviteSettings,
+  type ServerMessage,
+  type SocketMode,
+} from "@manors-menaces/protocol";
 import { redactEvent, type GameEvent } from "@manors-menaces/rules";
 import { EmailNotices, emailPage, type MailConfig } from "./mail.js";
+import { Invites, inviteName } from "./invites.js";
 import { text } from "./notices.js";
+import { htmlPage } from "./page.js";
 import { generateVapidKeys, parseSubscription, sendPush, vapidKeysFromPem } from "./push.js";
 import { HttpError, MatchService } from "./service.js";
-import { Store } from "./store.js";
+import { Store, type InviteRow, type UserRow } from "./store.js";
 
 export interface AppOptions {
   dbPath?: string;
@@ -54,13 +69,24 @@ export interface AppOptions {
   };
   /** Turn emails for players whose app is closed (spec §85); off when absent (mailConfigFromEnv). */
   email?: MailConfig;
+  /**
+   * Open the game only to people with a personal invite (INVITE_ONLY; see
+   * invites.ts). Invites are made with the `invites` command.
+   */
+  inviteOnly?: boolean;
 }
 
 const NO_EMAIL: EmailSettings = { available: false, address: null, confirmed: false };
+const NO_INVITES: InviteSettings = { available: false, quota: 0, invites: [] };
 
-// Pages behind email links: no scripts, nothing framed, and no token leaked
-// in a Referer when the page links on to the game.
-const EMAIL_PAGE_HEADERS = {
+/** The cookie that holds a browser's pass on an invite-only server. */
+const PASS_COOKIE = "mm_pass";
+/** 400 days, the longest browsers keep a cookie; it is renewed whenever the game's page loads. */
+const PASS_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
+
+// The server's own pages (email and invite links): no scripts, nothing
+// framed, and no token leaked in a Referer when the page links on to the game.
+const PAGE_HEADERS = {
   "content-type": "text/html; charset=utf-8",
   "cache-control": "no-store",
   "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
@@ -126,6 +152,27 @@ class TokenBucket {
   }
 }
 
+/** The pass in a request's cookies, if any. */
+function passOf(req: IncomingMessage): string | null {
+  for (const part of (req.headers.cookie ?? "").split(";")) {
+    const eq = part.indexOf("=");
+    if (eq > 0 && part.slice(0, eq).trim() === PASS_COOKIE) return part.slice(eq + 1).trim();
+  }
+  return null;
+}
+
+/**
+ * The Set-Cookie value that gives a browser its pass. Secure when the browser
+ * came over HTTPS through a proxy; not otherwise, since browsers drop a Secure
+ * cookie set over plain HTTP (a server on a home network). The header comes
+ * from the client unless a proxy sets it, but a false one only spoils the
+ * sender's own cookie.
+ */
+function passCookie(req: IncomingMessage, pass: string): string {
+  const https = String(req.headers["x-forwarded-proto"] ?? "").split(",")[0]?.trim() === "https";
+  return `${PASS_COOKIE}=${pass}; Path=/; Max-Age=${PASS_MAX_AGE_SECONDS}; HttpOnly; SameSite=Lax${https ? "; Secure" : ""}`;
+}
+
 /** An address without its port: `[2001:db8::17]:4711` and `192.0.2.60:4711` both carry one. */
 function withoutPort(value: string): string {
   if (value.startsWith("[")) return value.slice(1, value.indexOf("]"));
@@ -171,6 +218,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   const vapid = { keys: vapidKeysFromPem(store.settingOr("vapid_private_key", generateVapidKeys)), subject: opts.push?.subject ?? DEFAULT_VAPID_SUBJECT };
   // The secret signs unsubscribe links, so like the VAPID key it is kept.
   const email = opts.email ? new EmailNotices(store, opts.email, store.settingOr("email_secret", () => randomBytes(32).toString("base64url"))) : null;
+  const invites = opts.inviteOnly ? new Invites(store) : null;
   const cors = opts.corsOrigin ?? "*";
   const webDist = opts.webDist && existsSync(opts.webDist) ? resolve(opts.webDist) : null;
 
@@ -200,8 +248,8 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     "access-control-allow-methods": "GET, POST, OPTIONS",
   };
 
-  const send = (res: ServerResponse, status: number, body: unknown): void => {
-    res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store", ...corsHeaders });
+  const send = (res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void => {
+    res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store", ...corsHeaders, ...headers });
     res.end(JSON.stringify(body));
   };
 
@@ -216,7 +264,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   const emailLink = (req: IncomingMessage, res: ServerResponse, url: URL, notices: EmailNotices): void => {
     req.resume(); // a form or one-click POST body carries nothing needed
     const page = (status: number, title: string, body: string, button?: string): void => {
-      res.writeHead(status, EMAIL_PAGE_HEADERS);
+      res.writeHead(status, PAGE_HEADERS);
       res.end(emailPage(notices.publicUrl, title, body, button));
     };
     const post = req.method === "POST";
@@ -233,6 +281,67 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     if (post) notices.remove(userId);
     if (post || !address) return page(200, text("email.unsubscribed_title"), text("email.unsubscribed_body"));
     return page(200, text("email.unsubscribe_title"), text("email.unsubscribe_ask", { address }), text("email.unsubscribe_button"));
+  };
+
+  const sendPage = (res: ServerResponse, status: number, html: string): void => {
+    res.writeHead(status, PAGE_HEADERS);
+    res.end(html);
+  };
+
+  /**
+   * An invite link. Opening it only shows the invite and a button, since
+   * link previews and mail scanners open links too; the button posts back and
+   * gives the browser its pass. A browser that already has one is sent on to
+   * the game without using up another invite.
+   */
+  const invitePage = (req: IncomingMessage, res: ServerResponse, url: URL, invites: Invites): void => {
+    req.resume();
+    if (invites.forPass(passOf(req))) {
+      res.writeHead(303, { location: "/", "cache-control": "no-store" });
+      return void res.end();
+    }
+    let code = "";
+    try {
+      code = decodeURIComponent(url.pathname.slice("/invite/".length));
+    } catch {
+      // not a code any invite has
+    }
+    const invalid = () => sendPage(res, 410, htmlPage(text("invite.invalid_title"), text("invite.invalid_body")));
+    if (req.method === "POST") {
+      const accepted = invites.accept(code);
+      if (!accepted) return invalid();
+      res.writeHead(303, { location: "/", "cache-control": "no-store", "set-cookie": passCookie(req, accepted.pass) });
+      return void res.end();
+    }
+    const invite = invites.usable(code);
+    if (!invite) return invalid();
+    const inviter = invites.inviterOf(invite);
+    const body = inviter ? text("invite.body_from", { inviter }) : text("invite.body");
+    sendPage(res, 200, htmlPage(text("invite.title", { name: invite.name }), body, { button: text("invite.accept") }));
+  };
+
+  /**
+   * The invite a guest session came in by. A session without one (from
+   * before the server became invite-only, or whose invite was revoked) is
+   * admitted through the browser's pass, if it has one.
+   */
+  const admitted = (req: IncomingMessage, user: UserRow, invites: Invites): InviteRow => {
+    const own = invites.forGuest(user.id);
+    if (own) return own;
+    const held = invites.forPass(passOf(req));
+    if (!held) throw new HttpError(403, "this server is invite-only: accept an invite first", "INVITE_REQUIRED");
+    invites.admit(user.id, held);
+    return held;
+  };
+
+  /** The browser's invite, or a new device admitted by `code`, with the pass cookie to set for it. */
+  const inviteFor = (req: IncomingMessage, code: unknown, invites: Invites): { invite: InviteRow; headers: Record<string, string> } | null => {
+    const held = invites.forPass(passOf(req));
+    if (held) return { invite: held, headers: {} };
+    if (code === undefined) return null;
+    const accepted = invites.accept(code);
+    if (!accepted) throw new HttpError(403, "this invite does not work: it may have expired, been used up or been withdrawn", "INVITE_INVALID");
+    return { invite: accepted.invite, headers: { "set-cookie": passCookie(req, accepted.pass) } };
   };
 
   const readJson = (req: IncomingMessage): Promise<unknown> =>
@@ -270,7 +379,8 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     return h?.startsWith("Bearer ") ? h.slice(7) : null;
   };
 
-  const serveStatic = (req: IncomingMessage, res: ServerResponse): void => {
+  /** Serves a file of the web client; `cookie` renews a pass when the game's page (not an asset) loads. */
+  const serveStatic = (req: IncomingMessage, res: ServerResponse, cookie?: string): void => {
     if (!webDist) return send(res, 404, { error: "not found" });
     const url = new URL(req.url ?? "/", "http://x");
     let decoded: string;
@@ -285,7 +395,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     if (!existsSync(path) || statSync(path).isDirectory()) path = join(webDist, "index.html");
     res.writeHead(200, {
       "content-type": MIME[extname(path)] ?? "application/octet-stream",
-      "cache-control": path.includes("/assets/") ? "public, max-age=31536000, immutable" : "no-cache",
+      ...(path.includes("/assets/") ? { "cache-control": "public, max-age=31536000, immutable" } : { "cache-control": "no-cache", ...(cookie ? { "set-cookie": cookie } : {}) }),
     });
     const stream = createReadStream(path);
     stream.on("error", () => res.destroy());
@@ -302,7 +412,15 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     if (req.method === "OPTIONS") return sendNoContent(res);
     if (!url.pathname.startsWith("/api/")) {
       try {
-        return serveStatic(req, res);
+        if (!invites) return serveStatic(req, res);
+        if (url.pathname.startsWith("/invite/")) {
+          // Rate limited like the API, so codes cannot be guessed faster.
+          if (!allow(req)) return send(res, 429, { error: "slow down" });
+          return invitePage(req, res, url, invites);
+        }
+        const pass = passOf(req);
+        if (!pass || !invites.forPass(pass)) return sendPage(res, 403, htmlPage(text("invite.only_title"), text("invite.only_body")));
+        return serveStatic(req, res, passCookie(req, pass));
       } catch (e) {
         console.error(e);
         return send(res, 500, { error: "internal error" });
@@ -316,13 +434,30 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
       const parts = url.pathname.split("/").filter(Boolean); // ["api", ...]
       if (req.method === "POST" && url.pathname === "/api/guest") {
         const body = await readObject(req);
-        return send(res, 200, service.createGuest(body.displayName));
+        if (!invites) return send(res, 200, service.createGuest(body.displayName));
+        const found = inviteFor(req, body.inviteCode, invites);
+        if (!found) throw new HttpError(403, "this server is invite-only: accept an invite first", "INVITE_REQUIRED");
+        const guest = service.createGuest(body.displayName);
+        invites.admit(guest.userId, found.invite);
+        return send(res, 200, guest, found.headers);
+      }
+      if (req.method === "POST" && url.pathname === "/api/invites/accept") {
+        if (!invites) throw new HttpError(404, "this server is open to everyone");
+        const body = await readObject(req);
+        // A bad session must not use up a place on the invite.
+        const token = bearer(req);
+        const user = token === null ? null : service.authenticate(token);
+        const found = inviteFor(req, body.code ?? null, invites);
+        if (!found) throw new HttpError(403, "this invite does not work", "INVITE_INVALID");
+        if (user) invites.admit(user.id, found.invite);
+        return send(res, 200, { ok: true }, found.headers);
       }
       if ((url.pathname === "/api/email/confirm" || url.pathname === "/api/email/unsubscribe") && (req.method === "GET" || req.method === "POST")) {
         if (!email) throw new HttpError(404, "not found");
         return emailLink(req, res, url, email);
       }
       const user = service.authenticate(bearer(req));
+      const invite = invites ? admitted(req, user, invites) : null;
       if (req.method === "GET" && url.pathname === "/api/me") return send(res, 200, { userId: user.id, displayName: user.display_name });
       if (url.pathname === "/api/push/key" && req.method === "GET") return send(res, 200, { publicKey: vapid.keys.publicKey });
       if (url.pathname === "/api/push/subscribe" && req.method === "POST") {
@@ -345,6 +480,21 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         if (!email) throw new HttpError(404, "this server does not send email");
         email.remove(user.id);
         return send(res, 200, email.settings(user.id));
+      }
+      if (url.pathname === "/api/invites" && req.method === "GET") return send(res, 200, invites && invite ? invites.settings(invite) : NO_INVITES);
+      if (url.pathname === "/api/invites" && req.method === "POST") {
+        if (!invites || !invite) throw new HttpError(404, "this server is open to everyone");
+        const name = inviteName((await readObject(req)).name);
+        if (!name) throw new HttpError(400, "say who the invite is for");
+        if (!invites.invite(invite, name)) throw new HttpError(409, `you have made all ${invite.quota} of your invites`);
+        return send(res, 200, invites.settings(invite));
+      }
+      if (url.pathname === "/api/invites/withdraw" && req.method === "POST") {
+        if (!invites || !invite) throw new HttpError(404, "this server is open to everyone");
+        const result = invites.withdraw(invite, (await readObject(req)).id);
+        if (result === "unknown") throw new HttpError(404, "you made no such invite");
+        if (result === "used") throw new HttpError(409, "this invite has been used, so it cannot be withdrawn");
+        return send(res, 200, invites.settings(invite));
       }
       if (url.pathname === "/api/matches" && req.method === "GET") return send(res, 200, service.listMatches(user));
       if (url.pathname === "/api/matches" && req.method === "POST") return send(res, 200, service.createMatch(user, (await readObject(req)) as never));
@@ -436,6 +586,14 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     } catch {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       return socket.destroy();
+    }
+    if (invites) {
+      try {
+        admitted(req, user, invites);
+      } catch {
+        socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+        return socket.destroy();
+      }
     }
     if ([...subs.values()].filter((s) => s.userId === user.id).length >= MAX_SOCKETS_PER_USER) {
       socket.write("HTTP/1.1 429 Too Many Requests\r\n\r\n");

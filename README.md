@@ -30,6 +30,8 @@ docker compose up -d       # web client + API on http://localhost:8787
 
 Players can be told when it is their turn by Web Push or email. [`docs/notifications.md`](docs/notifications.md) explains both, how players set them up (Android in detail) and what a server needs for them.
 
+To put the game online for invited people only, see [`docs/invites.md`](docs/invites.md).
+
 ## How to play (short)
 
 1. Each Manor raises a Banner; a Stronghold raises two. Plant them in neighbouring Regions.
