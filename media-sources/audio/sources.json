@@ -1,0 +1,115 @@
+{
+  "retrieved": "2026-09-26",
+  "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "sources": {
+    "coins": {
+      "file": "originals/coins.ogg",
+      "originalFile": "Audio/handleCoins.ogg",
+      "creator": "Kenney",
+      "page": "https://kenney.nl/assets/rpg-audio",
+      "download": "https://kenney.nl/media/pages/assets/rpg-audio/8e99002d76-1677590336/kenney_rpg-audio.zip",
+      "license": "CC0-1.0",
+      "sha256": "8a91f969e932df709df80ee124d86a51389eed9b67f22e5e716bc2bbf60d8dab"
+    },
+    "paper": {
+      "file": "originals/paper.ogg",
+      "originalFile": "Audio/bookFlip2.ogg",
+      "creator": "Kenney",
+      "page": "https://kenney.nl/assets/rpg-audio",
+      "download": "https://kenney.nl/media/pages/assets/rpg-audio/8e99002d76-1677590336/kenney_rpg-audio.zip",
+      "license": "CC0-1.0",
+      "sha256": "3409042acbfaebc24c1a6327dc073e36f9250841712e96c5040da566a97df73c"
+    },
+    "cloth": {
+      "file": "originals/cloth.ogg",
+      "originalFile": "Audio/cloth2.ogg",
+      "creator": "Kenney",
+      "page": "https://kenney.nl/assets/rpg-audio",
+      "download": "https://kenney.nl/media/pages/assets/rpg-audio/8e99002d76-1677590336/kenney_rpg-audio.zip",
+      "license": "CC0-1.0",
+      "sha256": "8a7451193c38bc05483aec25dd193e163a15d44cf7fff04ac7912573231b0201"
+    },
+    "book": {
+      "file": "originals/book.ogg",
+      "originalFile": "Audio/bookClose.ogg",
+      "creator": "Kenney",
+      "page": "https://kenney.nl/assets/rpg-audio",
+      "download": "https://kenney.nl/media/pages/assets/rpg-audio/8e99002d76-1677590336/kenney_rpg-audio.zip",
+      "license": "CC0-1.0",
+      "sha256": "81e976532565f4372abd14e83d2684195fa548d0a28d345de221e56052454f32"
+    },
+    "creak": {
+      "file": "originals/creak.ogg",
+      "originalFile": "Audio/creak1.ogg",
+      "creator": "Kenney",
+      "page": "https://kenney.nl/assets/rpg-audio",
+      "download": "https://kenney.nl/media/pages/assets/rpg-audio/8e99002d76-1677590336/kenney_rpg-audio.zip",
+      "license": "CC0-1.0",
+      "sha256": "8a346186fd297254248cab8e8117060a52a5cf2a84f603153a762108550ea95e"
+    },
+    "wood": {
+      "file": "originals/wood.ogg",
+      "originalFile": "Audio/impactWood_medium_000.ogg",
+      "creator": "Kenney",
+      "page": "https://kenney.nl/assets/impact-sounds",
+      "download": "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip",
+      "license": "CC0-1.0",
+      "sha256": "1723a9fd25103ed41af06054814e84e65f4a772bac86ab2dc927da93d9592ff5"
+    },
+    "stone": {
+      "file": "originals/stone.ogg",
+      "originalFile": "Audio/impactMining_000.ogg",
+      "creator": "Kenney",
+      "page": "https://kenney.nl/assets/impact-sounds",
+      "download": "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip",
+      "license": "CC0-1.0",
+      "sha256": "36b4ea107222d073c67ca64dde26944975609202d5090b2f2021213c1a7e35cd"
+    },
+    "bell": {
+      "file": "originals/bell.ogg",
+      "originalFile": "Audio/impactBell_heavy_000.ogg",
+      "creator": "Kenney",
+      "page": "https://kenney.nl/assets/impact-sounds",
+      "download": "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip",
+      "license": "CC0-1.0",
+      "sha256": "94b8bb5f2d43ab65e4bcc32b28562416e9bc2c51d9fd4be1e333660ee52f977f"
+    },
+    "step": {
+      "file": "originals/step.ogg",
+      "originalFile": "Audio/footstep_concrete_000.ogg",
+      "creator": "Kenney",
+      "page": "https://kenney.nl/assets/impact-sounds",
+      "download": "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip",
+      "license": "CC0-1.0",
+      "sha256": "d7267e183067757c92c169de2a379abea592cfca6b39bb2e8feea15221ad79fe"
+    },
+    "glass": {
+      "file": "originals/glass.ogg",
+      "originalFile": "Audio/glass_001.ogg",
+      "creator": "Kenney",
+      "page": "https://kenney.nl/assets/interface-sounds",
+      "download": "https://kenney.nl/media/pages/assets/interface-sounds/fa43c1dd4d-1677589452/kenney_interface-sounds.zip",
+      "license": "CC0-1.0",
+      "sha256": "183eebee20eb0a532b0b85104d139cbf2673eb66d95c3cc733ac9ea98362e7e8"
+    },
+    "pizzicato": {
+      "file": "originals/pizzicato.ogg",
+      "originalFile": "Audio/Pizzicato jingles/jingles_PIZZI07.ogg",
+      "creator": "Kenney",
+      "page": "https://kenney.nl/assets/music-jingles",
+      "download": "https://kenney.nl/media/pages/assets/music-jingles/f37e530b9e-1677590399/kenney_music-jingles.zip",
+      "license": "CC0-1.0",
+      "sha256": "91870588924e0e498c6eb8d4f4ccf8595c9e7dc51fb553797b551062e642ce7c"
+    },
+    "music": {
+      "file": "originals/old-tower-inn.wav",
+      "originalFile": "Loop_The_Old_Tower_Inn.wav",
+      "creator": "RandomMind",
+      "title": "Medieval: The Old Tower Inn",
+      "page": "https://opengameart.org/content/medieval-the-old-tower-inn",
+      "download": "https://opengameart.org/sites/default/files/Loop_The_Old_Tower_Inn.wav",
+      "license": "CC0-1.0",
+      "sha256": "e18b497fb0edde74a745c4b5a0b90b3fc346c44555f33e3a1485411bbcc171bc"
+    }
+  }
+}
