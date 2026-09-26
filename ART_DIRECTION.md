@@ -654,4 +654,12 @@ including scrolling to the later purchase actions; reset viewport afterward.
 The isolated localhost:5175 preview is now an Alice/Lady Fennick test game in
 Main with some unaffordable actions, suitable for reviewing the price chips.
 Logs: `/tmp/mm-costs-before.log`, `/tmp/mm-costs-after.log`,
-`/tmp/mm-costs-layout.log`. Next: CI/review and merge; rebuild the Mac app.
+`/tmp/mm-costs-layout.log`.
+
+PR #46 is open. The first review had only minor findings. Added underlining to
+missing-resource amounts so shortages do not rely on colour alone. The proposed
+missing-cost guard is unnecessary: ActionAvailability requires a cost and the
+selector initializes it for every action before checking blocked states.
+The base button rule already retains a 44px minimum height, and the phone
+touch-target audit passed. Initial Mac packaging succeeded; rebuild after the
+final CSS change and wait for latest-commit CI/review before merging.

@@ -505,6 +505,9 @@
   .chip.lack {
     background: #fbe0dc;
     color: #a3190c;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 2px;
   }
   .tools button.on .chip {
     background: #ffffff2e;
