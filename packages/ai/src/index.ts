@@ -4,6 +4,7 @@
 // can animate each action.
 
 import {
+  BALANCE,
   computeBannerHarvest,
   dragonsLandingTargets,
   getLegalActions,
@@ -238,6 +239,16 @@ function spellHurts(ctx: RulesContext, state: GameState, playerId: PlayerId, cas
     case "ragnarok":
       // The game ends at once: stop it unless it ends in my favour.
       return rankPlayers(ctx, state, state.turnOrder)[0] !== playerId;
+    case "disgrace":
+    case "stolen_glory":
+      return t.opponentId === playerId && !insured(playerId);
+    case "siege_engines":
+    case "raiders":
+    case "siege_fireball":
+      return holdingAt(state, t.siteId)?.ownerId === playerId && !insured(playerId);
+    case "sabotage":
+      // A Counterspell is worth about two resources: spend it on the full loss only.
+      return t.opponentId === playerId && (state.players[playerId]?.resources.grain ?? 0) >= BALANCE.sabotage.grain;
     default:
       return false;
   }

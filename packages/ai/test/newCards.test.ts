@@ -316,3 +316,119 @@ describe("candidate pruning", () => {
     expect(cardCandidates(state, p1, "knight_errant#1")).toHaveLength(enumerateCardTargets(engine.ctx, state, p1, "knight_errant#1").length);
   });
 });
+
+describe("the third wave (§19.22–19.27)", () => {
+  /** Gives `ownerId` a Route (both ownership records). */
+  function withRoute(state: GameState, ownerId: PlayerId, route: string): GameState {
+    const p = state.players[ownerId] as PlayerState;
+    return withPlayer({ ...state, routeOwners: { ...state.routeOwners, [route]: ownerId } }, ownerId, { routeIds: [...p.routeIds, route] });
+  }
+  function withStronghold(state: GameState, siteId: SiteId): GameState {
+    const h = Object.values(state.holdings).find((x) => x.siteId === siteId);
+    if (!h) throw new Error(`no Holding on ${siteId}`);
+    return { ...state, holdings: { ...state.holdings, [h.id]: { ...h, type: "stronghold" } } };
+  }
+  const ownerAt = (state: GameState, siteId: string): PlayerId | undefined => Object.values(state.holdings).find((h) => h.siteId === siteId)?.ownerId;
+
+  it("disgraces the rival who leads", () => {
+    let { state, p1, p2 } = position();
+    state = withPlayer(withPlayer(state, p1, { hand: ["disgrace#1"] }), p2, { bonusRenown: 4 });
+    expect(decide(state, p1)).toEqual(play("disgrace#1", { effect: "disgrace", opponentId: p2 }));
+  });
+
+  it("steals glory as soon as a rival is ahead", () => {
+    let { state, p1, p2 } = position();
+    state = withPlayer(withPlayer(state, p1, { hand: ["stolen_glory#1"] }), p2, { bonusRenown: 1 });
+    expect(decide(state, p1)).toEqual(play("stolen_glory#1", { effect: "stolen_glory", opponentId: p2 }));
+  });
+
+  it("brings Siege Engines to a rival's Stronghold its Route reaches", () => {
+    let { state, p1, p2 } = position();
+    // p1's s2–s3 Route reaches p2's Stronghold on s3.
+    state = withStronghold(withRoute(state, p1, routeId(2, 3)), "s3");
+    state = withPlayer(withPlayer(state, p1, { hand: ["siege_engines#1"] }), p2, { bonusRenown: 2 });
+    expect(decide(state, p1)).toEqual(play("siege_engines#1", { effect: "siege_engines", siteId: "s3" }));
+  });
+
+  it("sends Raiders to a rival's Manor its Route reaches", () => {
+    let { state, p1, p2 } = position();
+    // p2 has a third Holding on s5, so a Manor of theirs may burn.
+    state = withManor(withRoute(state, p1, routeId(2, 3)), p2, "s5");
+    state = withPlayer(withPlayer(state, p1, { hand: ["raiders#1"] }), p2, { bonusRenown: 2 });
+    expect(decide(state, p1)).toEqual(play("raiders#1", { effect: "raiders", siteId: "s3" }));
+  });
+
+  it("aims Siege Fireball at a Manor of the rival ahead", () => {
+    let { state, p1, p2 } = position();
+    state = withPlayer(withManor(state, p2, "s5"), p1, { hand: ["siege_fireball#1"] });
+    state = withPlayer(state, p2, { bonusRenown: 2 });
+    const intent = decide(state, p1);
+    expect(intent).toMatchObject({ type: "play_card", cardId: "siege_fireball#1", target: { effect: "siege_fireball" } });
+    if (intent?.type !== "play_card" || intent.target.effect !== "siege_fireball") return;
+    expect(ownerAt(state, intent.target.siteId)).toBe(p2);
+  });
+
+  it("sabotages the Grain of a rival close to winning, not of one far from it", () => {
+    let { state, p1, p2 } = position();
+    state = withPlayer(withPlayer(state, p1, { hand: ["sabotage#1"] }), p2, { resources: { ...NONE, grain: 4 } });
+    const sabotage = play("sabotage#1", { effect: "sabotage", opponentId: p2 });
+    const leader = withPlayer(state, p2, { bonusRenown: state.ruleset.targetRenown - 6 });
+    expect(decide(leader, p1)).toEqual(sabotage);
+    expect(decide(state, p1)).toEqual({ type: "end_main_phase" });
+  });
+
+  it("never aims them at itself", () => {
+    let { state, p1, p2 } = position();
+    // p1 leads, holds every Manor and Stronghold kind, and has Grain: only p2 could be a target.
+    state = withStronghold(withRoute(withManor(state, p1, "s5"), p1, routeId(2, 3)), "s9");
+    state = withPlayer(state, p1, { bonusRenown: 3, resources: { ...NONE, grain: 4 } });
+    for (const card of ["disgrace#1", "siege_engines#1", "raiders#1", "stolen_glory#1", "siege_fireball#1", "sabotage#1"]) {
+      const s = withPlayer(state, p1, { hand: [card] });
+      for (const t of enumerateCardTargets(engine.ctx, s, p1, card)) {
+        if ("opponentId" in t) expect(t.opponentId, card).toBe(p2);
+        if ("siteId" in t) expect(ownerAt(s, t.siteId), card).toBe(p2);
+      }
+      const intent = decide(s, p1);
+      if (intent?.type === "play_card" && "siteId" in intent.target) expect(ownerAt(s, intent.target.siteId)).toBe(p2);
+      if (intent?.type === "play_card" && "opponentId" in intent.target) expect(intent.target.opponentId).toBe(p2);
+    }
+  });
+
+  describe("Counterspell", () => {
+    const counter = { type: "react", cardId: "counterspell#1" };
+    const pass = { type: "pass_reaction" };
+    /** p1 casts `cardId` at p2, who leads by 2 and holds a Counterspell. */
+    function cast(cardId: string, target: Extract<CommandIntent, { type: "play_card" }>["target"], patch: Partial<PlayerState> = {}) {
+      const { state: start, p1, p2 } = position();
+      let s = withPlayer(withManor(start, p2, "s5"), p1, { hand: [cardId] });
+      s = withPlayer(s, p2, { hand: ["counterspell#1"], ...patch });
+      s = act(s, p1, play(cardId, target));
+      expect(s.pending?.kind).toBe("reaction");
+      return { state: s, p2 };
+    }
+
+    it("counters Disgrace and Stolen Glory aimed at it, unless insured", () => {
+      const { p2 } = position();
+      for (const card of ["disgrace#1", "stolen_glory#1"]) {
+        const effect = card.split("#")[0] as "disgrace" | "stolen_glory";
+        const plain = cast(card, { effect, opponentId: p2 });
+        expect(decide(plain.state, plain.p2)).toEqual(counter);
+        const insured = cast(card, { effect, opponentId: p2 }, { charters: ["royal_insurance_policy#1"] });
+        expect(decide(insured.state, insured.p2)).toEqual(pass);
+      }
+    });
+
+    it("counters a Siege Fireball on its Manor", () => {
+      const fireball = cast("siege_fireball#1", { effect: "siege_fireball", siteId: "s3" });
+      expect(decide(fireball.state, fireball.p2)).toEqual(counter);
+    });
+
+    it("spends it on Sabotage only when all 2 Grain would burn", () => {
+      const { p2 } = position();
+      const rich = cast("sabotage#1", { effect: "sabotage", opponentId: p2 }, { resources: { ...NONE, grain: 3 } });
+      expect(decide(rich.state, rich.p2)).toEqual(counter);
+      const poor = cast("sabotage#1", { effect: "sabotage", opponentId: p2 }, { resources: { ...NONE, grain: 1 } });
+      expect(decide(poor.state, poor.p2)).toEqual(pass);
+    });
+  });
+});

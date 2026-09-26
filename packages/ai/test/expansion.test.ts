@@ -177,6 +177,22 @@ describe("expansion planning", () => {
     expect(planExpansion(engine.ctx, burned(me), me)).toMatchObject({ siteId: "s5", routes: 2 });
   });
 
+  it("never plans toward a ruined Site, nor one razed for someone else", () => {
+    const { state, me } = position({ timber: 1 });
+    const other = state.turnOrder.find((id) => id !== me) as PlayerId;
+    // Siege Fireball left s5 in ruins: nobody may build there again.
+    const ruined: GameState = { ...state, ruinedSiteIds: ["s5"] };
+    expect(planExpansion(engine.ctx, ruined, me)).toBeNull();
+    // Raiders burned the other player's Manor on s5: only they may build on it or next to it for now.
+    const razed = (ownerId: PlayerId, siteId: string): GameState => ({
+      ...state,
+      activeEffects: [...state.activeEffects, { kind: "razed", siteId, ownerId, sourcePlayerId: me }],
+    });
+    expect(planExpansion(engine.ctx, razed(other, "s5"), me)).toBeNull();
+    expect(planExpansion(engine.ctx, razed(other, "s6"), me)).toBeNull();
+    expect(planExpansion(engine.ctx, razed(me, "s5"), me)).toMatchObject({ siteId: "s5", routes: 2 });
+  });
+
   it("takes the first step with only enough for one Route", () => {
     const { state, me } = position({ timber: 1, stone: 1 });
     expect(chooseAction(engine, state, me, { level: "normal", rng: createRng(seedRng("one")) })).toEqual({

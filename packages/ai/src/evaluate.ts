@@ -58,6 +58,13 @@ export const WEIGHTS = {
    * the card, not enough to chase every rival's Manor.
    */
   rivalRenown: 0.6,
+  /**
+   * Per unit of each rival's stock (concave, as `stockWorth`), scaled by
+   * threat: what Sabotage burns. As small as `denial`, which values a rival's
+   * Harvest, so resources that other actions give rivals (a Writ's bribe, the
+   * Festival's Grain) barely change how those actions score.
+   */
+  rivalStock: 0.12,
   win: 1000,
 };
 
@@ -219,6 +226,18 @@ export const CARD_WORTH: Record<CardEffectId, number> = scaleWorth({
   // +1 Renown, but only while a rival leads by 2 or more.
   unreliable_bard: 3,
   treasure_hunter: 0.4,
+  // The third wave (§19.22–19.27), set from what `evaluate` credits each
+  // against a leading rival: about 1.2 for a point of their Renown with its
+  // Banner or Harvest, so each is played against the leader rather than held.
+  disgrace: 0.5,
+  siege_engines: 0.45,
+  raiders: 0.45,
+  // A two-point swing toward the player, playable only while behind: like
+  // the Bard, played as soon as it can be.
+  stolen_glory: 3,
+  siege_fireball: 0.5,
+  // Two Grain: worth it only against a rival who threatens to win.
+  sabotage: 0.1,
 });
 
 /**
@@ -325,22 +344,27 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
   let opponentRenown = 0;
   let opponentHarvest = 0;
   // Only interference cards change these (Fire Bolt, Fog of Confusion,
-  // Changeling, Dragon's Landing), so they leave every other comparison
-  // between candidates as it was.
+  // Changeling, Dragon's Landing and the third wave), so they leave every
+  // other comparison between candidates as it was. The one exception is
+  // rival stock, which a Writ's bribe, the Festival and Robin of the Glade
+  // also move, at a small weight.
   let rivalRoutes = 0;
   const fogged = new Set(state.activeEffects.flatMap((e) => (e.kind === "fog" ? [e.routeId] : [])));
   let rivalCards = 0;
   let rivalRenown = 0;
+  let rivalStock = 0;
   for (const id of state.turnOrder) {
     if (id === playerId) continue;
     const weight = threat(ctx, state, id);
     const theirRenown = getRenown(ctx, state, id);
+    const theirs = state.players[id]?.resources;
     opponents += weight * menacePressure(ctx, state, id);
     opponentRenown = Math.max(opponentRenown, theirRenown);
     rivalRenown += weight * theirRenown;
     opponentHarvest += weight * getHarvestPreview(ctx, state, id).total;
     rivalRoutes += weight * (state.players[id]?.routeIds ?? []).reduce((n, r) => n + (fogged.has(r) ? FOGGED_ROUTE : 1), 0);
     rivalCards += weight * Math.min(state.players[id]?.hand.length ?? 0, 4);
+    if (theirs) rivalStock += weight * RESOURCE_TYPES.reduce((n, r) => n + stockWorth(theirs[r]), 0);
   }
   const insured = insurancePolicyOf(ctx, state, playerId) ? 1 : 0;
 
@@ -360,6 +384,7 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
     WEIGHTS.rivalRoutes * rivalRoutes -
     WEIGHTS.rivalCards * rivalCards -
     WEIGHTS.rivalRenown * rivalRenown -
+    WEIGHTS.rivalStock * rivalStock -
     WEIGHTS.menacePressureOnSelf * menacePressure(ctx, state, playerId) -
     WEIGHTS.wasted * 0.3 * wasted -
     0.5 * opponentRenown
