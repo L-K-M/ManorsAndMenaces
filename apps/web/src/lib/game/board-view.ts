@@ -156,6 +156,17 @@ export const SICK_MARK = {
     "M-10,0 A10,10 0 1,0 10,0 A10,10 0 1,0 -10,0 Z M-5.6,-3 A1.7,1.7 0 1,0 -2.2,-3 A1.7,1.7 0 1,0 -5.6,-3 Z M2.2,-3 A1.7,1.7 0 1,0 5.6,-3 A1.7,1.7 0 1,0 2.2,-3 Z M-5.5,4.4 Q-2.75,1.9 0,4.4 Q2.75,6.9 5.5,4.4 L5.5,6.4 Q2.75,8.9 0,6.4 Q-2.75,3.9 -5.5,6.4 Z",
 } as const;
 
+/**
+ * The badge on a Banner waiting at home: a small house on a parchment disc,
+ * so an idle flag reads differently from one in a Region. The glyph is the
+ * toolbar's home icon on its 24-unit grid.
+ */
+export const HOME_MARK = {
+  glyph: "M3.5 11.5 L12 4 L20.5 11.5 M6.5 9.5 V20 H17.5 V9.5 M10.5 20 V15 H13.5 V20",
+  /** The glyph's extent on its grid. */
+  size: 17,
+} as const;
+
 /** A flame, about 16 tall around 0,0: embers on a burned Route and the Ragnarök omen. */
 export const FLAME_PATH = "M0,-8 C3,-4 7,-1 5,4 C4,7 -4,7 -5,4 C-6.5,0.5 -2.5,-1.5 -1.5,-5 C-0.2,-2.5 1.5,-1 1,1.5 C2.8,-0.5 1.8,-4.5 0,-8 Z";
 

@@ -899,3 +899,13 @@ Do not reintroduce those rejected rules. After the consolidation PR passes CI
 and review, merge it, delete the three recovered `fix/*` branches, prune and
 confirm that only main remains locally and remotely. No uncommitted user work
 or additional worktrees were present during the audit.
+
+## Home Banner badge
+
+A Banner waiting at home (unassigned, or sent home in the draft) wears a
+house badge: a parchment disc with the toolbar's home glyph, sitting on the
+lower right of the Banner's highlight ring and drawn above it. It is sized
+in screen pixels (`px(7, 7)`) so it stays legible at every zoom; a first
+version at the pole's foot was invisible at the default view and hidden by
+the ring. It replaces the unsettled dot, since a home Banner is always
+unsettled. Harvest notes treat it as an obstacle.
