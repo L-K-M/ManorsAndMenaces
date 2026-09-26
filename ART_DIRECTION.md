@@ -1,6 +1,6 @@
 # Storybook visual refresh
 
-Last updated: 2026-09-26. New Game player grouping in progress.
+Last updated: 2026-09-26. Portrait playing cards and play magic in progress.
 
 ## User request and scope
 
@@ -909,3 +909,38 @@ in screen pixels (`px(7, 7)`) so it stays legible at every zoom; a first
 version at the pole's foot was invisible at the default view and hidden by
 the ring. It replaces the unsettled dot, since a home Banner is always
 unsettled. Harvest notes treat it as an obstacle.
+
+
+## September 26 checkpoint: portrait cards and play magic
+
+Branch consolidation PR #55 is merged and its obsolete branches were removed.
+Current work started from fresh main `9d6b6f5` on
+`codex/playing-cards-and-magic`, following the user's playing-card references.
+
+Goals: give cards a physical portrait silhouette, make the existing paintings
+prominent, and celebrate confirmed card plays with a brief magical flourish.
+Keep every rule readable through mouse/keyboard previews and touch holds, and
+preserve the board's space, privacy curtains, high contrast and motion settings.
+
+Implementation underway: a shared CSS CardFace with a gilded nameplate, colored
+type ribbon, framed painting and parchment rules. Desktop cards fit a bounded
+tray; phone and landscape trays show full text and flavor. A CardMagic overlay
+listens only to committed public card-play events and shows a floating card,
+gold ring and sparks for 1.6 seconds. It does not intercept input or delay the
+rules engine. Off/reduced motion skip it; curtains, tab hiding and unmount clear
+it. Rapid plays replace the flourish, avoiding a stale animation backlog.
+
+First browser checks caught laptop board compression and clipped rules in the
+landscape tray. Both were corrected while preserving existing layout tests.
+Next: complete phone/desktop visual inspection, animation tests, full checks,
+then PR CI/review and merge. No new bitmap artwork is needed.
+
+Validation checkpoint: all 28 focused card/layout browser tests passed. The
+full `pnpm check` passed (652 tests, clean typecheck/lint, deterministic map,
+production web/server builds and smoke test). The icon consistency test caught
+text-based sparkle ornaments; replaced them with the existing SVG ToolIcon.
+All 12 card-specific browser tests passed again after that final change,
+including real card play on phone, selection cancellation, animation cleanup,
+off/reduced motion, every painting, previews and fallback art. Screenshots of
+the desktop hand, phone tray and an actual cast were visually inspected.
+Ready for PR CI/review; no game rules, saves or art licensing changed.
