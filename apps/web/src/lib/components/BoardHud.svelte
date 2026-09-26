@@ -2,19 +2,15 @@
   // Everything layered over the board that tells you what just happened:
   // harvest flights, Menace badges and pulses, the action feed and, on wide
   // screens, your own resources. Mounted once inside the board area.
-  import { onDestroy, untrack } from "svelte";
   import { t } from "../i18n.js";
-  import { FeedbackController } from "../game/feedback.svelte.js";
+  import type { FeedbackController } from "../game/feedback.svelte.js";
   import type { GameSession } from "../game/session.svelte.js";
   import ActionFeed from "./ActionFeed.svelte";
   import BoardFx from "./BoardFx.svelte";
   import HarvestFlights from "./HarvestFlights.svelte";
   import ResourcePurse from "./ResourcePurse.svelte";
 
-  let { session }: { session: GameSession } = $props();
-
-  const feedback = untrack(() => new FeedbackController(session));
-  onDestroy(() => feedback.destroy());
+  let { session, feedback }: { session: GameSession; feedback: FeedbackController } = $props();
 
   $effect(() => {
     feedback.controlChanged(session.localActor);

@@ -8,6 +8,7 @@ import {
   hashState,
   mvpRuleset,
   rankPlayers,
+  redactEvent,
   seedRng,
   standardRuleset,
   RULESET_VERSION,
@@ -67,6 +68,36 @@ function checkInvariants(s: GameState, cards: number): void {
   expect(cardCount(s)).toBe(cards);
 }
 
+const sorted = (cards: readonly string[]): string[] => [...cards].sort();
+
+/**
+ * Every player's hand changed only in ways that player was told about: their
+ * own plays, discards and purchases, cards dealt to them, or a Changeling
+ * naming them (whose event carries the new hand's size). A player once found
+ * two different cards in hand; this keeps any silent change from hiding.
+ */
+function checkHandsExplained(before: GameState, after: GameState, events: readonly GameEvent[]): void {
+  for (const id of after.turnOrder) {
+    let expected = [...(before.players[id]?.hand ?? [])];
+    const hand = after.players[id]?.hand ?? [];
+    for (const raw of events) {
+      const e = redactEvent(raw, id);
+      if (e.type === "cards_dealt" && e.playerId === id) expected.push(...(e.cardIds ?? []));
+      if (e.type === "card_bought" && e.playerId === id && e.cardId) expected.push(e.cardId);
+      if ((e.type === "card_played" || e.type === "card_discarded") && e.playerId === id) {
+        const at = expected.indexOf(e.cardId);
+        expect(at, `${id}'s ${e.type} of ${e.cardId} from their hand`).toBeGreaterThanOrEqual(0);
+        expected.splice(at, 1);
+      }
+      if (e.type === "hands_swapped" && (e.playerId === id || e.opponentId === id)) {
+        expect(hand, `${id}'s swapped hand`).toHaveLength(e.playerId === id ? e.handSize : e.opponentHandSize);
+        expected = [...hand];
+      }
+    }
+    expect(sorted(hand), `${id}'s hand after ${events.map((e) => e.type).join(", ")}`).toEqual(sorted(expected));
+  }
+}
+
 /**
  * A free card for the player whose Main phase begins: the top of the draw
  * pile. The AI rarely buys cards, so this is how a playout gets to play them.
@@ -118,6 +149,13 @@ function playGame(players: number, ruleset: RulesetConfig, seed: string, opts: {
     }
     const { state, commands: cs } = runAiUntilHuman(engine, s, () => true, () => ({ level, rng }), 1);
     if (cs.length === 0) break;
+    const events: GameEvent[] = [];
+    for (let t = s, i = 0; i < cs.length; i++) {
+      const r = engine.applyCommand(t, cs[i]!);
+      events.push(...r.events);
+      t = r.newState as GameState;
+    }
+    checkHandsExplained(s, state, events);
     commands.push(...cs);
     steps.push(...cs.map((command) => ({ command })));
     beforeLast = s;

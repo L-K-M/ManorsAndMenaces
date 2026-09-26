@@ -3,15 +3,17 @@
   import { BALANCE, cardDefIdOf, HIDDEN_CARD, type LegalActionSummary } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { startCard } from "../game/interaction.js";
+  import type { FeedbackController } from "../game/feedback.svelte.js";
   import { currentActor, type GameSession } from "../game/session.svelte.js";
   import { ui, resetTool } from "../stores/ui.svelte.js";
   import CardFace from "./CardFace.svelte";
   import EmptyHandArt from "./EmptyHandArt.svelte";
+  import HandSwapNotice from "./HandSwapNotice.svelte";
   import ResourceIcon from "./ResourceIcon.svelte";
 
   const cardCost = Object.entries(BALANCE.costs.card) as [keyof typeof BALANCE.costs.card, number][];
 
-  let { session, legal }: { session: GameSession; legal: LegalActionSummary | null } = $props();
+  let { session, legal, feedback }: { session: GameSession; legal: LegalActionSummary | null; feedback: FeedbackController } = $props();
   const viewer = $derived(session.viewerId);
   const hand = $derived(viewer ? (session.draft.players[viewer]?.hand ?? []) : []);
   let discardSel: string[] = $state([]);
@@ -125,6 +127,7 @@
       {viewer ? t("ui.players_hand", { name: session.draft.players[viewer]?.displayName ?? "" }) : t("ui.hand")}
       {#if viewer}<small>({hand.length}/{session.draft.ruleset.handLimit})</small>{/if}
     </h3>
+    <HandSwapNotice {session} {feedback} />
     {#if session.draft.status === "playing" && (session.draft.ruleset.cardDrawEveryRounds ?? 0) > 0}
       {@const interval = session.draft.ruleset.cardDrawEveryRounds!}
       <p class="draw-note">{t("hand.next_free_card", { round: (Math.floor(session.draft.round / interval) + 1) * interval })}</p>

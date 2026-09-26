@@ -76,7 +76,8 @@ describe("the invites command", () => {
     const made = await fetch(`${base}/api/invites`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ name: "Bert" }) });
     expect(made.status).toBe(200);
     const listed = run("list").out;
-    expect(listed).toContain("players: Annie");
+    // Accepting an invite names the player after it, whatever they typed.
+    expect(listed).toContain("players: Anna");
     expect(listed).toContain("1 of 10 invites made");
     expect(listed).toMatch(/Bert, invited by Anna, active\n {2}0 devices \(3 allowed\)/);
   });

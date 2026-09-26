@@ -3,10 +3,11 @@
   // a dock for actions, harvest preview and hand. See layout.ts for the three
   // arrangements. The dock never changes size while you play, so the board
   // never rescales between phases or as the hand grows.
-  import { tick } from "svelte";
+  import { onDestroy, tick, untrack } from "svelte";
   import { innerHeight, innerWidth } from "svelte/reactivity/window";
   import { getHarvestPreview } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
+  import { FeedbackController } from "../game/feedback.svelte.js";
   import { computeHighlights, legalFor } from "../game/interaction.js";
   import { hasSlideOverPanel, layoutFor } from "../layout.js";
   import type { GameSession } from "../game/session.svelte.js";
@@ -36,6 +37,11 @@
   import TutorialCoach from "./TutorialCoach.svelte";
 
   let { session, tutorial = false, onexit, onrematch }: { session: GameSession; tutorial?: boolean; onexit: () => void; onrematch: () => void } = $props();
+
+  // "What just happened": shown over the board (BoardHud) and, for a
+  // swapped hand, on the hand itself.
+  const feedback = untrack(() => new FeedbackController(session));
+  onDestroy(() => feedback.destroy());
 
   const gs = $derived(session.draft);
   const viewer = $derived(session.viewerId);
@@ -217,7 +223,7 @@
       <button onclick={() => resetView()} aria-label={t("ui.reset_view")}><ToolIcon name="fit" /></button>
       <button onclick={zoomToMine} aria-label={t("ui.zoom_to_my_holdings")}><ToolIcon name="locate" /></button>
     </div>
-    <BoardHud {session} />
+    <BoardHud {session} {feedback} />
     <CardMagic {session} />
     <RivalQuips {session} />
     <Overlays {session} {tutorial} {onexit} {onrematch} />
@@ -269,7 +275,7 @@
           {#if previewFor && preview}
             <div class="preview"><HarvestPreview {session} playerId={previewFor} {preview} /></div>
           {/if}
-          {#if cardsEnabled}<div class="hand"><HandPanel {session} {legal} /></div>{/if}
+          {#if cardsEnabled}<div class="hand"><HandPanel {session} {legal} {feedback} /></div>{/if}
         </div>
       {/if}
     </div>

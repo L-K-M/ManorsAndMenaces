@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { rememberName, rememberedName } from "../src/lib/game/playerName.js";
+import { rememberName, rememberedName, takeInvitedName } from "../src/lib/game/playerName.js";
 
 // The name you last played under, so the next New Game (or the online lobby)
 // starts with it instead of a stranger's.
@@ -20,6 +20,16 @@ describe("remembered player name", () => {
     expect(rememberedName()).toBe("Lukas");
     rememberName("Ysolde");
     expect(rememberedName()).toBe("Ysolde");
+  });
+
+  it("takes the name an accepted invite brings, and takes it off the address", () => {
+    rememberName("Old name");
+    const clean = takeInvitedName(new URL("https://play.example.org/?invited=Anna%20Lee#/join/abc"));
+
+    expect(rememberedName()).toBe("Anna Lee");
+    expect(clean?.href).toBe("https://play.example.org/#/join/abc");
+    expect(takeInvitedName(new URL("https://play.example.org/?x=1"))).toBeNull();
+    expect(rememberedName()).toBe("Anna Lee");
   });
 
   it("does not forget a name for a blank one", () => {

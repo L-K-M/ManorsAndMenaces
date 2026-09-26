@@ -22,7 +22,9 @@
   let { onopen, onback }: { onopen: (s: GameSession) => void; onback: () => void } = $props();
 
   const client = new OnlineClient();
-  let name = $state(client.displayName || rememberedName());
+  // The name last played under wins over the one this device last signed in
+  // with: it may come from an invite just accepted (playerName.ts).
+  let name = $state(rememberedName() || client.displayName);
   let serverUrl = $state(client.serverUrl);
   let signedIn = $state(!!client.token);
   /** The server is invite-only and wants this device's invite (the apps ask once; a browser on the server's own site has it). */
@@ -97,6 +99,11 @@
     rememberName(name);
     await guard(async () => {
       await client.ensureGuest(name.trim() || "Guest", inviteNeeded ? inviteCodeFrom(siteInvite) : undefined);
+      // An invite accepted here names the player after it.
+      if (inviteNeeded && client.displayName) {
+        name = client.displayName;
+        rememberName(name);
+      }
       inviteNeeded = false;
       signedIn = true;
       await sessionChanged();

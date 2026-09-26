@@ -235,6 +235,12 @@ export interface FriendInvite {
   revoked: boolean;
 }
 
+/** POST /api/invites/accept: the invite admitted this guest, who now goes by its name. */
+export interface InviteAcceptResponse {
+  ok: true;
+  displayName: string;
+}
+
 /**
  * GET /api/invites, and the answer to POST /api/invites ({ name }) and
  * POST /api/invites/withdraw ({ id }): the invites this player made. On an
@@ -242,7 +248,8 @@ export interface FriendInvite {
  * shared by all their devices; an unused one can be withdrawn to free its
  * place. `available` is false when the server is open to everyone.
  * POST /api/invites/accept ({ code }) admits this guest session (and, in a
- * browser on the server's own site, this browser) through an invite.
+ * browser on the server's own site, this browser) through an invite, and
+ * answers with an InviteAcceptResponse.
  */
 export interface InviteSettings {
   available: boolean;

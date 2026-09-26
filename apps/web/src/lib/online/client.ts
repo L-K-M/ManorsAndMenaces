@@ -10,6 +10,7 @@ import type {
   CreateMatchResponse,
   EmailSettings,
   GuestSessionResponse,
+  InviteAcceptResponse,
   InviteSettings,
   JoinMatchResponse,
   MatchHistoryResponse,
@@ -125,7 +126,8 @@ export class OnlineClient {
       } catch (e) {
         // A session from before the server became invite-only keeps its matches.
         if (e instanceof ApiError && e.inviteRequired && inviteCode) {
-          await this.call("/api/invites/accept", { code: inviteCode });
+          // Accepting an invite names the player after it.
+          this.displayName = (await this.call<InviteAcceptResponse>("/api/invites/accept", { code: inviteCode })).displayName;
           this.persist();
           return;
         }
@@ -137,6 +139,7 @@ export class OnlineClient {
     const g = await this.call<GuestSessionResponse>("/api/guest", { displayName, ...(inviteCode ? { inviteCode } : {}) });
     this.token = g.token;
     this.userId = g.userId;
+    this.displayName = g.displayName;
     this.persist();
   }
 

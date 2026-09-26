@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { GREENVALE_MAP as map } from "@manors-menaces/content";
 import { RULESET_VERSION, standardRuleset, type GameEvent, type GameState } from "@manors-menaces/rules";
 import { engineFor } from "../src/lib/game/engine.js";
-import { DIGEST_MIN_ITEMS, awayDigest, feedItemsFor, listText, routeName, siteName, type FeedBatch } from "../src/lib/game/feed.js";
+import { DIGEST_MIN_ITEMS, awayDigest, feedItemsFor, keepAimedAtViewer, listText, routeName, siteName, type FeedBatch } from "../src/lib/game/feed.js";
 
 const state: GameState = engineFor(map.id).createGame({
   matchId: "feed-test",
@@ -225,5 +225,39 @@ describe("awayDigest", () => {
     const batches = [batch(1, "P2", []), batch(2, "P3", ["P1"])];
 
     expect(awayDigest(batches, map, "P1", 1)).toBeNull();
+  });
+});
+
+describe("keepAimedAtViewer", () => {
+  const swap = feedItemsFor([{ type: "hands_swapped", playerId: "P2", opponentId: "P1", handSize: 2, opponentHandSize: 2 }], state, map, "P1")[0]!;
+  const builds = Array.from({ length: 10 }, (_, i) => ({ ...feedItemsFor([manor("P3")], state, map, "P1")[0]!, text: `build ${i}` }));
+
+  it("keeps what was done to the viewer when only the last few lines fit", () => {
+    expect(swap.againstViewer).toBe(true);
+    for (const max of [2, 5, 8]) {
+      const kept = keepAimedAtViewer([swap, ...builds], max);
+
+      expect(kept, `max ${max}`).toEqual([swap, ...builds.slice(-(max - 1))]);
+    }
+  });
+
+  it("keeps nothing when there is no room", () => {
+    expect(keepAimedAtViewer([swap, ...builds], 0)).toEqual([]);
+  });
+
+  it("keeps the newest lines when nothing was aimed at the viewer", () => {
+    expect(keepAimedAtViewer(builds, 3)).toEqual(builds.slice(-3));
+  });
+
+  it("keeps everything that fits, in order", () => {
+    const items = [builds[0]!, swap, builds[1]!];
+
+    expect(keepAimedAtViewer(items, 5)).toEqual(items);
+  });
+
+  it("keeps the newest of the lines aimed at the viewer when even those do not fit", () => {
+    const swaps = [1, 2, 3].map((n) => ({ ...swap, text: `swap ${n}` }));
+
+    expect(keepAimedAtViewer([swaps[0]!, builds[0]!, swaps[1]!, swaps[2]!], 2)).toEqual([swaps[1], swaps[2]]);
   });
 });
