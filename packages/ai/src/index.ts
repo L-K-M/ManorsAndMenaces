@@ -33,7 +33,7 @@ import {
   type GameCommand,
 } from "@manors-menaces/rules";
 import { mainPhaseCandidates } from "./candidates.js";
-import { cardWorth, evaluate, resourceNeeds } from "./evaluate.js";
+import { CARD_GOAL_HAND, cardWorth, evaluate, foresightWorth, resourceNeeds } from "./evaluate.js";
 import { counterChance, counteredOutcome } from "./hidden.js";
 import { regionOccupancy, siteValue } from "./expansion.js";
 
@@ -84,7 +84,11 @@ export function chooseAction(engine: RulesEngine, state: GameState, playerId: Pl
       return chooseReaction(ctx, state, playerId, legal.reactionCards, opts);
     case "prophecy": {
       const pending = state.pending;
-      return { type: "resolve_prophecy", order: pending?.kind === "prophecy" ? [...pending.cardIds] : [] };
+      if (pending?.kind !== "prophecy") return { type: "resolve_prophecy", order: [] };
+      // The best card on top if this player means to buy next, the worst if a rival will draw first.
+      const buyingNext = (state.players[playerId]?.hand.length ?? 0) < CARD_GOAL_HAND;
+      const order = [...pending.cardIds].sort((a, b) => (buyingNext ? -1 : 1) * (cardWorth(ctx, state, a) - cardWorth(ctx, state, b)));
+      return { type: "resolve_prophecy", order };
     }
     case "main":
       return chooseMainAction(engine, state, playerId, opts);
@@ -119,6 +123,9 @@ function chooseMainAction(engine: RulesEngine, fullState: GameState, playerId: P
     };
     // Every outcome is equally likely (see `outcomes`).
     let score = results.reduce((sum, result) => sum + judge(result), 0) / results.length;
+    // The order of the draw pile is hidden from the evaluator, so what the
+    // prophecy reveals is added here.
+    if (intent.type === "play_card" && intent.target.effect === "very_minor_prophecy") score += foresightWorth(ctx, state);
     // A Spell may be countered. Rivals' hands are hidden, so weigh that by
     // the chance one of them holds a Counterspell, from public cards only.
     const counterProb = intent.type === "play_card" ? counterChance(ctx, state, playerId, intent.cardId) : 0;

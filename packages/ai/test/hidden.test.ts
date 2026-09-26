@@ -126,3 +126,43 @@ describe("card economy", () => {
     expect(Math.min(...hand.map((c) => cardWorth(ctx, state, c)))).toBe(cardWorth(ctx, state, dropped[0] as string));
   });
 });
+
+describe("cards the evaluator cannot see through", () => {
+  /** p1 holds `card` and nothing to spend; p2 leads, so interference is worth aiming at them. */
+  function holding(card: string): { state: GameState; p1: PlayerId; p2: PlayerId } {
+    const g = setupGame(standardRuleset(2));
+    let state = withPlayer({ ...g.state, cardDeck: g.state.cardDeck.filter((c) => c !== card) }, g.p1, { hand: [card], resources: { grain: 0, timber: 0, stone: 0, iron: 0, essence: 0 } });
+    state = withPlayer(state, g.p2, { bonusRenown: 6 });
+    return { state, p1: g.p1, p2: g.p2 };
+  }
+
+  it("fogs a Route of the leader", () => {
+    const { state, p1, p2 } = holding("fog_of_confusion#1");
+    const choice = decide(state, p1);
+    expect(choice).toMatchObject({ type: "play_card", cardId: "fog_of_confusion#1" });
+    const routeId = choice?.type === "play_card" && choice.target.effect === "fog_of_confusion" ? choice.target.routeId : "";
+    expect(state.routeOwners[routeId]).toBe(p2);
+  });
+
+  it("plays Very Minor Prophecy rather than holding it", () => {
+    const { state, p1 } = holding("very_minor_prophecy#1");
+    expect(decide(state, p1)).toMatchObject({ type: "play_card", cardId: "very_minor_prophecy#1" });
+  });
+
+  it("orders the prophecy for its own next draw, or against the rival's", () => {
+    const { state, p1 } = holding("very_minor_prophecy#1");
+    const played = act(state, p1, { type: "play_card", cardId: "very_minor_prophecy#1", target: { effect: "very_minor_prophecy" } });
+    const pending = played.pending;
+    expect(pending?.kind).toBe("prophecy");
+    const shown = pending?.kind === "prophecy" ? pending.cardIds : [];
+    const worths = (order: string[]) => order.map((c) => cardWorth(ctx, played, c));
+    const mine = decide(played, p1);
+    const mineOrder = mine?.type === "resolve_prophecy" ? mine.order : [];
+    expect(worths(mineOrder)).toEqual([...worths(shown)].sort((a, b) => b - a));
+    // With a full hand the next buyer is likely a rival: worst card on top.
+    const full = withPlayer(played, p1, { hand: ["knight_errant#1", "knight_errant#2", "knight_errant#3"] });
+    const theirs = decide(full, p1);
+    const theirOrder = theirs?.type === "resolve_prophecy" ? theirs.order : [];
+    expect(worths(theirOrder)).toEqual([...worths(shown)].sort((a, b) => a - b));
+  });
+});

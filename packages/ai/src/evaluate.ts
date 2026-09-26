@@ -62,7 +62,7 @@ export const WEIGHTS = {
 };
 
 /** Below this many cards in hand, the next card is a (minor) goal. */
-const CARD_GOAL_HAND = 3;
+export const CARD_GOAL_HAND = 3;
 /** Weight of that goal against building (0.45 each). */
 const CARD_GOAL_WEIGHT = 0.3;
 
@@ -187,8 +187,8 @@ function scaleWorth(base: Record<CardEffectId, number>): Record<CardEffectId, nu
 export const CARD_WORTH: Record<CardEffectId, number> = scaleWorth({
   // Measured: the typical evaluation gain of playing each card at the start
   // of a Main phase, over AI-vs-AI games, discounted so a card is played at
-  // a decent moment rather than held for a perfect one. Cards whose effect
-  // the evaluator cannot see (Fog, Prophecy) are worth little to the AI.
+  // a decent moment rather than held for a perfect one. Fog and Prophecy
+  // are valued by what `FOGGED_ROUTE` and `foresightWorth` credit them.
   wizard_interference: 0.35,
   // Defensive: its worth is the Spells it may stop.
   counterspell: 1,
@@ -198,8 +198,8 @@ export const CARD_WORTH: Record<CardEffectId, number> = scaleWorth({
   bribe_the_troll: 0.45,
   arcane_exchange: 0.6,
   festival_at_the_inn: 0.65,
-  very_minor_prophecy: 0.1,
-  fog_of_confusion: 0.1,
+  very_minor_prophecy: 0.2,
+  fog_of_confusion: 0.25,
   dragon_whisperer: 0.8,
   changeling: 0.6,
   // Wins the game when it can be played; held for that moment.
@@ -214,6 +214,38 @@ export const CARD_WORTH: Record<CardEffectId, number> = scaleWorth({
   unreliable_bard: 3,
   treasure_hunter: 0.4,
 });
+
+/**
+ * A rival's fogged Route counts this much of an open one: it still stands,
+ * but cannot extend their network until the fog lifts (§19.10).
+ */
+const FOGGED_ROUTE = 0.5;
+
+/**
+ * What seeing the top 3 cards and ordering them is worth (Very Minor
+ * Prophecy, §19.9), which the evaluator cannot see: the best of three
+ * random draws over an average one, for the one draw of them the player is
+ * likely to get.
+ */
+export function foresightWorth(ctx: RulesContext, state: GameState): number {
+  const worths: number[] = [];
+  for (const def of ctx.content.cards) {
+    if (!isCardUsableInRuleset(def, state.ruleset)) continue;
+    for (let i = 0; i < def.copies; i++) worths.push(CARD_WORTH[def.effectId]);
+  }
+  const n = worths.length;
+  if (n < 3) return 0;
+  worths.sort((a, b) => a - b);
+  // E[max of 3 drawn without replacement]: the i-th smallest is the max when both others are below it.
+  const triples = (n * (n - 1) * (n - 2)) / 6;
+  let best = 0;
+  worths.forEach((w, i) => (best += (w * ((i * (i - 1)) / 2)) / triples));
+  const mean = worths.reduce((a, b) => a + b, 0) / n;
+  return FORESIGHT_SHARE * (best - mean);
+}
+
+/** Share of the ordered cards' edge the prophet keeps: rivals may draw first. */
+const FORESIGHT_SHARE = 0.5;
 
 /** Cards beyond this many add nothing: one can be played per turn. */
 const VALUED_CARDS = 4;
@@ -286,10 +318,11 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
   let opponents = 0;
   let opponentRenown = 0;
   let opponentHarvest = 0;
-  // Only the second wave's interference cards change these (Fire Bolt,
+  // Only interference cards change these (Fire Bolt, Fog of Confusion,
   // Changeling, Dragon's Landing), so they leave every other comparison
   // between candidates as it was.
   let rivalRoutes = 0;
+  const fogged = new Set(state.activeEffects.flatMap((e) => (e.kind === "fog" ? [e.routeId] : [])));
   let rivalCards = 0;
   let rivalRenown = 0;
   for (const id of state.turnOrder) {
@@ -300,7 +333,7 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
     opponentRenown = Math.max(opponentRenown, theirRenown);
     rivalRenown += weight * theirRenown;
     opponentHarvest += weight * getHarvestPreview(ctx, state, id).total;
-    rivalRoutes += weight * (state.players[id]?.routeIds.length ?? 0);
+    rivalRoutes += weight * (state.players[id]?.routeIds ?? []).reduce((n, r) => n + (fogged.has(r) ? FOGGED_ROUTE : 1), 0);
     rivalCards += weight * Math.min(state.players[id]?.hand.length ?? 0, 4);
   }
   const insured = insurancePolicyOf(ctx, state, playerId) ? 1 : 0;
