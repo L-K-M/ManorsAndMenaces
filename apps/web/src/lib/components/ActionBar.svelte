@@ -215,7 +215,7 @@
     {:else if legal.mode === "setup_banners"}
       <p class="status">
         {t("setup.assign_banners", { name: gs.players[legal.playerId]?.displayName ?? "" })}
-        — {hints.hint ? t(hints.hint) : ""}
+        — {hints.hint ? t(hints.hint, hints.hintParams) : ""}
       </p>
       <div class="end">
         <button class="ghost" disabled={!ui.selectedBannerId} onclick={sendHome}><ToolIcon name="home" size={18} /> {t("action.send_home")}</button>
@@ -226,7 +226,7 @@
       </div>
     {:else if legal.mode === "banner_assignment"}
       <p class="status">
-        {t("phase.banner_assignment")} — {hints.hint ? t(hints.hint) : ""}
+        {t("phase.banner_assignment")} — {hints.hint ? t(hints.hint, hints.hintParams) : ""}
         <small class="sub">{draftChanges ? t("status.banners_changed", { count: draftChanges }) : t("status.banners_unchanged")}</small>
       </p>
       <!-- "Back to actions" takes the spot of "Assign Banners →" and End Turn
@@ -306,7 +306,7 @@
        buttons take clicks, so a toast never blocks a board target under it. -->
   <div class="toasts">
     {#if legal?.mode === "main" && hints.hint && ui.tool !== "none"}
-      <p class="hint">{t(hints.hint)} <button class="ghost cancel" onclick={resetTool}><ToolIcon name="close" size={16} /> {t("action.cancel")}</button></p>
+      <p class="hint">{t(hints.hint, hints.hintParams)} <button class="ghost cancel" onclick={resetTool}><ToolIcon name="close" size={16} /> {t("action.cancel")}</button></p>
     {/if}
     {#if legal?.mode === "banner_assignment" && questReminder.length}
       <p class="notice" role="status">

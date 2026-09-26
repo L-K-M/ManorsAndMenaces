@@ -3,8 +3,10 @@ import {
   createRng,
   asyncRuleset,
   enumerateCardTargets,
+  getBannerRegionOptions,
   getHarvestPreview,
   getLegalActions,
+  getLegalBannerRegions,
   getRenown,
   getRenownSources,
   hashState,
@@ -138,6 +140,37 @@ describe("banners (§14)", () => {
     reject(s, p2, { type: "assign_banners", assignments: { [x]: "R2", [y]: "R2" } }, "STRONGHOLD_BANNERS_SAME_REGION");
     s = act(s, p2, { type: "assign_banners", assignments: { [x]: "R2", [y]: "R7" } }).state;
     expect(s.banners[y]?.regionId).toBe("R7");
+  });
+
+  it("says why each Region next to a Banner's Holding is blocked", () => {
+    const { state, p1, p2, bannerOf } = setupGame();
+    const b1 = bannerOf(p1, "s1");
+    const blocks = (id: string, draft: Record<string, string | null>) =>
+      Object.fromEntries(getBannerRegionOptions(ctx, state, id, draft).map((o) => [o.regionId, o.blockedBy]));
+
+    // s1 touches R1 (its own), R5 (p2's) and R6 (empty).
+    expect(blocks(b1, {})).toEqual({ R1: null, R5: "full_rival", R6: null });
+    // p1's other Banner filling R6 is theirs to move; p2's in R1 is not.
+    const b9 = bannerOf(p1, "s9");
+    const p2s7 = bannerOf(p2, "s7");
+    const draft = { [b1]: null, [b9]: "R6", [p2s7]: "R1" };
+    expect(blocks(b1, draft)).toEqual({ R1: "full_rival", R5: "full_rival", R6: "full_own" });
+    expect(getLegalBannerRegions(ctx, state, b1, draft)).toEqual([]);
+  });
+
+  it("blocks the Region holding a Stronghold's other Banner", () => {
+    const { state, p1, p2 } = setupGame();
+    let s = act(state, p1, { type: "end_main_phase" }).state;
+    s = act(s, p1, { type: "assign_banners", assignments: {} }).state;
+    s = act(s, p1, { type: "end_turn" }).state;
+    s = grant(s, p2, { grain: 2, iron: 2 });
+    s = act(s, p2, { type: "upgrade_holding", siteId: "s3" }).state;
+    const [x, y] = Object.values(s.banners).filter((b) => s.holdings[b.holdingId]?.siteId === "s3").map((b) => b.id) as [string, string];
+    // s3 touches R2 (capacity 2), R5 and R7. p1's Banners fill R5 and R7.
+    const [p1a, p1b] = Object.values(s.banners).filter((b) => b.ownerId === p1).map((b) => b.id) as [string, string];
+    const draft = { [x]: "R2", [y]: null, [p1a]: "R5", [p1b]: "R7" };
+    const options = getBannerRegionOptions(ctx, s, y, draft);
+    expect(Object.fromEntries(options.map((o) => [o.regionId, o.blockedBy]))).toEqual({ R2: "stronghold_pair", R5: "full_rival", R7: "full_rival" });
   });
 });
 
