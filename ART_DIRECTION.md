@@ -850,3 +850,23 @@ validated/bundled render. Subjective listening remains unverified.
 Ready for commit/push and PR CI/review. Required final steps: inspect review
 findings against the actual repository, wait for final CI, merge and return the
 local checkout to main. Source and licensing notes: `media-sources/audio/README.md`.
+
+PR #53 review checkpoint: first CI passed, including 155 browser tests and two
+intentional skips. Review identified intermediate 16-bit clipping in the audio
+generator. Independent float measurements confirmed resource and writ peaks
+above full scale (1.252 and 1.631). Changed the intermediate mix to float PCM and
+peak measurement to `astats` (unlike `volumedetect`, it preserves those peaks),
+then regenerated all effects. A standalone FFmpeg regression test first failed
+on the old pipeline (quiet/loud ratio 0.333 instead of 0.25), then passed with
+the fix. Run `node --test tools/generate-audio.test.mjs` with FFmpeg available.
+
+The review's claimed fade-in bug did not reproduce: a real Chromium
+OfflineAudioContext aged to 10 seconds rendered gain 0, 0.5 and 1 at restart,
+300ms and 600ms. Other comments overlooked preference cloning, existing error
+guards, settings migration and App wiring; English is the only locale. The
+recorded September 26, 2026 provenance date is correct. Optional music fade-out,
+cross-browser loop-seam listening and more descriptive malformed-recipe errors
+remain follow-up polish, not confirmed blockers. Subjective listening remains
+unverified. All ten audio/offline browser checks and lint passed after the
+regeneration; the standalone clipping regression passed. The Mac app is being
+rebuilt. Next push and inspect the second review/CI, then merge PR #53.

@@ -28,11 +28,13 @@ try {
     );
     filters.push(layers.map((_, i) => `[s${i}]`).join("") + `amix=inputs=${layers.length}:normalize=0,highpass=f=70,lowpass=f=9000[out]`);
     const mix = join(temp, `${cue}.wav`);
-    ffmpeg(...input, "-filter_complex", filters.join(";"), "-map", "[out]", "-c:a", "pcm_s16le", mix);
+    // Preserve peaks above full scale until the mix has been attenuated.
+    ffmpeg(...input, "-filter_complex", filters.join(";"), "-map", "[out]", "-c:a", "pcm_f32le", mix);
     // Peak-match short foley instead of loudness-normalizing near-silent tails.
-    const scan = spawnSync("ffmpeg", ["-hide_banner", "-i", mix, "-af", "volumedetect", "-f", "null", "-"], { encoding: "utf8" });
+    // volumedetect coerces to 16-bit samples and would clip the measurement.
+    const scan = spawnSync("ffmpeg", ["-hide_banner", "-i", mix, "-af", "astats", "-f", "null", "-"], { encoding: "utf8" });
     if (scan.status !== 0) throw new Error(scan.stderr);
-    const peak = Number(scan.stderr.match(/max_volume: ([-\d.]+) dB/)?.[1]);
+    const peak = Number(scan.stderr.match(/Peak level dB: ([-\d.]+)/)?.[1]);
     if (!Number.isFinite(peak)) throw new Error(`Cannot measure ${cue}`);
     ffmpeg("-i", mix, "-af", `volume=${-6 - peak}dB,afade=t=in:d=0.003`, "-map_metadata", "-1", "-c:a", "pcm_s16le", join(outputDir, `${cue}.wav`));
     console.log(`Prepared ${cue}`);

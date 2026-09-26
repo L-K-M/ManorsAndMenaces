@@ -36,6 +36,11 @@ sub-bass/very high frequencies, peak-matches them to -6 dBFS, and exports
 `apps/web/public/audio/` and work offline through the existing PWA precache.
 Only the game-ready files ship; the source recordings stay in this directory.
 
+Mixing and peak measurement use floating-point samples so layered transients
+above full scale are preserved until attenuation. Run
+`node --test tools/generate-audio.test.mjs` to verify this with a deliberately
+overdriven mix; the regression checks its dynamics and final peak level.
+
 Effects have independent per-cue gains and a master level; the turn bell is
 quieter than a reward. At most three effects overlap, rapid routine cues are
 limited, and stale pending cues are dropped. Music and effects have separate
