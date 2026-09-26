@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { RESOURCE_TYPES, clone, getRenown, standardRuleset } from "@manors-menaces/rules";
+import { runAiUntilHuman } from "@manors-menaces/ai";
+import {
+  RESOURCE_TYPES,
+  RULESET_VERSION,
+  clone,
+  createRng,
+  getLegalActions,
+  getRenown,
+  seedRng,
+  standardRuleset,
+  type GameCommand,
+  type GameState,
+} from "@manors-menaces/rules";
 import { buildMatchReport, pickAwards, renownChart, type MatchStats, type PlayerResult } from "../src/lib/game/matchReport.js";
 import { replayHistory } from "../src/lib/game/replay.js";
 import { engine, playGame } from "./helpers.js";
@@ -98,6 +110,90 @@ describe("buildMatchReport", () => {
       expect(r.recap.length).toBeGreaterThanOrEqual(3);
       for (const line of r.recap) expect(line).not.toMatch(/\{\w+\}|recap\./);
     }
+  });
+});
+
+/**
+ * A game that Ragnarök ends. The card is dealt to P1 from the start (an edit
+ * of the initial state, so the history still replays from revision 0) and
+ * played the first time the rules allow it.
+ */
+function ragnarokGame(): { initial: GameState; final: GameState; commands: GameCommand[] } {
+  const initial = clone(
+    engine.createGame({
+      matchId: "m-ragnarok",
+      seed: "ragnarok",
+      rulesetVersion: RULESET_VERSION,
+      ruleset: standardRuleset(3),
+      players: ["P1", "P2", "P3"].map((id, i) => ({ id, displayName: `Player ${i + 1}` })),
+    }),
+  );
+  const card = initial.setAsideCardIds?.[0] as string;
+  initial.setAsideCardIds = [];
+  initial.players.P1?.hand.push(card);
+
+  const rng = createRng(seedRng("ai-ragnarok"));
+  let state = initial;
+  const commands: GameCommand[] = [];
+  while (state.status !== "finished" && commands.length < 2000) {
+    if (state.activePlayerId === "P1" && !state.pending && getLegalActions(engine.ctx, state, "P1").playableCards.includes(card)) {
+      const command = {
+        type: "play_card",
+        cardId: card,
+        target: { effect: "ragnarok" },
+        commandId: "ragnarok",
+        matchId: state.matchId,
+        playerId: "P1",
+      } as const;
+      state = engine.applyCommand(state, command).newState ?? state;
+      commands.push(command);
+      continue;
+    }
+    const r = runAiUntilHuman(
+      engine,
+      state,
+      () => true,
+      () => ({ level: "normal", rng }),
+      1,
+    );
+    if (r.commands.length === 0) break;
+    commands.push(...r.commands);
+    state = r.state;
+  }
+  return { initial, final: state, commands };
+}
+
+describe("buildMatchReport after Ragnarök", () => {
+  const game = ragnarokGame();
+
+  it("tells who ended the world and crowns the winner among the ashes", () => {
+    const report = buildMatchReport(engine, game.final, { initial: game.initial, commands: game.commands });
+    const winner = game.final.players[game.final.winnerId ?? ""]?.displayName ?? "?";
+
+    expect(report.historyComplete).toBe(true);
+    expect(report.endCause).toBe("ragnarok");
+    expect(report.recap.length).toBeLessThanOrEqual(6);
+    expect(report.recap.at(-2)).toBe("Player 1 played Ragnarök, and the world ended.");
+    expect(report.recap.at(-1)).toContain(`${winner} was crowned among the ashes`);
+  });
+
+  it("reads the ending from the final state, so a late joiner sees it too", () => {
+    const late = buildMatchReport(engine, game.final, null);
+    expect(late.endCause).toBe("ragnarok");
+    expect(late.recap.at(-1)).toMatch(/was crowned among the ashes/);
+  });
+
+  it("takes the ending from the session for a state that does not record it", () => {
+    const older = { ...game.final };
+    delete older.endCause;
+    const known = buildMatchReport(engine, older, null, "ragnarok");
+    expect(known.endCause).toBe("ragnarok");
+    expect(known.recap.at(-1)).toMatch(/was crowned among the ashes/);
+    expect(known.recap.join(" ")).not.toMatch(/played Ragnarök/);
+
+    const unknown = buildMatchReport(engine, older, null);
+    expect(unknown.endCause).toBeNull();
+    expect(unknown.recap.at(-1)).not.toMatch(/ashes/);
   });
 });
 

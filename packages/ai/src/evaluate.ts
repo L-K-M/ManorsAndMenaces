@@ -12,6 +12,7 @@ import {
   getQuestProgress,
   getRenown,
   checkBuildManor,
+  insurancePolicyOf,
   menaceInRegion,
   type GameState,
   type PlayerId,
@@ -35,6 +36,25 @@ export const WEIGHTS = {
   /** Per Route of progress toward the planned Site (see `ExpansionPlan.score`). */
   expansion: 1.5,
   denial: 0.12,
+  /**
+   * A Royal Insurance Policy in front of the player (§19.19): a little more
+   * than the card in hand, so a policy gets played once nothing better is on.
+   */
+  insurance: 1.2,
+  /**
+   * Per rival Route, scaled by that rival's threat: a burned Route costs its
+   * owner the resources to rebuild it and may cut their network. Without
+   * this Fire Bolt scores nothing.
+   */
+  rivalRoutes: 0.8,
+  /** Per card in a rival's hand (up to 4), scaled by threat, for Changeling. */
+  rivalCards: 0.3,
+  /**
+   * Per point of each rival's Renown, scaled by threat, on top of the leader's
+   * Renown below: enough that Dragon's Landing on the leader beats keeping
+   * the card, not enough to chase every rival's Manor.
+   */
+  rivalRenown: 0.6,
   win: 1000,
 };
 
@@ -118,6 +138,24 @@ export function potentialHarvest(ctx: RulesContext, state: GameState, playerId: 
   return total;
 }
 
+/**
+ * Worth of holding `n` of one resource, before weighting by need. Concave:
+ * the first few of each resource matter most, but spending a surplus is never
+ * free (otherwise the AI burns resources on interference). Beyond 8 more is
+ * worth nothing, so a hoard gets traded toward the goal.
+ */
+export function stockWorth(n: number): number {
+  return Math.min(n, 4) + 0.3 * Math.max(0, Math.min(n, 8) - 4);
+}
+
+/**
+ * How much interference against `playerId` is worth: more against whoever is
+ * closest to winning, as human players aim trouble at the leader.
+ */
+export function threat(ctx: RulesContext, state: GameState, playerId: PlayerId): number {
+  return 0.5 + getRenown(ctx, state, playerId) / state.ruleset.targetRenown;
+}
+
 /** Value of the state for `playerId` (higher is better). */
 export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId): number {
   const p = state.players[playerId];
@@ -138,10 +176,7 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
   let wasted = 0;
   for (const r of RESOURCE_TYPES) {
     const n = p.resources[r];
-    // Concave: the first few of each resource matter most, but spending a
-    // surplus is never free (otherwise the AI burns resources on interference).
-    // Beyond 8 more is worth nothing, so a hoard gets traded toward the goal.
-    stock += (Math.min(n, 4) + 0.3 * Math.max(0, Math.min(n, 8) - 4)) * need[r];
+    stock += stockWorth(n) * need[r];
     if (n > 6) wasted += n - 6;
   }
   const diversity = RESOURCE_TYPES.filter((r) => preview.totals[r] > 0).length;
@@ -162,16 +197,24 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
   let opponents = 0;
   let opponentRenown = 0;
   let opponentHarvest = 0;
+  // Only the second wave's interference cards change these (Fire Bolt,
+  // Changeling, Dragon's Landing), so they leave every other comparison
+  // between candidates as it was.
+  let rivalRoutes = 0;
+  let rivalCards = 0;
+  let rivalRenown = 0;
   for (const id of state.turnOrder) {
     if (id === playerId) continue;
-    // Interference is worth more against whoever is closest to winning, as
-    // human players aim trouble at the leader.
+    const weight = threat(ctx, state, id);
     const theirRenown = getRenown(ctx, state, id);
-    const threat = 0.5 + theirRenown / state.ruleset.targetRenown;
-    opponents += threat * menacePressure(ctx, state, id);
+    opponents += weight * menacePressure(ctx, state, id);
     opponentRenown = Math.max(opponentRenown, theirRenown);
-    opponentHarvest += threat * getHarvestPreview(ctx, state, id).total;
+    rivalRenown += weight * theirRenown;
+    opponentHarvest += weight * getHarvestPreview(ctx, state, id).total;
+    rivalRoutes += weight * (state.players[id]?.routeIds.length ?? 0);
+    rivalCards += weight * Math.min(state.players[id]?.hand.length ?? 0, 4);
   }
+  const insured = insurancePolicyOf(ctx, state, playerId) ? 1 : 0;
 
   return (
     WEIGHTS.renown * renown +
@@ -184,7 +227,11 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
     WEIGHTS.expansion * expansion +
     WEIGHTS.diversity * 0.5 * diversity +
     WEIGHTS.cardValue * Math.min(cards, 4) +
+    WEIGHTS.insurance * insured +
     WEIGHTS.menacePressureOnOpponents * opponents -
+    WEIGHTS.rivalRoutes * rivalRoutes -
+    WEIGHTS.rivalCards * rivalCards -
+    WEIGHTS.rivalRenown * rivalRenown -
     WEIGHTS.menacePressureOnSelf * menacePressure(ctx, state, playerId) -
     WEIGHTS.wasted * 0.3 * wasted -
     0.5 * opponentRenown

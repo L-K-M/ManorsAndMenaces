@@ -6,6 +6,7 @@
 import {
   BALANCE,
   RESOURCE_TYPES,
+  cardDefIdOf,
   getPlayerHoldings,
   getRenown,
   type GameCommand,
@@ -17,7 +18,7 @@ import {
   type RulesEngine,
 } from "@manors-menaces/rules";
 import { t } from "../i18n.js";
-import { nameOf } from "./log.js";
+import { nameOf, type EndCause } from "./log.js";
 import { replayHistory } from "./replay.js";
 
 export interface RenownBreakdown {
@@ -29,7 +30,12 @@ export interface RenownBreakdown {
   other: number;
 }
 
-/** Statistics per player. `null` means the history needed for it is unavailable. */
+/**
+ * Statistics per player. `null` means the history needed for it is
+ * unavailable. Builds are counted from the history when it is known;
+ * without it they come from the final board, which no longer shows Routes
+ * burned or Holdings razed by cards.
+ */
 export interface MatchStats {
   harvested: number;
   harvestedByType: Record<ResourceType, number> | null;
@@ -69,6 +75,8 @@ export interface RenownTimeline {
 
 export interface MatchReport {
   winnerId: PlayerId | null;
+  /** Null for the normal win (reaching the target) or when unknown. */
+  endCause: EndCause | null;
   round: number;
   targetRenown: number;
   /** Winner first, then by Renown, then by turn order. */
@@ -92,8 +100,15 @@ const MAX_RECAP_BEFORE_CROWNING = 5;
 
 // ------------------------------------------------------------------ report
 
-export function buildMatchReport(engine: RulesEngine, final: GameState, history: MatchHistory | null): MatchReport {
+/**
+ * @param endCause how the game ended, as the session saw it; the final state
+ *   and a history that replays to the end tell it again. Saves from before
+ *   `GameState.endCause` rely on the latter two.
+ */
+export function buildMatchReport(engine: RulesEngine, final: GameState, history: MatchHistory | null, endCause: EndCause | null = null): MatchReport {
   const replay = history ? replayMatch(engine, final, history) : null;
+  const won = replay?.events.find((x) => x.event.type === "game_won")?.event;
+  const cause = final.endCause ?? (won?.type === "game_won" ? (won.cause ?? null) : endCause);
   const standings = rankPlayers(final, (id) => ({
     playerId: id,
     name: nameOf(final, id),
@@ -103,12 +118,13 @@ export function buildMatchReport(engine: RulesEngine, final: GameState, history:
 
   return {
     winnerId: final.winnerId ?? null,
+    endCause: cause,
     round: final.round,
     targetRenown: final.ruleset.targetRenown,
     standings,
     timeline: replay?.timeline ?? null,
     awards: pickAwards(standings, final.turnOrder),
-    recap: buildRecap(final, standings, replay?.events ?? null),
+    recap: buildRecap(final, standings, replay?.events ?? null, cause),
     historyComplete: !!replay,
   };
 }
@@ -199,23 +215,28 @@ function statsFor(state: GameState, playerId: PlayerId, events: RoundEvent[] | n
   if (!events) return { ...base, harvestedByType: null, wardensHired: null, lostToMenaces: null };
 
   const harvestedByType = Object.fromEntries(RESOURCE_TYPES.map((r) => [r, 0])) as Record<ResourceType, number>;
+  const built = { routes: 0, manors: 0, strongholds: 0 };
   let wardensHired = 0;
   let lostToMenaces = 0;
   for (const { event: e } of events) {
     if (!("playerId" in e) || e.playerId !== playerId) continue;
 
-    if (e.type === "harvest_completed") {
+    if (e.type === "route_built") built.routes += 1;
+    else if (e.type === "holding_built") built.manors += 1;
+    else if (e.type === "holding_upgraded") built.strongholds += 1;
+    else if (e.type === "harvest_completed") {
       for (const r of RESOURCE_TYPES) harvestedByType[r] += e.byType[r] ?? 0;
     } else if (e.type === "warden_hired") {
       wardensHired += 1;
     } else if (e.type === "banner_harvested") {
       // A blocked or stolen Banner harvest loses what it would have produced.
+      // A sick Banner's is lost to a card (The Plague), not to a Menace.
       if (e.notes.includes("blocked_by_troll") || e.notes.includes("taken_by_dragon")) lostToMenaces += 1;
     } else if (e.type === "resource_spent" && (e.reason === "toll" || e.reason === "goblin_tinkers")) {
       lostToMenaces += e.amount;
     }
   }
-  return { ...base, harvestedByType, wardensHired, lostToMenaces };
+  return { ...base, ...built, harvestedByType, wardensHired, lostToMenaces };
 }
 
 // ------------------------------------------------------------------ awards
@@ -266,7 +287,7 @@ export function pickAwards(standings: readonly PlayerResult[], turnOrder: readon
 // ------------------------------------------------------------------ recap
 
 /** "Chronicle of the Realm": a few sentences from the key events, crowning last. */
-function buildRecap(state: GameState, standings: readonly PlayerResult[], events: RoundEvent[] | null): string[] {
+function buildRecap(state: GameState, standings: readonly PlayerResult[], events: RoundEvent[] | null, endCause: EndCause | null): string[] {
   const name = (id: PlayerId | null | undefined) => nameOf(state, id);
   const lines: string[] = [];
 
@@ -327,12 +348,18 @@ function buildRecap(state: GameState, standings: readonly PlayerResult[], events
   else if (writer && soleWriter) lines.push(t("recap.writs", { name: writer.name, count: writs }));
   else if (writs > 1) lines.push(t("recap.writs_shared", { count: writs }));
 
-  const recap = lines.slice(0, MAX_RECAP_BEFORE_CROWNING);
+  // Ragnarök ends the world at once; the history knows who brought it about.
+  const ragnarok = endCause === "ragnarok";
+  const played = ragnarok ? events?.find((x) => x.event.type === "card_resolved" && cardDefIdOf(x.event.cardId) === "ragnarok")?.event : undefined;
+  const recap = lines.slice(0, MAX_RECAP_BEFORE_CROWNING - (played ? 1 : 0));
+  if (played?.type === "card_resolved") recap.push(t("recap.ragnarok", { name: name(played.playerId) }));
+
   const [winner, runnerUp] = standings;
   if (winner && state.winnerId) {
     const margin = winner.renown.total - (runnerUp?.renown.total ?? 0);
     const params = { name: winner.name, renown: winner.renown.total, round: state.round, runner: runnerUp?.name ?? "", margin };
-    recap.push(t(margin > 0 ? "recap.crowned" : "recap.crowned_tie", params));
+    if (ragnarok) recap.push(t(margin > 0 ? "recap.crowned_ragnarok" : "recap.crowned_ragnarok_tie", params));
+    else recap.push(t(margin > 0 ? "recap.crowned" : "recap.crowned_tie", params));
   }
   return recap;
 }

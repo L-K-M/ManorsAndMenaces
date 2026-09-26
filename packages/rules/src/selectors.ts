@@ -11,6 +11,7 @@ import {
   RESOURCE_TYPES,
   type Banner,
   type BannerId,
+  type CardId,
   type GameState,
   type Holding,
   type MenaceId,
@@ -156,6 +157,7 @@ export type BuildCheck =
 export function checkBuildRoute(ctx: RulesContext, state: GameState, playerId: PlayerId, routeId: RouteId): BuildCheck {
   if (!ctx.board.hasRoute(routeId)) return { legal: false, reason: "UNKNOWN_ENTITY" };
   if (state.routeOwners[routeId] !== undefined) return { legal: false, reason: "ROUTE_OCCUPIED" };
+  if (isSmoulderingFor(state, routeId, playerId)) return { legal: false, reason: "ROUTE_SMOULDERING" };
   const r = ctx.board.route(routeId);
   const connected = (opts: NetworkOptions): boolean =>
     isNetworkSite(ctx, state, playerId, r.siteA, opts) || isNetworkSite(ctx, state, playerId, r.siteB, opts);
@@ -310,6 +312,9 @@ export function computeBannerHarvest(ctx: RulesContext, state: GameState, banner
   if (menace?.type === "toll_troll") {
     return { bannerId: banner.id, regionId, produced: null, amount: 0, notes: ["blocked_by_troll"] };
   }
+  if (state.activeEffects.some((e) => e.kind === "sick" && e.bannerId === banner.id)) {
+    return { bannerId: banner.id, regionId, produced: null, amount: 0, notes: ["sick"] };
+  }
   // 3. converters
   let produced: ResourceType = region.resource;
   if (menace?.type === "bog_witch" && produced !== "essence") {
@@ -462,6 +467,35 @@ export function wizardDestinations(ctx: RulesContext, state: GameState, bannerId
   if (!b || !b.regionId) return [];
   const current = b.regionId;
   return getLegalBannerRegions(ctx, state, bannerId).filter((r) => r !== current);
+}
+
+/**
+ * Fire Bolt (§19.14): the Route is burned and, until the end of its former
+ * owner's next turn, only that owner may rebuild it.
+ */
+export function isSmoulderingFor(state: GameState, routeId: RouteId, playerId: PlayerId): boolean {
+  return state.activeEffects.some((e) => e.kind === "smouldering" && e.routeId === routeId && e.ownerId !== playerId);
+}
+
+/** Holdings Dragon's Landing may strike (§19.15), in a deterministic order for the RNG pick. */
+export function dragonsLandingTargets(state: GameState): Holding[] {
+  return Object.values(state.holdings)
+    .filter((h) => (state.players[h.ownerId]?.holdingIds.length ?? 0) >= BALANCE.dragonsLanding.minHoldings)
+    .sort((a, b) => compareIds(a.id, b.id));
+}
+
+/** Banners The Plague would sicken around a Site (§19.17): every Banner in its Regions not already sick. */
+export function plagueBanners(ctx: RulesContext, state: GameState, siteId: SiteId): Banner[] {
+  const regions = new Set(ctx.board.site(siteId).adjacentRegionIds);
+  return Object.values(state.banners)
+    .filter((b) => b.regionId !== null && regions.has(b.regionId))
+    .filter((b) => !state.activeEffects.some((e) => e.kind === "sick" && e.bannerId === b.id))
+    .sort((a, b) => compareIds(a.id, b.id));
+}
+
+/** The player's Royal Insurance Policy in play, if any (§19.19). */
+export function insurancePolicyOf(ctx: RulesContext, state: GameState, playerId: PlayerId): CardId | undefined {
+  return (state.players[playerId]?.charters ?? []).find((c) => ctx.cardOf(c).effectId === "royal_insurance_policy");
 }
 
 export { canAfford };

@@ -1,10 +1,38 @@
 <script lang="ts">
-  import { BALANCE, RESOURCE_TYPES, cardDefIdOf, type LegalActionSummary, type ResourceType } from "@manors-menaces/rules";
+  import { tick } from "svelte";
+  import {
+    BALANCE,
+    RESOURCE_TYPES,
+    cardDefIdOf,
+    getRenown,
+    insurancePolicyOf,
+    menaceOfType,
+    rankPlayers,
+    type CardTarget,
+    type LegalActionSummary,
+    type PlayerId,
+    type ResourceType,
+  } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
-  import { ACTION_LABEL, availabilityFor, finishCardWith, legalFor, startAction } from "../game/interaction.js";
+  import {
+    ACTION_LABEL,
+    availabilityFor,
+    backCardStep,
+    cardCandidates,
+    currentCardStep,
+    finishCardWith,
+    landingRisks,
+    legalFor,
+    pendingCardTarget,
+    plagueVictims,
+    playPickedCard,
+    robinPayers,
+    startAction,
+  } from "../game/interaction.js";
+  import { gainsText, listText, siteName } from "../game/feed.js";
   import { regionName } from "../game/log.js";
   import type { GameSession } from "../game/session.svelte.js";
-  import { resetTool, ui } from "../stores/ui.svelte.js";
+  import { isCardDialog, resetTool, ui, valueKey } from "../stores/ui.svelte.js";
   import Modal from "./Modal.svelte";
   import ResourceIcon from "./ResourceIcon.svelte";
   import ToolIcon from "./ToolIcon.svelte";
@@ -62,14 +90,42 @@
     await session.perform({ type: "issue_royal_writ", targetBannerId: target, bribe });
   }
 
-  // ---------------------------------------------------------------- arcane / festival
-  let arcaneGive: ResourceType | null = $state(null);
+  // ---------------------------------------------------------------- card dialogs
+  // Each offers exactly the options enumerateCardTargets leaves for its step.
+  const cardStep = $derived(ui.cardId && isCardDialog(ui.dialog) ? currentCardStep(session) : null);
+  const cardEffect = $derived(ui.cardId ? session.ctx.cardOf(ui.cardId).effectId : null);
+  const cardTitle = $derived(ui.cardId ? t(`card.${cardDefIdOf(ui.cardId)}.name`) : "");
+  const cardRules = $derived(ui.cardId ? t(`card.${cardDefIdOf(ui.cardId)}.rules`) : "");
+  // The resource and hoard dialogs offer resources, the player dialog players.
+  const resourceOptions = $derived((cardStep?.options ?? []) as ResourceType[]);
+  const pick = (value: unknown) => cardStep && finishCardWith(session, { [cardStep.field]: value });
+  const nameOf = (id: PlayerId) => (id === legal?.playerId ? t("target.you") : (gs.players[id]?.displayName ?? ""));
+  const policyName = $derived(t("card.royal_insurance_policy.name"));
 
-  // ---------------------------------------------------------------- dragon hoard
-  const dragonHoard = $derived.by(() => {
-    const dragon = Object.values(gs.menaces).find((m) => m.type === "young_dragon");
-    return Object.entries(dragon?.state.hoard ?? {}).filter(([, n]) => (n ?? 0) > 0) as [ResourceType, number][];
+  // Arcane Exchange and Transmutation Magic: pick what to give, then what to receive.
+  let arcaneGive: ResourceType | null = $state(null);
+  let transmuteGive: string | null = $state(null);
+  $effect(() => {
+    if (ui.dialog !== "arcane") arcaneGive = null;
+    if (ui.dialog !== "transmutation") transmuteGive = null;
   });
+  type Transmutation = Extract<CardTarget, { effect: "transmutation_magic" }>;
+  const transmutations = $derived(
+    ui.dialog === "transmutation" ? cardCandidates(session).filter((c): c is Transmutation => c.effect === "transmutation_magic") : [],
+  );
+  const transmuteGives = $derived([...new Map(transmutations.map((c) => [valueKey(c.give), c.give])).entries()]);
+  // Up to ten pairs each way: on a short screen the second list starts below the fold.
+  let transmuteReceive: HTMLElement | undefined = $state();
+  async function chooseTransmuteGive(key: string) {
+    transmuteGive = key;
+    await tick();
+    transmuteReceive?.scrollIntoView({ block: "nearest" });
+  }
+
+  const hoard = $derived(menaceOfType(gs, "young_dragon")?.state.hoard ?? {});
+
+  // Confirmation: what the card will do, spelled out before it is played.
+  const confirmTarget = $derived(ui.dialog === "card_confirm" ? pendingCardTarget(session) : undefined);
 
   // ---------------------------------------------------------------- prophecy
   let order: string[] = $state([]);
@@ -90,6 +146,12 @@
     if (!p) return "";
     const tg = p.target;
     switch (tg.effect) {
+      case "changeling":
+        return t("tip.spell_target_hand", { owner: gs.players[tg.opponentId]?.displayName ?? "" });
+      case "fire_bolt":
+        return t("tip.spell_target_route", { owner: gs.players[gs.routeOwners[tg.routeId] ?? ""]?.displayName ?? "" });
+      case "the_plague":
+        return t("tip.spell_target_plague", { place: siteName(session.map, tg.siteId) });
       case "wizard_interference":
         return t("tip.spell_target_banner", {
           owner: gs.players[gs.banners[tg.bannerId]?.ownerId ?? ""]?.displayName ?? "",
@@ -100,6 +162,29 @@
         return routeOwner
           ? t("tip.spell_target_route", { owner: gs.players[routeOwner]?.displayName ?? "" })
           : t("tip.spell_target_route_unowned");
+      }
+      default:
+        return "";
+    }
+  }
+  /** What the Spell would do, when its target alone does not say. */
+  function describeOutcome(): string {
+    const p = pendingReaction;
+    if (!p) return "";
+    const tg = p.target;
+    switch (tg.effect) {
+      case "ragnarok": {
+        const winner = rankPlayers(session.ctx, gs, gs.turnOrder)[0];
+        if (winner === legal?.playerId) return t("tip.spell_ragnarok_you");
+        return t("tip.spell_ragnarok", { name: gs.players[winner ?? ""]?.displayName ?? "" });
+      }
+      case "transmutation_magic": {
+        const count = (rs: ResourceType[]) => gainsText(Object.fromEntries(RESOURCE_TYPES.map((r) => [r, rs.filter((x) => x === r).length])));
+        return t("tip.spell_exchange", { name: gs.players[p.sourcePlayerId]?.displayName ?? "", give: count(tg.give), receive: count(tg.receive) });
+      }
+      case "the_plague": {
+        const hit = plagueVictims(session.ctx, gs, tg.siteId).filter((v) => !v.insured);
+        return hit.length ? t("tip.spell_plague_victims", { names: listText(hit.map((v) => gs.players[v.ownerId]?.displayName ?? "")) }) : "";
       }
       default:
         return "";
@@ -166,6 +251,14 @@
   </Modal>
 {/if}
 
+{#snippet resourcePair(pair: [ResourceType, ResourceType])}
+  {#if pair[0] === pair[1]}
+    2× <ResourceIcon resource={pair[0]} label={false} /> {t(`resource.${pair[0]}`)}
+  {:else}
+    <ResourceIcon resource={pair[0]} label={false} /> {t(`resource.${pair[0]}`)} + <ResourceIcon resource={pair[1]} label={false} /> {t(`resource.${pair[1]}`)}
+  {/if}
+{/snippet}
+
 {#if ui.dialog === "arcane"}
   <Modal title={t("card.arcane_exchange.name")} onclose={() => ((ui.dialog = null), resetTool())}>
     <p class="help">{t("card.arcane_exchange.rules")}</p>
@@ -186,26 +279,117 @@
   </Modal>
 {/if}
 
-{#if ui.dialog === "festival"}
-  <Modal title={t("card.festival_at_the_inn.name")} onclose={() => ((ui.dialog = null), resetTool())}>
-    <p class="help">{t("card.festival_at_the_inn.rules")}</p>
+{#if ui.dialog === "transmutation" && cardStep}
+  <Modal title={cardTitle} onclose={resetTool} wide>
+    <p class="help">{cardRules}</p>
+    <h4>{t("target.give_2")}</h4>
     <div class="grid">
-      {#each RESOURCE_TYPES as r}
-        <button onclick={() => finishCardWith(session, { choice: r })}><ResourceIcon resource={r} /> {t(`resource.${r}`)}</button>
+      {#each transmuteGives as [key, pair] (key)}
+        <button class:on={transmuteGive === key} aria-pressed={transmuteGive === key} onclick={() => chooseTransmuteGive(key)}>{@render resourcePair(pair)}</button>
+      {/each}
+    </div>
+    {#if transmuteGive}
+      <h4>{t("target.receive_2")}</h4>
+      <div class="grid" bind:this={transmuteReceive}>
+        {#each transmutations.filter((c) => valueKey(c.give) === transmuteGive) as c (valueKey(c.receive))}
+          <button onclick={() => finishCardWith(session, { give: c.give, receive: c.receive })}>{@render resourcePair(c.receive)}</button>
+        {/each}
+      </div>
+    {/if}
+  </Modal>
+{/if}
+
+<!-- Festival at the Inn and Robin of the Glade: name a resource. -->
+{#if ui.dialog === "resource" && cardStep && legal}
+  <Modal title={cardTitle} onclose={resetTool}>
+    <p class="help">{cardRules}</p>
+    <div class="grid">
+      {#each resourceOptions as r (r)}
+        {@const payers = cardEffect === "robin_of_the_glade" ? robinPayers(session.ctx, gs, legal.playerId, r) : []}
+        <button onclick={() => pick(r)}>
+          <ResourceIcon resource={r} label={false} /> {t(`resource.${r}`)}
+          {#if payers.length}<small class="have">{t("target.paid_by", { names: listText(payers.map(nameOf)) })}</small>{/if}
+        </button>
       {/each}
     </div>
   </Modal>
 {/if}
 
-{#if ui.dialog === "hoard"}
-  <Modal title={t("card.dragon_whisperer.name")} onclose={() => ((ui.dialog = null), resetTool())}>
-    <p class="help">{t("ui.choose_hoard_take")}</p>
+<!-- Dragon Whisperer and Treasure Hunter: take from the Young Dragon's Hoard. -->
+{#if ui.dialog === "hoard" && cardStep}
+  <Modal title={cardTitle} onclose={resetTool}>
+    <p class="help">
+      {cardEffect === "treasure_hunter" ? t("target.hoard_take_up_to", { count: BALANCE.treasureHunter.take }) : t("ui.choose_hoard_take")}
+    </p>
     <div class="grid">
-      {#each dragonHoard as [r, n] (r)}
-        <button onclick={() => finishCardWith(session, { take: r })}>
-          <ResourceIcon resource={r} /> {t(`resource.${r}`)} ×{n}
+      {#each resourceOptions as r (r)}
+        {@const n = hoard[r] ?? 0}
+        <button onclick={() => pick(r)}>
+          <ResourceIcon resource={r} label={false} /> {t(`resource.${r}`)} ×{n}
+          {#if cardEffect === "treasure_hunter"}<small class="have">{t("target.you_take", { count: Math.min(BALANCE.treasureHunter.take, n) })}</small>{/if}
         </button>
       {/each}
+    </div>
+  </Modal>
+{/if}
+
+<!-- Changeling: an opponent to swap hands with. -->
+{#if ui.dialog === "player" && cardStep && legal}
+  {@const opponents = gs.turnOrder.filter((id) => id !== legal.playerId)}
+  <Modal title={cardTitle} onclose={resetTool}>
+    <p class="help">{cardRules}</p>
+    <div class="grid">
+      {#each opponents as id (id)}
+        {@const insured = !!insurancePolicyOf(session.ctx, gs, id)}
+        <button disabled={!cardStep.options.includes(id)} onclick={() => pick(id)}>
+          {gs.players[id]?.displayName ?? ""}
+          <small class="have">{t("ui.cards_count", { count: gs.players[id]?.hand.length ?? 0 })}{#if insured}, {t("target.insured")}{/if}</small>
+        </button>
+      {/each}
+    </div>
+    {#if opponents.some((id) => insurancePolicyOf(session.ctx, gs, id))}<p class="help">{t("target.insured_help", { card: policyName })}</p>{/if}
+  </Modal>
+{/if}
+
+{#if ui.dialog === "card_confirm" && confirmTarget && legal}
+  <Modal title={cardTitle} onclose={resetTool}>
+    {#if confirmTarget.effect === "ragnarok"}
+      {@const winner = rankPlayers(session.ctx, gs, gs.turnOrder)[0] ?? legal.playerId}
+      {@const renown = getRenown(session.ctx, gs, winner)}
+      <!-- Only a match with reaction cards gives rivals a chance to counter it. -->
+      <p class="help">{t(gs.ruleset.enableReactionCards ? "target.ragnarok_counterable" : "target.ragnarok")}</p>
+      <p class="goal">
+        {winner === legal.playerId
+          ? t("target.ragnarok_winner_you", { renown })
+          : t("target.ragnarok_winner", { name: gs.players[winner]?.displayName ?? "", renown })}
+      </p>
+    {:else if confirmTarget.effect === "dragons_landing"}
+      {@const risks = landingRisks(session.ctx, gs)}
+      {@const total = risks.reduce((n, v) => n + v.ids.length, 0)}
+      <p class="help">{t("target.landing")}</p>
+      <ul class="victims">
+        {#each risks as v (v.ownerId)}
+          <li>
+            {t("target.landing_share", { name: nameOf(v.ownerId), count: v.ids.length, total })}{#if v.insured}, <b>{t("target.insured")}</b>{/if}
+          </li>
+        {/each}
+      </ul>
+      {#if risks.some((v) => v.insured)}<p class="help">{t("target.landing_insured_help", { card: policyName })}</p>{/if}
+    {:else if confirmTarget.effect === "the_plague"}
+      {@const victims = plagueVictims(session.ctx, gs, confirmTarget.siteId)}
+      <p class="help">{t("target.plague", { place: siteName(session.map, confirmTarget.siteId) })}</p>
+      <ul class="victims">
+        {#each victims as v (v.ownerId)}
+          <li>
+            {t("target.plague_share", { name: nameOf(v.ownerId), regions: listText(v.ids.map((b) => regionName(session.map, gs.banners[b]?.regionId))) })}{#if v.insured}, <b>{t("target.insured")}</b>{/if}
+          </li>
+        {/each}
+      </ul>
+      {#if victims.some((v) => v.insured)}<p class="help">{t("target.plague_insured_help", { card: policyName })}</p>{/if}
+    {/if}
+    <div class="grid">
+      <button class="primary" onclick={() => playPickedCard(session)}>{t("target.play", { card: cardTitle })}</button>
+      {#if Object.keys(ui.cardPicks).length > 0}<button onclick={() => backCardStep(session)}>{t("ui.back")}</button>{/if}
     </div>
   </Modal>
 {/if}
@@ -216,6 +400,7 @@
       {t("ui.reaction_intro", { name: gs.players[pendingReaction.sourcePlayerId]?.displayName ?? "" })}
       <b>{t(`card.${cardDefIdOf(pendingReaction.cardId)}.name`)}</b>{describeTarget() ? ` ${t("ui.reaction_on", { target: describeTarget() })}` : ""}.
     </p>
+    {#if describeOutcome()}<p class="help">{describeOutcome()}</p>{/if}
     <div class="grid">
       {#each legal.reactionCards as c}
         <button class="primary" onclick={() => session.perform({ type: "react", cardId: c })}>{t(`card.${cardDefIdOf(c)}.name`)}</button>
@@ -296,5 +481,10 @@
   }
   .order span {
     flex: 1;
+  }
+  .victims {
+    margin: 0.2rem 0 0.6rem;
+    padding-left: 1.2rem;
+    font-size: 0.9rem;
   }
 </style>

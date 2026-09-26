@@ -9,7 +9,19 @@ import type { GameEvent, ResourceReason } from "./events.js";
 import { costEntries } from "./resources.js";
 import { createRng, type GameRng } from "./rng.js";
 import { locationAffectsPlayer } from "./selectors.js";
-import type { CardId, GameState, MenaceInstance, MenaceLocation, PlayerId, PlayerState, ResourceCost, ResourceType } from "./types.js";
+import type {
+  BannerId,
+  CardId,
+  GameState,
+  HoldingId,
+  MenaceInstance,
+  MenaceLocation,
+  PlayerId,
+  PlayerState,
+  ResourceCost,
+  ResourceType,
+  RouteId,
+} from "./types.js";
 
 export class Tx {
   readonly events: GameEvent[] = [];
@@ -89,5 +101,36 @@ export class Tx {
 
   discard(cardId: CardId): void {
     this.s.discardPile.push(cardId);
+  }
+
+  // Paired-state removals: ownership is recorded on both the board entity and
+  // the player, and effects may reference the entity, so all go together.
+
+  /** The Route becomes unowned. */
+  removeRoute(routeId: RouteId): void {
+    const owner = this.s.routeOwners[routeId];
+    delete this.s.routeOwners[routeId];
+    const p = owner === undefined ? undefined : own(this.s.players, owner);
+    if (p) p.routeIds = p.routeIds.filter((r) => r !== routeId);
+  }
+
+  /** Removes a Banner and every effect attached to it. */
+  removeBanner(bannerId: BannerId): void {
+    delete this.s.banners[bannerId];
+    this.s.activeEffects = this.s.activeEffects.filter((e) => !("bannerId" in e && e.bannerId === bannerId));
+  }
+
+  /** Removes a Holding with its Banners. The Site becomes empty. */
+  removeHolding(holdingId: HoldingId): BannerId[] {
+    const h = own(this.s.holdings, holdingId);
+    if (!h) return [];
+    const bannerIds = Object.values(this.s.banners)
+      .filter((b) => b.holdingId === holdingId)
+      .map((b) => b.id);
+    for (const b of bannerIds) this.removeBanner(b);
+    delete this.s.holdings[holdingId];
+    const p = own(this.s.players, h.ownerId);
+    if (p) p.holdingIds = p.holdingIds.filter((id) => id !== holdingId);
+    return bannerIds;
   }
 }

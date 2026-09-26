@@ -255,6 +255,8 @@ In the base game only the active player can gain Renown, because building and Qu
 
 Simultaneous wins should be rare.
 
+**Exception: Ragnarök.** The game can also end before anyone reaches the target. When Ragnarök resolves (§19.13), the game ends at once, in the middle of the turn, without the End Turn phase. The winner is decided by the same tie-break order, applied to all players, and may have less than the target Renown.
+
 ## 7.1 Renown budget
 
 The target must be reachable on the chosen map. Use this budget when tuning:
@@ -278,10 +280,12 @@ Default Renown values:
 | Stronghold | 2 total, replacing the Manor's 1 |
 | Minor Royal Quest | 1 |
 | Major Royal Quest | 2 |
-| Rare card/story reward | 1 |
+| Rare card/story reward (base game: The Unreliable Bard, §19.20) | 1 |
 | Major landmark objective | 1–2 |
 
 A Manor upgraded to a Stronghold increases the player's Renown by **+1**, because the site moves from 1 total Renown to 2 total Renown.
+
+Renown can also fall. Dragon's Landing (§19.15) burns a Manor or reduces a Stronghold to a Manor, which costs its owner 1 Renown either way. Claimed Quests and card rewards are never lost.
 
 ---
 
@@ -474,7 +478,8 @@ Properties:
 - worth 2 total Renown;
 - supports 2 Banners;
 - remains on the same Site;
-- cannot be upgraded further in the base game.
+- cannot be upgraded further in the base game;
+- can be reduced back to a Manor only by Dragon's Landing (§19.15, §114).
 
 Default upgrade cost:
 
@@ -695,6 +700,8 @@ No ordinary turn-start randomness determines whether Regions produce.
 
 If a Menace fully blocks a Region, Banners there produce zero.
 
+A sick Banner (The Plague, §19.17) also produces zero, at its owner's next Harvest only.
+
 ## 15.3 Modified production
 
 Some Menaces or cards transform rather than block production.
@@ -767,7 +774,8 @@ Resolve, in order:
 3. reveal replacement Quests for any claimed this turn (§27);
 4. expiration of temporary effects;
 5. reset per-turn counters (Market trades, cards played, Writs, Warden hires);
-6. victory check (§7).
+6. victory check (§7);
+7. if the game did not end, the endgame omen (§19.13).
 
 All Quest claims in the base game are manual (§116). None resolve automatically here.
 
@@ -844,6 +852,8 @@ Non-magical tactical interference.
 
 Longer-lasting economic or scoring modifier.
 
+When a Charter resolves it does not go to the discard pile. It stays face up in front of its player, where everyone can see it (§83), until its own text discards it. Charters in front of a player are not part of their hand, so they do not count toward the hand limit (§18.3). The first Charter is the Royal Insurance Policy (§19.19).
+
 ### Story
 
 One-off narrative effect, often symmetrical or unusual.
@@ -880,7 +890,7 @@ This prevents card effects from overwhelming the board economy.
 
 # 19. Initial Card Set
 
-Implement at least the following 24-card prototype deck.
+The deck has 40 cards: the 24-card prototype (§19.1–19.11) with a third Counterspell, and a second wave of 15 cards (§19.12–19.21).
 
 Recommended copies are shown.
 
@@ -891,11 +901,12 @@ Recommended copies are shown.
 **Effect:** Move one opponent Banner to another Region that is adjacent to its origin Holding and has free capacity. The moved Banner becomes unsettled.  
 **Restrictions:** Must respect Region capacity and the Stronghold restriction (§14.4). Ignores Settled protection.
 
-## 19.2 Counterspell ×2
+## 19.2 Counterspell ×3
 
 **Type:** Spell / Reaction  
 **Timing:** When another Spell is played  
-**Effect:** Cancel that Spell before its effect resolves.
+**Effect:** Cancel that Spell before its effect resolves.  
+**Note:** The prototype had 2 copies. The second wave adds five Spells, most of them hostile (Changeling, Ragnarök, Fire Bolt, The Plague), so a third copy keeps Counterspell's share of the deck, and the chance that someone holds an answer, about where it was: 2 of 24 cards before, 3 of 40 now. Heroes, Tricks, Stories and Charters open no reaction window and cannot be countered.
 
 ## 19.3 Knight Errant ×3
 
@@ -956,7 +967,108 @@ Recommended copies are shown.
 **Requirement:** Young Dragon is active.  
 **Effect:** Move the Young Dragon. If its Hoard is non-empty, take one resource from the Hoard.
 
-Total: 24 cards.
+## 19.12 Changeling ×1
+
+**Type:** Spell  
+**Timing:** Main Action  
+**Requirement:** An opponent holds at least 1 card.  
+**Effect:** Choose such an opponent. Swap your whole hand with theirs.  
+**Note:** Changeling has already left your hand when the swap happens, so you give them the rest of your hand, which may be nothing. Hand sizes are public (§83), so everyone can check the requirement. The two players learn the cards they receive; everyone else sees only the new hand sizes. A Royal Insurance Policy in front of the chosen opponent prevents the swap (§19.19). A player who ends up over the hand limit discards at the end of their own turn, as usual (§18.3).  
+**Rationale:** One copy. A whole-hand swap is the biggest swing of card advantage in the deck, and a single copy keeps it a rare event rather than a routine one. It punishes hoarding cards, which the hand limit alone does not. The target can answer it with a Counterspell or a policy.
+
+## 19.13 Ragnarök ×1
+
+**Type:** Spell  
+**Timing:** Main Action  
+**Setup:** Set aside face up, outside the draw pile (§28.1).  
+**Omen:** At the end of any turn in which the game did not end, if any player has at least the target Renown minus 3 (`BALANCE.ragnarok.omenGap`), Ragnarök is shuffled into the draw pile at a random position (match RNG, §30) and every player is told. This happens once per game.  
+**Requirement:** No rival has more Renown than you. Ties are allowed.  
+**Effect:** The game ends at once. The winner is decided by the §7 tie-break order, applied to all players: highest Renown, then most Royal Quests, most Strongholds, most resources, earlier in turn order. The winner may have less than the target Renown.  
+**Note:** Ragnarök is a Spell, so it opens a reaction window and a Counterspell cancels it; the game ends only when it resolves. Because the tie-break runs over all players, a rival tied with you on Renown may still win: playing Ragnarök on a tie is a bet on Quests, Strongholds and resources. A cancelled or discarded Ragnarök goes to the discard pile and can return in a reshuffle (§117). The Royal Insurance Policy does not cover it. The `game_won` event carries `cause: "ragnarok"`.  
+**Rationale:** Ragnarök is a clock for the final rounds, not a surprise in round 2. Set aside until someone is 3 Renown from victory, it cannot cut a game short before the race is on, and it then sits at a random depth in the draw pile. Only a leader or co-leader may play it, so it never hands the game to a player who is behind. A trailing player who draws it can hold it, and play it after catching up.
+
+## 19.14 Fire Bolt ×2
+
+**Type:** Spell  
+**Timing:** Main Action  
+**Requirement:** An opponent owns a Route.  
+**Effect:** Choose an opponent's Route. If that opponent owns any bridge, you must choose one of their bridges. The Route burns down and becomes unowned. Until the end of that opponent's next turn it smoulders: only they may rebuild it.  
+**Note:** Rebuilding follows the normal Route rules (§13), cost included, so the owner needs a connection to one of its ends, which the rest of their network usually provides. The smouldering ends when they rebuild it or when their next turn ends; after that anyone may build it. Building a smouldering Route that was not yours is refused with `ROUTE_SMOULDERING`. Holdings stay where they are: a Route carries no Renown. A Royal Insurance Policy in front of the owner prevents the burn (§19.19).  
+**Rationale:** Bridges burn first because they are usually chokepoints, so the card makes a strategic point instead of taxing a random Route, and because a burning bridge is easy to read on the board. The rebuild window keeps the disruption reversible (§2.3): the owner loses tempo and the cost of a Route, not the Route itself, unless they decide it is no longer worth having.
+
+## 19.15 Dragon's Landing ×1
+
+**Type:** Story  
+**Timing:** Main Action  
+**Requirement:** Some player, you included, has at least 3 Holdings (`BALANCE.dragonsLanding.minHoldings`).  
+**Effect:** A dragon lands on one Holding, picked at random from every Holding of every player who has 3 or more, yours included. A Manor burns down: it is removed with its Banner, and its Site becomes empty. A Stronghold is reduced to a Manor and loses one of its two Banners (§114).  
+**Note:** The Holding is picked with the match RNG (§30) when the card resolves, from a pool in a fixed order, so replays stay deterministic. Every Holding in the pool is equally likely, so a player with more Holdings is more likely to be hit. If the owner of the picked Holding has a Royal Insurance Policy in front of them, the policy is discarded and nothing burns (§19.19). As a Story it opens no reaction window, so Counterspell cannot stop it. This dragon is not the Young Dragon Menace (the flavour text blames its mother): the card needs no active Young Dragon and does not move it.  
+**Rationale:** The only card that takes Renown away, so it is built to respect the Reversible disruption pillar (§2.3). There is one copy. Nobody with fewer than 3 Holdings can be hit, so no player drops below the 2 Holdings everyone starts with. A Stronghold is only reduced, never destroyed, and can be upgraded again. The random pick makes the card a tax on large estates rather than a weapon aimed at one rival, and the caster's own Holdings are at risk too once they have 3 or more. The Royal Insurance Policy is the answer. §111.1 records the safety checklist.
+
+## 19.16 Transmutation Magic ×2
+
+**Type:** Spell  
+**Timing:** Main Action  
+**Effect:** Pay 2 resources and gain 2 resources. The two you pay may be the same type, and so may the two you gain, but you cannot gain a type you paid.  
+**Example:** 2 Grain → 1 Iron + 1 Essence, or 1 Grain + 1 Timber → 2 Stone. Not 1 Grain + 1 Timber → 1 Grain + 1 Stone.  
+**Note:** It is not a Market exchange and does not count toward the Market limit (§17.2). Legal-action lists offer each unordered pair once, so there are at most 110 distinct plays.  
+**Rationale:** A second answer to a resource bottleneck next to Arcane Exchange (§19.7), which must involve Essence. Forbidding a type you paid keeps every play a real conversion.
+
+## 19.17 The Plague ×2
+
+**Type:** Spell  
+**Timing:** Main Action  
+**Requirement:** At least one opponent's Banner in the Regions around the Site is not already sick. That opponent's Royal Insurance Policy may still spare it (§19.19).  
+**Effect:** Choose a Site. Every Banner in the Regions around it that is not already sick falls sick, whoever owns it, yours included. A sick Banner produces nothing at its owner's next Harvest, and that Harvest cures all of the owner's sick Banners.  
+**Note:** Sickness belongs to the Banner, not the Region: a sick Banner that moves stays sick, and a Banner that arrives later is not affected. In the Harvest layers sickness is a complete blocker applied after the Toll Troll (§31). The Harvest still settles the Banner (§14.6). Each owner with a Royal Insurance Policy spends it to spare all of their Banners here, the caster included (§19.19).  
+**Rationale:** Area denial with a cost to the caster: it hits your own Banners too, so a good Site is one where opponents cluster and you do not. Each Banner misses exactly one Harvest, so it slows an economy without breaking it, and no turn is skipped (§111).
+
+## 19.18 Robin of the Glade ×2
+
+**Type:** Hero  
+**Timing:** Main Action  
+**Requirement:** A rival with more Renown than you has at least 1 of the resource you name.  
+**Effect:** Name a resource. Each rival with more Renown than you gives you 1 of it, if they have any.  
+**Note:** "More" is strict: a rival tied with you gives nothing. As a Hero it cannot be countered, and the Royal Insurance Policy does not cover it.  
+**Rationale:** A catch-up card that pays more the more players are ahead of you. It moves at most one resource from each of them, so it narrows a lead without deciding it, and the leader can never play it.
+
+## 19.19 Royal Insurance Policy ×2
+
+**Type:** Charter  
+**Timing:** Main Action  
+**Requirement:** You have no Royal Insurance Policy in front of you.  
+**Effect:** Keep this card face up in front of you (§18.1). The next Fire Bolt, Dragon's Landing, Plague or Changeling that would affect you does not. Discard the policy instead.  
+**Note:** The policy is used on the first of these cards that would affect you, whoever played it, including your own Plague or Dragon's Landing; you cannot choose to save it. Against The Plague one policy spares all of your Banners around that Site. Against Dragon's Landing it is used only if the dragon picks one of your Holdings. It does not cover anything else, Ragnarök included. As a Charter it cannot be countered. It is public, so opponents can see who is insured before they aim.  
+**Rationale:** The first Charter, and the counterplay (§82) to the second wave's harshest cards. It stops one hit, not every hit, and it has to be in play before the hit comes.
+
+## 19.20 The Unreliable Bard ×1
+
+**Type:** Hero  
+**Timing:** Main Action  
+**Requirement:** A rival has at least 2 more Renown than you (`BALANCE.underdogGap`).  
+**Effect:** Gain 1 Renown.  
+**Note:** The Renown is kept for the rest of the game, like a Quest's (`bonusRenown`, §33.1). It is the base game's only card that awards Renown (§8).  
+**Rationale:** One copy of a pure catch-up card. With a gap of 2 it can never lift you level with the rival who made it playable.
+
+## 19.21 Treasure Hunter ×1
+
+**Type:** Hero  
+**Timing:** Main Action  
+**Requirement:** The Young Dragon is active, its Hoard is not empty, and it can legally move (§26) to a Region that holds one of your Banners.  
+**Effect:** Name a resource in the Hoard and take up to 3 of it (`BALANCE.treasureHunter.take`). Then move the Young Dragon to a Region that holds one of your Banners.  
+**Note:** Setup leaves it out when the Young Dragon is not in play, as in 2-player games (§118). The move counts as moving a Menace for Quests such as Monster Problems (§27.1).  
+**Rationale:** Dragon Whisperer (§19.11) takes 1 resource and sends the Dragon anywhere. Treasure Hunter takes up to 3, but the Dragon follows you home: it will divert your Banner's next Harvest into its Hoard (§23.3) unless you move it on first. A big Hoard is a prize with a price.
+
+Total: 40 cards: 24 Spells, 9 Heroes, 3 Stories, 2 Tricks and 2 Charters.
+
+Setup leaves out cards that cannot be played with the active Menaces (§19.5, §118) and sets Ragnarök aside (§19.13):
+
+| Players | Cards | Draw pile at setup | Set aside | Left out |
+|---|---:|---:|---|---|
+| 2 | 35 | 34 | Ragnarök | Dragon Whisperer ×2, Teleportation Mishap ×2, Treasure Hunter |
+| 3–4 | 40 | 39 | Ragnarök | none |
+
+With 2 players the deck holds 22 Spells and 6 Heroes. The async ruleset (§109) also leaves out the 3 Counterspells.
 
 ---
 
@@ -1209,7 +1321,7 @@ During one Harvest, gain all 5 resource types.
 
 Play 2 Hero cards.
 
-(v0.2 asked for 3. The deck holds only 5 Hero cards, and 3 in 2-player games where Dragon Whisperer is left out, so 3 was almost never reachable: under 2% for a player drawing 6 cards in a 2-player game, against about 20% for 2.)
+(v0.2 asked for 3. The prototype deck held only 5 Hero cards, and 3 in 2-player games where Dragon Whisperer is left out, so 3 was almost never reachable: under 2% for a player drawing 6 cards in a 2-player game, against about 20% for 2. The second wave (§19.12–19.21) raises this to 9 Heroes, 6 with 2 players. A player drawing 6 cards now finds 2 Heroes about 28% of the time with 2 players and 42% with 3 or 4, and 3 Heroes about 5% and 12%. The requirement stays at 2.)
 
 ### Arcane Scholar — 1 Renown
 
@@ -1254,7 +1366,7 @@ No randomness is involved beyond the setup shuffle of the Quest deck (§30), so 
 2. Randomly determine first player.
 3. Select active Menaces according to player count.
 4. Place Menaces at their configured starting locations.
-5. Shuffle card deck using match RNG.
+5. Set Ragnarök aside face up; it joins the draw pile only at the endgame omen (§19.13). Shuffle the rest of the card deck using match RNG.
 6. Shuffle Quest deck using match RNG.
 7. Reveal 3 Quests.
 8. Players place initial Holdings in snake order. Each Manor is followed immediately by one free Route and, for a player's second Manor, their starting resources (§28.2–28.3).
@@ -1364,6 +1476,7 @@ For Harvest:
 Example:
 
 - Toll Troll blocks first, so no further production modifiers apply.
+- A sick Banner (The Plague, §19.17) is the next complete blocker. Under the Troll, the Harvest reports the Troll's block, and the Banner is cured all the same.
 - Bog Witch converts Grain to Essence.
 - Druid's Blessing then checks final or original type according to card wording.
 
@@ -1440,6 +1553,7 @@ export interface GameState {
 
   cardDeck: CardId[];
   discardPile: CardId[];
+  setAsideCardIds?: CardId[]; // Ragnarök, until the endgame omen (§19.13)
 
   questDeck: QuestId[];
   publicQuests: PublicQuestState[];
@@ -1470,6 +1584,7 @@ export interface PlayerState {
   routeIds: RouteId[];
 
   claimedQuestIds: QuestId[];
+  charters?: CardId[]; // face up in front of the player (§18.1); absent in older saves
 
   stats: PlayerStats;
 
@@ -1667,6 +1782,7 @@ type RuleErrorCode =
   | "INSUFFICIENT_RESOURCES"
   | "INVALID_PAYMENT"            // wrong extra payment, toll or bribe
   | "ROUTE_OCCUPIED"
+  | "ROUTE_SMOULDERING"          // burned by Fire Bolt; only its former owner may rebuild it yet (§19.14)
   | "SITE_OCCUPIED"
   | "SITE_TOO_CLOSE"
   | "NOT_CONNECTED"
@@ -2658,7 +2774,9 @@ Development telemetry should capture:
 - Warden hires;
 - Trading Post usage;
 - Menace moves;
-- card plays;
+- card plays, per card;
+- the round of the endgame omen, and games ended by Ragnarök with their round (§19.13);
+- second-wave damage: Holdings destroyed or reduced, Routes burned, Banners sickened, hands swapped, insurance claims;
 - Quest claims;
 - Market trades;
 - first-player win rate;
@@ -2965,6 +3083,8 @@ Avoid:
 - repeated unavoidable card theft;
 - hidden effects with no counterplay.
 
+The second wave's harshest cards stay inside these limits. Dragon's Landing only ever reduces a Stronghold, and Fire Bolt lets the owner rebuild the burned Route first; §111.1 has the details.
+
 ---
 
 # 82. Card Counterplay
@@ -2977,7 +3097,7 @@ Interference should generally have one or more answers:
 - Market or Trading Post exchange;
 - Counterspell;
 - Knight Errant;
-- future defensive card;
+- Royal Insurance Policy (against Fire Bolt, Dragon's Landing, The Plague and Changeling, §19.19);
 - alternative expansion path.
 
 No card should permanently disable a player's economy.
@@ -2995,12 +3115,16 @@ Public:
 - all resources;
 - Renown;
 - claimed Quests;
-- number of cards in hand.
+- number of cards in hand;
+- Charters in front of each player (§18.1);
+- set-aside cards, and when the omen shuffles them into the draw pile (§19.13).
 
 Private:
 
 - card identities in hand;
 - unrevealed deck order.
+
+After a Changeling swap (§19.12) the two players involved know the cards they received. Everyone else sees only the new hand sizes.
 
 This keeps strategy readable while preserving card surprise.
 
@@ -3771,6 +3895,29 @@ Every new card or Menace should pass these design checks:
 
 If yes, redesign or explicitly handle the edge case.
 
+## 111.1 The second wave against the checklist
+
+Five second-wave cards can hurt a rival badly or end the game early. These are their answers.
+
+**Dragon's Landing (§19.15)** is the only card that removes Renown, and it tests the Reversible disruption pillar (§2.3) hardest.
+
+- *Permanently erase major progress?* It costs its victim 1 Renown and one Banner, and its limits stop it from erasing a position. Only a player with 3 or more Holdings can be hit, so nobody drops below the 2 Holdings everyone starts with, and nobody is eliminated (§3). A Stronghold is only reduced to a Manor, never removed, and can be upgraded again. Only a Manor burns, and its Site can be built on again. There is one copy.
+- *Punish one seat?* It is not aimed. The Holding is drawn at random from every eligible player's Holdings, the caster's included, so on average the loss falls on whoever has built the most.
+- *Counterplay:* a Royal Insurance Policy absorbs it (§19.19). As a Story it cannot be countered, so the policy is the answer, and because policies are public everyone knows who is covered.
+- *Quest impossible after claim?* No. Claimed Quests stay claimed, even Master Builder after one of its Holdings burns.
+- *No legal Banner placement?* No. The lost Banner goes with its Holding, or is chosen by §114 on a Stronghold, and the other Banners stay where they are.
+- *Hidden information?* None. The pool is public, the pick uses the match RNG when the card resolves, and the result is announced.
+
+**Fire Bolt (§19.14)** is the answer to §81's warning against permanently deleting Routes: the loss is not permanent. The former owner alone may rebuild the Route until the end of their next turn, at the normal cost, and no Holding or Renown is lost. Counterspell (it is a Spell) and the Royal Insurance Policy stop it, and the bridges-first rule keeps the target readable.
+
+**The Plague (§19.17)** never skips a turn. Each sick Banner misses one Harvest, its owner harvests from their other Banners and plays the turn as usual, and that Harvest cures the sickness. It cannot stack: a sick Banner cannot fall sick again until it is cured. It hits the caster's own Banners in range too. Counterspell, the policy and spreading your Banners out are the answers.
+
+**Changeling (§19.12)** is not the repeated, unavoidable card theft that §81 warns against. There is one copy, it gives cards back instead of only taking them, and Counterspell or the policy stops it. The other players learn nothing but the new hand sizes (§83).
+
+**Ragnarök (§19.13)** erases nothing: it ends the game on the current standings. It cannot hand the win to a player who is behind, because only a leader or co-leader may play it, and it cannot come as a surprise: it stays out of the draw pile until the public omen tells every player the endgame has begun. Counterspell is the answer; the policy deliberately is not.
+
+None of the ten cards can create negative resources: every payment is checked against what the payer has, Robin of the Glade takes only from rivals who have the resource, and Treasure Hunter takes at most what the Hoard holds. None can loop: each resolves once and moves at most one Menace.
+
 ---
 
 # 112. No-Legal-Banner Case
@@ -3809,7 +3956,7 @@ When upgrading a Manor:
 
 When loading old saves, Banner IDs must remain stable.
 
-If a future effect downgrades a Stronghold, specify which Banner is removed. Base game has no downgrade effect.
+An effect that downgrades a Stronghold must specify which Banner is removed. In the base game only Dragon's Landing (§19.15) does. The reduced Manor keeps one Banner: it loses a Banner that is at home (unassigned) over one in a Region, and the newer Banner, the one the upgrade created, when both are at home or both are in Regions. The kept Banner stays where it is, with its `settled` value.
 
 ---
 
@@ -3865,6 +4012,8 @@ If deck is empty:
 
 If both empty:
 - action illegal.
+
+A reshuffle takes only the discard pile. Charters in front of players (§18.1) and a Ragnarök still set aside (§19.13) are not in it and stay where they are. A Royal Insurance Policy goes to the discard pile when it is used, and a cancelled or discarded Ragnarök goes there too, so both can come back in a later reshuffle. If the omen comes while the draw pile is empty, Ragnarök becomes its only card.
 
 ---
 
@@ -3936,6 +4085,8 @@ Ask:
 13. Did any Region feel "owned forever"? Did the Royal Writ feel like fair jockeying, or like harassment?
 14. When your Banner was displaced, did the bribe feel like fair compensation?
 15. Did Trading Posts affect where you chose to build?
+16. Did Ragnarök feel like a fair clock on the endgame, or like a cheap finish?
+17. When Dragon's Landing or Fire Bolt hit you, could you recover, or did it feel like losing progress for good?
 
 ---
 
@@ -3970,7 +4121,12 @@ export const BALANCE = {
   warden: { maxPerTurn: 1 },
 
   handLimit: 7,
-  maxNonReactionCardsPerTurn: 1
+  maxNonReactionCardsPerTurn: 1,
+
+  ragnarok: { omenGap: 3 },           // §19.13
+  dragonsLanding: { minHoldings: 3 }, // §19.15
+  treasureHunter: { take: 3 },        // §19.21
+  underdogGap: 2                      // The Unreliable Bard, §19.20
 } as const;
 ```
 

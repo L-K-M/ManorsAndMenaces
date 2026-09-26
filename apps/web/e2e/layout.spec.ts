@@ -14,7 +14,7 @@ async function startVsAi(page: Page, players = 2) {
   await page.getByRole("button", { name: "New game" }).click();
   await page.getByRole("radio", { name: String(players), exact: true }).check({ force: true });
   await page.getByText("Advanced").click();
-  await page.getByLabel(/Seed/).fill("layout-seed");
+  await page.getByLabel(/Seed/).fill("layout-seed-18");
   await page.getByRole("button", { name: "Begin" }).click();
 }
 
@@ -45,9 +45,28 @@ async function completeSetup(page: Page) {
 
 /**
  * Cards every deck holds, whatever the seats and Menaces: 2-player decks
- * leave out cards that need a missing Menace or a pair of them.
+ * leave out cards that need a missing Menace or a pair of them. Ragnarök
+ * waits outside the deck, where the debug draw finds it too. The longest
+ * rules texts come early, so the bigger hands test them.
  */
-const ALWAYS_DEALT = ["wizard_interference", "knight_errant", "druids_blessing", "arcane_exchange", "festival_at_the_inn", "very_minor_prophecy", "fog_of_confusion"];
+const ALWAYS_DEALT = [
+  "wizard_interference",
+  "knight_errant",
+  "druids_blessing",
+  "arcane_exchange",
+  "festival_at_the_inn",
+  "very_minor_prophecy",
+  "fog_of_confusion",
+  "royal_insurance_policy",
+  "fire_bolt",
+  "dragons_landing",
+  "the_plague",
+  "changeling",
+  "transmutation_magic",
+  "robin_of_the_glade",
+  "unreliable_bard",
+  "ragnarok",
+];
 
 /** Grants resources and draws cards through the debug panel (§100). */
 async function fillHand(page: Page, count = 4) {

@@ -114,6 +114,13 @@
   li.important {
     font-weight: 600;
   }
+  /* The endgame foretold, and the world's end. */
+  li.omen {
+    font-weight: 700;
+    color: #7a1d10;
+    background: #fff0e8;
+    border-left-color: #d9541e;
+  }
   li.divider {
     display: flex;
     align-items: center;

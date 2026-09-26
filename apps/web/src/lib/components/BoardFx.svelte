@@ -9,6 +9,7 @@
   import { animationScale } from "../stores/settings.svelte.js";
   import { MENACE_THEME, PLAYER_THEMES } from "../theme.js";
   import { boardMatrix } from "../boardScreen.js";
+  import { SICK_MARK } from "../game/board-view.js";
 
   let { session, feedback }: { session: GameSession; feedback: FeedbackController } = $props();
 
@@ -39,6 +40,7 @@
 
   const BADGE_GLYPH = {
     blocked_by_troll: MENACE_THEME.toll_troll,
+    sick: SICK_MARK,
     taken_by_dragon: MENACE_THEME.young_dragon,
     converted_by_witch: MENACE_THEME.bog_witch,
     druids_blessing: null,

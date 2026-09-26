@@ -77,6 +77,20 @@ describe("announcementsFor", () => {
     expect(announcementsFor([quip], GREENVALE_MAP, names, soloAlice)).toEqual(["Lord Mumble: “Mine, all mine.”"]);
   });
 
+  it("announces the omen, and a policy paying out to its own holder", () => {
+    const omen = entry({ text: "An omen!", playerId: null, kind: "omen", raw: { type: "card_foretold", cardId: "ragnarok#1" } });
+    const insured = entry({
+      text: "Alice's Royal Insurance Policy paid out against Fire Bolt.",
+      playerId: "alice",
+      kind: "important",
+      raw: { type: "insurance_claimed", playerId: "alice", cardId: "royal_insurance_policy#1", against: "fire_bolt" },
+    });
+    expect(announcementsFor([omen, insured], GREENVALE_MAP, names, soloAlice)).toEqual([
+      "An omen!",
+      "Alice's Royal Insurance Policy paid out against Fire Bolt.",
+    ]);
+  });
+
   it("always announces the winner", () => {
     const won = entry({
       text: "Alice wins with 12 Renown!",

@@ -138,6 +138,20 @@ export const LABEL = {
   nameBaseline: -24,
 } as const;
 
+/**
+ * The Plague's mark: a queasy face whose eyes and wavy mouth are cut out
+ * (fill-rule evenodd), radius 10 around 0,0. Drawn on sick Banners and on
+ * their harvest badge.
+ */
+export const SICK_MARK = {
+  color: "#a9bd45",
+  glyph:
+    "M-10,0 A10,10 0 1,0 10,0 A10,10 0 1,0 -10,0 Z M-5.6,-3 A1.7,1.7 0 1,0 -2.2,-3 A1.7,1.7 0 1,0 -5.6,-3 Z M2.2,-3 A1.7,1.7 0 1,0 5.6,-3 A1.7,1.7 0 1,0 2.2,-3 Z M-5.5,4.4 Q-2.75,1.9 0,4.4 Q2.75,6.9 5.5,4.4 L5.5,6.4 Q2.75,8.9 0,6.4 Q-2.75,3.9 -5.5,6.4 Z",
+} as const;
+
+/** A flame, about 16 tall around 0,0: embers on a burned Route and the Ragnarök omen. */
+export const FLAME_PATH = "M0,-8 C3,-4 7,-1 5,4 C4,7 -4,7 -5,4 C-6.5,0.5 -2.5,-1.5 -1.5,-5 C-0.2,-2.5 1.5,-1 1,1.5 C2.8,-0.5 1.8,-4.5 0,-8 Z";
+
 /** Where the `i`-th of `n` Banners stands in a Region (the flag's pole is at x-6). */
 export function bannerSlot(label: { x: number; y: number }, i: number, n: number): { x: number; y: number } {
   return { x: label.x - 3 + (i - (n - 1) / 2) * LABEL.bannerGap, y: label.y + LABEL.bannerY };
