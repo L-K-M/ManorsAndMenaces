@@ -19,6 +19,7 @@ import {
   type MenaceLocation,
   type MenaceType,
   type PlayerId,
+  type QuestId,
   type RegionId,
   type ResourceCost,
   type ResourceType,
@@ -107,6 +108,33 @@ export function getRenown(ctx: RulesContext, state: GameState, playerId: PlayerI
   for (const h of getPlayerHoldings(state, playerId)) renown += h.type === "manor" ? BALANCE.renown.manor : BALANCE.renown.stronghold;
   for (const q of p.claimedQuestIds) renown += ctx.quest(q).renown;
   return renown;
+}
+
+/** Where a player's Renown comes from (§7). The parts sum to `getRenown`. */
+export interface RenownSources {
+  total: number;
+  manors: { count: number; renown: number };
+  strongholds: { count: number; renown: number };
+  /** Claimed Royal Quests, in the order they were claimed. */
+  quests: { questId: QuestId; renown: number }[];
+  /** Renown granted outright, such as by the Unreliable Bard. */
+  bonus: number;
+}
+
+// Kept apart from getRenown, which the AI calls in its inner loops.
+export function getRenownSources(ctx: RulesContext, state: GameState, playerId: PlayerId): RenownSources {
+  const p = state.players[playerId];
+  const holdings = getPlayerHoldings(state, playerId);
+  const manors = holdings.filter((h) => h.type === "manor").length;
+  const strongholds = holdings.filter((h) => h.type === "stronghold").length;
+  const quests = (p?.claimedQuestIds ?? []).map((questId) => ({ questId, renown: ctx.quest(questId).renown }));
+  return {
+    total: getRenown(ctx, state, playerId),
+    manors: { count: manors, renown: manors * BALANCE.renown.manor },
+    strongholds: { count: strongholds, renown: strongholds * BALANCE.renown.stronghold },
+    quests,
+    bonus: p?.bonusRenown ?? 0,
+  };
 }
 
 // ------------------------------------------------------------------ network (§13)

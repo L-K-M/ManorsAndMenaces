@@ -20,6 +20,7 @@
   import { seatRival } from "../game/rivals.js";
   import QuipBubble from "./QuipBubble.svelte";
   import RivalPortrait from "./RivalPortrait.svelte";
+  import { ui } from "../stores/ui.svelte.js";
 
   let { session }: { session: GameSession } = $props();
   const gs = $derived(session.draft);
@@ -65,6 +66,7 @@
     {@const theme = PLAYER_THEMES[seat?.color ?? 0] ?? PLAYER_THEMES[0]!}
     {@const rival = seatRival(seat)}
     {@const quip = quipFor(pid)}
+    {@const renown = getRenown(session.ctx, gs, pid)}
     {#if p}
       <article class="player" class:active={actor === pid} data-player-target={pid} style="--pc: {theme.color}; --pl: {theme.light}">
         <header>
@@ -77,9 +79,15 @@
               {session.presence[pid] ? t("ui.online") : t("ui.offline")}
             </span>
           {/if}
-          <span class="renown" title={t("ui.renown")}>
-            <span class="crown" aria-hidden="true"><ToolIcon name="crown" size={15} /></span>{getRenown(session.ctx, gs, pid)}<small>/{gs.ruleset.targetRenown}</small>
-          </span>
+          <button
+            class="ghost renown"
+            aria-haspopup="dialog"
+            title={t("ui.renown_of_details", { name: p.displayName, renown, target: gs.ruleset.targetRenown })}
+            aria-label={t("ui.renown_of_details", { name: p.displayName, renown, target: gs.ruleset.targetRenown })}
+            onclick={() => (ui.renownOf = pid)}
+          >
+            <span class="crown" aria-hidden="true"><ToolIcon name="crown" size={15} /></span>{renown}<small>/{gs.ruleset.targetRenown}</small>
+          </button>
         </header>
         {#if quip}<div class="quip"><QuipBubble text={quip.text} {theme} /></div>{/if}
         <div class="res" aria-label={t("ui.resources")}>
@@ -198,8 +206,10 @@
     grid-column: 3;
     grid-row: 1 / span 2;
     margin-left: auto;
+    padding: 0.2rem 0.45rem;
     font-weight: 700;
     font-size: 1.1rem;
+    white-space: nowrap;
   }
   .renown small {
     font-weight: 400;
