@@ -5,7 +5,7 @@
   import { startCard } from "../game/interaction.js";
   import { currentActor, type GameSession } from "../game/session.svelte.js";
   import { ui, resetTool } from "../stores/ui.svelte.js";
-  import CardArt from "./CardArt.svelte";
+  import CardFace from "./CardFace.svelte";
   import EmptyHandArt from "./EmptyHandArt.svelte";
   import ResourceIcon from "./ResourceIcon.svelte";
 
@@ -172,11 +172,7 @@
               onfocus={(e) => showPeek(e, cardId)}
               onblur={hidePeek}
             >
-              <span class="card-heading"><span class="type">{t(`card.type.${def.type}`)}{def.timing.includes("reaction") ? t("card.reaction_suffix") : ""}</span></span>
-              <strong>{t(`card.${id}.name`)}</strong>
-              <span class="illustration"><CardArt id={def.effectId} type={def.type} /></span>
-              <span class="rules">{t(`card.${id}.rules`)}</span>
-              <em class="flavor">{t(`card.${id}.flavor`)}</em>
+              <CardFace {def} />
             </button>
           </li>
         {/if}
@@ -184,18 +180,13 @@
     </ul>
     {#if peek && hand.includes(peek.cardId)}
       {@const def = session.ctx.cardOf(peek.cardId)}
-      {@const id = cardDefIdOf(peek.cardId)}
       <div
         class="card peek {def.type}"
         use:measurePeek
         style="--x: {peek.x}px; --y: {peekTop}px"
         aria-hidden="true"
       >
-        <span class="card-heading"><span class="type">{t(`card.type.${def.type}`)}{def.timing.includes("reaction") ? t("card.reaction_suffix") : ""}</span></span>
-        <strong>{t(`card.${id}.name`)}</strong>
-              <span class="illustration"><CardArt id={def.effectId} type={def.type} /></span>
-        <span class="rules">{t(`card.${id}.rules`)}</span>
-        <em class="flavor">{t(`card.${id}.flavor`)}</em>
+        <CardFace {def} expanded />
       </div>
     {/if}
     {#if discarding}
@@ -216,9 +207,8 @@
     text-transform: uppercase;
   }
   /* GameScreen sizes the hand; it fills that box and scrolls sideways.
-     --rules-lines and --flavor-display let a roomier container show whole
-     cards. A fixed-height container sets --cards-container: size, and the
-     row of cards then trims its rules text to the height it gets. */
+     A scrolling phone tray shows the full rules and flavor. A fixed-height
+     desktop container scales the portrait cards and offers a full preview. */
   .hand {
     display: flex;
     flex-direction: column;
@@ -230,9 +220,9 @@
     display: flex;
     flex: 1;
     min-height: 0;
-    gap: 0.5rem;
+    gap: 0.65rem;
     margin: 0;
-    padding: 0.2rem 0 0.4rem;
+    padding: 0.3rem 0.25rem 0.6rem;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     container-name: cards;
@@ -314,162 +304,49 @@
   }
   .card {
     flex: none;
-    width: 17rem;
+    width: 12rem;
+    height: var(--hand-card-height, 18rem);
     min-height: 0;
-    overflow: hidden;
-    display: grid;
-    grid-template-columns: 4.8rem minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
-    column-gap: 0.6rem;
-    row-gap: 0.2rem;
+    display: block;
+    padding: 0;
+    border: 2px solid #795b32;
+    border-radius: 12px;
     text-align: left;
-    padding: 0.45rem 0.55rem;
-    border-radius: 10px;
-    border: 2px solid var(--card-ink, var(--edge));
-    background: var(--paper-sheet);
-    box-shadow: inset 0 0 0 3px #fff9e8, inset 0 0 0 4px #b5944d55, 0 2px 3px #3c291c26;
+    background: #293f32;
+    box-shadow: 0 3px 0 #6a482b, 0 5px 8px #3c291c33;
     opacity: 1;
     cursor: default;
-    /* A held press previews the card instead of selecting its text. */
     user-select: none;
     -webkit-touch-callout: none;
   }
-  .card.playable {
-    opacity: 1;
-    cursor: pointer;
-  }
-  .card.playable:hover {
-    transform: translateY(-3px);
-  }
-  .card.active,
-  .card.chosen {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent);
-  }
-  .card.spell {
-    --card-ink: #77568f;
-  }
-  .card.hero {
-    --card-ink: #ad722a;
-  }
-  .card.trick {
-    --card-ink: #4d6b3a;
-  }
-  .card.story {
-    --card-ink: #b8433a;
-  }
-  .card.charter {
-    --card-ink: #8a6740;
-  }
-  /* A Charter stays face up in front of you: royal paper, not parchment. */
-  .card.charter {
-    border-color: #2d6a8f;
-    background: linear-gradient(#fbfdfe, #e1ebf0);
+  .card.playable { cursor: pointer; }
+  .card.playable:hover { transform: translateY(-3px); }
+  .card.active, .card.chosen {
+    border-color: #fff2b6;
+    box-shadow: 0 0 0 3px var(--accent), 0 5px 12px #3c291c55;
   }
   .card.back {
-    background: url("/art/manor-troll.png") center / 95% auto no-repeat, var(--forest-panel);
-    min-height: 6rem;
-    width: 4rem;
+    background: url("/art/manor-troll.png") center / 85% auto no-repeat, var(--forest-panel);
+    box-shadow: inset 0 0 0 5px #294532, inset 0 0 0 7px #cbaa62;
   }
-  .type {
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    opacity: 0.7;
-  }
-  .card-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    height: 1.5rem;
-    color: var(--card-ink);
-    flex: none;
-  }
-  .card-heading, strong, .rules, .flavor { grid-column: 2; }
-  .card-heading { grid-row: 1; }
-  strong { grid-row: 2; }
-  .rules { grid-row: 3; }
-  .flavor { grid-row: 4; }
-  .illustration {
-    grid-column: 1;
-    grid-row: 1 / -1;
-    align-self: start;
-    width: 100%;
-    aspect-ratio: 1;
-    overflow: hidden;
-    border: 1px solid #84613766;
-    border-radius: 6px;
-  }
-  .card:not(.playable):not(.peek) {
-    border-color: color-mix(in srgb, var(--card-ink, var(--edge)) 45%, var(--parchment));
-  }
-  strong {
-    font-size: 0.9rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .rules {
-    font-size: 0.78rem;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: var(--rules-lines, 3);
-    line-clamp: var(--rules-lines, 3);
-    overflow: hidden;
-  }
-  .flavor {
-    display: var(--flavor-display, none);
-    font-size: 0.7rem;
-    opacity: 0.65;
-    margin-top: auto;
-  }
-  /* Large text or the Discard button leave less height: show fewer lines
-     of rules (the hover preview has them all) instead of cutting them off. */
-  @container cards (max-height: 6.85rem) {
-    .rules {
-      -webkit-line-clamp: 2;
-      line-clamp: 2;
-    }
-  }
-  @container cards (max-height: 5.8rem) {
-    .rules {
-      -webkit-line-clamp: 1;
-      line-clamp: 1;
-    }
-  }
-  @container cards (max-height: 4.75rem) {
-    .rules {
-      display: none;
+  /* A wide dock has a fixed height. Size the physical card to that space;
+     the rail and phone sheet use the roomier portrait size above. */
+  @container cards (min-height: 0px) {
+    .card:not(.peek) {
+      height: 100%;
+      width: clamp(5rem, 68cqh, 12rem);
     }
   }
   .peek {
     position: fixed;
-    display: flex;
-    flex-direction: column;
     z-index: 40;
-    left: clamp(0.5rem, calc(var(--x) - 7.5rem), calc(100vw - 15.5rem));
+    left: clamp(8px, calc(var(--x) - 9rem), calc(100vw - 18rem - 8px));
     top: var(--y);
-    width: 15rem;
-    opacity: 1;
-    box-shadow: 0 12px 32px #0004;
+    width: min(18rem, calc(100vw - 16px));
+    height: auto;
+    max-height: calc(100dvh - 16px);
+    overflow: auto;
+    box-shadow: 0 12px 32px #0006;
     pointer-events: none;
-  }
-  .peek .illustration {
-    flex: none;
-    aspect-ratio: 3 / 2;
-    height: clamp(3rem, 19dvh, 9rem);
-  }
-  .peek .card-heading { height: auto; }
-  .peek strong {
-    white-space: normal;
-  }
-  .peek .rules {
-    display: block;
-    font-size: 0.85rem;
-  }
-  .peek .flavor {
-    display: block;
-    margin-top: 0.3rem;
   }
 </style>
