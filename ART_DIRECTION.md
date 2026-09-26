@@ -1,6 +1,6 @@
 # Storybook visual refresh
 
-Last updated: 2026-09-26. Regular card income in progress.
+Last updated: 2026-09-26. Regular card income implemented in draft PR #59; CI and review decision pending.
 
 ## User request and scope
 
@@ -935,10 +935,21 @@ The full required local check passes: typecheck, lint, 661 unit/integration
 tests (including real-map setup with 2/3/4 seats), deterministic map check and
 production build/server smoke test. Existing exact-hand card scenarios
 explicitly disable income in their fixtures; full-game and responsive layout
-tests retain the new defaults. Browser checks are in progress. The new desktop
-draw/persistence test passes. Save tests must await the Saved confirmation
-before reloading; layout fixtures count the two starting cards as well as
-their debug draws. The Advanced option was visually checked in the browser.
+tests retain the new defaults. Browser coverage passes: the initial full run
+passed 146 cases and skipped two desktop-only touch cases; all 14 failures
+were corrected test expectations/timing and then passed with the complete
+affected files (38/38). New desktop and phone draw/persistence tests pass.
+Save tests await the Saved confirmation before reloading; layout fixtures
+count the two starting cards as well as their debug draws. The Advanced
+option was visually checked in the browser.
+
+Implementation commit: `7436728`, pushed to `codex/regular-card-draws`.
+Draft PR: https://github.com/L-K-M/ManorsAndMenaces/pull/59. The workflow's
+existing draft condition skips Z.ai review; this was verified in its check
+status. Normal CI runs. User was asked to authorize sending the private diffs
+for both #58 and #59 to Z.ai, waive external review and merge after CI, or
+leave both open. Await that choice before marking ready or merging. No
+external review rounds completed. Preserve the separate local visual preview.
 
 ### Card-economy balance evidence
 
