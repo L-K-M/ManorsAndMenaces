@@ -231,6 +231,25 @@ test("an all-computer game can begin, with a note that you will watch", async ({
   await expect(page.locator(".round")).toBeVisible();
 });
 
+test("New Game starts with the name you last played under", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New game" }).click();
+  const yourName = page.getByLabel("Name of player 1");
+  await expect(yourName).toHaveValue("Alice");
+  await yourName.fill("Lukas");
+  await page.getByRole("button", { name: "Begin" }).click();
+  await expect(page.locator(".round")).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("button", { name: "New game" }).click();
+  await expect(yourName).toHaveValue("Lukas");
+  // Handing the seat to a computer and taking it back keeps your name.
+  await page.getByLabel("Player 1 type").selectOption("ai");
+  await expect(yourName).not.toHaveValue("Lukas");
+  await page.getByLabel("Player 1 type").selectOption("human");
+  await expect(yourName).toHaveValue("Lukas");
+});
+
 test("New Game shows the Renown target for each player count", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "New game" }).click();

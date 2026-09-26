@@ -7,6 +7,7 @@
   import type { AiLevel, MatchHistoryResponse, MatchView, SeatConfig } from "@manors-menaces/protocol";
   import { mapFor } from "../game/engine.js";
   import { historyLog } from "../game/log.js";
+  import { rememberName, rememberedName } from "../game/playerName.js";
   import { ui } from "../stores/ui.svelte.js";
   import { GameSession } from "../game/session.svelte.js";
   import { ApiError, OnlineClient, onlineTransport } from "./client.js";
@@ -20,7 +21,7 @@
   let { onopen, onback }: { onopen: (s: GameSession) => void; onback: () => void } = $props();
 
   const client = new OnlineClient();
-  let name = $state(client.displayName || "");
+  let name = $state(client.displayName || rememberedName());
   let serverUrl = $state(client.serverUrl);
   let signedIn = $state(!!client.token);
   let error: string | null = $state(null);
@@ -83,6 +84,7 @@
 
   async function signIn() {
     client.serverUrl = serverUrl.trim();
+    rememberName(name);
     await guard(async () => {
       await client.ensureGuest(name.trim() || "Guest");
       signedIn = true;
