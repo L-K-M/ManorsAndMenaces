@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GREENVALE_MAP as map } from "@manors-menaces/content";
 import {
+  HARVEST_NOTES,
   RULESET_VERSION,
   UNDO_SAFE_COMMANDS,
   getLegalActions,
@@ -35,6 +36,11 @@ describe("planHarvestFlights", () => {
 
     expect(plan.flights.map((f) => f.resource)).toEqual(["grain", "grain"]);
     expect(plan.badges.map((b) => b.note)).toEqual(["druids_blessing"]);
+  });
+
+  it("badges every kind of Harvest note, a sick Banner above a Menace's", () => {
+    for (const note of HARVEST_NOTES) expect(planHarvestFlights([harvested(r1.id, null, 0, [note])], map).badges.map((b) => b.note)).toEqual([note]);
+    expect(planHarvestFlights([harvested(r1.id, null, 0, ["taken_by_dragon", "sick"])], map).badges.map((b) => b.note)).toEqual(["sick"]);
   });
 
   it("prefers the Menace's note when a harvest has several", () => {

@@ -86,6 +86,16 @@ export const CARD_EFFECT_IDS = [
   "very_minor_prophecy",
   "fog_of_confusion",
   "dragon_whisperer",
+  "changeling",
+  "ragnarok",
+  "fire_bolt",
+  "dragons_landing",
+  "transmutation_magic",
+  "the_plague",
+  "royal_insurance_policy",
+  "robin_of_the_glade",
+  "unreliable_bard",
+  "treasure_hunter",
 ] as const;
 export type CardEffectId = (typeof CARD_EFFECT_IDS)[number];
 
@@ -100,6 +110,12 @@ export interface CardRulesDefinition {
   requiresMenace?: MenaceType;
   /** Needs two active Menaces that stand on the same kind of place (Teleportation Mishap, §19.5). */
   requiresMenacePair?: true;
+  /**
+   * Kept out of the draw pile at setup and shuffled in only once the endgame
+   * is foretold: a player comes within `BALANCE.ragnarok.omenGap` Renown of
+   * victory (Ragnarök, §19.13).
+   */
+  setAside?: true;
 }
 
 /** Every Quest condition the engine implements (content tests check each is used). */
@@ -240,6 +256,8 @@ export interface PlayerState {
   holdingIds: HoldingId[];
   routeIds: RouteId[];
   claimedQuestIds: QuestId[];
+  /** Charter cards kept face up in front of the player (§18.1). Absent in older saves. */
+  charters?: CardId[];
   stats: PlayerStats;
   marketTradesThisTurn: number;
   nonReactionCardsPlayedThisTurn: number;
@@ -260,7 +278,11 @@ export interface SetupProgress {
 
 export type ActiveEffect =
   | { kind: "fog"; routeId: RouteId; sourcePlayerId: PlayerId }
-  | { kind: "druids_blessing"; bannerId: BannerId; sourcePlayerId: PlayerId };
+  | { kind: "druids_blessing"; bannerId: BannerId; sourcePlayerId: PlayerId }
+  /** The Plague: the Banner produces nothing at its owner's next Harvest. */
+  | { kind: "sick"; bannerId: BannerId; sourcePlayerId: PlayerId }
+  /** Fire Bolt: only the burned Route's former owner may rebuild it until the end of their next turn. */
+  | { kind: "smouldering"; routeId: RouteId; ownerId: PlayerId; sourcePlayerId: PlayerId };
 
 /** A decision the game is waiting on before normal play resumes (§109). */
 export type PendingDecision =
@@ -291,7 +313,17 @@ export type CardTarget =
   | { effect: "festival_at_the_inn"; choice: ResourceType }
   | { effect: "very_minor_prophecy" }
   | { effect: "fog_of_confusion"; routeId: RouteId }
-  | { effect: "dragon_whisperer"; destination: MenaceLocation; take?: ResourceType };
+  | { effect: "dragon_whisperer"; destination: MenaceLocation; take?: ResourceType }
+  | { effect: "changeling"; opponentId: PlayerId }
+  | { effect: "ragnarok" }
+  | { effect: "fire_bolt"; routeId: RouteId }
+  | { effect: "dragons_landing" }
+  | { effect: "transmutation_magic"; give: [ResourceType, ResourceType]; receive: [ResourceType, ResourceType] }
+  | { effect: "the_plague"; siteId: SiteId }
+  | { effect: "royal_insurance_policy" }
+  | { effect: "robin_of_the_glade"; resource: ResourceType }
+  | { effect: "unreliable_bard" }
+  | { effect: "treasure_hunter"; take: ResourceType; destination: MenaceLocation };
 
 export interface GameState {
   revision: number;
@@ -318,6 +350,8 @@ export interface GameState {
 
   cardDeck: CardId[];
   discardPile: CardId[];
+  /** Face-up cards waiting outside the draw pile for the endgame omen (see CardRulesDefinition.setAside). */
+  setAsideCardIds?: CardId[];
 
   questDeck: QuestId[];
   revealedQuestIds: QuestId[];
@@ -328,6 +362,8 @@ export interface GameState {
   pending?: PendingDecision;
   nextIds: { holding: number; banner: number };
   winnerId?: PlayerId;
+  /** How a finished game ended, when not by reaching the target (§7). */
+  endCause?: "ragnarok";
   /** equalTurns: the target has been reached; the game ends with this round. */
   endTriggered?: boolean;
 }

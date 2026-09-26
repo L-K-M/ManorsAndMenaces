@@ -164,6 +164,19 @@ describe("expansion planning", () => {
     expect(planExpansion(engine.ctx, robbed, me)).toMatchObject({ siteId: "s5", routes: 0 });
   });
 
+  it("does not plan through a Route that smoulders for someone else", () => {
+    const { state, me } = position({ timber: 1 });
+    const other = state.turnOrder.find((id) => id !== me) as PlayerId;
+    const burned = (ownerId: PlayerId): GameState => ({
+      ...state,
+      activeEffects: [...state.activeEffects, { kind: "smouldering", routeId: routeId(2, 3), ownerId, sourcePlayerId: other }],
+    });
+    // Fire Bolt burned it from the other player: only they may rebuild it for now.
+    expect(planExpansion(engine.ctx, burned(other), me)).toBeNull();
+    // Burned from this player: it is theirs to rebuild.
+    expect(planExpansion(engine.ctx, burned(me), me)).toMatchObject({ siteId: "s5", routes: 2 });
+  });
+
   it("takes the first step with only enough for one Route", () => {
     const { state, me } = position({ timber: 1, stone: 1 });
     expect(chooseAction(engine, state, me, { level: "normal", rng: createRng(seedRng("one")) })).toEqual({

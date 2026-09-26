@@ -28,9 +28,17 @@ export const BALANCE = {
   questExpiryRounds: 4,
   initialManors: 2,
   prophecyCards: 3,
+  /** Ragnarök is foretold once a player is this close to the target Renown (§19.13). */
+  ragnarok: { omenGap: 3 },
+  /** Dragon's Landing only strikes players with at least this many Holdings (§19.15). */
+  dragonsLanding: { minHoldings: 3 },
+  /** Most resources Treasure Hunter takes from the Hoard (§19.21). */
+  treasureHunter: { take: 3 },
+  /** How far behind a rival The Unreliable Bard's player must be (§19.20). */
+  underdogGap: 2,
 } as const;
 
-export const RULESET_VERSION = "0.4.0";
+export const RULESET_VERSION = "0.5.0";
 
 /** Fixed Menace sets by player count (spec §118). */
 export function standardMenaces(playerCount: number): MenaceType[] {

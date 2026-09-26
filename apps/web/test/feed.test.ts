@@ -107,6 +107,92 @@ describe("feedItemsFor", () => {
   });
 });
 
+describe("feedItemsFor: second-wave cards", () => {
+  const route = map.routes[0]!;
+  const place = siteName(map, site.id);
+
+  it("tells a burned Route to its owner as aimed at them, with where it smoulders", () => {
+    const burned: GameEvent = { type: "route_burned", byPlayerId: "P2", ownerId: "P1", routeId: route.id };
+
+    const [mine] = feedItemsFor([burned], state, map, "P1");
+    const [theirs] = feedItemsFor([burned], state, map, "P3");
+
+    expect(mine).toMatchObject({
+      actorId: "P2",
+      text: `Bertram burned down your Route by ${routeName(map, route.id)}. Only you may rebuild it until your next turn ends`,
+      againstViewer: true,
+    });
+    expect(mine?.at).toBeTruthy();
+    expect(theirs).toMatchObject({ text: `Bertram burned down Alice's Route by ${routeName(map, route.id)}`, againstViewer: false });
+    expect(feedItemsFor([burned], state, map, "P2")).toEqual([]);
+  });
+
+  it("tells everyone, the caster too, where the random dragon struck", () => {
+    const events: GameEvent[] = [
+      { type: "dragon_landed", byPlayerId: "P2", ownerId: "P1", holdingId: "h1", siteId: site.id },
+      { type: "holding_destroyed", byPlayerId: "P2", ownerId: "P1", holdingId: "h1", siteId: site.id, bannerIds: ["b1"] },
+    ];
+
+    expect(feedItemsFor(events, state, map, "P2")).toEqual([
+      { actorId: null, text: `A dragon burned down Alice's Manor at ${place}`, at: { x: site.x, y: site.y }, gains: null, againstViewer: false, self: false },
+    ]);
+    expect(feedItemsFor(events, state, map, "P1")).toMatchObject([{ text: `A dragon burned down your Manor at ${place}`, againstViewer: true }]);
+  });
+
+  it("points a policy that turned the dragon away at the landing site, for its holder too", () => {
+    const events: GameEvent[] = [
+      { type: "dragon_landed", byPlayerId: "P2", ownerId: "P1", holdingId: "h1", siteId: site.id },
+      { type: "insurance_claimed", playerId: "P1", cardId: "royal_insurance_policy#1", against: "dragons_landing" },
+    ];
+
+    expect(feedItemsFor(events, state, map, "P1")).toMatchObject([
+      { actorId: "P1", text: "Your Royal Insurance Policy protected you from Dragon's Landing", at: { x: site.x, y: site.y } },
+    ]);
+    expect(feedItemsFor(events, state, map, "P2")).toMatchObject([{ text: "Alice's Royal Insurance Policy protected them from Dragon's Landing" }]);
+  });
+
+  it("counts the viewer's own Banners the Plague sickened", () => {
+    const banner = (id: string, ownerId: string) => ({ id, ownerId, holdingId: "h", regionId: r1.id, settled: true });
+    const sickened: GameState = { ...state, banners: { b1: banner("b1", "P1"), b2: banner("b2", "P3"), b3: banner("b3", "P3") } };
+    const plague: GameEvent = { type: "effect_started", effect: "plague", siteId: site.id, bannerIds: ["b1", "b2", "b3"], playerId: "P2" };
+
+    expect(feedItemsFor([plague], sickened, map, "P1")).toMatchObject([
+      { actorId: "P2", text: `Bertram spread the Plague around ${place}: 1 of your Banners fell sick`, at: { x: site.x, y: site.y }, againstViewer: true },
+    ]);
+    expect(feedItemsFor([plague], sickened, map, "P2")).toEqual([]);
+  });
+
+  it("tells a hand swap and a card's taking to the player they hit", () => {
+    const swap: GameEvent = { type: "hands_swapped", playerId: "P2", opponentId: "P1", handSize: 4, opponentHandSize: 2 };
+    const taken: GameEvent = { type: "resource_transferred", fromPlayerId: "P1", toPlayerId: "P2", resource: "grain", amount: 1, reason: "card_effect" };
+
+    expect(feedItemsFor([swap, taken], state, map, "P1")).toMatchObject([
+      { text: "Bertram swapped hands with you: you now hold 2 card(s)", againstViewer: true },
+      { text: "Bertram took 1 Grain from you", againstViewer: true },
+    ]);
+    expect(feedItemsFor([swap, taken], state, map, "P3").map((i) => i.text)).toEqual(["Bertram swapped hands with Alice"]);
+    expect(feedItemsFor([taken], state, map, "P2")).toEqual([]);
+  });
+
+  it("marks the omen for every viewer", () => {
+    const omen: GameEvent = { type: "card_foretold", cardId: "ragnarok#1" };
+
+    for (const viewer of ["P1", "P2", null]) {
+      expect(feedItemsFor([omen], state, map, viewer)).toEqual([
+        {
+          actorId: null,
+          text: "Ragnarök has been foretold! It now lies somewhere in the deck",
+          at: null,
+          gains: null,
+          againstViewer: false,
+          self: false,
+          omen: true,
+        },
+      ]);
+    }
+  });
+});
+
 describe("listText", () => {
   it("joins with commas and a final 'and'", () => {
     expect(listText(["A"])).toBe("A");

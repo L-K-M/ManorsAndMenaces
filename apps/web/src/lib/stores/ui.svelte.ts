@@ -12,7 +12,19 @@ export type Pick =
   | { kind: "site"; id: string }
   | { kind: "location"; location: MenaceLocation };
 
-export type Dialog = null | "market" | "settings" | "writ" | "arcane" | "festival" | "hoard" | "rules" | "save" | "menu";
+/**
+ * Card choices made in a dialog rather than on the board. Each is also the
+ * name of the dialog that makes it (Dialogs.svelte).
+ */
+export const CARD_DIALOGS = ["arcane", "resource", "hoard", "player", "transmutation"] as const;
+export type CardDialog = (typeof CARD_DIALOGS)[number];
+
+export function isCardDialog(pick: string | null): pick is CardDialog {
+  return (CARD_DIALOGS as readonly (string | null)[]).includes(pick);
+}
+
+/** `card_confirm` spells out a card's effect before it is played (see CONFIRMED_CARDS). */
+export type Dialog = null | "market" | "settings" | "writ" | CardDialog | "card_confirm" | "rules" | "save" | "menu";
 
 export interface UiState {
   tool: Tool;
@@ -59,6 +71,8 @@ export function resetTool(): void {
   ui.writTargetId = null;
   ui.cardId = null;
   ui.cardPicks = {};
+  // A card's dialogs belong to the card being played.
+  if (isCardDialog(ui.dialog) || ui.dialog === "card_confirm") ui.dialog = null;
 }
 
 export function locationKey(loc: MenaceLocation): string {
@@ -67,9 +81,12 @@ export function locationKey(loc: MenaceLocation): string {
 
 // ------------------------------------------------------------------ card target steps
 
-export type TargetField = { field: string; pick: Pick["kind"] | "dialog" | "hoard" };
+export type TargetField = { field: string; pick: Pick["kind"] | CardDialog };
 
-/** Which board picks each card needs, in order (spec §47.2: click/tap, not drag). */
+/**
+ * Which picks each card needs, in order: a board piece to click or tap (spec
+ * §47.2: not drag) or a dialog. Options always come from enumerateCardTargets.
+ */
 export const CARD_STEPS: Record<CardTarget["effect"], TargetField[]> = {
   wizard_interference: [
     { field: "bannerId", pick: "banner" },
@@ -85,15 +102,37 @@ export const CARD_STEPS: Record<CardTarget["effect"], TargetField[]> = {
     { field: "menaceIdB", pick: "menace" },
   ],
   bribe_the_troll: [{ field: "destination", pick: "location" }],
-  arcane_exchange: [{ field: "give", pick: "dialog" }],
-  festival_at_the_inn: [{ field: "choice", pick: "dialog" }],
+  // The dialog picks `receive` too.
+  arcane_exchange: [{ field: "give", pick: "arcane" }],
+  festival_at_the_inn: [{ field: "choice", pick: "resource" }],
   very_minor_prophecy: [],
   fog_of_confusion: [{ field: "routeId", pick: "route" }],
   dragon_whisperer: [
     { field: "destination", pick: "location" },
     { field: "take", pick: "hoard" },
   ],
+  changeling: [{ field: "opponentId", pick: "player" }],
+  ragnarok: [],
+  fire_bolt: [{ field: "routeId", pick: "route" }],
+  dragons_landing: [],
+  // The dialog picks `receive` too.
+  transmutation_magic: [{ field: "give", pick: "transmutation" }],
+  the_plague: [{ field: "siteId", pick: "site" }],
+  royal_insurance_policy: [],
+  robin_of_the_glade: [{ field: "resource", pick: "resource" }],
+  unreliable_bard: [],
+  // The card reads "take, then move": the Hoard first, then the Dragon.
+  treasure_hunter: [
+    { field: "take", pick: "hoard" },
+    { field: "destination", pick: "location" },
+  ],
 };
+
+/**
+ * Cards whose outcome is drastic or easy to misjudge: once every target is
+ * picked, a dialog spells out what will happen before the card is played.
+ */
+export const CONFIRMED_CARDS: ReadonlySet<CardTarget["effect"]> = new Set(["ragnarok", "dragons_landing", "the_plague"]);
 
 export function valueKey(v: unknown): string {
   if (v && typeof v === "object" && "kind" in (v as object)) return locationKey(v as MenaceLocation);

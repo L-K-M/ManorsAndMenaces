@@ -56,6 +56,7 @@ export function rulesContentFor(mapId: string = GREENVALE_MAP.id): RulesContent 
       copies: c.copies,
       ...(c.requiresMenace ? { requiresMenace: c.requiresMenace } : {}),
       ...(c.requiresMenacePair ? { requiresMenacePair: true as const } : {}),
+      ...(c.setAside ? { setAside: true as const } : {}),
     })),
     quests: QUESTS.map((q) => ({ id: q.id, renown: q.renown, conditionId: q.conditionId, exclusive: q.exclusive })),
   };

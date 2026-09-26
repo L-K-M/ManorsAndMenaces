@@ -4,6 +4,7 @@
   // board to inspect; the "Game over" button brings it back.
   import { RESOURCE_TYPES, type PlayerId } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
+  import { endCauseOf } from "../game/log.js";
   import { buildMatchReport, renownChart, type AwardId, type MatchStats } from "../game/matchReport.js";
   import { planRematch } from "../game/rematch.js";
   import type { GameSession } from "../game/session.svelte.js";
@@ -20,9 +21,12 @@
       session.engine,
       session.authoritative,
       session.transport.kind === "local" ? { initial: session.initialState, commands: session.history } : null,
+      endCauseOf(session.log),
     ),
   );
   const winner = $derived(report.standings[0]);
+  // Ragnarök ended the world: the winner may be short of the target.
+  const ragnarok = $derived(report.endCause === "ragnarok");
   const chart = $derived(
     report.timeline
       ? renownChart(
@@ -54,7 +58,10 @@
   const animScale = $derived(animationScale());
   const celebrate = $derived(animScale > 0);
   const leaves = $derived.by(() => {
-    const palette = [wt.color, wt.light, wt.color, "#6fae5a", "#d19a12", "#b8662a", "#8fbf5a"];
+    // After Ragnarök, ash and embers fall instead of leaves.
+    const palette = ragnarok
+      ? [wt.color, "#3a3330", "#6b625c", "#d9541e", "#f39c34", "#8b8580", "#2b1d14"]
+      : [wt.color, wt.light, wt.color, "#6fae5a", "#d19a12", "#b8662a", "#8fbf5a"];
     return Array.from({ length: LEAF_COUNT }, (_, i) => ({
       left: Math.random() * 100,
       delay: (Math.random() * 1.6 + (i % 3) * 0.35) * animScale,
@@ -160,10 +167,11 @@
     <div
       class="victory"
       class:celebrate
+      class:ragnarok
       bind:this={dialog}
       role="dialog"
       aria-modal="true"
-      aria-label={t("ui.victory")}
+      aria-label={ragnarok ? t("ui.victory_ragnarok") : t("ui.victory")}
       tabindex="-1"
       onkeydown={keydown}
       style="--pc: {wt.color}; --pl: {wt.light}; --pd: {wt.dark}; --anim-scale: {animScale}"
@@ -176,15 +184,20 @@
           <path d={emblemPath(wt.shape, 11)} transform="translate(0,30)" class="emblem" />
         </svg>
         <div class="title">
-          <p class="eyebrow">{t("ui.victory")}</p>
+          <p class="eyebrow">{ragnarok ? t("ui.victory_ragnarok") : t("ui.victory")}</p>
           <h2>{winner.name}</h2>
-          <p class="sub">{t("ui.victory_subtitle", { renown: winner.renown.total, round: report.round })}</p>
+          <p class="sub">
+            {ragnarok
+              ? t("ui.victory_subtitle_ragnarok", { renown: winner.renown.total, round: report.round })
+              : t("ui.victory_subtitle", { renown: winner.renown.total, round: report.round })}
+          </p>
         </div>
         <button class="close" aria-label={t("ui.close")} onclick={close}><ToolIcon name="close" size={20} /></button>
       </header>
 
       <div class="body">
         <div class="col">
+          {#if ragnarok}<p class="note ragnarok-note">{t("ui.ragnarok_ending")}</p>{/if}
           <section class="sec-standings">
             <h3>{t("ui.final_standings")}</h3>
             <ol class="standings">
@@ -398,6 +411,12 @@
       linear-gradient(115deg, var(--pd), var(--pc) 60%, color-mix(in srgb, var(--pc) 70%, #d19a12));
     color: #fffaf0;
     border-bottom: 3px solid #8a7650;
+  }
+  /* Ragnarök: the crown is won among the ashes. */
+  .ragnarok .hero {
+    background:
+      radial-gradient(circle at 12% 0%, #f39c3444 0 20%, transparent 55%),
+      linear-gradient(115deg, #1c1410, #4a2416 55%, color-mix(in srgb, var(--pc) 55%, #1c1410));
   }
   .pennant {
     flex: none;
@@ -852,6 +871,11 @@
     border: 1px dashed #8a7650aa;
     font-size: 0.85rem;
     font-style: italic;
+  }
+  .ragnarok-note {
+    border: 1px solid #d9541e;
+    background: #fff0e8;
+    color: #5a2210;
   }
 
   /* ---------------------------------------------------------------- footer */

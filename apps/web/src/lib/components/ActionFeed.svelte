@@ -9,6 +9,7 @@
   import { t } from "../i18n.js";
   import type { FeedbackController } from "../game/feedback.svelte.js";
   import type { FeedItem } from "../game/feed.js";
+  import { FLAME_PATH } from "../game/board-view.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { layoutFor } from "../layout.js";
   import { animationScale } from "../stores/settings.svelte.js";
@@ -50,7 +51,13 @@
 {#snippet emblem(item: FeedItem)}
   {@const th = theme(item.actorId)}
   <svg class="emblem" width="18" height="18" viewBox="-9 -9 18 18" aria-hidden="true">
-    {#if th}<path d={emblemPath(th.shape, 6.5)} fill={th.color} stroke={th.dark} stroke-width="1.5" />{:else}<circle r="6" fill="#3b3b46" />{/if}
+    {#if th}
+      <path d={emblemPath(th.shape, 6.5)} fill={th.color} stroke={th.dark} stroke-width="1.5" />
+    {:else if item.omen}
+      <path d={FLAME_PATH} fill="#f39c34" stroke="#7a1d10" stroke-width="1.2" />
+    {:else}
+      <circle r="6" fill="#3b3b46" />
+    {/if}
   </svg>
 {/snippet}
 
@@ -82,7 +89,7 @@
       {#if open}
         <ol>
           {#each digest.items.slice(-lines) as item}
-            <li class:against={item.againstViewer} style="--pc: {theme(item.actorId)?.color ?? '#3b3b46'}">
+            <li class:against={item.againstViewer} class:omen={item.omen} style="--pc: {theme(item.actorId)?.color ?? '#3b3b46'}">
               {@render emblem(item)}{@render body(item)}
             </li>
           {/each}
@@ -101,6 +108,7 @@
         class="toast"
         class:against={item.againstViewer}
         class:self={item.self}
+        class:omen={item.omen}
         data-player-target={item.actorId}
         style="--pc: {theme(item.actorId)?.color ?? '#3b3b46'}"
         in:fly={{ x: 40, duration: 260 * scale }}
@@ -155,6 +163,14 @@
     border-left-color: var(--pc);
   }
   .toast.self {
+    font-weight: 700;
+  }
+  /* The endgame foretold: embers on ash, louder than any move. */
+  .toast.omen {
+    background: linear-gradient(100deg, #2a1d17, #52271a);
+    color: #ffe9cf;
+    border-color: #d9541e;
+    border-left-color: #f39c34;
     font-weight: 700;
   }
   .emblem {
@@ -243,6 +259,10 @@
     padding: 0;
     display: grid;
     gap: 0.3rem;
+  }
+  .digest li.omen {
+    font-weight: 700;
+    color: #8a2a12;
   }
   .digest li.against {
     margin-left: -0.35rem;

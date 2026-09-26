@@ -7,7 +7,7 @@
   import { t } from "../i18n.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { onPick, type Highlights } from "../game/interaction.js";
-  import { BoardAlign, LABEL, bannerSlot, boardToScreen, labelLod, nameLineLength, noteSlots, placeNote, screenScale, strokeWidth, wrapLabel, type Circle, type Rect, type Segment } from "../game/board-view.js";
+  import { BoardAlign, FLAME_PATH, LABEL, SICK_MARK, bannerSlot, boardToScreen, labelLod, nameLineLength, noteSlots, placeNote, screenScale, strokeWidth, wrapLabel, type Circle, type Rect, type Segment } from "../game/board-view.js";
   import { describePick } from "../game/inspect.js";
   import { regionName } from "../game/log.js";
   import { ui, type Pick } from "../stores/ui.svelte.js";
@@ -107,6 +107,12 @@
   }
 
   const fogged = $derived(new Set(gs.activeEffects.filter((e) => e.kind === "fog").map((e) => (e.kind === "fog" ? e.routeId : ""))));
+  // Fire Bolt leaves a Route smouldering (only its former owner may rebuild
+  // it for now); The Plague leaves Banners sick until their owner's Harvest.
+  const smouldering = $derived(new Map(gs.activeEffects.flatMap((e) => (e.kind === "smouldering" ? [[e.routeId, e.ownerId] as const] : []))));
+  const sick = $derived(new Set(gs.activeEffects.flatMap((e) => (e.kind === "sick" ? [e.bannerId] : []))));
+  /** Where a sick Banner's mark sits, relative to the Banner's foot. */
+  const SICK_AT = { x: 12, y: -27 } as const;
 
   // ------------------------------------------------------------------ input
   let svgEl: SVGSVGElement | undefined = $state();
@@ -293,7 +299,7 @@
     const owner = gs.players[b.ownerId]?.displayName ?? "";
     const r = bannerRegion(b);
     const place = r ? t("aria.banner_in", { owner, region: regionName(map, r) }) : t("aria.banner_home", { owner });
-    return b.settled ? `${place}${t("aria.banner_settled")}` : place;
+    return `${place}${b.settled ? t("aria.banner_settled") : ""}${sick.has(b.id) ? t("aria.banner_sick") : ""}`;
   };
   const myBanners = $derived(new Set(session.localActor ? getPlayerBanners(gs, session.localActor).map((b) => b.id) : []));
 
@@ -368,7 +374,10 @@
         if (s.tradePost) obstacles.circles.push({ x: s.x - 22 - (postScale - 1) * 8, y: s.y - 18 - (postScale - 1) * 8, r: 10 * postScale });
       }
       for (const menace of Object.values(gs.menaces)) obstacles.circles.push({ ...menacePos(menace), r: 22 });
-      for (const pos of bannerPositions.values()) obstacles.circles.push({ x: pos.x + 3, y: pos.y - 11, r: 16 });
+      for (const [id, pos] of bannerPositions) {
+        obstacles.circles.push({ x: pos.x + 3, y: pos.y - 11, r: 16 });
+        if (sick.has(id)) obstacles.circles.push({ x: pos.x + SICK_AT.x, y: pos.y + SICK_AT.y, r: 7 });
+      }
       for (const route of map.routes) {
         const a = sitesById.get(route.siteA);
         const b = sitesById.get(route.siteB);
@@ -617,6 +626,7 @@
       {@const a = sitesById.get(route.siteA)}
       {@const b = sitesById.get(route.siteB)}
       {@const owner = gs.routeOwners[route.id]}
+      {@const embers = owner ? undefined : smouldering.get(route.id)}
       {@const isHl = hl.routes.has(route.id) || hl.locations.has(`route:${route.id}`)}
       {#if a && b}
         <g
@@ -624,7 +634,7 @@
           class:hl={isHl}
           role="button"
           tabindex={isHl || !targeting ? 0 : -1}
-          aria-label="{t(`route.${route.kind}`)} {owner ? `owned by ${gs.players[owner]?.displayName}` : 'unowned'}"
+          aria-label="{t(`route.${route.kind}`)} {owner ? `owned by ${gs.players[owner]?.displayName}` : 'unowned'}{embers ? t('aria.route_smouldering') : ''}"
           onclick={() => pick(hl.locations.has(`route:${route.id}`) ? { kind: "location", location: { kind: "route", routeId: route.id } } : { kind: "route", id: route.id })}
           onkeydown={(e) => key(e, { kind: "route", id: route.id })}
           onpointerenter={(e) => hoverIn(e, { kind: "route", id: route.id })}
@@ -639,6 +649,16 @@
             <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={rt.color} stroke-width="8" stroke-linecap="round" />
             {#if route.kind === "bridge"}<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={rt.dark} stroke-opacity="0.4" stroke-width="7" stroke-dasharray="1.2 2.6" />{/if}
             <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} transform="translate(-1.2,-1.4)" stroke={rt.light} stroke-opacity="0.8" stroke-width="1.8" stroke-linecap="round" />
+          {:else if embers}
+            {@const et = playerTheme(embers)}
+            <!-- burned (Fire Bolt): a charred bed, the former owner's colour in cinders, glowing embers and a flame -->
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#2b1d14" stroke-opacity="0.85" stroke-width="11" stroke-linecap="round" />
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={et.color} stroke-opacity="0.6" stroke-width="4.5" stroke-dasharray="7 6" stroke-linecap="round" />
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} class="embers" stroke-width="3.4" stroke-dasharray="0.1 8.5" stroke-linecap="round" />
+            <g class="flame" transform="translate({(a.x + b.x) / 2},{(a.y + b.y) / 2 - 7})">
+              <path d={FLAME_PATH} fill="#f07b1f" stroke="#7a1d10" stroke-width="1.3" />
+              <path d={FLAME_PATH} transform="translate(0,2.5) scale(0.5)" fill="#ffd23f" />
+            </g>
           {:else}
             <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#8a7650" stroke-width="4" stroke-dasharray={route.kind === "trail" ? "3 7" : "10 6"} stroke-linecap="round" opacity="0.75" />
           {/if}
@@ -738,6 +758,18 @@
           <line x1="-4.8" y1="-22.8" x2="9" y2="-19" stroke={theme.light} stroke-width="1.2" stroke-linecap="round" opacity="0.85" />
           <path d={emblemPath(theme.shape, 2.4)} transform="translate(0,-18)" fill={theme.light} pointer-events="none" />
           {#if !banner.settled}<circle cx="-6" cy="4" r="2.5" fill="#fffaf0" stroke={theme.dark} />{/if}
+          {#if sick.has(banner.id)}
+            <!-- The Plague: the flag turns sickly and a queasy face rides its tip -->
+            <path d="M-6,-24 L12,-19 L-6,-12 Z" fill={SICK_MARK.color} opacity="0.55" pointer-events="none" />
+            <path
+              d={SICK_MARK.glyph}
+              transform="translate({SICK_AT.x},{SICK_AT.y}) scale(0.55)"
+              class="sick-mark"
+              fill={SICK_MARK.color}
+              fill-rule="evenodd"
+              pointer-events="none"
+            />
+          {/if}
           {#if isHl || selected}
             <circle cx="3" cy="-12" r={bannerRing} class="hl-casing" stroke-width={px(5, 6)} pointer-events="none" />
             <circle cx="3" cy="-12" r={bannerRing} class="hl-ring" stroke-width={px(2.5, 3)} pointer-events="none" />
@@ -930,6 +962,18 @@
     font: 700 9px/1 var(--font-body);
     fill: #7a5a1a;
   }
+  /* Embers on a burned Route flicker unless animations are off (--dur 0). */
+  .embers {
+    stroke: #ff9a2e;
+    animation: flicker calc(var(--dur) * 1.3s) ease-in-out infinite alternate;
+  }
+  .flame {
+    filter: drop-shadow(0 0 3px #ff8a1c);
+  }
+  .sick-mark {
+    stroke: #3f5212;
+    stroke-width: 1.6;
+  }
   .hoard {
     font: 700 12px/1 var(--font-body);
     fill: #7a1d10;
@@ -1104,6 +1148,16 @@
     }
     to {
       opacity: 1;
+    }
+  }
+  @keyframes flicker {
+    from {
+      stroke: #ffcf4a;
+      opacity: 1;
+    }
+    to {
+      stroke: #c2371a;
+      opacity: 0.65;
     }
   }
   @keyframes veil-in {

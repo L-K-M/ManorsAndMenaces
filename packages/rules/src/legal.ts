@@ -4,7 +4,7 @@
 import { BALANCE } from "./balance.js";
 import { validateCardTarget } from "./cards.js";
 import type { RulesContext } from "./context.js";
-import { RuleViolation } from "./errors.js";
+import { RuleViolation, unreachable } from "./errors.js";
 import { getQuestProgress } from "./quests.js";
 import { canAfford, totalResources } from "./resources.js";
 import {
@@ -161,7 +161,7 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
   const canBuyCard = r.enableCards && state.cardDeck.length + state.discardPile.length > 0 && canAfford(p.resources, BALANCE.costs.card);
   const playableCards =
     r.enableCards && p.nonReactionCardsPlayedThisTurn < r.maxNonReactionCardsPerTurn
-      ? p.hand.filter((c) => c !== HIDDEN_CARD && ctx.cardOf(c).timing.includes("main") && enumerateCardTargets(ctx, state, playerId, c).length > 0)
+      ? p.hand.filter((c) => c !== HIDDEN_CARD && ctx.cardOf(c).timing.includes("main") && hasCardTarget(ctx, state, playerId, c))
       : [];
   const claimableQuests = r.enableQuests
     ? state.revealedQuestIds.filter((q) => !p.claimedQuestIds.includes(q) && getQuestProgress(ctx, state, playerId, q).complete)
@@ -196,6 +196,26 @@ function ownedTradePosts(ctx: RulesContext, state: GameState, playerId: PlayerId
 
 /** All valid targets for a card in hand (used by the AI and UI pickers). */
 export function enumerateCardTargets(ctx: RulesContext, state: GameState, playerId: PlayerId, cardId: CardId): CardTarget[] {
+  return cardTargetCandidates(ctx, state, playerId, cardId).filter((t) => isValidCardTarget(ctx, state, playerId, cardId, t));
+}
+
+/** Whether the card has any valid target; stops at the first (Transmutation Magic lists up to 110). */
+function hasCardTarget(ctx: RulesContext, state: GameState, playerId: PlayerId, cardId: CardId): boolean {
+  return cardTargetCandidates(ctx, state, playerId, cardId).some((t) => isValidCardTarget(ctx, state, playerId, cardId, t));
+}
+
+function isValidCardTarget(ctx: RulesContext, state: GameState, playerId: PlayerId, cardId: CardId, target: CardTarget): boolean {
+  try {
+    validateCardTarget(ctx, state, playerId, cardId, target);
+    return true;
+  } catch (e) {
+    if (e instanceof RuleViolation) return false;
+    throw e;
+  }
+}
+
+/** Target shapes worth validating for a card; a superset of the valid ones. */
+function cardTargetCandidates(ctx: RulesContext, state: GameState, playerId: PlayerId, cardId: CardId): CardTarget[] {
   const def = ctx.cardOf(cardId);
   const candidates: CardTarget[] = [];
   const menaces = Object.values(state.menaces);
@@ -254,18 +274,48 @@ export function enumerateCardTargets(ctx: RulesContext, state: GameState, player
       }
       break;
     }
+    case "changeling":
+      for (const opponentId of state.turnOrder) if (opponentId !== playerId) candidates.push({ effect: "changeling", opponentId });
+      break;
+    case "ragnarok":
+    case "dragons_landing":
+    case "royal_insurance_policy":
+    case "unreliable_bard":
+      candidates.push({ effect: def.effectId });
+      break;
+    case "fire_bolt":
+      for (const [routeId, owner] of Object.entries(state.routeOwners)) if (owner !== playerId) candidates.push({ effect: "fire_bolt", routeId });
+      break;
+    case "transmutation_magic":
+      // Unordered pairs only: giving Grain+Iron and Iron+Grain is the same play.
+      for (const give of resourcePairs())
+        for (const receive of resourcePairs()) if (!receive.some((r) => give.includes(r))) candidates.push({ effect: "transmutation_magic", give, receive });
+      break;
+    case "the_plague":
+      for (const site of ctx.board.topology.sites) candidates.push({ effect: "the_plague", siteId: site.id });
+      break;
+    case "robin_of_the_glade":
+      for (const resource of RESOURCE_TYPES) candidates.push({ effect: "robin_of_the_glade", resource });
+      break;
+    case "treasure_hunter": {
+      const dragon = menaceOfType(state, "young_dragon");
+      const hoardTypes = RESOURCE_TYPES.filter((r) => (dragon?.state.hoard?.[r] ?? 0) > 0);
+      for (const take of hoardTypes) for (const d of regionDests) candidates.push({ effect: "treasure_hunter", take, destination: d });
+      break;
+    }
     case "counterspell":
       return [];
+    default:
+      return unreachable(def.effectId);
   }
-  return candidates.filter((t) => {
-    try {
-      validateCardTarget(ctx, state, playerId, cardId, t);
-      return true;
-    } catch (e) {
-      if (e instanceof RuleViolation) return false;
-      throw e;
-    }
-  });
+  return candidates;
+}
+
+/** Every unordered pair of resources, doubles included, in RESOURCE_TYPES order. */
+function resourcePairs(): [ResourceType, ResourceType][] {
+  const pairs: [ResourceType, ResourceType][] = [];
+  RESOURCE_TYPES.forEach((a, i) => RESOURCE_TYPES.slice(i).forEach((b) => pairs.push([a, b])));
+  return pairs;
 }
 
 // ------------------------------------------------------------------ availability

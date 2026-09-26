@@ -37,7 +37,10 @@ function announce(entry: LogEntry, map: MapDefinition, names: Record<PlayerId, s
   if (entry.kind === "turn") return pid && pid === who.self ? t("sr.your_turn") : t("sr.turn", { name });
   // A rival's quip (#24): its bubble is visual only, so the line is spoken here.
   if (entry.kind === "quip") return entry.text;
-  if (raw?.type === "game_won") return entry.text;
+  // The end of the game and the omen of it concern everyone.
+  if (raw?.type === "game_won" || entry.kind === "omen") return entry.text;
+  // A Royal Insurance Policy paying out: news to its holder, who did not act.
+  if (raw?.type === "insurance_claimed") return entry.text;
   // Changes to the local seat's resources that its own actions did not name.
   if (raw?.type === "harvest_completed") return raw.playerId === who.self ? entry.text : null;
   if (raw?.type === "resource_transferred") return raw.fromPlayerId === who.self ? entry.text : null;

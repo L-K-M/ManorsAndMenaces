@@ -14,4 +14,5 @@ export * from "./views.js";
 export * from "./hash.js";
 export { createRulesEngine, type ApplyResult, type RulesEngine } from "./engine.js";
 export { isCardUsableInRuleset, validateCardTarget } from "./cards.js";
+export { rankPlayers } from "./victory.js";
 export { clone } from "./clone.js";

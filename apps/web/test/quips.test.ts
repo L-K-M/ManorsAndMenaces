@@ -3,7 +3,7 @@ import { chooseAction } from "@manors-menaces/ai";
 import { EN } from "@manors-menaces/content";
 import { RULESET_VERSION, createRng, holdingAt, seedRng, standardRuleset, type GameEvent, type GameState, type PlayerId } from "@manors-menaces/rules";
 import { engineFor } from "../src/lib/game/engine.js";
-import { QuipDirector, detectQuipCandidates, type QuipCandidate } from "../src/lib/game/quips.js";
+import { QUIP_CHANCE, QuipDirector, detectQuipCandidates, type QuipCandidate } from "../src/lib/game/quips.js";
 
 // P1 is human; P2 and P3 are rivals.
 const engine = engineFor();
@@ -94,6 +94,20 @@ describe("detectQuipCandidates", () => {
     const moved = (by: PlayerId): GameEvent => ({ type: "menace_moved", byPlayerId: by, menaceId: "m1", from: { kind: "region", regionId: "x" }, to: { kind: "region", regionId: banner.regionId! } });
     expect(detect([moved("P1")]).map((c) => [c.playerId, c.trigger])).toEqual([["P2", "menace_hit"]]);
     expect(detect([moved("P2")])).toEqual([]);
+  });
+
+  it("takes offence when someone else's card strikes it", () => {
+    const [b2, b3] = ["P2", "P3"].map((pid) => Object.values(playing.banners).find((b) => b.ownerId === pid)!);
+    const struck = (events: GameEvent[]) => detect(events).map((c) => [c.playerId, c.trigger, c.chance]);
+    const sabotaged = (pid: PlayerId) => [pid, "sabotaged", QUIP_CHANCE.sabotaged];
+
+    expect(struck([{ type: "route_burned", byPlayerId: "P1", ownerId: "P2", routeId: "r" }])).toEqual([sabotaged("P2")]);
+    expect(struck([{ type: "holding_reduced", byPlayerId: "P3", ownerId: "P2", holdingId: "h", siteId: "s", bannerId: "b" }])).toEqual([sabotaged("P2")]);
+    expect(struck([{ type: "hands_swapped", playerId: "P1", opponentId: "P3", handSize: 2, opponentHandSize: 3 }])).toEqual([sabotaged("P3")]);
+    // The Plague's caster says nothing about its own sick Banners.
+    expect(struck([{ type: "effect_started", effect: "plague", siteId: "s", bannerIds: [b2!.id, b3!.id], playerId: "P3" }])).toEqual([sabotaged("P2")]);
+    // Nor does a rival whose own Dragon's Landing came down on it.
+    expect(struck([{ type: "holding_destroyed", byPlayerId: "P2", ownerId: "P2", holdingId: "h", siteId: "s", bannerIds: [] }])).toEqual([]);
   });
 
   it("gives every rival a line at the end", () => {

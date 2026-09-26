@@ -49,6 +49,12 @@ export default defineConfig({
     // No source maps: they would ship in every web, server and desktop artifact.
     sourcemap: false,
     rolldownOptions: {
+      output: {
+        // The content package (map, card and UI text, rival quips) grows with
+        // every card. Its own chunk keeps the app chunk under Rolldown's 500 kB
+        // warning, which the build treats as an error (see above).
+        codeSplitting: { groups: [{ name: "content", test: /packages[\\/]content[\\/]/ }] },
+      },
       onwarn(warning, defaultHandler) {
         // The default handler prints the warning and applies Vite's own filters.
         defaultHandler(warning);

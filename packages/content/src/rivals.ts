@@ -14,6 +14,11 @@ export const RIVAL_QUIP_TRIGGERS = [
   "writ",
   /** Someone else moved a Menace onto the rival's Banner, Route or Holding. */
   "menace_hit",
+  /**
+   * Someone else's card burned the rival's Route, flattened or reduced its
+   * Holding, sickened its Banners or swapped hands with it.
+   */
+  "sabotaged",
   /** The rival became the sole Renown leader. */
   "lead",
   "win",

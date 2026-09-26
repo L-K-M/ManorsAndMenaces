@@ -4,7 +4,7 @@
 // to caller-owned objects in the state it returns (§106).
 
 import { describe, expect, it } from "vitest";
-import { getLegalBannerRegions, hashState, type CardTarget, type GameCommand, type GameState, type PlayerId } from "../src/index.js";
+import { clone, getLegalBannerRegions, hashState, type CardTarget, type GameCommand, type GameState, type PlayerId } from "../src/index.js";
 import { act, cmd, engine, give, grant, newGame, setupGame, standardRuleset } from "./helpers.js";
 
 const MENACE_RULESET = { ...standardRuleset(2), activeMenaces: ["toll_troll" as const, "young_dragon" as const, "highwayman" as const] };
@@ -31,10 +31,19 @@ const JUNK: unknown[] = [
   JSON.parse('{"kind":"region","__proto__":{"regionId":"R1"}}'),
 ];
 
-/** p1 in the Main phase, able to pay for anything, holding `card`. */
+/** Cards whose whole target is `{ effect }`: the player makes no choice. */
+const NO_TARGET_EFFECTS: string[] = ["very_minor_prophecy", "ragnarok", "dragons_landing", "royal_insurance_policy", "unreliable_bard"];
+
+/**
+ * p1 in the Main phase, able to pay for anything, holding `card`. The Dragon's
+ * Hoard holds 1 Grain, so a Treasure Hunter target gets past its `take` check.
+ */
 function holding(card: string) {
   const { state, p1, p2 } = setupGame(MENACE_RULESET);
-  const s = grant(give(state, p1, card), p1, { grain: 5, timber: 5, stone: 5, iron: 5, essence: 5 });
+  const seeded = clone(state);
+  const dragon = seeded.menaces["menace_young_dragon"];
+  if (dragon) dragon.state.hoard = { grain: 1 };
+  const s = grant(give(seeded, p1, card), p1, { grain: 5, timber: 5, stone: 5, iron: 5, essence: 5 });
   return { s, p1, p2, cardId: s.players[p1]?.hand[0] as string };
 }
 
@@ -47,6 +56,7 @@ describe("malformed card targets", () => {
     ["knight_errant", (destination) => ({ effect: "knight_errant", menaceId: "menace_toll_troll", destination })],
     ["bribe_the_troll", (destination) => ({ effect: "bribe_the_troll", destination })],
     ["dragon_whisperer", (destination) => ({ effect: "dragon_whisperer", destination })],
+    ["treasure_hunter", (destination) => ({ effect: "treasure_hunter", take: "grain", destination })],
   ];
 
   it.each(DESTINATION_CARDS)("%s rejects malformed destinations", (card, target) => {
@@ -78,9 +88,9 @@ describe("malformed card targets", () => {
   it("rejects missing or non-object targets for every card", () => {
     for (const def of engine.ctx.content.cards.filter((c) => c.timing.includes("main"))) {
       const { s, p1, cardId } = holding(def.id);
-      // A bare { effect } is an incomplete target for every card but Very
-      // Minor Prophecy, whose complete target it is.
-      const bare = def.effectId === "very_minor_prophecy" ? [] : [{ effect: def.effectId }];
+      // A bare { effect } is an incomplete target for every card but those
+      // that take no choice, whose complete target it is.
+      const bare = NO_TARGET_EFFECTS.includes(def.effectId) ? [] : [{ effect: def.effectId }];
       for (const target of [...JUNK, ...bare]) {
         const r = apply(s, p1, { type: "play_card", cardId, target });
         expect(r.accepted, `${def.id} ${JSON.stringify(target)}`).toBe(false);
@@ -144,7 +154,11 @@ describe("hostile command fields", () => {
     const card = hand[0];
     const ownBanner = Object.values(s.banners).find((b) => b.ownerId === actor)?.id;
     const otherBanner = Object.values(s.banners).find((b) => b.ownerId !== actor && b.regionId)?.id;
+    const otherRoute = Object.keys(s.routeOwners).find((r) => s.routeOwners[r] !== actor);
     const destination = { kind: "region", regionId: "R1" };
+    const effect = card ? engine.ctx.cardOf(card).effectId : "knight_errant";
+    // Transmutation Magic trades pairs; every other card names single resources.
+    const pairs = effect === "transmutation_magic";
     return {
       siteId: "s5",
       routeId: "r25",
@@ -153,18 +167,21 @@ describe("hostile command fields", () => {
       extraPayment: "grain",
       cardId: card,
       target: {
-        effect: card ? engine.ctx.cardOf(card).effectId : "knight_errant",
+        effect,
         menaceId: "menace_toll_troll",
         menaceIdA: "menace_toll_troll",
         menaceIdB: "menace_young_dragon",
         destination,
         bannerId: otherBanner,
         regionId: "R2",
-        give: "essence",
-        receive: "iron",
+        give: pairs ? ["essence", "essence"] : "essence",
+        receive: pairs ? ["iron", "grain"] : "iron",
         choice: "iron",
-        routeId: "r25",
+        routeId: otherRoute ?? "r25",
         take: "grain",
+        opponentId: s.turnOrder.find((p) => p !== actor),
+        siteId: "s5",
+        resource: "grain",
       },
       give: "essence",
       receive: "iron",
@@ -272,6 +289,14 @@ describe("command payloads are copied into the state", () => {
     const target = { effect: "teleportation_mishap" as const, menaceIdA: "menace_toll_troll", menaceIdB: "menace_young_dragon" };
     const pending = expectDetached(withCounter, cmd(withCounter, p1, { type: "play_card", cardId, target }));
     expect(pending.pending?.kind).toBe("reaction");
+  });
+
+  it("Transmutation Magic's resource pairs held in a reaction window", () => {
+    const { s, p1, p2, cardId } = holding("transmutation_magic");
+    const withCounter = give(s, p2, "counterspell");
+    const target = (): CardTarget => ({ effect: "transmutation_magic", give: ["grain", "timber"], receive: ["iron", "iron"] });
+    const pending = expectDetached(withCounter, cmd(withCounter, p1, { type: "play_card", cardId, target: target() }));
+    expect(pending.pending?.kind === "reaction" && pending.pending.target).toEqual(target());
   });
 
   it("Warden and debug Menace moves", () => {

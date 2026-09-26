@@ -27,8 +27,10 @@ describe("Teleportation Mishap needs two Menaces of the same kind (§19.5)", () 
   it("is left out of the 2-player deck, where the Troll and the Highwayman never share a kind", () => {
     const s = newGame(standardRuleset(2));
     expect(copiesOf(s, "teleportation_mishap")).toBe(0);
-    // 24 cards, minus Dragon Whisperer (no Dragon) and Teleportation Mishap.
-    expect(s.cardDeck).toHaveLength(20);
+    // 40 cards, minus Dragon Whisperer and Treasure Hunter (no Dragon),
+    // Teleportation Mishap, and Ragnarök, which waits outside the draw pile.
+    expect(s.cardDeck).toHaveLength(34);
+    expect(s.setAsideCardIds).toEqual(["ragnarok#1"]);
   });
   it("stays in the deck when two active Menaces share a kind", () => {
     const s = newGame({ ...standardRuleset(2), activeMenaces: ["toll_troll", "young_dragon"] });

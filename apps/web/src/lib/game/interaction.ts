@@ -6,21 +6,42 @@ import {
   checkBuildManor,
   checkBuildRoute,
   checkUpgrade,
+  dragonsLandingTargets,
   enumerateCardTargets,
   getActionAvailability,
   getLegalActions,
   getLegalBannerRegions,
   getLegalMenaceDestinations,
   getPlayerBanners,
+  getRenown,
+  insurancePolicyOf,
+  plagueBanners,
   type ActionAvailability,
+  type BannerId,
   type CardTarget,
   type CommandIntent,
+  type GameState,
+  type HoldingId,
   type LegalActionSummary,
   type MenaceLocation,
   type PlayerAction,
+  type PlayerId,
   type ResourceType,
+  type RulesContext,
+  type SiteId,
 } from "@manors-menaces/rules";
-import { CARD_STEPS, locationKey, remainingTargets, resetTool, ui, valueKey, type Pick } from "../stores/ui.svelte.js";
+import {
+  CARD_STEPS,
+  CONFIRMED_CARDS,
+  isCardDialog,
+  locationKey,
+  remainingTargets,
+  resetTool,
+  ui,
+  valueKey,
+  type Pick,
+  type TargetField,
+} from "../stores/ui.svelte.js";
 import type { GameSession } from "./session.svelte.js";
 
 export interface Highlights {
@@ -142,7 +163,17 @@ export function computeHighlights(session: GameSession, legal: LegalActionSummar
       break;
     case "card": {
       const step = currentCardStep(session);
-      if (!step) break;
+      if (!step) {
+        // Awaiting confirmation: The Plague shows the Banners it would sicken.
+        const target = ui.dialog === "card_confirm" ? pendingCardTarget(session) : undefined;
+        if (target?.effect === "the_plague") {
+          h.sites.add(target.siteId);
+          for (const v of plagueVictims(ctx, state, target.siteId)) if (!v.insured) v.ids.forEach((b) => h.banners.add(b));
+        }
+        break;
+      }
+      // A dialog step is its own instruction.
+      if (isCardDialog(step.pick)) break;
       h.hint = `hint.card_${step.pick}`;
       for (const value of step.options) {
         switch (step.pick) {
@@ -157,6 +188,9 @@ export function computeHighlights(session: GameSession, legal: LegalActionSummar
             break;
           case "route":
             h.routes.add(String(value));
+            break;
+          case "site":
+            h.sites.add(String(value));
             break;
           case "location":
             h.locations.add(valueKey(value));
@@ -177,8 +211,8 @@ export function cardCandidates(session: GameSession): CardTarget[] {
   return enumerateCardTargets(session.ctx, session.draft, actor, ui.cardId);
 }
 
-/** The next board pick the selected card needs, with its legal options. */
-export function currentCardStep(session: GameSession): { field: string; pick: string; options: unknown[] } | null {
+/** The next pick (board or dialog) the selected card needs, with its legal options. */
+export function currentCardStep(session: GameSession): (TargetField & { options: unknown[] }) | null {
   if (!ui.cardId) return null;
   const candidates = remainingTargets(cardCandidates(session), ui.cardPicks);
   const def = session.ctx.cardOf(ui.cardId);
@@ -206,31 +240,89 @@ export async function startCard(session: GameSession, cardId: string): Promise<v
   await maybeFinishCard(session);
 }
 
+/** Open the next step's dialog, wait for a board pick, confirm, or play the card. */
 async function maybeFinishCard(session: GameSession): Promise<void> {
   const step = currentCardStep(session);
-  if (step?.pick === "dialog") {
-    const effect = session.ctx.cardOf(ui.cardId ?? "").effectId;
-    ui.dialog = effect === "arcane_exchange" ? "arcane" : "festival";
-    return;
-  }
-  if (step?.pick === "hoard") {
-    ui.dialog = "hoard";
+  if (step && isCardDialog(step.pick)) {
+    ui.dialog = step.pick;
     return;
   }
   if (step) return;
-  const remaining = remainingTargets(cardCandidates(session), ui.cardPicks);
-  const target = remaining[0];
+  const target = pendingCardTarget(session);
   if (!target || !ui.cardId) return resetTool();
+  if (CONFIRMED_CARDS.has(target.effect)) {
+    ui.dialog = "card_confirm";
+    return;
+  }
+  await playPickedCard(session);
+}
+
+/** The target the picks so far settle on, once no pick is left. */
+export function pendingCardTarget(session: GameSession): CardTarget | undefined {
+  return remainingTargets(cardCandidates(session), ui.cardPicks)[0];
+}
+
+/** Play the selected card at the picked target (from the confirmation dialog, say). */
+export async function playPickedCard(session: GameSession): Promise<void> {
+  const target = pendingCardTarget(session);
   const cardId = ui.cardId;
   resetTool();
+  if (!target || !cardId) return;
   await session.perform({ type: "play_card", cardId, target });
 }
 
-/** Complete a card's dialog step (Arcane Exchange / Festival). */
+/** Complete a card's dialog step with the fields it picked. */
 export async function finishCardWith(session: GameSession, fields: Record<string, unknown>): Promise<void> {
   ui.cardPicks = { ...ui.cardPicks, ...fields };
   ui.dialog = null;
   await maybeFinishCard(session);
+}
+
+/**
+ * Take back the last step's pick (and anything its dialog picked with it):
+ * the card stays selected and that step is offered again.
+ */
+export function backCardStep(session: GameSession): void {
+  if (!ui.cardId) return;
+  const steps = CARD_STEPS[session.ctx.cardOf(ui.cardId).effectId as CardTarget["effect"]] ?? [];
+  const kept = steps.filter((s) => s.field in ui.cardPicks).slice(0, -1);
+  ui.cardPicks = Object.fromEntries(kept.map((s) => [s.field, ui.cardPicks[s.field]]));
+  const step = currentCardStep(session);
+  ui.dialog = step && isCardDialog(step.pick) ? step.pick : null;
+}
+
+// ------------------------------------------------------------------ card previews
+// What a card would do, spelled out in its dialogs. They read public
+// information only, so they hold on an online player's redacted view.
+
+/** One player's share of a card's effect: their pieces it would hit. */
+export interface CardVictim<Id extends string> {
+  ownerId: PlayerId;
+  ids: Id[];
+  /** A Royal Insurance Policy would spare them, and be used up (§19.19). */
+  insured: boolean;
+}
+
+function byOwner<Id extends string>(ctx: RulesContext, state: GameState, pieces: { id: Id; ownerId: PlayerId }[]): CardVictim<Id>[] {
+  return state.turnOrder
+    .map((ownerId) => ({ ownerId, ids: pieces.filter((p) => p.ownerId === ownerId).map((p) => p.id), insured: !!insurancePolicyOf(ctx, state, ownerId) }))
+    .filter((v) => v.ids.length > 0);
+}
+
+/** The Banners The Plague at `siteId` would sicken, by owner in turn order (§19.17). */
+export function plagueVictims(ctx: RulesContext, state: GameState, siteId: SiteId): CardVictim<BannerId>[] {
+  return byOwner(ctx, state, plagueBanners(ctx, state, siteId));
+}
+
+/** The Holdings Dragon's Landing picks from at random, by owner in turn order (§19.15). */
+export function landingRisks(ctx: RulesContext, state: GameState): CardVictim<HoldingId>[] {
+  return byOwner(ctx, state, dragonsLandingTargets(state));
+}
+
+/** The rivals who would each give Robin of the Glade's player 1 `resource` (§19.18). */
+export function robinPayers(ctx: RulesContext, state: GameState, playerId: PlayerId, resource: ResourceType): PlayerId[] {
+  const mine = getRenown(ctx, state, playerId);
+  return state.turnOrder.filter((id) => id !== playerId && getRenown(ctx, state, id) > mine && (state.players[id]?.resources[resource] ?? 0) > 0);
 }
 
 function toll(session: GameSession, cost: Partial<Record<ResourceType, number>>): ResourceType | undefined {

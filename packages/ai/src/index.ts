@@ -5,14 +5,22 @@
 
 import {
   computeBannerHarvest,
+  dragonsLandingTargets,
   getLegalActions,
   getLegalBannerRegions,
   getPlayerBanners,
   getLegalInitialManorSites,
   getLegalInitialRoutes,
   holdingAt,
+  insurancePolicyOf,
   passesSpacing,
+  plagueBanners,
+  rankPlayers,
+  seedRng,
+  type Banner,
   type BannerId,
+  type CardEffectId,
+  type CardTarget,
   type CommandIntent,
   type GameRng,
   type GameState,
@@ -67,7 +75,7 @@ export function chooseAction(engine: RulesEngine, state: GameState, playerId: Pl
       return { type: "end_turn" };
     }
     case "reaction":
-      return chooseReaction(state, playerId, legal.reactionCards, opts);
+      return chooseReaction(ctx, state, playerId, legal.reactionCards, opts);
     case "prophecy": {
       const pending = state.pending;
       return { type: "resolve_prophecy", order: pending?.kind === "prophecy" ? [...pending.cardIds] : [] };
@@ -90,14 +98,19 @@ function chooseMainAction(engine: RulesEngine, state: GameState, playerId: Playe
   const candidates = mainPhaseCandidates(ctx, state, playerId, { menaces: opts.level !== "easy" || opts.rng.nextInt(3) === 0, cards: true });
   const scored: { intent: CommandIntent; score: number }[] = [];
   for (const intent of candidates) {
-    const r = engine.applyCommand(state, asCommand(state, playerId, intent));
-    if (!r.accepted || !r.newState) continue;
-    let score = evaluate(ctx, r.newState, playerId);
-    // Trades and card purchases rarely pay off alone; look one step further.
-    if (opts.level !== "easy" && (intent.type === "trade" || (opts.level === "hard" && intent.type !== "claim_quest"))) {
-      score = Math.max(score, bestFollowUp(engine, r.newState, playerId));
+    const results = outcomes(engine, state, playerId, intent);
+    if (results.length === 0) continue;
+    // Trades (and cards that act like one) and card purchases rarely pay off
+    // alone; look one step further.
+    const tradeLike = intent.type === "trade" || (intent.type === "play_card" && TRADING_EFFECTS.has(intent.target.effect));
+    const lookAhead = opts.level !== "easy" && (tradeLike || (opts.level === "hard" && intent.type !== "claim_quest"));
+    let total = 0;
+    for (const result of results) {
+      const score = evaluate(ctx, result, playerId);
+      total += lookAhead ? Math.max(score, bestFollowUp(engine, result, playerId)) : score;
     }
-    scored.push({ intent, score });
+    // Every outcome is equally likely (see `outcomes`).
+    scored.push({ intent, score: total / results.length });
   }
   scored.sort((a, b) => b.score - a.score);
   const threshold = baseline + (opts.level === "easy" ? 0.5 : 0.05);
@@ -110,9 +123,49 @@ function chooseMainAction(engine: RulesEngine, state: GameState, playerId: Playe
   return (viable[0] as (typeof viable)[number]).intent;
 }
 
+/** Cards that bring in resources, like a trade: judged by what they let the player build next. */
+const TRADING_EFFECTS: ReadonlySet<CardEffectId> = new Set(["transmutation_magic", "robin_of_the_glade", "treasure_hunter"]);
+
+/** Most substitute draws per Holding when replaying Dragon's Landing (see `outcomes`). */
+const LANDING_TRIES_PER_TARGET = 8;
+
+/**
+ * The states `intent` can lead to, all equally likely; empty if the engine
+ * rejects it. Most commands have one outcome. Dragon's Landing picks its
+ * Holding with the match RNG at resolution, and simulating it on the real
+ * state would read that pick off `rngState` in advance. Instead it is
+ * replayed under substitute RNG states, seeded from the match and revision
+ * and never from `rngState`, until each Holding in the pool has been struck
+ * once: the uniform pick makes those outcomes equally likely, so their
+ * average is the card's expected worth. The seeds are fixed, so the AI stays
+ * deterministic.
+ */
+function outcomes(engine: RulesEngine, state: GameState, playerId: PlayerId, intent: CommandIntent): GameState[] {
+  if (intent.type !== "play_card" || intent.target.effect !== "dragons_landing") {
+    const r = engine.applyCommand(state, asCommand(state, playerId, intent));
+    return r.accepted && r.newState ? [r.newState] : [];
+  }
+  const pool = dragonsLandingTargets(state).length;
+  const struck = new Map<string, GameState>();
+  for (let i = 0; i < pool * LANDING_TRIES_PER_TARGET && struck.size < pool; i++) {
+    const trial: GameState = { ...state, rngState: seedRng(`dragons_landing:${state.matchId}:${state.revision}:${i}`) };
+    const r = engine.applyCommand(trial, asCommand(trial, playerId, intent));
+    if (!r.accepted || !r.newState) return [];
+    const landed = r.events.find((e) => e.type === "dragon_landed");
+    const holdingId = landed?.type === "dragon_landed" ? landed.holdingId : "";
+    if (!struck.has(holdingId)) struck.set(holdingId, r.newState);
+  }
+  return [...struck.values()];
+}
+
 function bestFollowUp(engine: RulesEngine, state: GameState, playerId: PlayerId): number {
   let best = -Infinity;
-  const candidates = mainPhaseCandidates(engine.ctx, state, playerId, { menaces: false, cards: false }).filter(
+  // Follow-ups never play cards, and finding the playable ones is the costliest
+  // part of getLegalActions (Transmutation Magic alone has 110 targets to
+  // check), so the builds are listed from a view with the hand set aside.
+  const p = state.players[playerId];
+  const handless: GameState = p ? { ...state, players: { ...state.players, [playerId]: { ...p, hand: [] } } } : state;
+  const candidates = mainPhaseCandidates(engine.ctx, handless, playerId, { menaces: false, cards: false }).filter(
     (c) => c.type === "build_manor" || c.type === "upgrade_holding" || c.type === "build_route" || c.type === "claim_quest",
   );
   for (const intent of candidates) {
@@ -124,16 +177,54 @@ function bestFollowUp(engine: RulesEngine, state: GameState, playerId: PlayerId)
 
 // ------------------------------------------------------------------ reactions
 
-function chooseReaction(state: GameState, playerId: PlayerId, reactionCards: string[], opts: AiOptions): CommandIntent {
+function chooseReaction(ctx: RulesContext, state: GameState, playerId: PlayerId, reactionCards: string[], opts: AiOptions): CommandIntent {
   const pending = state.pending;
   const counter = reactionCards[0];
   if (!counter || pending?.kind !== "reaction") return { type: "pass_reaction" };
-  const t = pending.target;
-  const hurtsMe =
-    (t.effect === "wizard_interference" && state.banners[t.bannerId]?.ownerId === playerId) ||
-    (t.effect === "fog_of_confusion" && state.routeOwners[t.routeId] === playerId);
+  const hurtsMe = spellHurts(ctx, state, playerId, pending.sourcePlayerId, pending.target);
   if (opts.level === "easy") return opts.rng.nextInt(2) === 0 && hurtsMe ? { type: "react", cardId: counter } : { type: "pass_reaction" };
   return hurtsMe ? { type: "react", cardId: counter } : { type: "pass_reaction" };
+}
+
+/** Whether `casterId`'s pending Spell is worth a Counterspell to `playerId`. */
+function spellHurts(ctx: RulesContext, state: GameState, playerId: PlayerId, casterId: PlayerId, t: CardTarget): boolean {
+  // A Royal Insurance Policy already stops the next of these (§19.19).
+  const insured = (id: PlayerId): boolean => insurancePolicyOf(ctx, state, id) !== undefined;
+  switch (t.effect) {
+    case "wizard_interference":
+      return state.banners[t.bannerId]?.ownerId === playerId;
+    case "fog_of_confusion":
+      return state.routeOwners[t.routeId] === playerId;
+    case "fire_bolt":
+      return state.routeOwners[t.routeId] === playerId && !insured(playerId);
+    case "changeling": {
+      if (t.opponentId !== playerId || insured(playerId)) return false;
+      // Hands are hidden, so judge them by size, as `evaluate` does. Countering
+      // costs the Counterspell; letting the swap through trades my whole hand,
+      // Counterspell included, for theirs. Let it through only for at least
+      // as many cards as I hold now.
+      const mine = state.players[playerId]?.hand.length ?? 0;
+      const theirs = state.players[casterId]?.hand.length ?? 0;
+      return theirs < mine;
+    }
+    case "the_plague": {
+      // Banners of `id` that would have produced something; a policy spares them all.
+      const sickened = (id: PlayerId): number =>
+        insured(id) ? 0 : plagueBanners(ctx, state, t.siteId).filter((b) => b.ownerId === id && producing(ctx, state, b)).length;
+      const mine = sickened(playerId);
+      return mine > 0 && mine > sickened(casterId);
+    }
+    case "ragnarok":
+      // The game ends at once: stop it unless it ends in my favour.
+      return rankPlayers(ctx, state, state.turnOrder)[0] !== playerId;
+    default:
+      return false;
+  }
+}
+
+/** Whether the Banner would produce anything where it stands. */
+function producing(ctx: RulesContext, state: GameState, banner: Banner): boolean {
+  return banner.regionId !== null && computeBannerHarvest(ctx, state, banner, banner.regionId).amount > 0;
 }
 
 // ------------------------------------------------------------------ setup

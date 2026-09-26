@@ -1,5 +1,13 @@
 <script lang="ts">
-  import { RESOURCE_TYPES, getHarvestPreview, getPlayerHoldings, getRenown, type HarvestNote } from "@manors-menaces/rules";
+  import {
+    RESOURCE_TYPES,
+    cardDefIdOf,
+    getHarvestPreview,
+    getPlayerHoldings,
+    getRenown,
+    isCardUsableInRuleset,
+    type HarvestNote,
+  } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { gainsText } from "../game/feed.js";
   import type { GameSession } from "../game/session.svelte.js";
@@ -18,10 +26,39 @@
   const actor = $derived(currentActor(gs));
 
   /** Notes that cost a rival part of their Harvest; a Druid's Blessing is a bonus, not a warning. */
-  const MENACE_NOTES: ReadonlySet<HarvestNote> = new Set(["blocked_by_troll", "converted_by_witch", "taken_by_dragon"]);
+  const LOSS_NOTES: ReadonlySet<HarvestNote> = new Set(["blocked_by_troll", "sick", "converted_by_witch", "taken_by_dragon"]);
+
+  // The endgame omen (§19.13): once set-aside cards are shuffled into the
+  // deck, everyone knows they are out there (in the deck or a hand) until
+  // they reach the discard pile. Saves from before set-aside cards have no
+  // `setAsideCardIds` and show nothing.
+  const foretold = $derived.by(() => {
+    if (!gs.ruleset.enableCards || gs.setAsideCardIds?.length !== 0) return [];
+    return session.ctx.content.cards
+      .filter((c) => c.setAside && isCardUsableInRuleset(c, gs.ruleset))
+      .filter((c) => !gs.discardPile.some((id) => cardDefIdOf(id) === c.id))
+      .map((c) => c.id);
+  });
+
+  // Before the omen, set-aside cards lie face up beside the deck (§19.13).
+  const setAside = $derived(gs.ruleset.enableCards ? [...new Set((gs.setAsideCardIds ?? []).map(cardDefIdOf))] : []);
 </script>
 
 <section class="players" aria-label={t("ui.players")}>
+  {#each setAside as id (id)}
+    {@const text = t("players.set_aside", { card: t(`card.${id}.name`) })}
+    <p class="aside" role="note" title={t(`card.${id}.rules`)} aria-label="{text} {t(`card.${id}.rules`)}">
+      <ToolIcon name="sparkle" size={12} />
+      {text}
+    </p>
+  {/each}
+  {#each foretold as id (id)}
+    {@const text = t("players.foretold", { card: t(`card.${id}.name`) })}
+    <p class="omen" role="note" title={t(`card.${id}.rules`)} aria-label="{text} {t(`card.${id}.rules`)}">
+      <ToolIcon name="sparkle" size={14} />
+      {text}
+    </p>
+  {/each}
   {#each gs.turnOrder as pid (pid)}
     {@const p = gs.players[pid]}
     {@const seat = session.seat(pid)}
@@ -51,7 +88,7 @@
         {#if pid !== session.viewerId}
           <!-- A rival's committed Banners are public: what their next Harvest brings. -->
           {@const next = getHarvestPreview(session.ctx, gs, pid)}
-          {@const warnings = next.banners.flatMap((b) => b.notes.filter((n) => MENACE_NOTES.has(n)).map((n) => t(`harvest.${n}`))).join("; ")}
+          {@const warnings = next.banners.flatMap((b) => b.notes.filter((n) => LOSS_NOTES.has(n)).map((n) => t(`harvest.${n}`))).join("; ")}
           {@const items = next.total ? gainsText(next.totals) : t("ui.next_harvest_nothing")}
           <div
             class="next"
@@ -77,6 +114,23 @@
           <span>{t("ui.routes_count", { count: p.routeIds.length })}</span>
           {#if gs.ruleset.enableCards}<span>{t("ui.cards_count", { count: p.hand.length })}</span>{/if}
         </div>
+        {#if p.charters?.length}
+          <!-- Charters lie face up in front of their player (§18.1). -->
+          <div class="charters">
+            {#each p.charters as c (c)}
+              {@const id = cardDefIdOf(c)}
+              <span
+                class="charter"
+                role="note"
+                title={t(`card.${id}.rules`)}
+                aria-label={t("players.charter", { name: p.displayName, card: t(`card.${id}.name`), rules: t(`card.${id}.rules`) })}
+              >
+                <ToolIcon name="writ" size={14} />
+                {t(`card.${id}.name`)}
+              </span>
+            {/each}
+          </div>
+        {/if}
       </article>
     {/if}
   {/each}
@@ -180,6 +234,47 @@
     color: #fff;
     font-weight: 800;
     font-size: 0.72rem;
+    cursor: help;
+  }
+  .omen {
+    margin: 0;
+    padding: 0.35rem 0.55rem;
+    border-left: 4px solid #8a2f1f;
+    border-radius: 6px;
+    background: color-mix(in srgb, #b6402e 12%, var(--paper));
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: help;
+  }
+  .aside {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    opacity: 0.7;
+    cursor: help;
+  }
+  .charters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+  }
+  .charter {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.05rem 0.4rem;
+    border: 1px solid #2d6a8f;
+    border-radius: 4px;
+    background: color-mix(in srgb, #2d6a8f 12%, var(--paper));
+    color: #1f4c68;
+    font-size: 0.72rem;
+    font-weight: 600;
     cursor: help;
   }
   .meta {

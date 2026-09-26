@@ -5,7 +5,8 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AddressInfo } from "node:net";
-import type { GuestSessionResponse, MatchView, SubmitCommandsResponse } from "@manors-menaces/protocol";
+import WebSocket from "ws";
+import type { GuestSessionResponse, MatchView, ServerMessage, SubmitCommandsResponse } from "@manors-menaces/protocol";
 import {
   createRng,
   createRulesEngine,
@@ -16,6 +17,7 @@ import {
   type CardTarget,
   type CommandIntent,
   type GameCommand,
+  type GameEvent,
   type GameState,
   type PlayerId,
 } from "@manors-menaces/rules";
@@ -268,6 +270,68 @@ describe("online Spells", () => {
       await new Promise((r) => setTimeout(r, 20));
     }
     throw new Error("the AI never answered the reaction window");
+  });
+});
+
+/** Polls `ready` until it holds, failing after a couple of seconds. */
+async function waitFor(ready: () => boolean): Promise<void> {
+  for (let i = 0; i < 100 && !ready(); i++) await new Promise((r) => setTimeout(r, 20));
+  expect(ready()).toBe(true);
+}
+
+/** A member's WebSocket subscribed to the match, collecting the events pushed to it. */
+async function subscribe(matchId: string, token: string): Promise<{ ws: WebSocket; events: () => GameEvent[] }> {
+  const ws = new WebSocket(`${base.replace("http", "ws")}/api/ws?token=${token}`);
+  await new Promise<void>((resolve, reject) => {
+    ws.once("open", () => resolve());
+    ws.once("error", reject);
+  });
+  const updates: Extract<ServerMessage, { type: "match_update" }>[] = [];
+  ws.on("message", (raw) => {
+    const msg = JSON.parse(String(raw)) as ServerMessage;
+    if (msg.type === "match_update") updates.push(msg);
+  });
+  ws.send(JSON.stringify({ type: "subscribe", matchId }));
+  // Subscribing answers with the current view.
+  await waitFor(() => updates.length > 0);
+  return { ws, events: () => updates.flatMap((u) => u.events) };
+}
+
+describe("Changeling online", () => {
+  it("swaps hands on the server; each seat sees its own new hand and only counts of the other", async () => {
+    const { matchId, tokens } = await matchInMainPhase();
+    const first = (await view(matchId, Object.values(tokens)[0] as string)).state.activePlayerId;
+    const other = Object.keys(tokens).find((p) => p !== first) as PlayerId;
+    stage(
+      matchId,
+      [
+        { playerId: first, cardDefId: "changeling" },
+        { playerId: first, cardDefId: "arcane_exchange" },
+        { playerId: other, cardDefId: "knight_errant" },
+        { playerId: other, cardDefId: "festival_at_the_inn" },
+        { playerId: other, cardDefId: "druids_blessing" },
+      ],
+      first,
+    );
+    const server = app.store.match(matchId)?.state as GameState;
+    const mine = (server.players[first]?.hand ?? []).filter((c) => !c.startsWith("changeling#"));
+    const theirs = [...(server.players[other]?.hand ?? [])];
+    expect(theirs).toHaveLength(3);
+    const watcher = await subscribe(matchId, tokens[other] as string);
+
+    const { after, events } = await playSpellLikeTheClient(matchId, tokens[first] as string, "changeling", { effect: "changeling", opponentId: other });
+    const swapped = { type: "hands_swapped", playerId: first, opponentId: other, handSize: theirs.length, opponentHandSize: mine.length };
+    expect(events.filter((e) => e.type === "hands_swapped")).toEqual([swapped]);
+    expect(after.players[first]?.hand).toEqual(theirs);
+    expect(after.players[other]?.hand).toEqual(mine.map(() => HIDDEN_CARD));
+
+    // The opponent is told the same counts, and sees only their own new hand.
+    await waitFor(() => watcher.events().some((e) => e.type === "hands_swapped"));
+    expect(watcher.events().filter((e) => e.type === "hands_swapped")).toEqual([swapped]);
+    const opp = (await view(matchId, tokens[other] as string)).state;
+    expect(opp.players[other]?.hand).toEqual(mine);
+    expect(opp.players[first]?.hand).toEqual(theirs.map(() => HIDDEN_CARD));
+    watcher.ws.close();
   });
 });
 

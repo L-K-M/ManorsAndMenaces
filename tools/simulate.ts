@@ -2,16 +2,19 @@
 // telemetry the spec asks for, checked against the §68 targets.
 //
 // Usage: pnpm simulate [--games N] [--players 2|3|4] [--rules mvp|standard] [--level easy|normal|hard] [--max-rounds N] [--equal-turns]
+//                       [--exclude-cards a,b] [--override JSON]
 
 import { runAiUntilHuman, type AiLevel } from "@manors-menaces/ai";
 import { rulesContentFor } from "@manors-menaces/content";
 import {
   RESOURCE_TYPES,
   RULESET_VERSION,
+  cardDefIdOf,
   createRng,
   createRulesEngine,
   getPlayerHoldings,
   getRenown,
+  isCardUsableInRuleset,
   mvpRuleset,
   seedRng,
   standardRuleset,
@@ -38,13 +41,16 @@ const EXCLUDE = new Set(arg("exclude-cards", "").split(",").filter(Boolean));
 const baseContent = rulesContentFor();
 const engine = createRulesEngine({ ...baseContent, cards: baseContent.cards.filter((c) => !EXCLUDE.has(c.id)) });
 const ctx = engine.ctx;
+const RULESET = { ...(RULES === "mvp" ? mvpRuleset() : standardRuleset(PLAYERS)), equalTurns: EQUAL_TURNS, ...OVERRIDE };
+// The card definitions this ruleset deals (Treasure Hunter and others need their Menace).
+const DECK = RULESET.enableCards ? ctx.content.cards.filter((c) => isCardUsableInRuleset(c, RULESET)) : [];
 
 interface GameStats {
   finished: boolean;
   rounds: number;
   winnerSeat: number | null;
   winnerRenown: number;
-  renownSources: { holdings: number; quests: number };
+  renownSources: { holdings: number; quests: number; bonus: number };
   writs: number;
   wardens: number;
   trades: number;
@@ -52,6 +58,22 @@ interface GameStats {
   bought: number;
   quests: number;
   produced: Record<string, number>;
+  /** Cards played (countered ones included) and cards countered, by card definition id. */
+  plays: Record<string, number>;
+  countered: Record<string, number>;
+  /** Round Ragnarök was foretold (shuffled into the draw pile), if it was (§19.13). */
+  omenRound: number | null;
+  /** Round the game ended by Ragnarök, if it did. */
+  ragnarokRound: number | null;
+  targetRenown: number;
+  // Second-wave card outcomes (§19.12–19.21).
+  holdingsDestroyed: number;
+  holdingsReduced: number;
+  routesBurned: number;
+  handSwaps: number;
+  insuranceClaims: number;
+  bannersSickened: number;
+  sickHarvests: number;
   /** Longest run of consecutive rounds a Region was held by the same player, as a share of the game. */
   maxHoldShare: number;
   harvestMid: number[];
@@ -59,12 +81,11 @@ interface GameStats {
 }
 
 function playOne(i: number): GameStats {
-  const ruleset = { ...(RULES === "mvp" ? mvpRuleset() : standardRuleset(PLAYERS)), equalTurns: EQUAL_TURNS, ...OVERRIDE };
   let s: GameState = engine.createGame({
     matchId: `sim-${i}`,
     seed: `sim-${RULES}-${PLAYERS}-${i}`,
     rulesetVersion: RULESET_VERSION,
-    ruleset,
+    ruleset: RULESET,
     players: Array.from({ length: PLAYERS }, (_, k) => ({ id: `P${k + 1}`, displayName: `P${k + 1}` })),
   });
   const rng = createRng(seedRng(`sim-ai-${i}`));
@@ -73,7 +94,7 @@ function playOne(i: number): GameStats {
     rounds: 0,
     winnerSeat: null,
     winnerRenown: 0,
-    renownSources: { holdings: 0, quests: 0 },
+    renownSources: { holdings: 0, quests: 0, bonus: 0 },
     writs: 0,
     wardens: 0,
     trades: 0,
@@ -81,6 +102,18 @@ function playOne(i: number): GameStats {
     bought: 0,
     quests: 0,
     produced: Object.fromEntries(RESOURCE_TYPES.map((r) => [r, 0])),
+    plays: {},
+    countered: {},
+    omenRound: null,
+    ragnarokRound: null,
+    targetRenown: s.ruleset.targetRenown,
+    holdingsDestroyed: 0,
+    holdingsReduced: 0,
+    routesBurned: 0,
+    handSwaps: 0,
+    insuranceClaims: 0,
+    bannersSickened: 0,
+    sickHarvests: 0,
     maxHoldShare: 0,
     harvestMid: [],
     harvestLate: [],
@@ -98,11 +131,25 @@ function playOne(i: number): GameStats {
       if (e.type === "royal_writ_issued") stats.writs++;
       if (e.type === "warden_hired") stats.wardens++;
       if (e.type === "market_traded") stats.trades++;
-      if (e.type === "card_played") stats.cards++;
+      if (e.type === "card_played") {
+        stats.cards++;
+        bump(stats.plays, cardDefIdOf(e.cardId));
+      }
+      if (e.type === "card_cancelled") bump(stats.countered, cardDefIdOf(e.cardId));
       if (e.type === "card_bought") stats.bought++;
       if (e.type === "quest_claimed") stats.quests++;
       if (e.type === "resource_gained" && e.reason === "harvest") stats.produced[e.resource] = (stats.produced[e.resource] ?? 0) + e.amount;
       if (e.type === "harvest_completed") (s.round <= 6 ? stats.harvestMid : stats.harvestLate).push(e.total);
+      // `before.round`: the omen at the last seat's End Turn belongs to the round that ended.
+      if (e.type === "card_foretold") stats.omenRound ??= before.round;
+      if (e.type === "game_won" && e.cause === "ragnarok") stats.ragnarokRound = before.round;
+      if (e.type === "holding_destroyed") stats.holdingsDestroyed++;
+      if (e.type === "holding_reduced") stats.holdingsReduced++;
+      if (e.type === "route_burned") stats.routesBurned++;
+      if (e.type === "hands_swapped") stats.handSwaps++;
+      if (e.type === "insurance_claimed") stats.insuranceClaims++;
+      if (e.type === "effect_started" && e.effect === "plague") stats.bannersSickened += e.bannerIds.length;
+      if (e.type === "banner_harvested" && e.notes.includes("sick")) stats.sickHarvests++;
     }
     if (s.round !== lastRound && s.status === "playing") {
       lastRound = s.round;
@@ -127,9 +174,14 @@ function playOne(i: number): GameStats {
     stats.winnerRenown = getRenown(ctx, s, s.winnerId);
     stats.renownSources.holdings = getPlayerHoldings(s, s.winnerId).reduce((n, h) => n + (h.type === "manor" ? 1 : 2), 0);
     stats.renownSources.quests = (s.players[s.winnerId]?.claimedQuestIds ?? []).reduce((n, q) => n + ctx.quest(q).renown, 0);
+    stats.renownSources.bonus = s.players[s.winnerId]?.bonusRenown ?? 0;
   }
   stats.maxHoldShare = Math.max(0, ...[...longest.values()]) / Math.max(1, s.round);
   return stats;
+}
+
+function bump(counts: Record<string, number>, key: string): void {
+  counts[key] = (counts[key] ?? 0) + 1;
 }
 
 const results: GameStats[] = [];
@@ -144,9 +196,40 @@ const produced = Object.fromEntries(RESOURCE_TYPES.map((r) => [r, Math.round(avg
 console.log(`\n${GAMES} games · ${PLAYERS} players · ${RULES} · AI ${LEVEL} · ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 console.log(`finished:            ${finished.length}/${GAMES} (stalled at round ${MAX_ROUNDS}: ${GAMES - finished.length})`);
 console.log(`rounds (turns/player): avg ${avg(finished.map((r) => r.rounds)).toFixed(1)}  min ${Math.min(...finished.map((r) => r.rounds))}  max ${Math.max(...finished.map((r) => r.rounds))}   target 12–16`);
-console.log(`winner renown:       avg ${avg(finished.map((r) => r.winnerRenown)).toFixed(1)} (holdings ${avg(finished.map((r) => r.renownSources.holdings)).toFixed(1)}, quests ${avg(finished.map((r) => r.renownSources.quests)).toFixed(1)})`);
+console.log(`winner renown:       avg ${avg(finished.map((r) => r.winnerRenown)).toFixed(1)} (holdings ${avg(finished.map((r) => r.renownSources.holdings)).toFixed(1)}, quests ${avg(finished.map((r) => r.renownSources.quests)).toFixed(1)}, bonus ${avg(finished.map((r) => r.renownSources.bonus)).toFixed(1)})`);
 console.log(`seat win rates:      ${seatWins.map((w, k) => `seat${k + 1} ${pct(w)}`).join("  ")}   target: none > ${PLAYERS === 4 ? "30" : "45"}%`);
 console.log(`harvest per turn:    early ${avg(results.flatMap((r) => r.harvestMid)).toFixed(2)}  later ${avg(results.flatMap((r) => r.harvestLate)).toFixed(2)}   target mid 3–5, late 4–7`);
 console.log(`per game:            writs ${avg(results.map((r) => r.writs)).toFixed(1)}  wardens ${avg(results.map((r) => r.wardens)).toFixed(1)}  trades ${avg(results.map((r) => r.trades)).toFixed(1)}  cards bought ${avg(results.map((r) => r.bought)).toFixed(1)} played ${avg(results.map((r) => r.cards)).toFixed(1)}  quests ${avg(results.map((r) => r.quests)).toFixed(1)}`);
 console.log(`produced per game:   ${JSON.stringify(produced)}`);
 console.log(`hereditary regions:  games where a contestable Region was held by one player > 60% of the match: ${pct(results.filter((r) => r.maxHoldShare > 0.6).length)}   target ≤ 25%`);
+if (DECK.length > 0) printCardTelemetry();
+
+/** Per-card plays and the second-wave outcomes; printed only when the ruleset deals cards. */
+function printCardTelemetry(): void {
+  const total = (pick: (r: GameStats) => Record<string, number>, id: string) => results.reduce((n, r) => n + (pick(r)[id] ?? 0), 0);
+  const entries = DECK.map((c) => {
+    const countered = total((r) => r.countered, c.id);
+    return `${c.id} ${total((r) => r.plays, c.id)}${countered ? ` (${countered} countered)` : ""}`;
+  });
+  // Wrapped to keep the table readable in a terminal.
+  const lines: string[] = [];
+  for (const entry of entries) {
+    const last = lines.length - 1;
+    if (last >= 0 && (lines[last] as string).length + entry.length < 100) lines[last] += `  ${entry}`;
+    else lines.push(entry);
+  }
+  lines.forEach((line, k) => console.log((k === 0 ? "card plays, total:" : "").padEnd(21) + line));
+  const per = (pick: (r: GameStats) => number) => avg(results.map(pick)).toFixed(2);
+  console.log(
+    `new cards per game:  holdings destroyed ${per((r) => r.holdingsDestroyed)} reduced ${per((r) => r.holdingsReduced)}  routes burned ${per((r) => r.routesBurned)}  hand swaps ${per((r) => r.handSwaps)}  insurance claims ${per((r) => r.insuranceClaims)}  banners sickened ${per((r) => r.bannersSickened)} (harvests lost ${per((r) => r.sickHarvests)})`,
+  );
+  if (!DECK.some((c) => c.setAside)) return;
+  const omens = results.filter((r) => r.omenRound !== null);
+  const endings = results.filter((r) => r.ragnarokRound !== null);
+  const short = endings.filter((r) => r.winnerRenown < r.targetRenown).length;
+  const avgRound = (rounds: (number | null)[]) => `avg round ${avg(rounds.map(Number)).toFixed(1)}`;
+  console.log(
+    `ragnarok:            foretold in ${omens.length}/${GAMES} games${omens.length ? ` (${avgRound(omens.map((r) => r.omenRound))})` : ""}` +
+      `  ended ${endings.length}${endings.length ? ` (${avgRound(endings.map((r) => r.ragnarokRound))}, winner below target in ${short})` : ""}`,
+  );
+}
