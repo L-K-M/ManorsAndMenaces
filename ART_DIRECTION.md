@@ -583,4 +583,43 @@ on desktop and phone, high contrast, changing a player to human, and reaching
 Begin. Visually reviewed desktop and 360px phone layouts; reset the preview
 viewport afterward. Typecheck and lint passed. Logs:
 `/tmp/mm-player-groups-before.log`, `/tmp/mm-player-groups-e2e.log`.
+Merged through PR #44 as `89445f1`. All CI checks passed, including 145 browser
+tests with two intentional skips. One review round completed without important
+findings; optional test diagnostics were deferred. The Mac app bundle rebuilt.
+
+## Larger board pieces and shared map junctions
+
+The next screenshots showed undersized gameplay pieces and short region edges
+with a Site sitting between two corners. On
+`codex/board-piece-scale-and-junctions`, Holdings, Menaces and landmarks are 30%
+larger on the board. Target rings, holding hit areas, hover bounds, Banner
+offsets and harvest-note exclusions follow the larger figures. Region Menaces
+sit farther right and slightly lower to leave labels and resource discs clear.
+Terrain clearance grows with the pieces while preserving decoration density.
+
+The generator already collapsed Voronoi edges shorter than 38 board units in
+the gameplay graph, but left the region polygons at their original vertices.
+It now remaps those vertices through the same merge chain and removes duplicate
+corners. Regions, roads and Sites therefore meet at a single shared point.
+Original cells still drive resource and identity decisions: published Site and
+Route IDs, adjacency, resources and capacity remain unchanged, verified by the
+existing gameplay fingerprint regression. Only display paths and label centres
+change in the generated map.
+
+Both geometry regressions failed before the fix and pass afterward: every Site
+is a corner of all its adjacent Regions, and every shared-border Route matches
+both polygon segments. The larger-piece browser regression also failed before
+the scale change and now passes on desktop and phone, including placing a Route
+beside the Manor. The 43 affected board/camera checks passed (two intentional
+desktop skips). After the final terrain-spacing adjustment, all 18 terrain and
+island geometry checks pass. Visually reviewed the normal and zoomed board and
+a Manor at the Royal Castle; restored the isolated preview's test position and
+camera afterward.
+
+The final `pnpm check` passed: typecheck, lint, all 581 tests in 55 files,
+deterministic map generation, production builds and the server smoke test.
+All 12 final artwork browser checks passed. The first sandboxed full check
+could not complete local server tests; the successful run used local networking.
+Logs: `/tmp/mm-junction-check-final.log`,
+`/tmp/mm-piece-art-final.log`, `/tmp/mm-board-size-e2e.log`.
 Next: submit for CI/review and merge once checks pass.

@@ -7,7 +7,7 @@
   import { t } from "../i18n.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { onPick, type Highlights } from "../game/interaction.js";
-  import { BoardAlign, FLAME_PATH, LABEL, SICK_MARK, bannerSlot, boardToScreen, labelLod, nameLineLength, noteSlots, placeNote, screenScale, strokeWidth, wrapLabel, type Circle, type Rect, type Segment } from "../game/board-view.js";
+  import { BoardAlign, FLAME_PATH, LABEL, MENACE_OFFSET, PIECE_SCALE, SICK_MARK, bannerSlot, boardToScreen, labelLod, nameLineLength, noteSlots, placeNote, screenScale, strokeWidth, wrapLabel, type Circle, type Rect, type Segment } from "../game/board-view.js";
   import { describePick } from "../game/inspect.js";
   import { regionName } from "../game/log.js";
   import { ui, type Pick } from "../stores/ui.svelte.js";
@@ -71,7 +71,7 @@
       const h = gs.holdings[holdingId];
       const site = h ? sitesById.get(h.siteId) : undefined;
       if (!site) continue;
-      list.forEach((b, i) => out.set(b.id, { x: site.x + 16 + i * 12, y: site.y - 20 }));
+      list.forEach((b, i) => out.set(b.id, { x: site.x + 16 * PIECE_SCALE + i * 12, y: site.y - 20 * PIECE_SCALE }));
     }
     return out;
   });
@@ -94,11 +94,11 @@
     const loc = m.location;
     if (loc.kind === "region") {
       const r = regionsById.get(loc.regionId);
-      return r ? { x: r.labelX + 40, y: r.labelY + 4 } : { x: 0, y: 0 };
+      return r ? { x: r.labelX + MENACE_OFFSET.region.x, y: r.labelY + MENACE_OFFSET.region.y } : { x: 0, y: 0 };
     }
     if (loc.kind === "site") {
       const s = sitesById.get(loc.siteId);
-      return s ? { x: s.x - 22, y: s.y + 20 } : { x: 0, y: 0 };
+      return s ? { x: s.x + MENACE_OFFSET.site.x, y: s.y + MENACE_OFFSET.site.y } : { x: 0, y: 0 };
     }
     const route = routesById.get(loc.routeId);
     const a = route && sitesById.get(route.siteA);
@@ -312,9 +312,9 @@
   const lod = $derived(labelLod(k, settings.textScale));
   /** Width of `screenPx` CSS px in board units, never below `min`. */
   const px = (screenPx: number, min = 0) => strokeWidth(screenPx, k, min);
-  const siteRing = (hasHolding: boolean) => (hasHolding ? px(13, 24) : px(9, 15));
+  const siteRing = (hasHolding: boolean) => (hasHolding ? px(13, 30 * PIECE_SCALE) : px(9, 15));
   const bannerRing = $derived(px(11, 17));
-  const menaceRing = $derived(px(12, 24));
+  const menaceRing = $derived(px(12, 32 * PIECE_SCALE));
   const postScale = $derived(Math.min(2.2, Math.max(1, 1 / k)));
 
   // ------------------------------------------------------------------ targets
@@ -370,10 +370,13 @@
     const obstacles = { circles: [] as Circle[], segments: [] as Segment[], rects: [] as Rect[] };
     if (m) {
       for (const s of map.sites) {
-        obstacles.circles.push(holdingBySite.has(s.id) ? { x: s.x, y: s.y - 8, r: 26 } : { x: s.x, y: s.y, r: 14 });
+        obstacles.circles.push(holdingBySite.has(s.id) ? { x: s.x, y: s.y - 8 * PIECE_SCALE, r: 26 * PIECE_SCALE } : { x: s.x, y: s.y, r: 14 });
         if (s.tradePost) obstacles.circles.push({ x: s.x - 22 - (postScale - 1) * 8, y: s.y - 18 - (postScale - 1) * 8, r: 10 * postScale });
       }
-      for (const menace of Object.values(gs.menaces)) obstacles.circles.push({ ...menacePos(menace), r: 22 });
+      for (const menace of Object.values(gs.menaces)) {
+        const pos = menacePos(menace);
+        obstacles.circles.push({ x: pos.x, y: pos.y - 6 * PIECE_SCALE, r: 32 * PIECE_SCALE });
+      }
       for (const [id, pos] of bannerPositions) {
         obstacles.circles.push({ x: pos.x + 3, y: pos.y - 11, r: 16 });
         if (sick.has(id)) obstacles.circles.push({ x: pos.x + SICK_AT.x, y: pos.y + SICK_AT.y, r: 7 });
@@ -459,7 +462,7 @@
       }
       case "site": {
         const s = sitesById.get(p.id);
-        return s ? { x: s.x, top: s.y - (holdingBySite.has(s.id) ? 32 : 16), bottom: s.y + 16 } : null;
+        return s ? { x: s.x, top: s.y - (s.landmarkId ? 48 * PIECE_SCALE : holdingBySite.has(s.id) ? 32 * PIECE_SCALE : 16), bottom: s.y + 16 * PIECE_SCALE } : null;
       }
       case "route": {
         const route = routesById.get(p.id);
@@ -475,7 +478,7 @@
         const m = gs.menaces[p.id];
         if (!m) return null;
         const pos = menacePos(m);
-        return { x: pos.x, top: pos.y - 22, bottom: pos.y + 22 };
+        return { x: pos.x, top: pos.y - 34 * PIECE_SCALE, bottom: pos.y + 22 * PIECE_SCALE };
       }
       default:
         return null;
@@ -704,9 +707,9 @@
         onpointerenter={(e) => hoverIn(e, { kind: "site", id: site.id })}
         onpointerleave={() => hoverOut({ kind: "site", id: site.id })}
       >
-        <circle r="22" class="hit" />
+        <circle r={holding ? 22 * PIECE_SCALE : 22} class="hit" />
         {#if site.landmarkId}
-          <g transform="translate(0,-4)" pointer-events="none">
+          <g transform="translate(0,-4) scale({PIECE_SCALE})" pointer-events="none">
             <LandmarkArt id={site.landmarkId} />
           </g>
         {/if}
@@ -717,7 +720,7 @@
           </g>
         {/if}
         {#if holding && theme}
-          <g pointer-events="none" class="holding">
+          <g pointer-events="none" class="holding" transform="scale({PIECE_SCALE})">
             <HoldingFigure type={holding.type} {theme} />
             <path d={emblemPath(theme.shape, 4)} transform="translate(0,-26)" fill={theme.light} stroke={theme.dark} stroke-width="1.5" />
           </g>
@@ -805,10 +808,12 @@
         onpointerenter={(e) => hoverIn(e, { kind: "menace", id: menace.id })}
         onpointerleave={() => hoverOut({ kind: "menace", id: menace.id })}
       >
-        <circle r="25" class="focus-ring" />
-        <MenaceFigure type={menace.type} animate={dur > 0} highContrast={settings.highContrast} />
+        <circle r={32 * PIECE_SCALE} class="focus-ring" />
+        <g transform="scale({PIECE_SCALE})">
+          <MenaceFigure type={menace.type} animate={dur > 0} highContrast={settings.highContrast} />
+        </g>
         {#if hoard.length}
-          <text y={20 + Math.max(12, lod.minor)} text-anchor="middle" class="hoard" style="font-size: {Math.max(12, lod.minor)}px">{hoard.map(([r, n]) => `${n}${RESOURCE_COLORS[r as keyof typeof RESOURCE_COLORS].label}`).join(" ")}</text>
+          <text y={24 * PIECE_SCALE + Math.max(12, lod.minor)} text-anchor="middle" class="hoard" style="font-size: {Math.max(12, lod.minor)}px">{hoard.map(([r, n]) => `${n}${RESOURCE_COLORS[r as keyof typeof RESOURCE_COLORS].label}`).join(" ")}</text>
         {/if}
         {#if isHl || ui.selectedMenaceId === menace.id}
           <circle r={menaceRing} class="hl-casing" stroke-width={px(5, 6)} pointer-events="none" />
@@ -861,8 +866,8 @@
   {#if destRegions.length > 0}
     <g class="layer-dests" pointer-events="none">
       {#each destRegions as r (r.id)}
-        <circle cx={r.labelX + 40} cy={r.labelY + 4} r={px(8, 12)} class="hl-casing" stroke-width={px(5, 6)} />
-        <circle cx={r.labelX + 40} cy={r.labelY + 4} r={px(8, 12)} class="dest" stroke-width={px(2.5, 3)} />
+        <circle cx={r.labelX + MENACE_OFFSET.region.x} cy={r.labelY + MENACE_OFFSET.region.y} r={px(8, 12)} class="hl-casing" stroke-width={px(5, 6)} />
+        <circle cx={r.labelX + MENACE_OFFSET.region.x} cy={r.labelY + MENACE_OFFSET.region.y} r={px(8, 12)} class="dest" stroke-width={px(2.5, 3)} />
       {/each}
     </g>
   {/if}
@@ -896,7 +901,7 @@
       <circle cx={pos.x} cy={pos.y} r={menaceRing + px(5, 6)} stroke-width={px(7, 9)} />
     {/each}
     {#each destRegions as r (r.id)}
-      <circle cx={r.labelX + 40} cy={r.labelY + 4} r={px(8, 12) + px(5, 6)} stroke-width={px(7, 9)} />
+      <circle cx={r.labelX + MENACE_OFFSET.region.x} cy={r.labelY + MENACE_OFFSET.region.y} r={px(8, 12) + px(5, 6)} stroke-width={px(7, 9)} />
     {/each}
     </g>
   </svg>

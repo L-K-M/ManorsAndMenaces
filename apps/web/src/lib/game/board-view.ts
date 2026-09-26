@@ -2,6 +2,13 @@
 // (LOD) and Banner slots. Board units are SVG user units; "px" are CSS pixels
 // on screen.
 
+/** Shared by board pieces, their targets and the terrain's keep-out zones. */
+export const PIECE_SCALE = 1.3;
+export const MENACE_OFFSET = {
+  region: { x: 52, y: 20 },
+  site: { x: -34, y: 28 },
+} as const;
+
 export interface Size {
   w: number;
   h: number;

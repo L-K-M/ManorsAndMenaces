@@ -14,7 +14,7 @@ import type { MapDefinition, RegionDefinition } from "@manors-menaces/content";
 import type { ResourceType } from "@manors-menaces/rules";
 import { PASS_OFFSET, RIVER_HALF, passRidges, riverAcross } from "./routes.js";
 import { artRng, bounds, edgeDistance, inside, polygonPoints, segmentDistance, signedArea, type Pt } from "./geometry.js";
-import { LABEL } from "../game/board-view.js";
+import { LABEL, MENACE_OFFSET, PIECE_SCALE } from "../game/board-view.js";
 
 /** How one merged terrain path is painted. */
 export interface InkStyle {
@@ -104,18 +104,18 @@ export const CLEARANCE = {
   /** Resource disc and capacity pips at the label point. */
   disc: 24,
   /** Where a Menace stands in a Region (see menacePos in Board.svelte). */
-  menace: { dx: 40, dy: 4, r: 26 },
+  menace: { dx: MENACE_OFFSET.region.x, dy: MENACE_OFFSET.region.y - 6 * PIECE_SCALE, r: 26 * PIECE_SCALE },
   /** Region name: above the disc, about 3.6 units per character each side. */
   name: { top: -42, bottom: -14, perChar: 3.6, pad: 8 },
   /** Capacity pips and the Banner row under the disc (flags stand at LABEL.bannerY, poles end 4 below). */
   banners: { x: -30, y: 2, w: 56, h: LABEL.bannerY + 8 },
   /** A Site with its Holding, emblem, Trading Post and landmark art. */
-  site: { dy: -8, r: 25 },
-  landmark: { dx: -22, dy: -15, r: 22 },
+  site: { dy: -8 * PIECE_SCALE, r: 25 * PIECE_SCALE },
+  landmark: { dx: -22 * PIECE_SCALE, dy: -4 - 15 * PIECE_SCALE, r: 22 * PIECE_SCALE },
   post: { dx: -22, dy: -18, r: 13 },
   route: 8,
   /** Route midpoints, where the Highwayman stands. */
-  routeMid: 20,
+  routeMid: 20 * PIECE_SCALE,
   shore: 10,
 } as const;
 

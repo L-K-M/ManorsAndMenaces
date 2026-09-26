@@ -62,6 +62,33 @@ describe("island geography", () => {
     }
   });
 
+  it("places every Site at the shared corner of all its Regions", () => {
+    for (const site of map.sites) {
+      for (const id of site.adjacentRegionIds) {
+        const poly = polygonPoints(map.regions.find((r) => r.id === id)!.path);
+        expect(poly.some((p) => p.x === site.x && p.y === site.y), `${site.id} must be a corner of ${id}`).toBe(true);
+      }
+    }
+  });
+
+  it("draws shared-border Routes on the same segment as both Regions", () => {
+    for (const route of map.routes) {
+      const a = map.sites.find((s) => s.id === route.siteA)!;
+      const b = map.sites.find((s) => s.id === route.siteB)!;
+      const common = a.adjacentRegionIds.filter((id) => b.adjacentRegionIds.includes(id));
+      if (common.length < 2) continue;
+      for (const id of common) {
+        const poly = polygonPoints(map.regions.find((r) => r.id === id)!.path);
+        const joins = poly.some((p, i) => {
+          const q = poly[(i + 1) % poly.length]!;
+          return (p.x === a.x && p.y === a.y && q.x === b.x && q.y === b.y)
+            || (p.x === b.x && p.y === b.y && q.x === a.x && q.y === a.y);
+        });
+        expect(joins, `${route.id} must follow the border of ${id}`).toBe(true);
+      }
+    }
+  });
+
   it("keeps sites and the full length of every route on land", () => {
     for (const p of coast) {
       expect(p.x).toBeGreaterThan(0);
