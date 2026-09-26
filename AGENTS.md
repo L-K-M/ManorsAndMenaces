@@ -4,7 +4,7 @@
 
 - **Node 22.14+** (see `.nvmrc`; older releases bundle a corepack that rejects npm's current signing key) with **corepack** — `corepack enable` provides the pinned pnpm (`packageManager` in `package.json`). Node 25 and later no longer include corepack; run `npm install -g corepack` first.
 - **Desktop builds:** Rust (stable, via rustup) and the Tauri system libraries. On Debian/Ubuntu: `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf`.
-- **Android (optional):** JDK 17, Android SDK with NDK 29 (`ANDROID_HOME`, `NDK_HOME`), and `rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android`. The Android Studio project lives in `src-tauri/gen/android` (committed). Build with `pnpm tauri android build --apk`; release APKs are unsigned until a keystore is configured (see Tauri's Android signing guide).
+- **Android (optional):** JDK 17, Android SDK with NDK 29 (`ANDROID_HOME`, `NDK_HOME`), and `rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android`. The Android Studio project lives in `src-tauri/gen/android` (committed). Build an installable debug APK with `scripts/build.sh android`. Use `scripts/build.sh android --release` for a release APK; release APKs are unsigned until a keystore is configured (see Tauri's Android signing guide).
 - **E2E tests:** `pnpm --filter @manors-menaces/web exec playwright install --with-deps chromium`.
 
 ## Commands
@@ -23,7 +23,7 @@
 | Production build + server smoke test | `pnpm build:check` |
 | Balance simulation | `pnpm simulate --games 40 --players 3 --rules standard` |
 | Regenerate the map | `pnpm map:generate` (deterministic; commit the result; `pnpm map:check` verifies it) |
-| Build all targets | `scripts/build.sh [web] [server] [desktop] [android]` → `dist/` |
+| Build all targets | `scripts/build.sh [web] [server] [desktop] [android] [--release]` → `dist/` (native builds default to debug) |
 | Release | `scripts/release.sh X.Y.Z [--push]` |
 | Installers without a release | `gh workflow run build.yml` → macOS `.dmg`, Linux `.deb`/`.AppImage`, Android `.apk` as run artifacts |
 
