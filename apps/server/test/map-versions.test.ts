@@ -1,11 +1,12 @@
-import { afterEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it } from "vitest";
 import { GREENVALE_MAP, rulesContentFor } from "@manors-menaces/content";
 import { RULESET_VERSION, createRulesEngine, getLegalActions, mvpRuleset, type GameCommand } from "@manors-menaces/rules";
 import { Store } from "../src/store.js";
 import { MatchService } from "../src/service.js";
 
-const store = new Store();
-const service = new MatchService(store);
+let store: Store;
+let service: MatchService;
+beforeEach(() => { store = new Store(); service = new MatchService(store); });
 afterEach(() => { service.shutdown(); store.db.close(); });
 
 it("starts and replays saved lobbies with their original map while new matches use the coast", () => {

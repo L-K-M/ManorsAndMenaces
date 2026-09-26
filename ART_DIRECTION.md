@@ -739,3 +739,21 @@ awaiting its first review; the verified browser follow-up is ready to push.
 Final local browser rerun: 148 passed, two intentional skips, no retries or
 failures (`/tmp/mm-coast-e2e-final.log`). Verified the retained legacy map object
 is exactly equal to `origin/main`'s published map, including all geometry.
+
+PR #47 review round 1 completed without confirmed important findings. Verified
+all three major-labelled concerns: chord normals/bridge rails only apply to
+straight bridges/passes, while coastal road clearance uses every polyline
+segment; terrain RNG is per Region and full legacy terrain output is exactly
+identical at 160/800 retry limits; the retained `greenvale` is registered and
+old local/online saves are covered. Accepted two small test improvements:
+fresh server fixtures per test and shoreline coverage filtered to coastal
+endpoints, permitting future inland road curves. Existing validation rejects
+empty polylines and unknown endpoints and checks both maps' adjacency,
+connectivity, landmarks and Menace starts before gameplay. SiteDefinition has
+no separate label coordinates. Rejected the suggested inland road/site inset:
+it would misalign the requested beach junctions and could cross bays. Deferred
+hypothetical malformed typed-content guards, curved bridge support, generated
+file constant extraction, legacy lazy-loading and generator diagnostic polish.
+The updated PR will carry the passing 148-test browser result and the disabled
+road inheritance fix. Wait for CI and completed review on the new head, then
+merge; final Mac app already matches this implementation.

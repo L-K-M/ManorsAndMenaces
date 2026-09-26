@@ -24,6 +24,7 @@ for (const region of map.regions) {
 }
 const beach = new Set([...borders.values()].filter((e) => e.count === 1).flatMap((e) => [e.a, e.b]));
 const junctions = [...beach].filter((p) => regionsAt.get(p)!.size >= 2);
+const coastalIds = new Set(map.sites.filter((s) => beach.has(key(s))).map((s) => s.id));
 
 describe("coastal building network", () => {
   it("has a manor Site wherever a shared region border meets the beach", () => {
@@ -35,7 +36,6 @@ describe("coastal building network", () => {
   });
 
   it("connects every beach Site to two neighbouring beach Sites", () => {
-    const coastalIds = new Set(map.sites.filter((s) => beach.has(key(s))).map((s) => s.id));
     for (const id of coastalIds) {
       const roads = map.routes.filter((r) => (r.siteA === id && coastalIds.has(r.siteB)) || (r.siteB === id && coastalIds.has(r.siteA)));
       expect(roads, id).toHaveLength(2);
@@ -43,7 +43,7 @@ describe("coastal building network", () => {
   });
 
   it("covers every shoreline segment exactly once without crossing water", () => {
-    const drawn = map.routes.flatMap((r) => (r.points ?? []).slice(1).map((p, i) => [key(r.points![i]!), key(p)].sort().join("|")));
+    const drawn = map.routes.filter((r) => coastalIds.has(r.siteA) && coastalIds.has(r.siteB)).flatMap((r) => (r.points ?? []).slice(1).map((p, i) => [key(r.points![i]!), key(p)].sort().join("|")));
     const boundary = [...borders].filter(([, e]) => e.count === 1).map(([id]) => id);
     expect(drawn.sort()).toEqual(boundary.sort());
   });
