@@ -244,6 +244,12 @@ export interface FriendInvite {
  * POST /api/invites/accept ({ code }) admits this guest session (and, in a
  * browser on the server's own site, this browser) through an invite.
  */
+/** POST /api/invites/accept: the invite admitted this guest, who now goes by its name. */
+export interface InviteAcceptResponse {
+  ok: true;
+  displayName: string;
+}
+
 export interface InviteSettings {
   available: boolean;
   quota: number;

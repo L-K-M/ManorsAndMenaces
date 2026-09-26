@@ -21,3 +21,17 @@ export function rememberName(name: string): void {
     // ignore
   }
 }
+
+/**
+ * After a browser accepts an invite, the invite page sends it here with
+ * `?invited=<name>` (apps/server/src/app.ts): remember that name as the
+ * player's, and return the address without it (null when there is none).
+ */
+export function takeInvitedName(url: URL): URL | null {
+  const name = url.searchParams.get("invited");
+  if (name === null) return null;
+  rememberName(name);
+  const clean = new URL(url);
+  clean.searchParams.delete("invited");
+  return clean;
+}

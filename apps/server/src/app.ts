@@ -31,6 +31,7 @@ import {
   type ApiErrorBody,
   type ClientMessage,
   type EmailSettings,
+  type InviteAcceptResponse,
   type InviteSettings,
   type ServerMessage,
   type SocketMode,
@@ -310,7 +311,9 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     if (req.method === "POST") {
       const accepted = invites.accept(code);
       if (!accepted) return invalid();
-      res.writeHead(303, { location: "/", "cache-control": "no-store", "set-cookie": passCookie(req, accepted.pass) });
+      // The app remembers the invite's name as the player's (playerName.ts).
+      const location = `/?invited=${encodeURIComponent(accepted.invite.name)}`;
+      res.writeHead(303, { location, "cache-control": "no-store", "set-cookie": passCookie(req, accepted.pass) });
       return void res.end();
     }
     const invite = invites.usable(code);
@@ -334,14 +337,17 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     return held;
   };
 
-  /** The browser's invite, or a new device admitted by `code`, with the pass cookie to set for it. */
-  const inviteFor = (req: IncomingMessage, code: unknown, invites: Invites): { invite: InviteRow; headers: Record<string, string> } | null => {
+  /**
+   * The browser's invite, or a new device admitted by `code` (`accepted`),
+   * with the pass cookie to set for it.
+   */
+  const inviteFor = (req: IncomingMessage, code: unknown, invites: Invites): { invite: InviteRow; accepted: boolean; headers: Record<string, string> } | null => {
     const held = invites.forPass(passOf(req));
-    if (held) return { invite: held, headers: {} };
+    if (held) return { invite: held, accepted: false, headers: {} };
     if (code === undefined) return null;
     const accepted = invites.accept(code);
     if (!accepted) throw new HttpError(403, "this invite does not work: it may have expired, been used up or been withdrawn", "INVITE_INVALID");
-    return { invite: accepted.invite, headers: { "set-cookie": passCookie(req, accepted.pass) } };
+    return { invite: accepted.invite, accepted: true, headers: { "set-cookie": passCookie(req, accepted.pass) } };
   };
 
   const readJson = (req: IncomingMessage): Promise<unknown> =>
@@ -437,7 +443,9 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         if (!invites) return send(res, 200, service.createGuest(body.displayName));
         const found = inviteFor(req, body.inviteCode, invites);
         if (!found) throw new HttpError(403, "this server is invite-only: accept an invite first", "INVITE_REQUIRED");
-        const guest = service.createGuest(body.displayName);
+        // Accepting an invite names the player after it. A browser accepted
+        // its invite on the invite page, which passed the name to the app.
+        const guest = service.createGuest(found.accepted ? found.invite.name : body.displayName);
         invites.admit(guest.userId, found.invite);
         return send(res, 200, guest, found.headers);
       }
@@ -450,7 +458,8 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         const found = inviteFor(req, body.code, invites);
         if (!found) throw new HttpError(403, "send the invite code", "INVITE_INVALID");
         if (user) invites.admit(user.id, found.invite);
-        return send(res, 200, { ok: true }, found.headers);
+        const displayName = user && found.accepted ? service.renameGuest(user.id, found.invite.name) : (user?.display_name ?? found.invite.name);
+        return send(res, 200, { ok: true, displayName } satisfies InviteAcceptResponse, found.headers);
       }
       if ((url.pathname === "/api/email/confirm" || url.pathname === "/api/email/unsubscribe") && (req.method === "GET" || req.method === "POST")) {
         if (!email) throw new HttpError(404, "not found");

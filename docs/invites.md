@@ -91,5 +91,6 @@ An invite link that has expired, been used on all the devices it allows, been wi
 
 - **In a browser on the server's own site**, opening an invite link shows who it is for and an **Accept invite** button. Opening the link alone uses nothing up, because link previews in chat apps and mail scanners open links too. Accepting it gives the browser a pass in a cookie, kept for 400 days and renewed on every visit, so the browser is remembered. Another invite link opened in a browser that already has a pass just opens the game.
 - **In the desktop and Android apps** (and a web build hosted elsewhere), the lobby asks for the invite link or code once, the first time it signs in to the server. The guest session is admitted through the invite, so the app never asks again on that device.
+- Accepting an invite names the player after it: the name on the invite becomes the name they play under. In a browser it is filled in for them, and they can change it before they first sign in.
 - Each device that accepts an invite counts as one of its uses.
 - Invite codes are 12 random characters (about 59 bits), and invite links are rate limited like the API, so they cannot be guessed.

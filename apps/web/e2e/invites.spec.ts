@@ -54,8 +54,10 @@ test("the apps ask for the invite once, and invited players invite friends", asy
   await friends.getByLabel("Their name").fill("Kim");
   await friends.getByRole("button", { name: "Make invite link" }).click();
   const kimLink = await friends.getByLabel("Invite link for Kim").inputValue();
-  const kim = await lobby(browser, "Kim");
+  const kim = await lobby(browser, "Kimberly");
   await acceptInvite(kim, kimLink);
+  // Accepting an invite names the player after it.
+  expect(await kim.evaluate(() => localStorage.getItem("mm.playerName.v1"))).toBe("Kim");
   await expect(kim.getByRole("region", { name: "Invite friends" })).toContainText("You can invite 10 more people.");
 
   await ivy.getByRole("button", { name: "Back" }).last().click();

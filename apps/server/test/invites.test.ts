@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
-import type { ApiErrorBody, GuestSessionResponse, InviteSettings } from "@manors-menaces/protocol";
+import type { ApiErrorBody, GuestSessionResponse, InviteAcceptResponse, InviteSettings } from "@manors-menaces/protocol";
 import { createApp } from "../src/app.js";
 import { FRIEND_INVITE_DEVICES, INVITES_PER_PERSON, Invites } from "../src/invites.js";
 
@@ -115,7 +115,7 @@ describe("an invite-only server", () => {
 
     const accepted = await b.request(`/invite/${anna.code}`, { method: "POST" });
     expect(accepted.status).toBe(303);
-    expect(accepted.headers.get("location")).toBe("/");
+    expect(accepted.headers.get("location")).toBe("/?invited=Anna");
     expect(accepted.setCookie).toMatch(/HttpOnly/i);
     expect(accepted.setCookie).toMatch(/SameSite=Lax/i);
     expect(accepted.setCookie).toMatch(/Max-Age=\d{7,}/);
@@ -223,7 +223,30 @@ describe("an invite-only server", () => {
     expect((await client.api("/api/invites/accept", old.token, { code: "nosuchcode" })).data.code).toBe("INVITE_INVALID");
     expect((await client.api("/api/invites/accept", old.token, { code: anna.code })).status).toBe(200);
     expect((await client.api("/api/matches", old.token)).status).toBe(200);
-    expect(invites.list()[0]).toMatchObject({ devices: 2, players: ["Anna", "Old"] });
+    expect(invites.list()[0]).toMatchObject({ devices: 2, players: ["Anna", "Anna"] });
+  });
+
+  it("names the player after the invite they accept", async () => {
+    await start();
+
+    // A browser: the redirect carries the name for the app to remember.
+    const b = browser();
+    const accepted = await b.request(`/invite/${invites.create({ name: "Anna Lee" }).code}`, { method: "POST" });
+    expect(accepted.headers.get("location")).toBe("/?invited=Anna%20Lee");
+    // Once in, the name the player signs in with is theirs to choose.
+    expect((await b.api<GuestSessionResponse>("/api/guest", null, { displayName: "Annie" })).data.displayName).toBe("Annie");
+
+    // The apps: the code names the new guest session, whatever the name field said.
+    const bert = invites.create({ name: "Bert" });
+    const g = await appClient().api<GuestSessionResponse>("/api/guest", null, { displayName: "Someone", inviteCode: bert.code });
+    expect(g.data.displayName).toBe("Bert");
+
+    // A guest session from before, admitted with a code, takes the invite's name.
+    const cleo = invites.create({ name: "Cleo" });
+    const old = app.service.createGuest("Old");
+    const client = appClient();
+    expect((await client.api<InviteAcceptResponse>("/api/invites/accept", old.token, { code: cleo.code })).data.displayName).toBe("Cleo");
+    expect((await client.api<{ displayName: string }>("/api/me", old.token)).data.displayName).toBe("Cleo");
   });
 
   it("keeps invites that admit no device or allow negative invites out of the database", async () => {

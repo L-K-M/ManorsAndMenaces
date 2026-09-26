@@ -124,6 +124,13 @@ export class MatchService {
     return { token, userId, displayName: name };
   }
 
+  /** Gives a guest a new name, cleaned like a new guest's; returns it. */
+  renameGuest(userId: string, displayName: unknown): string {
+    const name = cleanName(displayName);
+    this.store.renameUser(userId, name);
+    return name;
+  }
+
   authenticate(token: string | null | undefined): UserRow {
     if (!token || token.length > 200) throw new HttpError(401, "missing or invalid token", "INVALID_SESSION");
     const user = this.store.userByTokenHash(hashToken(token));
