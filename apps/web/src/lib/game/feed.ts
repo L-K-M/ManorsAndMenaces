@@ -267,6 +267,21 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
 }
 
 /** One published batch, remembered so a returning player can catch up. */
+/**
+ * The `max` items to show when not all fit: whatever was done to the viewer
+ * first (a stolen resource, a swapped hand), then the newest of the rest, in
+ * their original order. Otherwise a string of later, harmless actions pushes
+ * the one line the viewer most needs out of the toasts or the digest.
+ */
+export function keepAimedAtViewer<T extends { againstViewer: boolean }>(items: readonly T[], max: number): T[] {
+  if (items.length <= max) return [...items];
+  const aimed = items.filter((i) => i.againstViewer).slice(-max);
+  const room = max - aimed.length;
+  const rest = room > 0 ? items.filter((i) => !i.againstViewer).slice(-room) : [];
+  const kept = new Set<T>([...aimed, ...rest]);
+  return items.filter((i) => kept.has(i));
+}
+
 export interface FeedBatch {
   seq: number;
   events: readonly GameEvent[];

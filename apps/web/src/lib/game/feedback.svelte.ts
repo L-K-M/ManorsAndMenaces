@@ -7,14 +7,15 @@
 // played when they reveal; everything else waits in the digest.
 
 import { tick } from "svelte";
-import type { GameEvent, HarvestNote, PlayerId, ResourceType } from "@manors-menaces/rules";
+import type { GameEvent, GameState, HarvestNote, PlayerId, ResourceType } from "@manors-menaces/rules";
 import { animationScale } from "../stores/settings.svelte.js";
 import { clearIncoming, holdIncoming, releaseIncoming } from "../stores/fx.svelte.js";
-import { awayDigest, feedItemsFor, type FeedBatch, type FeedItem } from "./feed.js";
+import { awayDigest, feedItemsFor, keepAimedAtViewer, type FeedBatch, type FeedItem } from "./feed.js";
+import { nextHandSwaps, type HandSwap } from "./handChange.js";
 import { planHarvestFlights, resourceKey, type Flight, type HarvestBadge, type Point } from "./harvestFlights.js";
 import type { GameSession, SessionEvents } from "./session.svelte.js";
 
-/** Toasts on screen at once; older ones make way. */
+/** Toasts on screen at once; older ones make way, except what was done to the viewer. */
 const MAX_TOASTS = 3;
 /** Reading time for a toast; not scaled by animation speed. */
 const TOAST_MS = 5000;
@@ -71,8 +72,16 @@ export class FeedbackController {
   pulses: Pulse[] = $state([]);
   badges: Badge[] = $state([]);
   tokens: Token[] = $state([]);
+  /**
+   * Per player: the cards another player's Changeling took and gave, shown
+   * on their hand until they dismiss it or their turn ends. A toast alone
+   * was easy to miss, and the hand then just held different cards.
+   */
+  handSwaps: ReadonlyMap<PlayerId, HandSwap> = $state(new Map());
 
   private readonly session: GameSession;
+  /** The state before the batch being received, for what a swap took. */
+  private lastState: GameState;
   private readonly unsubscribe: () => void;
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
   private batches: FeedBatch[] = [];
@@ -86,8 +95,10 @@ export class FeedbackController {
 
   constructor(session: GameSession) {
     this.session = session;
+    this.lastState = session.draft;
     clearIncoming();
     this.unsubscribe = session.events.on((m) => {
+      this.noteSwaps(m);
       // Hold the tokens back at once, before the counters render the new
       // totals, so a counter never shows its new value before its tokens land.
       const plan = planHarvestFlights(m.own && !m.provisional ? withoutStartingResources(m.events) : m.events, session.map);
@@ -128,6 +139,13 @@ export class FeedbackController {
     this.digest = null;
   }
 
+  dismissHandSwap(playerId: PlayerId): void {
+    if (!this.handSwaps.has(playerId)) return;
+    const next = new Map(this.handSwaps);
+    next.delete(playerId);
+    this.handSwaps = next;
+  }
+
   landed(token: Token): void {
     if (!this.tokens.some((t) => t.key === token.key)) return;
     this.tokens = this.tokens.filter((t) => t.key !== token.key);
@@ -135,6 +153,15 @@ export class FeedbackController {
   }
 
   // ------------------------------------------------------------------ batches
+
+  /** Runs as each batch is published, while the viewer is still the one who sent it. */
+  private noteSwaps(m: SessionEvents): void {
+    const before = this.lastState;
+    this.lastState = m.state;
+    if (m.provisional) return;
+    const next = nextHandSwaps(this.handSwaps, m, before, m.own ? this.session.viewerId : null);
+    if (next !== this.handSwaps) this.handSwaps = next;
+  }
 
   /** `flights` are already held as incoming; each is launched or released. */
   private receive(m: SessionEvents, flights: Flight[], badges: HarvestBadge[]): void {
@@ -187,7 +214,7 @@ export class FeedbackController {
   private addToasts(items: FeedItem[]): void {
     if (!items.length) return;
     const fresh = items.map((i) => ({ ...i, key: `toast-${nextKey++}` }));
-    this.toasts = [...this.toasts, ...fresh].slice(-MAX_TOASTS);
+    this.toasts = keepAimedAtViewer([...this.toasts, ...fresh], MAX_TOASTS);
     for (const toast of fresh) this.later(TOAST_MS, () => (this.toasts = this.toasts.filter((t) => t.key !== toast.key)));
   }
 

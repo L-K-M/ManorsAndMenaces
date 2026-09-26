@@ -8,7 +8,7 @@
   import { RESOURCE_TYPES, type PlayerId } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import type { FeedbackController } from "../game/feedback.svelte.js";
-  import type { FeedItem } from "../game/feed.js";
+  import { keepAimedAtViewer, type FeedItem } from "../game/feed.js";
   import { FLAME_PATH } from "../game/board-view.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { layoutFor } from "../layout.js";
@@ -88,7 +88,7 @@
       </header>
       {#if open}
         <ol>
-          {#each digest.items.slice(-lines) as item}
+          {#each keepAimedAtViewer(digest.items, lines) as item}
             <li class:against={item.againstViewer} class:omen={item.omen} style="--pc: {theme(item.actorId)?.color ?? '#3b3b46'}">
               {@render emblem(item)}{@render body(item)}
             </li>
@@ -293,7 +293,8 @@
   :global(.game[data-layout="sheet"]) .feed {
     left: 0.5rem;
   }
-  :global(.game:not([data-layout="wide"])) .toast:nth-last-child(n + 3) {
+  /* What was done to the viewer stays even when it is not among the last two. */
+  :global(.game:not([data-layout="wide"])) .toast:not(.against):nth-last-child(n + 3) {
     display: none;
   }
   :global(.game:not([data-layout="wide"])) .toast {
