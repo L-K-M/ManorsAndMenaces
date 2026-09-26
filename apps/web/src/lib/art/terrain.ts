@@ -493,6 +493,10 @@ function regionCtx(region: RegionDefinition, coast: Pt[], zones: Zones): Ctx {
   };
 }
 
+/** Motif scale ranges: as drawn, then smaller for Regions with too little room. */
+const FULL_SIZE = { min: 0.85, spread: 0.3 };
+const FALLBACK_SIZES = [FULL_SIZE, { min: 0.55, spread: 0.2 }, { min: 0.4, spread: 0.1 }];
+
 function scatter(region: RegionDefinition, recipe: Recipe, c: Ctx, rng: () => number): Motif[] {
   const b = bounds(c.poly);
   const area = Math.abs(signedArea(c.poly));
@@ -509,10 +513,10 @@ function scatter(region: RegionDefinition, recipe: Recipe, c: Ctx, rng: () => nu
     const R = recipe.clusters.radius;
     return Math.max(...centres.map((q) => 1 - Math.hypot(p.x - q.x, p.y - q.y) / R)) * 1.6;
   };
-  const tryPlace = (kind: MotifKind, attempts: number, distribution: "clustered" | "uniform" = "clustered") => {
+  const tryPlace = (kind: MotifKind, attempts: number, distribution: "clustered" | "uniform" = "clustered", size = FULL_SIZE) => {
     for (let i = 0; i < attempts && out.length < recipe.max; i++) {
       const p = { x: b.x0 + rng() * (b.x1 - b.x0), y: b.y0 + rng() * (b.y1 - b.y0) };
-      const s = 0.85 + rng() * 0.3;
+      const s = size.min + rng() * size.spread;
       const r = MOTIFS[kind].r * s;
       if (rng() > (distribution === "uniform" ? 1 : density(p))) continue;
       if (out.some((m) => Math.hypot(m.x - p.x, m.y - p.y) < (m.r + r) * recipe.pack)) continue;
@@ -522,12 +526,19 @@ function scatter(region: RegionDefinition, recipe: Recipe, c: Ctx, rng: () => nu
     }
     return false;
   };
-  if (recipe.feature) tryPlace(recipe.feature, 400);
+  // A Region's feature (an iron mine) always shows: where its clusters leave
+  // no room, anywhere in the Region, and smaller if need be.
+  const feature = recipe.feature;
+  if (feature && !tryPlace(feature, 400)) FALLBACK_SIZES.find((size) => tryPlace(feature, 400, "uniform", size));
   const tries = Math.round((area / 1000) * recipe.tries);
   for (let i = 0; i < tries && out.length < recipe.max; i++) tryPlace(pickKind(recipe.kinds, rng), 1);
   // Bays can leave usable pockets outside the random clusters. Give sparse
-  // Regions a bounded, uniform pass, preserving all gameplay clearances.
-  for (let i = 0; i < 800 && out.length < 2; i++) tryPlace(pickKind(recipe.kinds, rng), 1, "uniform");
+  // Regions a bounded, uniform pass, preserving all gameplay clearances. A
+  // small Region whose layout gives it a long name or large motifs may have
+  // no room at full size, so later passes try smaller motifs.
+  for (const size of FALLBACK_SIZES) {
+    for (let i = 0; i < 800 && out.length < 2; i++) tryPlace(pickKind(recipe.kinds, rng), 1, "uniform", size);
+  }
   return out;
 }
 

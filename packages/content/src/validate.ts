@@ -1,4 +1,5 @@
 import { ALL_MENACES, RESOURCE_TYPES, isResourceType, menaceLocationKind, type ResourceType } from "@manors-menaces/rules";
+import { recentCache } from "./cache.js";
 import type { MapDefinition } from "./types.js";
 
 // Map validation (spec §102). Errors are fatal in dev; warnings report the
@@ -136,7 +137,7 @@ export function validateMap(map: MapDefinition, maxPlayers = 4): MapValidation {
     if (seen.size !== map.sites.length) errors.push("the Route network is not connected");
   }
 
-  const maxIndependentSites = maximumIndependentSet(adj);
+  const maxIndependentSites = independentSitesOf(map, adj);
   const capacity = map.regions.reduce((s, r) => s + r.capacity, 0);
   if (maxIndependentSites < 4 * maxPlayers)
     warnings.push(`only ${maxIndependentSites} Sites can hold Holdings at once; §11.1 wants ≥ ${4 * maxPlayers}`);
@@ -147,6 +148,21 @@ export function validateMap(map: MapDefinition, maxPlayers = 4): MapValidation {
     warnings,
     stats: { sites: map.sites.length, routes: map.routes.length, regions: map.regions.length, capacity, maxIndependentSites, byResource },
   };
+}
+
+/**
+ * The exact search takes about a tenth of a second, and every layout drawn on
+ * an island (layout.ts) shares the island's Sites and Routes, so it runs once
+ * per network rather than once per game.
+ */
+const independentSites = recentCache<number>(32);
+function independentSitesOf(map: MapDefinition, adj: Map<string, string[]>): number {
+  const network = `${map.sites.map((s) => s.id).join()}|${map.routes.map((r) => `${r.siteA}-${r.siteB}`).join()}`;
+  const known = independentSites.get(network);
+  if (known !== undefined) return known;
+  const size = maximumIndependentSet(adj);
+  independentSites.set(network, size);
+  return size;
 }
 
 /** Exact maximum independent set by branch and bound (fine for ≤ ~60 nodes). */

@@ -4,11 +4,10 @@ import WebSocket from "ws";
 import type { GuestSessionResponse, MatchHistoryResponse, MatchView, SubmitCommandsResponse } from "@manors-menaces/protocol";
 import { getLegalActions, HIDDEN_CARD, redactEvent, type CommandIntent, type GameCommand, type GameEvent, type GameState } from "@manors-menaces/rules";
 import { chooseAction } from "@manors-menaces/ai";
-import { createRng, seedRng, createRulesEngine } from "@manors-menaces/rules";
-import { rulesContentFor } from "@manors-menaces/content";
+import { createRng, seedRng } from "@manors-menaces/rules";
 import { createApp } from "../src/app.js";
+import { engineFor } from "./engines.js";
 
-const engine = createRulesEngine(rulesContentFor());
 let app: ReturnType<typeof createApp>;
 let base = "";
 
@@ -146,6 +145,7 @@ describe("server", () => {
     // Drive both seats with the AI through the public API for a while.
     for (; steps < 300; steps++) {
       const any = (await api<MatchView>(`/api/matches/${matchId}`, alice.token)).data;
+      const engine = engineFor(any.mapId);
       const s = any.state as GameState;
       if (s.status === "finished") break;
       const actor = s.pending?.kind === "reaction" ? s.pending.eligiblePlayerIds[0] : s.pending?.kind === "prophecy" ? s.pending.playerId : s.activePlayerId;
@@ -176,7 +176,7 @@ describe("server", () => {
     const s = view.state as GameState;
     const activeToken = s.activePlayerId === view.youAre ? alice.token : bob.token;
     const otherToken = activeToken === alice.token ? bob.token : alice.token;
-    const site = getLegalActions(engine.ctx, s, s.activePlayerId).initialManorSites[0] as string;
+    const site = getLegalActions(engineFor(view.mapId).ctx, s, s.activePlayerId).initialManorSites[0] as string;
     const cmd = command(s, s.activePlayerId, { type: "place_initial_manor", siteId: site });
     // Spoofing the other seat is forbidden.
     expect((await api(`/api/matches/${matchId}/commands`, otherToken, { matchId, expectedRevision: s.revision, commands: [cmd] })).status).toBe(403);
@@ -238,7 +238,9 @@ describe("catching up on missed moves", () => {
     const out: Submission[] = [];
     const anyToken = Object.values(tokens)[0] as string;
     for (let i = 0; i < steps; i++) {
-      const s = (await api<MatchView>(`/api/matches/${matchId}`, anyToken)).data.state as GameState;
+      const seen = (await api<MatchView>(`/api/matches/${matchId}`, anyToken)).data;
+      const engine = engineFor(seen.mapId);
+      const s = seen.state as GameState;
       if (s.status === "finished") break;
       const actor = (s.pending?.kind === "reaction" ? s.pending.eligiblePlayerIds[0] : s.pending?.kind === "prophecy" ? s.pending.playerId : s.activePlayerId) as string;
       const token = tokens[actor] as string;

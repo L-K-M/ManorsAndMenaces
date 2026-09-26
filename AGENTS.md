@@ -21,8 +21,8 @@
 | UI end-to-end tests | `pnpm test:e2e` |
 | CI-equivalent check (no e2e) | `pnpm check` (typecheck, lint, test, map:check, build:check) |
 | Production build + server smoke test | `pnpm build:check` |
-| Balance simulation | `pnpm simulate --games 40 --players 3 --rules standard` |
-| Regenerate the map | `pnpm map:generate` (deterministic; commit the result; `pnpm map:check` verifies it) |
+| Balance simulation | `pnpm simulate --games 40 --players 3 --rules standard` (`--map drawn` draws an island and layout per game as new games do) |
+| Regenerate the islands | `pnpm map:generate` (every island in `tools/islands.mjs`; deterministic; commit the result; `pnpm map:check` verifies it) |
 | Build all targets | `scripts/build.sh [web] [server] [desktop] [android] [--release]` → `dist/` (native builds default to debug) |
 | Release | `scripts/release.sh X.Y.Z [--push]` |
 | Installers without a release | `gh workflow run build.yml` → macOS `.dmg`, Linux `.deb`/`.AppImage`, Android `.apk` as run artifacts |
@@ -40,7 +40,8 @@
 - `scripts/release.sh` — stub over the shared `lkm-release` engine (kind `tauri`); `scripts/sync-versions.mjs` keeps every workspace `package.json` and the README marker in lockstep.
 - `scripts/build.sh` — multi-target orchestrator (web, server, desktop, android); missing toolchains skip on a default run and fail when named. It checks Node and pnpm before installing, uses rustup's toolchain for Android when the `rustc` on PATH lacks the Android targets, and retries a macOS DMG without its Finder window layout; `--check` shows what it found.
 - `update.sh` — pull + `docker compose up -d --build` for a self-hosted server.
-- `tools/generate-map.mjs` — Voronoi map generator; `tools/simulate.ts` — AI-vs-AI telemetry against the §68 targets.
+- `tools/generate-map.mjs` — Voronoi map generator for one island; `tools/islands.mjs` lists the published islands (seed, id, name) and `tools/generate-islands.mjs` generates or checks them all. A published island's id and topology stay fixed (saves name them); add a new island instead. Each game plays a layout drawn on an island (`packages/content/src/layout.ts`), named `<island>@<layout>`.
+- `tools/simulate.ts` — AI-vs-AI telemetry against the §68 targets.
 
 ## Icons
 

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick } from "./pick";
 
 // Turn flow: phase buttons that survive repeated clicks, the Market staying
 // open between trades, the Banner phase fast path and action explanations.
@@ -41,13 +42,13 @@ async function completeSetup(page: Page, firstSite?: RegExp) {
       if (manors === 0 && firstSite) await sites.and(page.getByRole("button", { name: firstSite })).first().click();
       else await (manors === 3 ? sites.last() : sites.first()).click();
       manors++;
-    } else if (/free Route/.test(s)) await page.locator(".route.hl").first().click();
+    } else if (/free Route/.test(s)) await pick(page.locator(".route.hl").first());
     else if (/starting Banners/.test(s)) {
       const n = await page.locator(".banner.hl").count();
       for (let i = 0; i < n; i++) {
         await page.locator(".banner.hl").nth(i).click();
         const regions = page.locator(".region.hl");
-        if (await regions.count()) await regions.first().click();
+        if (await regions.count()) await pick(regions.first());
       }
       await page.getByRole("button", { name: /Confirm Banners/ }).click();
     } else break;

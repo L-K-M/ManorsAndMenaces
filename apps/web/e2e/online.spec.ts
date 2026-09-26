@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type BrowserContext, type Page, type WebSocketRoute } from "@playwright/test";
 import { linkIn, mailTo } from "./outbox";
+import { pick } from "./pick";
 
 // Online play (spec §58–60, §86): two browsers, invite code, synchronized setup.
 
@@ -28,12 +29,12 @@ async function playSetup(pages: Page[]) {
     for (const p of pages) {
       const s = await status(p);
       if (/place a Manor/.test(s)) await p.locator(".site.hl").first().click();
-      else if (/free Route/.test(s)) await p.locator(".route.hl").first().click();
+      else if (/free Route/.test(s)) await pick(p.locator(".route.hl").first());
       else if (/starting Banners/.test(s)) {
         const n = await p.locator(".banner.hl").count();
         for (let k = 0; k < n; k++) {
           await p.locator(".banner.hl").nth(k).click();
-          if (await p.locator(".region.hl").count()) await p.locator(".region.hl").first().click();
+          if (await p.locator(".region.hl").count()) await pick(p.locator(".region.hl").first());
         }
         await p.getByRole("button", { name: /Confirm Banners/ }).click();
       }
@@ -83,6 +84,21 @@ test("two players create, join and complete setup online", async ({ browser }) =
   // Both see 2 Holdings per player.
   await expect(alice.locator(".site .holding")).toHaveCount(4);
   await expect(bob.locator(".site .holding")).toHaveCount(4);
+});
+
+test("the lobby offers the name you last played under and remembers the one you sign in with", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("mm.playerName.v1", "Lukas"));
+  await page.reload();
+  await page.getByRole("button", { name: "Play online" }).click();
+  await expect(page.getByLabel("Your name")).toHaveValue("Lukas");
+  await page.getByLabel("Your name").fill("Maud");
+  await page.getByText("Server", { exact: true }).click();
+  await page.getByLabel("Server address").fill("http://localhost:8788");
+  await page.getByRole("button", { name: "Continue as guest" }).click();
+  await expect(page.getByRole("button", { name: /Create/ })).toBeVisible();
+  // A local New Game now starts with it too.
+  expect(await page.evaluate(() => localStorage.getItem("mm.playerName.v1"))).toBe("Maud");
 });
 
 test("a stale saved session is replaced by a new guest session", async ({ page }) => {

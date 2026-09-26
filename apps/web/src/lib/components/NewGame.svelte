@@ -4,17 +4,24 @@
   import type { AiLevel, SeatConfig } from "@manors-menaces/protocol";
   import { BALANCE, mvpRuleset, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
   import { PLAYER_THEMES, emblemPath } from "../theme.js";
-  import { RIVALS, rivalById } from "@manors-menaces/content";
+  import { ISLANDS, RIVALS, rivalById } from "@manors-menaces/content";
   import { assignRivals, distinctRivals, freeRival, rivalName, rivalsTakenBy } from "../game/rivals.js";
   import RivalPicker from "./RivalPicker.svelte";
   import RivalPortrait from "./RivalPortrait.svelte";
+  import type { BoardChoice, NewGameOptions } from "../game/session.svelte.js";
+  import { rememberName, rememberedName } from "../game/playerName.js";
 
-  let { onstart, onback }: { onstart: (opts: { seats: SeatConfig[]; ruleset: RulesetConfig; seed?: string }) => void; onback: () => void } = $props();
+  let { onstart, onback }: { onstart: (opts: NewGameOptions) => void; onback: () => void } = $props();
 
   const NAMES = ["Alice", "Bertram", "Cordelia", "Dunstan"];
+  // Your seat starts with the name you last played under.
+  const yourName = rememberedName().slice(0, 20);
+  const defaultName = (i: number): string => (i === 0 && yourName) || (NAMES[i] ?? "");
   let count = $state(3);
   let mode: "standard" | "mvp" = $state("standard");
   let seed = $state("");
+  /** An island id, or "" for any island. */
+  let island = $state("");
   // Quest expiry (§27.2) is part of the Standard rules; unchecking it keeps
   // every Quest on offer until claimed.
   let questExpiry = $state(true);
@@ -22,9 +29,9 @@
   // Start the line-up at a random rival so new games meet different faces.
   const initialRivals = assignRivals(KINDS, Math.floor(Math.random() * RIVALS.length));
   let seats = $state(
-    NAMES.map((name, i) => {
+    NAMES.map((_, i) => {
       const rival = rivalById(initialRivals[i]);
-      return { name: rival ? rivalName(rival) : name, kind: KINDS[i] ?? "ai", level: "normal" as AiLevel, rivalId: rival?.id };
+      return { name: rival ? rivalName(rival) : defaultName(i), kind: KINDS[i] ?? "ai", level: "normal" as AiLevel, rivalId: rival?.id };
     }),
   );
 
@@ -41,7 +48,7 @@
   function isAutoName(i: number): boolean {
     const s = seats[i];
     const rival = rivalById(s?.rivalId);
-    return !!s && (!s.name.trim() || s.name === NAMES[i] || (!!rival && s.name === rivalName(rival)));
+    return !!s && (!s.name.trim() || s.name === defaultName(i) || (!!rival && s.name === rivalName(rival)));
   }
   function setRival(i: number, id: string | undefined) {
     const s = seats[i];
@@ -57,10 +64,12 @@
     if (s.kind === "ai") {
       const others = rivalsOtherThan(i);
       setRival(i, s.rivalId && !others.includes(s.rivalId) ? s.rivalId : freeRival(others, i));
-    } else if (isAutoName(i)) s.name = NAMES[i] ?? s.name;
+    } else if (isAutoName(i)) s.name = defaultName(i) || s.name;
   }
 
   function start() {
+    const you = seats.slice(0, count).findIndex((s) => s.kind === "human");
+    if (you >= 0 && !isAutoName(you)) rememberName(seats[you]?.name ?? "");
     const chosen: SeatConfig[] = seats.slice(0, count).map((s, i) => ({
       playerId: `P${i + 1}`,
       displayName: s.name.trim() || `Player ${i + 1}`,
@@ -70,7 +79,8 @@
     }));
     const ruleset: RulesetConfig =
       mode === "mvp" ? mvpRuleset() : { ...standardRuleset(count), questExpiryRounds: questExpiry ? BALANCE.questExpiryRounds : 0 };
-    onstart({ seats: chosen, ruleset, ...(seed.trim() ? { seed: seed.trim() } : {}) });
+    const board: BoardChoice = island ? { kind: "drawn", islandId: island } : { kind: "drawn" };
+    onstart({ seats: chosen, ruleset, board, ...(seed.trim() ? { seed: seed.trim() } : {}) });
   }
 
   // With no human seat the computers play the whole game; say so, but allow it
@@ -120,6 +130,14 @@
           {/if}
         </fieldset>
       {/each}
+    </fieldset>
+    <fieldset>
+      <legend>{t("ui.island")}</legend>
+      <select aria-label={t("ui.island")} bind:value={island}>
+        <option value="">{t("ui.any_island")}</option>
+        {#each ISLANDS as i (i.id)}<option value={i.id}>{i.name}</option>{/each}
+      </select>
+      <p class="hint">{t("ui.island_hint")}</p>
     </fieldset>
     <fieldset>
       <legend>{t("ui.rules")}</legend>

@@ -5,6 +5,7 @@ import { rulesContentFor } from "@manors-menaces/content";
 import { SAVE_SCHEMA_VERSION, type SaveFile } from "@manors-menaces/protocol";
 import { BALANCE, RULESET_VERSION, createRng, createRulesEngine, mvpRuleset, seedRng, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
 import { TUTORIAL_SEED } from "../src/lib/game/saves.js";
+import { pick } from "./pick";
 
 // Critical flows (spec §66.5): create game, initial placement, first turn,
 // build route, assign banner, harvest, buy card, move menace, save/reload, win.
@@ -62,7 +63,7 @@ async function assignAllBanners(page: Page) {
   for (let i = 0; i < n; i++) {
     await page.locator(".banner.hl").nth(i).click();
     const regions = page.locator(".region.hl");
-    if (await regions.count()) await regions.first().click();
+    if (await regions.count()) await pick(regions.first());
   }
   await page.getByRole("button", { name: /Confirm Banners/ }).click();
 }
@@ -72,7 +73,7 @@ async function completeSetup(page: Page) {
     await passCurtain(page);
     const s = await status(page);
     if (/place a Manor/.test(s)) await page.locator(".site.hl").first().click();
-    else if (/free Route/.test(s)) await page.locator(".route.hl").first().click();
+    else if (/free Route/.test(s)) await pick(page.locator(".route.hl").first());
     else if (/starting Banners/.test(s)) await assignAllBanners(page);
     else break;
   }
@@ -102,7 +103,7 @@ test("setup, first turn, build, harvest, warden, save and reload, victory", asyn
   await page.getByRole("button", { name: /^Build Route/ }).click();
   const routesBefore = await page.locator(".route.hl").count();
   expect(routesBefore).toBeGreaterThan(0);
-  await page.locator(".route.hl").first().click();
+  await pick(page.locator(".route.hl").first());
   await page.getByRole("tab", { name: "Chronicle" }).click();
   await expect(page.getByText(/built a Route/)).toBeVisible();
 
@@ -116,7 +117,7 @@ test("setup, first turn, build, harvest, warden, save and reload, victory", asyn
   // Hire a Warden to move a Menace.
   await page.getByRole("button", { name: /^Hire a Warden/ }).click();
   await page.locator(".menace.hl").first().click();
-  await page.locator(".region.hl, .route.hl, .site.hl").first().click();
+  await pick(page.locator(".region.hl, .route.hl, .site.hl").first());
   await expect(page.getByText(/hired a Warden/)).toBeVisible();
 
   await endTurn(page);
@@ -231,6 +232,44 @@ test("an all-computer game can begin, with a note that you will watch", async ({
   await expect(page.locator(".round")).toBeVisible();
 });
 
+test("New Game starts with the name you last played under", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New game" }).click();
+  const yourName = page.getByLabel("Name of player 1");
+  await expect(yourName).toHaveValue("Alice");
+  await yourName.fill("Lukas");
+  await page.getByRole("button", { name: "Begin" }).click();
+  await expect(page.locator(".round")).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("button", { name: "New game" }).click();
+  await expect(yourName).toHaveValue("Lukas");
+  // Handing the seat to a computer and taking it back keeps your name.
+  await page.getByLabel("Player 1 type").selectOption("ai");
+  await expect(yourName).not.toHaveValue("Lukas");
+  await page.getByLabel("Player 1 type").selectOption("human");
+  await expect(yourName).toHaveValue("Lukas");
+});
+
+test("New Game deals the chosen island's land anew for each seed", async ({ page }) => {
+  const land = async (seed: string) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "New game" }).click();
+    await expect(page.getByLabel("Island")).toHaveValue("");
+    await page.getByLabel("Island").selectOption({ label: "The Greenvale" });
+    await page.getByText("Advanced").click();
+    await page.getByLabel(/Seed/).fill(seed);
+    await page.getByRole("button", { name: "Begin" }).click();
+    await expect(page.locator(".map-name")).toHaveText("The Greenvale");
+    // Name, Resource and capacity of every Region, in map order.
+    return page.locator(".region").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")?.split(", ").slice(0, 3).join(", ")));
+  };
+  const first = await land("e2e-land-1");
+  expect(first.length).toBeGreaterThan(20);
+  expect(await land("e2e-land-1")).toEqual(first);
+  expect(await land("e2e-land-2")).not.toEqual(first);
+});
+
 test("New Game shows the Renown target for each player count", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "New game" }).click();
@@ -319,7 +358,7 @@ test("Save mid-turn keeps the turn's Route after a reload", async ({ page }) => 
   await debugGrant(page);
   const before = await ownedRoutes(page).count();
   await page.getByRole("button", { name: /Build Route/ }).click();
-  await page.locator(".route.hl").first().click();
+  await pick(page.locator(".route.hl").first());
   await expect(ownedRoutes(page)).toHaveCount(before + 1);
 
   await page.getByRole("button", { name: "Save", exact: true }).click();
