@@ -38,7 +38,7 @@ While the game is open anywhere, pushes and emails are held back. If your laptop
 | | Web Push | Android app | Email | App open only |
 | --- | --- | --- | --- | --- |
 | Arrives when the game is closed | Yes | Yes | Yes | No |
-| Where it works | Browsers with Web Push: Chrome, Edge, Firefox, Safari (iOS: Home Screen web app only) | The Android app | Anywhere you read mail | The desktop app, the development server |
+| Where it works | Browsers with Web Push: Chrome, Edge, Firefox, Safari (iOS: Home Screen web app only) | The Android app | Anywhere you read mail | The desktop app, the Android app with the box unticked, the development server |
 | Needs from the server | HTTPS and the production web build (nothing else to configure) | Nothing, if proxies in front let idle WebSockets stay open (see [Running a server](#running-a-server)) | The operator to set up SMTP | Nothing |
 | Speed | Usually seconds. An idle phone may hold it back (see [Android](#android)). | Seconds | As fast as your mail app checks | Instant |
 | If the device is off for a day | Dropped after 24 hours | Turns still waiting for you show up when it reconnects | Waits in your inbox | Missed; the lobby shows "your turn" later |

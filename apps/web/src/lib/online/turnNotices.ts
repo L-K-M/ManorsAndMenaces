@@ -55,6 +55,8 @@ export async function enableTurnNotices(client: OnlineClient, watch = platform.t
   if (!watch || !(await watcherStatus(watch))) return viaPush(enablePush(client));
   if (!client.token) throw new Error("sign in first");
   let status = await watch.start(client.serverUrl, client.token);
+  // Running from here on, whatever the prompts below do.
+  watching = true;
   if (!status.notificationsAllowed) {
     // It could show nothing, not even its own "listening" notice.
     await watch.stop();

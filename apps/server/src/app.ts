@@ -406,17 +406,18 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   };
   // Heartbeat: a half-open connection (say, a phone that lost its network)
   // never fires "close", so it would look online and hold one of the user's
-  // socket slots. Drop every socket that did not answer the previous ping.
+  // socket slots. Drop every socket that did not answer the previous ping by
+  // the next tick; background connections are only pinged less often.
   const backgroundHeartbeatMs = opts.backgroundHeartbeatMs ?? BACKGROUND_HEARTBEAT_MS;
   const keepalive = JSON.stringify({ type: "keepalive" } satisfies ServerMessage);
   const heartbeat = setInterval(() => {
     const now = Date.now();
     for (const [ws, sub] of subs) {
-      if (sub.mode === "background" && now - sub.lastPingAt < backgroundHeartbeatMs) continue;
       if (!sub.alive) {
         ws.terminate(); // its "close" handler updates presence
         continue;
       }
+      if (sub.mode === "background" && now - sub.lastPingAt < backgroundHeartbeatMs) continue;
       sub.alive = false;
       sub.lastPingAt = now;
       ws.ping();

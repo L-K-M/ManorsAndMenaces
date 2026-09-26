@@ -82,6 +82,8 @@ class SocketUrlTest {
   fun `turns the server address into its background socket`() {
     assertEquals("wss://play.example.org/api/ws?token=abc%2B%2F%3D&mode=background", socketUrl("https://play.example.org/", "abc+/="))
     assertEquals("ws://10.0.2.2:8787/api/ws?token=t&mode=background", socketUrl("http://10.0.2.2:8787", "t"))
+    // A server behind a proxy at a subpath keeps it.
+    assertEquals("wss://example.org/game/api/ws?token=t&mode=background", socketUrl("https://example.org/game/", "t"))
   }
 
   @Test

@@ -151,14 +151,19 @@ describe("a background connection", () => {
     [background, open].forEach((c) => c.ws.close());
   });
 
-  it("is dropped when it stops answering, but only on its own schedule", async () => {
+  it("is dropped soon after a ping it does not answer, but is not pinged early", async () => {
     await start();
     const ann = await guest("Ann");
     const silentOpen = await connect(ann.token, undefined, { autoPong: false });
     const silentBackground = await connect(ann.token, "background", { autoPong: false });
+    const connectedAt = Date.now();
 
     await waitFor(() => silentOpen.closed, HEARTBEAT_MS * 10);
     expect(silentBackground.closed).toBe(false);
+    // A dead phone connection holds a socket slot and keeps email back, so it
+    // goes a heartbeat or two after its unanswered ping, not a whole interval later.
     await waitFor(() => silentBackground.closed, BACKGROUND_HEARTBEAT_MS * 4);
+    expect(Date.now() - connectedAt).toBeGreaterThanOrEqual(BACKGROUND_HEARTBEAT_MS);
+    expect(Date.now() - connectedAt).toBeLessThan(BACKGROUND_HEARTBEAT_MS + HEARTBEAT_MS * 5);
   });
 });

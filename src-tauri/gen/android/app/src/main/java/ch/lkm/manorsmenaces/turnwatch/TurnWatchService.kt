@@ -91,8 +91,10 @@ class TurnWatchService : Service() {
       ledger = settings.loadLedger()
       connect()
       watchNetwork()
-    } else if (intent?.action == ACTION_CHECK && (!open || TurnWatchTiming.isStale(lastHeardAt, SystemClock.elapsedRealtime(), keepaliveMs))) {
-      Log.i(TAG, "no keepalive for a while: reconnecting")
+    } else if (socket == null || (open && TurnWatchTiming.isStale(lastHeardAt, SystemClock.elapsedRealtime(), keepaliveMs))) {
+      // The watchdog, or the app starting it again: waiting out a retry, or
+      // no keepalive for a while. A handshake in progress is left alone.
+      Log.i(TAG, "connection down or quiet: reconnecting")
       connect()
     }
     scheduleCheck()

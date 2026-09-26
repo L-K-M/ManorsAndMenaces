@@ -37,6 +37,16 @@ describe("turn notices in the Android app", () => {
     expect(client.pushSubscribe).not.toHaveBeenCalled();
   });
 
+  it("count as running once the watcher started, even if the battery prompt fails", async () => {
+    await disableTurnNotices(client, watcher({ enabled: true }));
+    expect(watchingInBackground()).toBe(false);
+    const watch = { ...watcher(), requestBatteryExemption: vi.fn(async () => Promise.reject(new Error("no settings screen"))) };
+    await expect(enableTurnNotices(client, watch)).rejects.toThrow();
+    // Otherwise the page would repeat the watcher's notifications.
+    expect(watchingInBackground()).toBe(true);
+    await disableTurnNotices(client, watch);
+  });
+
   it("do not ask about the battery again once it is allowed", async () => {
     const watch = watcher({ batteryUnrestricted: true });
     expect(await enableTurnNotices(client, watch)).toEqual({ channel: "android", state: "on", batteryRestricted: false });
