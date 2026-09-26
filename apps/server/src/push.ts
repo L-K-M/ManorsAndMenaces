@@ -103,7 +103,7 @@ export function vapidKeysFromPem(pem: string): VapidKeys {
  * setting to fix.
  */
 export function pushContactFromEnv(env: Record<string, string | undefined>): string | null {
-  if (env.VAPID_SUBJECT?.trim()) throw new Error("VAPID_SUBJECT is now PUSH_CONTACT, which takes a plain email address like you@example.org");
+  if (env.VAPID_SUBJECT?.trim()) throw new Error("VAPID_SUBJECT is now PUSH_CONTACT, which takes an email address like you@example.org, or an https: address of yours");
   const contact = env.PUSH_CONTACT?.trim();
   if (!contact) return null;
   const address = contact.startsWith("mailto:") ? contact.slice("mailto:".length) : contact;

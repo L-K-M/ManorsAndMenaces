@@ -33,6 +33,11 @@ services:
       SMTP_PORT: ${SMTP_PORT:-} # default 587 (STARTTLS); 465 connects with TLS
       SMTP_USER: ${SMTP_USER:-} # the login, exactly as your provider gives it
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      # Replaced by PUSH_CONTACT and the SMTP_ settings above. Passed on only
+      # so that the server stops and names the replacement if an older .env
+      # still sets one, instead of quietly running without them.
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      SMTP_URL: ${SMTP_URL:-}
       MAIL_FROM: ${MAIL_FROM:-} # Manors & Menaces <turns@example.org>
       PUBLIC_URL: ${PUBLIC_URL:-} # https://play.example.org, where players open the game
       # Open the game only to people with a personal invite. Make invites with

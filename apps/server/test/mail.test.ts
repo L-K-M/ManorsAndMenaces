@@ -38,9 +38,11 @@ describe("mail configuration", () => {
 
   it("says what replaced SMTP_URL", () => {
     expect(() => mailConfigFromEnv({ ...complete, SMTP_URL: "smtps://u:p@smtp.example.org" })).toThrow(/SMTP_URL.*SMTP_HOST/);
+    // Docker Compose passes the old name through, empty when it is not set.
+    expect(mailConfigFromEnv({ ...complete, ...host, SMTP_URL: "" })).toMatchObject({ publicUrl: "https://play.example.org" });
   });
 
-  it("connects with TLS on port 465, and on other ports upgrades when the server offers STARTTLS", () => {
+  it("asks for TLS from the start on port 465 only; on other ports nodemailer's STARTTLS handling applies", () => {
     expect(smtpOptionsFromEnv({})).toBeNull();
     expect(smtpOptionsFromEnv(host)).toEqual(expect.objectContaining({ host: "smtp.example.org", port: 587, secure: false }));
     expect(smtpOptionsFromEnv(host)).not.toHaveProperty("auth");
