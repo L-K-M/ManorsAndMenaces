@@ -6,15 +6,14 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { chooseAction, fallbackIntents } from "@manors-menaces/ai";
-import { rulesContentFor } from "@manors-menaces/content";
 import type { GuestSessionResponse, MatchNotice, MatchView, SubmitCommandsResponse } from "@manors-menaces/protocol";
-import { createRng, createRulesEngine, seedRng, type GameCommand, type GameState } from "@manors-menaces/rules";
+import { createRng, seedRng, type GameCommand, type GameState } from "@manors-menaces/rules";
 import { createApp } from "../src/app.js";
+import { engineFor } from "./engines.js";
 
 // Spec §85: a player hears that it is their turn even when that match is not
 // open: over their WebSocket while the app is open anywhere, else by Web Push.
 
-const engine = createRulesEngine(rulesContentFor());
 let app: ReturnType<typeof createApp>;
 let base = "";
 let pushes: { url: string; headers: Record<string, string>; body: Buffer }[] = [];
@@ -69,7 +68,9 @@ async function playUntilTurnOf(matchId: string, byPlayer: Record<string, GuestSe
   const rng = createRng(seedRng("notices"));
   let sawOther = false;
   for (let i = 0; i < 200; i++) {
-    const any = (await api<MatchView>(`/api/matches/${matchId}`, Object.values(byPlayer)[0]!.token)).data.state as GameState;
+    const seen = (await api<MatchView>(`/api/matches/${matchId}`, Object.values(byPlayer)[0]!.token)).data;
+    const engine = engineFor(seen.mapId);
+    const any = seen.state as GameState;
     const actor = actorOf(any);
     if (actor === playerId && sawOther) return;
     if (actor !== playerId) sawOther = true;

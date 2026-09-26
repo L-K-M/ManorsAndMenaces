@@ -9,7 +9,6 @@ import WebSocket from "ws";
 import type { GuestSessionResponse, MatchView, ServerMessage, SubmitCommandsResponse } from "@manors-menaces/protocol";
 import {
   createRng,
-  createRulesEngine,
   enumerateCardTargets,
   getLegalActions,
   HIDDEN_CARD,
@@ -22,10 +21,11 @@ import {
   type PlayerId,
 } from "@manors-menaces/rules";
 import { chooseAction } from "@manors-menaces/ai";
-import { rulesContentFor } from "@manors-menaces/content";
 import { createApp } from "../src/app.js";
+import { engineFor } from "./engines.js";
 
-const engine = createRulesEngine(rulesContentFor());
+/** The engine for a match's own map (each new match draws an island and a layout). */
+const engineOf = (matchId: string) => engineFor(app.store.match(matchId)?.map_id ?? "");
 const ARCANE_TARGET: CardTarget = { effect: "arcane_exchange", give: "essence", receive: "iron" };
 
 let app: ReturnType<typeof createApp>;
@@ -100,7 +100,7 @@ async function matchInMainPhase(opts: { ai?: boolean } = {}) {
       continue;
     }
     const mine = (await view(matchId, token)).state;
-    const intent = chooseAction(engine, mine, actor, { level: "easy", rng }) as CommandIntent;
+    const intent = chooseAction(engineOf(matchId), mine, actor, { level: "easy", rng }) as CommandIntent;
     const res = await api<SubmitCommandsResponse>(`/api/matches/${matchId}/commands`, token, {
       matchId,
       expectedRevision: mine.revision,
@@ -117,7 +117,7 @@ function stage(matchId: string, deal: { playerId: PlayerId; cardDefId: string }[
   if (!row?.state) throw new Error("no state");
   let s = row.state;
   const debug = (c: Record<string, unknown>) => {
-    const r = engine.applyDebugCommand(s, { commandId: "stage", matchId, playerId: essenceFor, ...c } as never);
+    const r = engineOf(matchId).applyDebugCommand(s, { commandId: "stage", matchId, playerId: essenceFor, ...c } as never);
     if (!r.newState) throw new Error(r.error?.code);
     s = r.newState;
   };
@@ -139,6 +139,7 @@ async function playSpellLikeTheClient(matchId: string, token: string, cardDefId 
   expect(state.players[opponent]?.hand.every((c) => c === HIDDEN_CARD)).toBe(true);
 
   const spell = state.players[me]?.hand.find((c) => c.startsWith(`${cardDefId}#`)) as string;
+  const engine = engineOf(matchId);
   expect(getLegalActions(engine.ctx, state, me).playableCards).toContain(spell);
   expect(enumerateCardTargets(engine.ctx, state, me, spell)).toContainEqual(target);
   const cmd = command(state, me, { type: "play_card", cardId: spell, target });
@@ -190,7 +191,7 @@ describe("online Spells", () => {
 
     // The opponent sees their own Counterspell and can decline to use it.
     const opp = await view(matchId, tokens[other] as string);
-    const legal = getLegalActions(engine.ctx, opp.state, other);
+    const legal = getLegalActions(engineOf(matchId).ctx, opp.state, other);
     expect(legal.mode).toBe("reaction");
     expect(legal.reactionCards).toHaveLength(1);
     const pass = command(opp.state, other, { type: "pass_reaction" });
@@ -353,7 +354,7 @@ describe("malformed card targets online", () => {
     const knight = state.players[first]?.hand[0] as string;
     const menaceId = Object.keys(state.menaces)[0] as string;
     // A legal target whose destination fields hide under an own "__proto__" key.
-    const legal = enumerateCardTargets(engine.ctx, state, first, knight)[0] as { destination: Record<string, unknown> };
+    const legal = enumerateCardTargets(engineOf(matchId).ctx, state, first, knight)[0] as { destination: Record<string, unknown> };
     const { kind, ...fields } = legal.destination;
     const protoDestination = JSON.parse(`{"kind":${JSON.stringify(kind)},"__proto__":${JSON.stringify(fields)}}`);
 

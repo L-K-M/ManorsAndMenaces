@@ -4,13 +4,14 @@
   import type { AiLevel, SeatConfig } from "@manors-menaces/protocol";
   import { BALANCE, mvpRuleset, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
   import { PLAYER_THEMES, emblemPath } from "../theme.js";
-  import { RIVALS, rivalById } from "@manors-menaces/content";
+  import { ISLANDS, RIVALS, rivalById } from "@manors-menaces/content";
   import { assignRivals, distinctRivals, freeRival, rivalName, rivalsTakenBy } from "../game/rivals.js";
   import RivalPicker from "./RivalPicker.svelte";
   import RivalPortrait from "./RivalPortrait.svelte";
+  import type { BoardChoice, NewGameOptions } from "../game/session.svelte.js";
   import { rememberName, rememberedName } from "../game/playerName.js";
 
-  let { onstart, onback }: { onstart: (opts: { seats: SeatConfig[]; ruleset: RulesetConfig; seed?: string }) => void; onback: () => void } = $props();
+  let { onstart, onback }: { onstart: (opts: NewGameOptions) => void; onback: () => void } = $props();
 
   const NAMES = ["Alice", "Bertram", "Cordelia", "Dunstan"];
   // Your seat starts with the name you last played under.
@@ -19,6 +20,8 @@
   let count = $state(3);
   let mode: "standard" | "mvp" = $state("standard");
   let seed = $state("");
+  /** An island id, or "" for any island. */
+  let island = $state("");
   // Quest expiry (§27.2) is part of the Standard rules; unchecking it keeps
   // every Quest on offer until claimed.
   let questExpiry = $state(true);
@@ -76,7 +79,8 @@
     }));
     const ruleset: RulesetConfig =
       mode === "mvp" ? mvpRuleset() : { ...standardRuleset(count), questExpiryRounds: questExpiry ? BALANCE.questExpiryRounds : 0 };
-    onstart({ seats: chosen, ruleset, ...(seed.trim() ? { seed: seed.trim() } : {}) });
+    const board: BoardChoice = island ? { kind: "drawn", islandId: island } : { kind: "drawn" };
+    onstart({ seats: chosen, ruleset, board, ...(seed.trim() ? { seed: seed.trim() } : {}) });
   }
 
   // With no human seat the computers play the whole game; say so, but allow it
@@ -126,6 +130,14 @@
           {/if}
         </fieldset>
       {/each}
+    </fieldset>
+    <fieldset>
+      <legend>{t("ui.island")}</legend>
+      <select aria-label={t("ui.island")} bind:value={island}>
+        <option value="">{t("ui.any_island")}</option>
+        {#each ISLANDS as i (i.id)}<option value={i.id}>{i.name}</option>{/each}
+      </select>
+      <p class="hint">{t("ui.island_hint")}</p>
     </fieldset>
     <fieldset>
       <legend>{t("ui.rules")}</legend>

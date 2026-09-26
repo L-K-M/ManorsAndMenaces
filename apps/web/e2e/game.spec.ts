@@ -250,6 +250,25 @@ test("New Game starts with the name you last played under", async ({ page }) => 
   await expect(yourName).toHaveValue("Lukas");
 });
 
+test("New Game deals the chosen island's land anew for each seed", async ({ page }) => {
+  const land = async (seed: string) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "New game" }).click();
+    await expect(page.getByLabel("Island")).toHaveValue("");
+    await page.getByLabel("Island").selectOption({ label: "The Greenvale" });
+    await page.getByText("Advanced").click();
+    await page.getByLabel(/Seed/).fill(seed);
+    await page.getByRole("button", { name: "Begin" }).click();
+    await expect(page.locator(".map-name")).toHaveText("The Greenvale");
+    // Name, Resource and capacity of every Region, in map order.
+    return page.locator(".region").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")?.split(", ").slice(0, 3).join(", ")));
+  };
+  const first = await land("e2e-land-1");
+  expect(first.length).toBeGreaterThan(20);
+  expect(await land("e2e-land-1")).toEqual(first);
+  expect(await land("e2e-land-2")).not.toEqual(first);
+});
+
 test("New Game shows the Renown target for each player count", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "New game" }).click();

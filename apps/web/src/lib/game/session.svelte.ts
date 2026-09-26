@@ -22,6 +22,7 @@ import { platform } from "../platform/adapter.js";
 import { animationScale, settings } from "../stores/settings.svelte.js";
 import { AiClient } from "./aiClient.js";
 import { aiPaceDelayMs, aiStepPace, resolveAiStep, type AiStep } from "./aiStep.js";
+import { mapIdForNewGame } from "@manors-menaces/content";
 import { engineFor, mapFor } from "./engine.js";
 import { EventBus } from "./eventBus.js";
 import { formatEvents, noticeEntry, rebuildLog, type LogEntry } from "./log.js";
@@ -54,14 +55,28 @@ export interface Transport {
   close?(): void;
 }
 
+/** Which board a new game is played on. */
+export type BoardChoice =
+  /** A layout drawn from the game's seed, on this island or, without one, a random island (New Game). */
+  | { kind: "drawn"; islandId?: string }
+  /** Exactly this map (the tutorial, tests). */
+  | { kind: "fixed"; mapId: string };
+
 export interface NewGameOptions {
   seats: SeatConfig[];
   ruleset: RulesetConfig;
   seed?: string;
-  mapId?: string;
+  /** The Greenvale as published when absent. */
+  board?: BoardChoice;
   matchId?: string;
   /** Keep an autosave of this match (default true; the tutorial opts out). */
   autosave?: boolean;
+}
+
+/** The map a new game is played on; a drawn board comes from the seed, so the seed reproduces it. */
+function boardMapId(board: BoardChoice | undefined, seed: string): string {
+  if (!board) return mapFor().id;
+  return board.kind === "fixed" ? board.mapId : mapIdForNewGame(seed, board.islandId);
 }
 
 /** Coalesces bursts of changes (an AI turn, several builds) into one write. */
@@ -84,6 +99,8 @@ export function currentActor(state: GameState): PlayerId | null {
 export class GameSession {
   readonly engine: RulesEngine;
   readonly mapId: string;
+  /** How New Game chose this board, for "Play again"; not saved, so absent after a reload. */
+  readonly board: BoardChoice | undefined;
   readonly seats: SeatConfig[];
   readonly initialState: GameState;
   readonly transport: Transport;
@@ -135,6 +152,7 @@ export class GameSession {
 
   constructor(opts: {
     mapId: string;
+    board?: BoardChoice;
     seats: SeatConfig[];
     initialState: GameState;
     state: GameState;
@@ -153,6 +171,7 @@ export class GameSession {
   }) {
     this.engine = engineFor(opts.mapId);
     this.mapId = opts.mapId;
+    this.board = opts.board;
     this.seats = opts.seats;
     this.initialState = opts.initialState;
     this.commandHistory = [...(opts.history ?? [])];
@@ -178,9 +197,9 @@ export class GameSession {
   }
 
   static create(opts: NewGameOptions): GameSession {
-    const mapId = opts.mapId ?? mapFor().id;
-    const engine = engineFor(mapId);
     const seed = opts.seed ?? `${Date.now().toString(36)}-${Math.floor(performance.now() * 1000).toString(36)}`;
+    const mapId = boardMapId(opts.board, seed);
+    const engine = engineFor(mapId);
     const initialState = engine.createGame({
       matchId: opts.matchId ?? `local-${seed}`,
       seed,
@@ -188,7 +207,14 @@ export class GameSession {
       ruleset: opts.ruleset,
       players: opts.seats.map((s) => ({ id: s.playerId, displayName: s.displayName })),
     });
-    return new GameSession({ mapId, seats: opts.seats, initialState, state: initialState, ...(opts.autosave === false ? { autosave: false } : {}) });
+    return new GameSession({
+      mapId,
+      ...(opts.board ? { board: opts.board } : {}),
+      seats: opts.seats,
+      initialState,
+      state: initialState,
+      ...(opts.autosave === false ? { autosave: false } : {}),
+    });
   }
 
   /**

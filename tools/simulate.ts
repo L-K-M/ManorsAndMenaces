@@ -2,10 +2,14 @@
 // telemetry the spec asks for, checked against the §68 targets.
 //
 // Usage: pnpm simulate [--games N] [--players 2|3|4] [--rules mvp|standard] [--level easy|normal|hard] [--max-rounds N] [--equal-turns]
-//                       [--exclude-cards a,b] [--override JSON]
+//                       [--exclude-cards a,b] [--override JSON] [--map ID|drawn|drawn:ISLAND]
+//
+// --map picks the board: a map id plays every game on that map (default: The
+// Greenvale as published); "drawn" draws an island and a layout for each game
+// as new games do; "drawn:ISLAND" draws a layout of that island for each game.
 
 import { runAiUntilHuman, type AiLevel } from "@manors-menaces/ai";
-import { rulesContentFor } from "@manors-menaces/content";
+import { GREENVALE_MAP, mapIdForNewGame, rulesContentFor } from "@manors-menaces/content";
 import {
   RESOURCE_TYPES,
   RULESET_VERSION,
@@ -20,6 +24,7 @@ import {
   standardRuleset,
   type GameEvent,
   type GameState,
+  type RulesEngine,
 } from "@manors-menaces/rules";
 
 const args = process.argv.slice(2);
@@ -38,9 +43,23 @@ const OVERRIDE = JSON.parse(arg("override", "{}")) as Record<string, unknown>;
 
 // --exclude-cards a,b removes card definitions from the deck (balance experiments).
 const EXCLUDE = new Set(arg("exclude-cards", "").split(",").filter(Boolean));
-const baseContent = rulesContentFor();
-const engine = createRulesEngine({ ...baseContent, cards: baseContent.cards.filter((c) => !EXCLUDE.has(c.id)) });
-const ctx = engine.ctx;
+const MAP = arg("map", GREENVALE_MAP.id);
+const engines = new Map<string, RulesEngine>();
+function engineFor(mapId: string): RulesEngine {
+  const known = engines.get(mapId);
+  if (known) return known;
+  const content = rulesContentFor(mapId);
+  const engine = createRulesEngine({ ...content, cards: content.cards.filter((c) => !EXCLUDE.has(c.id)) });
+  engines.set(mapId, engine);
+  return engine;
+}
+function mapIdFor(seed: string): string {
+  if (MAP === "drawn") return mapIdForNewGame(seed);
+  if (MAP.startsWith("drawn:")) return mapIdForNewGame(seed, MAP.slice("drawn:".length));
+  return MAP;
+}
+// Every map deals the same cards.
+const ctx = engineFor(GREENVALE_MAP.id).ctx;
 const RULESET = { ...(RULES === "mvp" ? mvpRuleset() : standardRuleset(PLAYERS)), equalTurns: EQUAL_TURNS, ...OVERRIDE };
 // The card definitions this ruleset deals (Treasure Hunter and others need their Menace).
 const DECK = RULESET.enableCards ? ctx.content.cards.filter((c) => isCardUsableInRuleset(c, RULESET)) : [];
@@ -81,9 +100,12 @@ interface GameStats {
 }
 
 function playOne(i: number): GameStats {
+  const seed = `sim-${RULES}-${PLAYERS}-${i}`;
+  const engine = engineFor(mapIdFor(seed));
+  const ctx = engine.ctx;
   let s: GameState = engine.createGame({
     matchId: `sim-${i}`,
-    seed: `sim-${RULES}-${PLAYERS}-${i}`,
+    seed,
     rulesetVersion: RULESET_VERSION,
     ruleset: RULESET,
     players: Array.from({ length: PLAYERS }, (_, k) => ({ id: `P${k + 1}`, displayName: `P${k + 1}` })),
@@ -193,7 +215,7 @@ const finished = results.filter((r) => r.finished);
 const seatWins = Array.from({ length: PLAYERS }, (_, k) => finished.filter((r) => r.winnerSeat === k).length);
 const produced = Object.fromEntries(RESOURCE_TYPES.map((r) => [r, Math.round(avg(results.map((x) => x.produced[r] ?? 0)))]));
 
-console.log(`\n${GAMES} games · ${PLAYERS} players · ${RULES} · AI ${LEVEL} · ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+console.log(`\n${GAMES} games · ${PLAYERS} players · ${RULES} · AI ${LEVEL} · map ${MAP} · ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 console.log(`finished:            ${finished.length}/${GAMES} (stalled at round ${MAX_ROUNDS}: ${GAMES - finished.length})`);
 console.log(`rounds (turns/player): avg ${avg(finished.map((r) => r.rounds)).toFixed(1)}  min ${Math.min(...finished.map((r) => r.rounds))}  max ${Math.max(...finished.map((r) => r.rounds))}   target 12–16`);
 console.log(`winner renown:       avg ${avg(finished.map((r) => r.winnerRenown)).toFixed(1)} (holdings ${avg(finished.map((r) => r.renownSources.holdings)).toFixed(1)}, quests ${avg(finished.map((r) => r.renownSources.quests)).toFixed(1)}, bonus ${avg(finished.map((r) => r.renownSources.bonus)).toFixed(1)})`);

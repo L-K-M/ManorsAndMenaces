@@ -11,11 +11,10 @@ import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
 import type { GuestSessionResponse, MatchView, SubmitCommandsResponse } from "@manors-menaces/protocol";
 import { chooseAction } from "@manors-menaces/ai";
-import { GREENVALE_MAP, rulesContentFor } from "@manors-menaces/content";
-import { createRng, createRulesEngine, getLegalActions, seedRng, type CommandIntent, type GameCommand, type GameState } from "@manors-menaces/rules";
+import { createRng, getLegalActions, seedRng, type CommandIntent, type GameCommand, type GameState } from "@manors-menaces/rules";
 import { createApp, type AppOptions } from "../src/app.js";
+import { engineFor } from "./engines.js";
 
-const engine = createRulesEngine(rulesContentFor());
 const opened: ReturnType<typeof createApp>[] = [];
 
 async function start(opts: AppOptions = {}): Promise<{ app: ReturnType<typeof createApp>; base: string }> {
@@ -91,7 +90,7 @@ async function playUntilAiTurn(base: string, token: string, matchId: string): Pr
     const v = (await api<MatchView>(base, `/api/matches/${matchId}`, token)).data;
     const s = v.state as GameState;
     if (actorOf(s) !== v.youAre) return;
-    const intent = chooseAction(engine, s, v.youAre, { level: "easy", rng }) as CommandIntent;
+    const intent = chooseAction(engineFor(v.mapId), s, v.youAre, { level: "easy", rng }) as CommandIntent;
     const res = await api<SubmitCommandsResponse>(base, `/api/matches/${matchId}/commands`, token, {
       matchId,
       expectedRevision: s.revision,
@@ -127,15 +126,6 @@ describe("AI seats after a restart", () => {
 
   it("keeps the server up and retries when an AI step throws", async () => {
     const { app, base } = await start({ aiDelayMs: 5 });
-    // A latent rules or AI bug: every AI command blows up in the engine.
-    const aiEngine = (app.service as unknown as { engineFor: (mapId: string) => { applyCommand: (s: GameState, c: GameCommand) => unknown } }).engineFor(GREENVALE_MAP.id);
-    const apply = aiEngine.applyCommand.bind(aiEngine);
-    let aiAttempts = 0;
-    aiEngine.applyCommand = (s, c) => {
-      if (!c.commandId.startsWith("ai-")) return apply(s, c);
-      aiAttempts++;
-      throw new TypeError("simulated engine bug");
-    };
     const uncaught: unknown[] = [];
     const onUncaught = (e: unknown) => uncaught.push(e);
     process.on("uncaughtException", onUncaught);
@@ -148,6 +138,16 @@ describe("AI seats after a restart", () => {
         aiSeats: [{ displayName: "Robo", level: "easy" }],
       });
       const matchId = created.data.matchId;
+      // A latent rules or AI bug: every AI command blows up in the engine for this match's map.
+      const { mapId } = (await api<MatchView>(base, `/api/matches/${matchId}`, alice.token)).data;
+      const aiEngine = (app.service as unknown as { engineFor: (mapId: string) => { applyCommand: (s: GameState, c: GameCommand) => unknown } }).engineFor(mapId);
+      const apply = aiEngine.applyCommand.bind(aiEngine);
+      let aiAttempts = 0;
+      aiEngine.applyCommand = (s, c) => {
+        if (!c.commandId.startsWith("ai-")) return apply(s, c);
+        aiAttempts++;
+        throw new TypeError("simulated engine bug");
+      };
       await playUntilAiTurn(base, alice.token, matchId);
       expect(await until(async () => aiAttempts > 0, 2_000)).toBe(true);
       await sleep(50);
@@ -309,10 +309,11 @@ describe("command id idempotency", () => {
     const aliceView = (await api<MatchView>(base, `/api/matches/${matchId}`, alice.token)).data;
     const state = aliceView.state as GameState;
     const token = state.activePlayerId === aliceView.youAre ? alice.token : bob.token;
+    const engine = engineFor(aliceView.mapId);
     const sites = getLegalActions(engine.ctx, state, state.activePlayerId).initialManorSites as string[];
     const submit = (commands: GameCommand[], expectedRevision = state.revision) =>
       api<SubmitCommandsResponse & { error?: unknown; code?: string }>(base, `/api/matches/${matchId}/commands`, token, { matchId, expectedRevision, commands });
-    return { state, sites, submit };
+    return { state, sites, submit, engine };
   }
 
   it("replays the original result for an identical retry", async () => {
@@ -344,7 +345,7 @@ describe("command id idempotency", () => {
   });
 
   it("rejects a batch that repeats a command id with 400", async () => {
-    const { state, sites, submit } = await startedMatch();
+    const { state, sites, submit, engine } = await startedMatch();
     const manor = command(state, state.activePlayerId, { type: "place_initial_manor", siteId: sites[0] as string });
     const after = engine.applyCommand(state, manor).newState as GameState;
     const route = getLegalActions(engine.ctx, after, state.activePlayerId).initialRoutes[0] as string;

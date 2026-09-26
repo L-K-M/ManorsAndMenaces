@@ -210,8 +210,8 @@
   }
   function rematch() {
     if (!session) return exit();
-    const { seats, mapId, initialState } = session;
-    const plan = planRematch({ transport: session.transport.kind, tutorial, seats, mapId, initialState });
+    const { seats, mapId, board, initialState } = session;
+    const plan = planRematch({ transport: session.transport.kind, tutorial, seats, mapId, ...(board ? { board } : {}), initialState });
     if (plan.kind === "local") return start(plan.options);
 
     exit();
