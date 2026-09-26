@@ -1,6 +1,6 @@
 # Storybook visual refresh
 
-Last updated: 2026-09-26. New Game player grouping in progress.
+Last updated: 2026-09-26. Regular card income in progress.
 
 ## User request and scope
 
@@ -909,3 +909,54 @@ in screen pixels (`px(7, 7)`) so it stays legible at every zoom; a first
 version at the pole's foot was invisible at the default view and hidden by
 the ring. It replaces the unsettled dot, since a home Banner is always
 unsettled. Harvest notes treat it as an obstacle.
+
+
+## September 26 checkpoint: cards throughout the game
+
+User approved two cards after setup and one free card for every player at the
+start of rounds 3, 6, 9 and so on. Keep purchase costs and the one non-reaction
+card per turn limit. New Standard and async presets enable this; optional
+stored ruleset fields preserve old saves. Core stays card-free. New Game has
+an Advanced comparison toggle; the hand displays the next free-card round.
+The Chronicle and action feed announce draws without exposing card identities.
+
+Worktree: `/private/tmp/mm-card-economy`, branch `codex/regular-card-draws`,
+started from main `9d6b6f5`. The separate visual-card PR #58 remains open on
+`codex/playing-cards-and-magic`: all tests passed, but Z.ai review returned
+HTTP 429 and automatic approval review blocked resending the private diff.
+No waiver or destination approval has been given. Do not bypass that block
+by publishing another review-triggering PR; finish the implementation and
+validation before requesting the required publishing/review choice.
+
+The six new income tests failed before implementation and pass now. Coverage
+includes setup timing, rounds 3/6, replay after serialization, hand-limit
+handling, exhausted decks/reshuffles, old saves and private event redaction.
+The full required local check passes: typecheck, lint, 661 unit/integration
+tests (including real-map setup with 2/3/4 seats), deterministic map check and
+production build/server smoke test. Existing exact-hand card scenarios
+explicitly disable income in their fixtures; full-game and responsive layout
+tests retain the new defaults. Browser checks are in progress. The new desktop
+draw/persistence test passes. Save tests must await the Saved confirmation
+before reloading; layout fixtures count the two starting cards as well as
+their debug draws. The Advanced option was visually checked in the browser.
+
+### Card-economy balance evidence
+
+Use `pnpm simulate --games 20 --players N` for N = 2, 3, 4. Compare the same
+seeds with `--override '{"initialCards":0,"cardDrawEveryRounds":0}'`. Normal AI;
+20 games per configuration, 120 games total. Values below are old → new.
+
+| Seats | Mean finished-game rounds | Cards played/game | First card round (games with a play) | Finished |
+| --- | --- | --- | --- | --- |
+| 2 | 13.3 → 12.7 | 0.6 → 9.4 | 9.5 (10/20) → 1.4 (20/20) | 20/20 → 20/20 |
+| 3 | 15.2 → 14.3 | 1.6 → 16.3 | 10.3 (15/20) → 1.4 (20/20) | 20/20 → 20/20 |
+| 4 | 15.7 → 14.6 | 6.0 → 22.2 | 9.4 (17/20) → 1.3 (20/20) | 19/20 → 20/20 |
+
+Three-seat games average 3.9 card plays by round 3 versus zero previously.
+Purchases remain useful but fall from 2.3 to 1.6 per game. Mean duration stays
+within the 12–16-round target at every seat count. This is exploratory AI
+evidence, not proof of human balance or comeback strength. Seat outcomes are
+uneven in these small samples: new two-seat games split 70/30 versus 55/45
+before; four-seat games split 40/25/25/10 versus 25/45/15/10 with one old-game
+stall. Follow up with human playtests and larger samples before adjusting
+seat bonuses or card strength. Do not tune those unrelated rules in this pass.

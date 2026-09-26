@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CommandIntent, GameState, PlayerId } from "@manors-menaces/rules";
 import { AiPace, aiPaceDelayMs, aiStepPace, resolveAiStep, type AiStep } from "../src/lib/game/aiStep.js";
-import { act, cmd, engine, setupGame, standardRuleset } from "../../../packages/rules/test/helpers.js";
+import { act, cmd, engine, setupGame, cardTestRuleset as standardRuleset } from "../../../packages/rules/test/helpers.js";
 
 const resolve = (s: GameState, actor: PlayerId, intent: CommandIntent | null) => resolveAiStep(engine, s, actor, intent, (i) => cmd(s, actor, i));
 

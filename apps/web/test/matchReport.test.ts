@@ -32,7 +32,7 @@ describe("buildMatchReport", () => {
       const b = r.renown;
       expect(b.total).toBe(getRenown(engine.ctx, game.final, r.playerId));
       expect(b.manors + b.strongholds + b.quests + b.other).toBe(b.total);
-      expect(b.other).toBe(0);
+      expect(b.other).toBe(game.final.players[r.playerId]?.bonusRenown ?? 0);
     }
   });
 

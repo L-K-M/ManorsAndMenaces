@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import { enumerateCardTargets, getLegalActions, HIDDEN_CARD, redactState, type GameState } from "../src/index.js";
-import { cmd, engine, give, grant, setupGame, standardRuleset } from "./helpers.js";
+import { cmd, engine, give, grant, setupGame, cardTestRuleset as standardRuleset } from "./helpers.js";
 
 const ctx = engine.ctx;
 

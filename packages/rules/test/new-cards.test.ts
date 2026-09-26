@@ -33,7 +33,7 @@ import {
   type PlayerId,
   type ResourceType,
 } from "../src/index.js";
-import { act, cmd, engine, give, grant, mvpRuleset, newGame, passTurn, reject, routeId, setupGame, standardRuleset } from "./helpers.js";
+import { act, cmd, engine, give, grant, mvpRuleset, newGame, passTurn, reject, routeId, setupGame, cardTestRuleset as standardRuleset } from "./helpers.js";
 
 const ctx = engine.ctx;
 const MENACE_RULESET = { ...standardRuleset(2), activeMenaces: ["toll_troll" as const, "young_dragon" as const, "highwayman" as const] };

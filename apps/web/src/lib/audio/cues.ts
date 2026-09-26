@@ -24,7 +24,7 @@ export function cueForEvents(events: readonly GameEvent[]): Cue | null {
   if (types.has("holding_upgraded")) return "upgrade";
   if (types.has("holding_built")) return "manor";
   if (types.has("route_built")) return "route";
-  if (types.has("card_bought")) return "card";
+  if (types.has("card_bought") || types.has("cards_dealt")) return "card";
   if (types.has("banner_assigned")) return "banner";
   if (types.has("turn_started")) return "turn";
   if (types.has("resource_gained") || types.has("market_traded")) return "resource";

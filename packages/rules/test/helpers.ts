@@ -207,4 +207,9 @@ export function grant(state: GameState, playerId: PlayerId, res: Partial<Record<
   return r.newState;
 }
 
+/** Controlled-card scenarios explicitly deal their own hands. */
+export function cardTestRuleset(players: number): RulesetConfig {
+  return { ...standardRuleset(players), initialCards: 0, cardDrawEveryRounds: 0 };
+}
+
 export { mvpRuleset, standardRuleset };
