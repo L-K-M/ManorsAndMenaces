@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick } from "./pick";
 
 // "What just happened?" (spec §50): harvest flights, the action feed, the
 // catch-up digest, rivals' next harvest and your own resources on screen.
@@ -42,13 +43,13 @@ async function completeSetup(page: Page) {
     await passCurtain(page);
     const s = await status(page);
     if (/place a Manor/.test(s)) await page.locator(".site.hl").first().click();
-    else if (/free Route/.test(s)) await page.locator(".route.hl").first().click();
+    else if (/free Route/.test(s)) await pick(page.locator(".route.hl").first());
     else if (/starting Banners/.test(s)) {
       const n = await page.locator(".banner.hl").count();
       for (let i = 0; i < n; i++) {
         await page.locator(".banner.hl").nth(i).click();
         const regions = page.locator(".region.hl");
-        if (await regions.count()) await regions.first().click();
+        if (await regions.count()) await pick(regions.first());
       }
       await page.getByRole("button", { name: /Confirm Banners/ }).click();
     } else await page.waitForTimeout(250);
@@ -104,7 +105,7 @@ test("a hot-seat harvest waits behind the curtain and plays on reveal", async ({
   await page.getByRole("button", { name: "Grant 5 of each resource" }).click();
   await page.getByRole("dialog", { name: "Debug tools" }).getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: /Build Route/ }).click();
-  await page.locator(".route.hl").first().click();
+  await pick(page.locator(".route.hl").first());
   await endTurn(page);
 
   // The first player's harvest happened behind the curtain: nothing plays yet.

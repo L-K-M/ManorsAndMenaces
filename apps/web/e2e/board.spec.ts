@@ -1,8 +1,10 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { pick } from "./pick";
 
 // Board readability (targets, labels, focus, hover, motion settings).
 
-async function startHotseat(page: Page, settings: Record<string, unknown> = {}) {
+/** A two-player hot-seat game; name an island to play one board, otherwise the seed draws it. */
+async function startHotseat(page: Page, settings: Record<string, unknown> = {}, island?: string) {
   await page.goto("/");
   await page.evaluate((s) => {
     localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true, ...s }));
@@ -12,6 +14,7 @@ async function startHotseat(page: Page, settings: Record<string, unknown> = {}) 
   await page.getByRole("button", { name: "New game" }).click();
   await page.getByRole("radio", { name: "2", exact: true }).check({ force: true });
   await page.getByLabel("Player 2 type").selectOption("human");
+  if (island) await page.getByLabel("Island").selectOption({ label: island });
   await page.getByText("Advanced").click();
   await page.getByLabel(/Seed/).fill("e2e-seed");
   await page.getByRole("button", { name: "Begin" }).click();
@@ -35,13 +38,13 @@ async function completeSetup(page: Page) {
     await passCurtain(page);
     const s = await status(page);
     if (/place a Manor/.test(s)) await page.locator(".site.hl").first().click();
-    else if (/free Route/.test(s)) await page.locator(".route.hl").first().click();
+    else if (/free Route/.test(s)) await pick(page.locator(".route.hl").first());
     else if (/starting Banners/.test(s)) {
       const n = await page.locator(".banner.hl").count();
       for (let i = 0; i < n; i++) {
         await page.locator(".banner.hl").nth(i).click();
         const regions = page.locator(".region.hl");
-        if (await regions.count()) await regions.first().click();
+        if (await regions.count()) await pick(regions.first());
       }
       await page.getByRole("button", { name: /Confirm Banners/ }).click();
     } else break;
@@ -118,7 +121,7 @@ test.describe("targets", () => {
     await expect(page.locator(".banner.home")).toHaveAttribute("aria-label", /at home/);
 
     await page.locator(".banner.home").click();
-    await page.locator(".region.hl").first().click();
+    await pick(page.locator(".region.hl").first());
     await expect(page.locator(".banner .home-mark")).toHaveCount(0);
   });
 });
@@ -330,7 +333,7 @@ test.describe("hover card placement", () => {
     await completeSetup(page);
     await debugGrant(page);
     await page.getByRole("button", { name: /Build Route/ }).click();
-    await page.locator(".route.hl").first().click();
+    await pick(page.locator(".route.hl").first());
     await page.keyboard.press("Escape");
     await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
     const { x, y } = await discCentre(page.locator(".region").nth(4));
@@ -433,7 +436,8 @@ test.describe("harvest notes", () => {
 });
 
 test("restored beach Sites can build roads along the shoreline", async ({ page }) => {
-  await startHotseat(page);
+  // The Greenvale's Sites, whatever its layout: the published 36, then the beach.
+  await startHotseat(page, {}, "The Greenvale");
   await expect(page.locator(".site")).toHaveCount(43);
   await expect(page.locator(".route:not(.hl) path.hit").first()).toHaveCSS("pointer-events", "none");
   // The seven restored junctions are appended after the published 36 Sites.

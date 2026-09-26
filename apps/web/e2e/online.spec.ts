@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type BrowserContext, type Page, type WebSocketRoute } from "@playwright/test";
 import { linkIn, mailTo } from "./outbox";
+import { pick } from "./pick";
 
 // Online play (spec §58–60, §86): two browsers, invite code, synchronized setup.
 
@@ -28,12 +29,12 @@ async function playSetup(pages: Page[]) {
     for (const p of pages) {
       const s = await status(p);
       if (/place a Manor/.test(s)) await p.locator(".site.hl").first().click();
-      else if (/free Route/.test(s)) await p.locator(".route.hl").first().click();
+      else if (/free Route/.test(s)) await pick(p.locator(".route.hl").first());
       else if (/starting Banners/.test(s)) {
         const n = await p.locator(".banner.hl").count();
         for (let k = 0; k < n; k++) {
           await p.locator(".banner.hl").nth(k).click();
-          if (await p.locator(".region.hl").count()) await p.locator(".region.hl").first().click();
+          if (await p.locator(".region.hl").count()) await pick(p.locator(".region.hl").first());
         }
         await p.getByRole("button", { name: /Confirm Banners/ }).click();
       }

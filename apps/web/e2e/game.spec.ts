@@ -5,6 +5,7 @@ import { rulesContentFor } from "@manors-menaces/content";
 import { SAVE_SCHEMA_VERSION, type SaveFile } from "@manors-menaces/protocol";
 import { BALANCE, RULESET_VERSION, createRng, createRulesEngine, mvpRuleset, seedRng, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
 import { TUTORIAL_SEED } from "../src/lib/game/saves.js";
+import { pick } from "./pick";
 
 // Critical flows (spec §66.5): create game, initial placement, first turn,
 // build route, assign banner, harvest, buy card, move menace, save/reload, win.
@@ -62,7 +63,7 @@ async function assignAllBanners(page: Page) {
   for (let i = 0; i < n; i++) {
     await page.locator(".banner.hl").nth(i).click();
     const regions = page.locator(".region.hl");
-    if (await regions.count()) await regions.first().click();
+    if (await regions.count()) await pick(regions.first());
   }
   await page.getByRole("button", { name: /Confirm Banners/ }).click();
 }
@@ -72,7 +73,7 @@ async function completeSetup(page: Page) {
     await passCurtain(page);
     const s = await status(page);
     if (/place a Manor/.test(s)) await page.locator(".site.hl").first().click();
-    else if (/free Route/.test(s)) await page.locator(".route.hl").first().click();
+    else if (/free Route/.test(s)) await pick(page.locator(".route.hl").first());
     else if (/starting Banners/.test(s)) await assignAllBanners(page);
     else break;
   }
@@ -102,7 +103,7 @@ test("setup, first turn, build, harvest, warden, save and reload, victory", asyn
   await page.getByRole("button", { name: /^Build Route/ }).click();
   const routesBefore = await page.locator(".route.hl").count();
   expect(routesBefore).toBeGreaterThan(0);
-  await page.locator(".route.hl").first().click();
+  await pick(page.locator(".route.hl").first());
   await page.getByRole("tab", { name: "Chronicle" }).click();
   await expect(page.getByText(/built a Route/)).toBeVisible();
 
@@ -116,7 +117,7 @@ test("setup, first turn, build, harvest, warden, save and reload, victory", asyn
   // Hire a Warden to move a Menace.
   await page.getByRole("button", { name: /^Hire a Warden/ }).click();
   await page.locator(".menace.hl").first().click();
-  await page.locator(".region.hl, .route.hl, .site.hl").first().click();
+  await pick(page.locator(".region.hl, .route.hl, .site.hl").first());
   await expect(page.getByText(/hired a Warden/)).toBeVisible();
 
   await endTurn(page);
@@ -357,7 +358,7 @@ test("Save mid-turn keeps the turn's Route after a reload", async ({ page }) => 
   await debugGrant(page);
   const before = await ownedRoutes(page).count();
   await page.getByRole("button", { name: /Build Route/ }).click();
-  await page.locator(".route.hl").first().click();
+  await pick(page.locator(".route.hl").first());
   await expect(ownedRoutes(page)).toHaveCount(before + 1);
 
   await page.getByRole("button", { name: "Save", exact: true }).click();

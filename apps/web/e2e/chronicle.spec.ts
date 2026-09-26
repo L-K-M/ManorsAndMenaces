@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick } from "./pick";
 
 // Chronicle auto-scroll stickiness: the log follows new entries only while it
 // is pinned to the bottom; reading history must survive new entries arriving.
@@ -27,7 +28,7 @@ async function assignAllBanners(page: Page) {
   for (let i = 0; i < n; i++) {
     await page.locator(".banner.hl").nth(i).click();
     const regions = page.locator(".region.hl");
-    if (await regions.count()) await regions.first().click();
+    if (await regions.count()) await pick(regions.first());
   }
   await page.getByRole("button", { name: /Confirm Banners/ }).click();
 }
@@ -36,7 +37,7 @@ async function completeSetup(page: Page) {
   for (let k = 0; k < 60; k++) {
     const s = await status(page);
     if (/place a Manor/.test(s)) await page.locator(".site.hl").first().click();
-    else if (/free Route/.test(s)) await page.locator(".route.hl").first().click();
+    else if (/free Route/.test(s)) await pick(page.locator(".route.hl").first());
     else if (/starting Banners/.test(s)) await assignAllBanners(page);
     else if (/thinking|waiting/i.test(s) || !s) await page.waitForTimeout(250);
     else break;
@@ -91,7 +92,7 @@ test("the Chronicle keeps the reader's scroll position and offers a jump pill", 
   for (const banner of await page.locator(".banner").all()) {
     await expect(banner).toHaveCSS("pointer-events", "none");
   }
-  await page.locator(".route.hl").first().click();
+  await pick(page.locator(".route.hl").first());
   await expect(page.locator(".log ol li").last()).toContainText(/built a Route/);
   await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBe(0);
   await expect(pill).toBeVisible();
