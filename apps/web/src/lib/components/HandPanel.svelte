@@ -1,11 +1,15 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import { cardDefIdOf, HIDDEN_CARD, type LegalActionSummary } from "@manors-menaces/rules";
+  import { BALANCE, cardDefIdOf, HIDDEN_CARD, type LegalActionSummary } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { startCard } from "../game/interaction.js";
   import { currentActor, type GameSession } from "../game/session.svelte.js";
   import { ui, resetTool } from "../stores/ui.svelte.js";
   import CardArt from "./CardArt.svelte";
+  import EmptyHandArt from "./EmptyHandArt.svelte";
+  import ResourceIcon from "./ResourceIcon.svelte";
+
+  const cardCost = Object.entries(BALANCE.costs.card) as [keyof typeof BALANCE.costs.card, number][];
 
   let { session, legal }: { session: GameSession; legal: LegalActionSummary | null } = $props();
   const viewer = $derived(session.viewerId);
@@ -131,20 +135,16 @@
       </p>
     {:else if viewer && hand.length === 0}
       <div class="empty-hand">
-        <svg class="empty-art" viewBox="0 0 120 88" aria-hidden="true">
-          <ellipse cx="60" cy="78" rx="43" ry="5" fill="#614728" opacity="0.12" />
-          <g stroke="#80633e" stroke-width="1.6" stroke-linejoin="round">
-            <rect x="22" y="16" width="43" height="58" rx="5" transform="rotate(-16 44 66)" fill="#e3c98b" />
-            <rect x="56" y="13" width="43" height="58" rx="5" transform="rotate(16 76 66)" fill="#eedbb0" />
-            <rect x="38" y="8" width="45" height="65" rx="5" fill="#36563a" />
-            <rect x="43" y="13" width="35" height="55" rx="3" fill="none" stroke="#d6b76d" stroke-width="1" />
-            <path d="m49 39 11-10 12 10v17H49z" fill="#fff0ca" />
-            <path d="m46 40 14-15 15 15h-6l-9-9-8 9z" fill="#b95338" />
-            <path d="M57 56v-9a3 3 0 0 1 6 0v9" fill="#80633e" />
-            <path d="m27 3 1.5 5.5L34 10l-5.5 1.5L27 17l-1.5-5.5L20 10l5.5-1.5z M97 49l1.5 4.5L103 55l-4.5 1.5L97 61l-1.5-4.5L91 55l4.5-1.5z" fill="#e2b452" stroke="none" />
-          </g>
-        </svg>
-        <p class="empty">{t("hand.empty", { action: t("action.buy_card"), cost: t("cost.card") })}</p>
+        <div class="empty-picture"><EmptyHandArt /></div>
+        <div class="empty-copy">
+          <p class="empty-title">{t("hand.empty_title")}</p>
+          <p class="empty-hint">{t("hand.buy_hint")}</p>
+          <div class="card-cost">
+            {#each cardCost as [resource, count]}
+              <span><ResourceIcon {resource} size={20} label={false} /><b>{count}</b> {t(`resource.${resource}`)}</span>
+            {/each}
+          </div>
+        </div>
       </div>
     {/if}
     <ul onscroll={hidePeek}>
@@ -259,24 +259,46 @@
   .empty-hand {
     display: flex;
     align-items: center;
-    gap: 0.8rem;
+    gap: 0.6rem;
     flex: 1;
     min-height: 0;
-    padding: 0.35rem 0.8rem;
-    border: 1px dashed #80633e55;
-    border-radius: 10px;
-    background: #fff8e833;
+    padding: 0.5rem 0.7rem;
+    overflow: auto;
+    border: 1px solid #a4864b66;
+    border-radius: 12px;
+    background: radial-gradient(ellipse at left, #fff8dfaa, transparent 70%), #fff8e844;
+    box-shadow: inset 0 0 0 3px #fff9e855;
   }
-  .empty-art {
-    width: 6.5rem;
-    max-height: 100%;
-    height: 5rem;
+  .empty-picture {
+    width: 6rem;
+    height: 6rem;
     flex: none;
   }
-  .empty-hand .empty {
-    max-width: 26rem;
-    opacity: 1;
+  .empty-copy { min-width: 0; }
+  .empty-title {
+    margin: 0 0 0.2rem;
+    font: 700 1.1rem/1.15 var(--font-display);
+  }
+  .empty-hint {
+    margin: 0 0 0.35rem;
     color: var(--ink-soft);
+    font-size: 0.85rem;
+  }
+  .card-cost {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+  }
+  .card-cost > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.12rem 0.4rem;
+    border: 1px solid #a4864b55;
+    border-radius: 1rem;
+    background: #fff9e899;
+    white-space: nowrap;
   }
   .empty-hand + ul:empty {
     display: none;

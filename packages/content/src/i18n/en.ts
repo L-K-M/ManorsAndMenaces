@@ -760,6 +760,8 @@ export const EN: Record<string, string> = {
   "ui.your_turn_suffix": " — your turn!",
   "ui.match_code": "code {code}",
   "hand.empty": "No cards. {action}: {cost}",
+  "hand.empty_title": "No cards in hand",
+  "hand.buy_hint": "Buy a card for:",
   "writ.help": "Send {owner}'s Banner in {region} home. You pay 1 Essence to the Crown and a bribe of 1 resource to {owner}.",
   "aria.banner_in": "{owner}'s Banner, in {region}",
   "aria.banner_home": "{owner}'s Banner, at home",

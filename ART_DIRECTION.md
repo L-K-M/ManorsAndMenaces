@@ -1,6 +1,6 @@
 # Storybook visual refresh
 
-Last updated: 2026-09-26. Painted landmarks and inspector pass complete.
+Last updated: 2026-09-26. Second-wave cards and empty-hand polish in progress.
 
 ## User request and scope
 
@@ -12,11 +12,11 @@ a woman knight and a goblin emperor, and for this document to stay up to date.
 
 The original icon is saved at
 `media-sources/manors-and-menaces-icon-concept.png`. Its earlier storage-only
-PR #35 was merged before this refresh. The user has now authorized committing
-and pushing this work, then merging the latest main into the task branch.
-No new PR was requested. The current branch is `codex/save-icon-concept`,
-updated to `origin/main` at `f359477` during the landmark pass. This includes the
-separate icon update (#36), build improvements (#37), and online resume (#38).
+PR #35 was merged before this refresh. The user later authorized committing
+and pushing the first passes to `codex/save-icon-concept`. That work is now
+merged into main at `4edc1cb`. The second-wave card pass is on
+`codex/second-wave-card-art`, following the replacement AGENTS.md review and
+merge workflow. The historical checkpoints below record earlier end states.
 
 ## Design goals and decisions
 
@@ -494,3 +494,50 @@ the online browser tests along with the visual changes.
   merge to `codex/save-icon-concept`. No PR or merge into main is part of the
   authorized end state. Next work should start with new visual feedback and
   preserve these tested assets, their source prompts and vector fallbacks.
+
+## Second-wave cards and empty-hand polish
+
+Started from current main `4edc1cb` on `codex/second-wave-card-art`. Main now
+contains the prior artwork and ten new card definitions (#40), plus turn
+notifications. There are 21 distinct card types. The new cards currently fall
+back to type emblems because their paintings are missing.
+
+Plan: paint all ten new cards in the established gouache style, retaining
+playful and varied casting. Save originals and exact prompts beside the first
+eleven card paintings. Replace the screenshot's flat empty-hand card fan with
+a painted stack, retain a high-contrast fallback, and give the buying cost a
+clearer visual hierarchy. Keep gameplay, hidden hands and dock geometry intact.
+Check full-deck coverage, large text, narrow layouts and fallback rendering.
+
+- All ten new card paintings are complete: Changeling, Ragnarök, Fire Bolt,
+  Dragon's Landing, Transmutation Magic, The Plague, Royal Insurance Policy,
+  Robin of the Glade, The Unreliable Bard and Treasure Hunter. The bard received
+  one anatomy correction; its exact correction prompt is recorded. All new
+  PNG originals are in `media-sources/storybook/cards/`; the 600 × 400 WebPs
+  total about 765KiB. Earlier card and quest images regenerated unchanged.
+- Added a transparent painted card fan in `media-sources/storybook/ui/`, with
+  its prompt and a 256px runtime PNG (105KiB). The empty-hand panel has a clear
+  heading and resource-cost badges sourced from the rules balance constants.
+  Existing vector art remains for high contrast and failed loads. Harvest
+  totals now use readable individual badges, including zero values.
+- The existing whole-deck browser test failed before adding the missing
+  paintings and passes with all 21 unique designs. All 36 card-art/layout/look
+  tests passed, plus two stronger large-text checks requiring the whole empty
+  heading and each cost badge to be visible. Responsive tests wait for the
+  layout transition before inspecting the tray. Logs:
+  `/tmp/mm-wave2-before.log`, `/tmp/mm-wave2-e2e.log`,
+  `/tmp/mm-wave2-empty-final.log`.
+- `pnpm check` passed: typecheck, lint, 579 tests across 55 files, deterministic
+  map check, web/server production builds and server smoke test. Log:
+  `/tmp/mm-wave2-check.log`. Visually checked the empty hand and harvest on
+  desktop and a 360px phone, plus Ragnarök, Royal Insurance Policy and the
+  corrected bard previews. Browser viewport overrides are reset; the isolated
+  preview is on localhost:5175 with a deliberately oversized debug test hand.
+  Saved games made before the deck expansion do not contain the new cards;
+  use a fresh test game when reviewing their artwork.
+- Mac release packaging passed; the updated app is in
+  `src-tauri/target/release/bundle/macos/Manors & Menaces.app`. The installed
+  application and its current session were not replaced. Native visual
+  inspection of this pass remains unverified. Log: `/tmp/mm-wave2-desktop.log`.
+- Implementation and local verification are complete. Submit this branch for
+  CI and automated review, inspect the findings, then merge per AGENTS.md.

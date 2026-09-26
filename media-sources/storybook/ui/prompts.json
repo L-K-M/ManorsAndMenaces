@@ -1,0 +1,10 @@
+{
+  "tool": "Built-in image_gen",
+  "reference": "../cards/knight_errant.png",
+  "assets": [
+    {
+      "id": "empty-hand",
+      "prompt": "Use case: illustration-story. Create a single polished decorative empty-hand illustration for the cozy board game Manors & Menaces. Supplied image is STYLE REFERENCE ONLY: match warm dark-brown ink outlines, textured gouache, golden parchment, moss-green and terracotta palette. Subject: a small fan of three thick, beautifully crafted fantasy playing cards resting at a slight angle. The front card has a rich deep forest-green back with a tasteful embossed antique-gold vine border and a small painted cream-stone manor with a terracotta roof as the central emblem. The two cards behind show warm parchment edges and hints of deep green. A little red wax seal, an oak leaf and two small gold sparkle shapes around the base add charm. Whole stack centered, clearly readable silhouette at 96px. Square 1024x1024 canvas, generous transparent margins, actual alpha transparency around all objects. No background, no tabletop, no scene, no characters, no lettering, words, numbers, watermark or UI. Hand-painted tactile object, not a flat geometric icon."
+    }
+  ]
+}
