@@ -160,17 +160,19 @@ The Android app's background connection hears from the server only every 10 minu
 There is nothing to configure.
 
 - **Keys.** The server creates its VAPID key pair on first start and keeps it in the database (`server_settings`). Back the database up with everything else: a new key would silently cut off every browser that subscribed with the old one.
-- **Contact.** `VAPID_SUBJECT` is the contact push services see if your server misbehaves: `mailto:you@example.org` or an `https:` address of yours. It defaults to the project's repository; set your own.
+- **Contact.** `PUSH_CONTACT` is how push services can reach you if your server misbehaves: your email address (`you@example.org`) or an `https:` address of yours. It defaults to the project's repository; set your own. (The Web Push standard, VAPID, calls it the "subject" and wants it as a URL, so the server sends an email address as `mailto:you@example.org`.)
 - **Outbound connections.** The server must be able to reach the push services over HTTPS: `fcm.googleapis.com` (Chrome and most Chromium-based browsers), `*.push.services.mozilla.com` (Firefox), `*.push.apple.com` (Safari) and `*.notify.windows.com` (Edge on Windows). It accepts subscriptions only for those hosts, because it sends a request to whatever address a browser registers.
 - **Refusals.** A push service answering 404 or 410 means the browser unsubscribed, and the server forgets it. Other refusals appear in the log as `push to <host> failed: HTTP <status>`.
 
 ### Email
 
-Email is off until you set all three of these (in `.env` for Docker Compose, or in the environment):
+Email is off until you set `SMTP_HOST`, `MAIL_FROM` and `PUBLIC_URL` (in `.env` for Docker Compose, or in the environment):
 
 | Variable | Example | Meaning |
 | --- | --- | --- |
-| `SMTP_URL` | `smtps://turns%40example.org:app-password@smtp.example.org:465` | Your mail provider's SMTP server. `smtps://` is TLS (usually port 465); `smtp://…:587` upgrades with STARTTLS. Percent-encode reserved characters in the user name and password (`@` becomes `%40`, `:` becomes `%3A`). |
+| `SMTP_HOST` | `smtp.example.org` | Your mail provider's SMTP server. |
+| `SMTP_PORT` | `587` | Its port. The default, 587, switches to TLS with STARTTLS when the server offers it; 465 connects with TLS from the start. |
+| `SMTP_USER`, `SMTP_PASSWORD` | `turns@example.org`, `app-password` | The login your provider gives you, exactly as it is: the server encodes nothing. In `.env`, put a password that contains a `$` or a `#` in single quotes. Leave both empty for a server that needs no login. |
 | `MAIL_FROM` | `Manors & Menaces <turns@example.org>` | The sender. Use an address on a domain your provider is allowed to send for. |
 | `PUBLIC_URL` | `https://play.example.org` | Where players open the game. Links in emails point here, so this server must be reachable at that address and serve the web client there. |
 
@@ -178,11 +180,11 @@ Any provider with SMTP works: your own mail server, Fastmail, Mailgun, Amazon SE
 
 **Checking the setup.** At startup the server logs one of these:
 
-- `Turn emails: off (…)`: none of the variables is set.
+- `Turn emails: off (…)`: `SMTP_HOST` is not set.
 - `Turn emails: on, the SMTP server accepted the login`.
 - `Turn emails: cannot use the SMTP server (…)`: the server keeps running, but emails fail until you fix the setting. A missing or malformed variable stops the server at startup with a message naming it.
 
-**Trying it out without sending mail.** Set `MAIL_OUTBOX_DIR=/some/dir` instead of `SMTP_URL`, together with `MAIL_FROM` and `PUBLIC_URL`. Every email is then written to that directory as an `.eml` file you can open in a mail program. The end-to-end tests work this way.
+**Trying it out without sending mail.** Set `MAIL_OUTBOX_DIR=/some/dir` instead of `SMTP_HOST`, together with `MAIL_FROM` and `PUBLIC_URL`. Every email is then written to that directory as an `.eml` file you can open in a mail program. The end-to-end tests work this way.
 
 **Deliverability.** Mail from a domain without SPF and DKIM records for your provider tends to land in spam. Your provider's setup guide covers the DNS records.
 

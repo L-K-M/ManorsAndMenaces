@@ -93,7 +93,7 @@ const PAGE_HEADERS = {
   "referrer-policy": "no-referrer",
 };
 
-/** VAPID contact when the operator sets none (VAPID_SUBJECT). */
+/** VAPID contact when the operator sets none (PUSH_CONTACT). */
 const DEFAULT_VAPID_SUBJECT = "https://github.com/L-K-M/ManorsAndMenaces";
 
 // WebSocket limits. A client sends one small frame per match it opens, so

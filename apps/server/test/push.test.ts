@@ -1,6 +1,6 @@
 import { createECDH, createDecipheriv, createPublicKey, hkdfSync, verify } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { encryptPayload, generateVapidKeys, isPushServiceHost, parseSubscription, sendPush, vapidAuthorization, vapidKeysFromPem } from "../src/push.js";
+import { encryptPayload, generateVapidKeys, isPushServiceHost, parseSubscription, pushContactFromEnv, sendPush, vapidAuthorization, vapidKeysFromPem } from "../src/push.js";
 
 // Web Push (RFC 8030) messages are encrypted for the browser (RFC 8291) and
 // signed by the server (VAPID, RFC 8292); the push service rejects anything
@@ -71,6 +71,29 @@ describe("VAPID", () => {
     expect(b64(k as string)).toHaveLength(65);
     const publicKey = createPublicKey({ key: { kty: "EC", crv: "P-256", x: b64(k as string).subarray(1, 33).toString("base64url"), y: b64(k as string).subarray(33).toString("base64url") }, format: "jwk" });
     expect(verify("sha256", Buffer.from(`${head}.${claims}`), { key: publicKey, dsaEncoding: "ieee-p1363" }, b64(signature as string))).toBe(true);
+  });
+});
+
+describe("push contact (PUSH_CONTACT)", () => {
+  it("is optional", () => {
+    expect(pushContactFromEnv({})).toBeNull();
+    expect(pushContactFromEnv({ PUSH_CONTACT: " " })).toBeNull();
+  });
+
+  it("takes a plain email address and writes it as the mailto: URL VAPID wants", () => {
+    expect(pushContactFromEnv({ PUSH_CONTACT: " ops@example.org " })).toBe("mailto:ops@example.org");
+    expect(pushContactFromEnv({ PUSH_CONTACT: "mailto:ops@example.org" })).toBe("mailto:ops@example.org");
+    expect(pushContactFromEnv({ PUSH_CONTACT: "https://example.org/contact" })).toBe("https://example.org/contact");
+  });
+
+  it("refuses what push services would not take", () => {
+    for (const bad of ["ops", "http://example.org", "mailto:", "mailto:ops", "ftp://example.org", "https://"]) {
+      expect(() => pushContactFromEnv({ PUSH_CONTACT: bad }), bad).toThrow(/PUSH_CONTACT/);
+    }
+  });
+
+  it("says what replaced VAPID_SUBJECT", () => {
+    expect(() => pushContactFromEnv({ VAPID_SUBJECT: "mailto:ops@example.org" })).toThrow(/VAPID_SUBJECT.*PUSH_CONTACT/);
   });
 });
 

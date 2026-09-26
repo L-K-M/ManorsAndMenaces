@@ -13,7 +13,7 @@
 |---|---|
 | Install | `pnpm install` |
 | Web dev server | `pnpm dev` (http://localhost:5173) |
-| Online server (dev) | `pnpm server` (http://localhost:8787; `DB_PATH`, `PORT`, `WEB_DIST`, `CORS_ORIGIN`, `AI_DELAY_MS`, `TRUST_PROXY` = reverse proxies in front whose X-Forwarded-For is trusted, default 0, `VAPID_SUBJECT` = Web Push contact, `BACKGROUND_PING_SECONDS` = ping interval for the Android app's background connection, `SMTP_URL`/`MAIL_FROM`/`PUBLIC_URL` = turn emails, `MAIL_OUTBOX_DIR` = write emails to files instead, `INVITE_ONLY` = open only to invited people; see `apps/server/src/main.ts`, `docs/notifications.md` and `docs/invites.md`) |
+| Online server (dev) | `pnpm server` (http://localhost:8787; `DB_PATH`, `PORT`, `WEB_DIST`, `CORS_ORIGIN`, `AI_DELAY_MS`, `TRUST_PROXY` = reverse proxies in front whose X-Forwarded-For is trusted, default 0, `PUSH_CONTACT` = Web Push contact (an email address or https: URL), `BACKGROUND_PING_SECONDS` = ping interval for the Android app's background connection, `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`/`MAIL_FROM`/`PUBLIC_URL` = turn emails, `MAIL_OUTBOX_DIR` = write emails to files instead, `INVITE_ONLY` = open only to invited people; see `apps/server/src/main.ts`, `docs/notifications.md` and `docs/invites.md`) |
 | Invites (invite-only server) | `pnpm invites create NAME [--uses N] [--days N] [--invites N]`, `pnpm invites list`, `pnpm invites revoke ID` (on `DB_PATH`; in Docker `docker compose exec manors node server.mjs invites …`) |
 | Desktop dev | `pnpm tauri:dev` |
 | Typecheck everything | `pnpm typecheck` |

@@ -3,6 +3,7 @@
 // on node:crypto. The service worker shows what arrives (sw.template.js).
 
 import { createCipheriv, createECDH, createPrivateKey, createPublicKey, generateKeyPairSync, hkdfSync, randomBytes, sign, type KeyObject } from "node:crypto";
+import { isEmailAddress } from "./mail.js";
 
 /** A browser's subscription as stored: keys base64url, as the browser gives them. */
 export interface StoredSubscription {
@@ -93,6 +94,22 @@ export function vapidKeysFromPem(pem: string): VapidKeys {
   const jwk = createPublicKey(privateKey).export({ format: "jwk" });
   const point = Buffer.concat([Buffer.from([0x04]), Buffer.from(jwk.x as string, "base64url"), Buffer.from(jwk.y as string, "base64url")]);
   return { publicKey: point.toString("base64url"), privateKey };
+}
+
+/**
+ * The operator's contact from PUSH_CONTACT, as the URL a VAPID token names
+ * (its "subject", RFC 8292 section 2.1: mailto: or https:). A plain email
+ * address becomes a mailto: URL. Null when unset; throws a message naming the
+ * setting to fix.
+ */
+export function pushContactFromEnv(env: Record<string, string | undefined>): string | null {
+  if (env.VAPID_SUBJECT?.trim()) throw new Error("VAPID_SUBJECT is now PUSH_CONTACT, which takes a plain email address like you@example.org");
+  const contact = env.PUSH_CONTACT?.trim();
+  if (!contact) return null;
+  const address = contact.startsWith("mailto:") ? contact.slice("mailto:".length) : contact;
+  if (isEmailAddress(address)) return `mailto:${address}`;
+  if (contact.startsWith("https://") && URL.canParse(contact)) return contact;
+  throw new Error(`PUSH_CONTACT must be an email address like you@example.org, or an https: address of yours, not "${contact}"`);
 }
 
 /** The Authorization header identifying this server to the push service (RFC 8292). */
