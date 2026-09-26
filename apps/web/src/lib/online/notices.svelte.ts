@@ -8,6 +8,7 @@ import type { MatchNotice } from "@manors-menaces/protocol";
 import { platform } from "../platform/adapter.js";
 import { OnlineClient } from "./client.js";
 import { withNotice } from "./noticeList.js";
+import { watchingInBackground } from "./turnNotices.js";
 
 /** Lines kept for screen readers; only additions are read out, so this is just history. */
 const KEPT_ANNOUNCEMENTS = 3;
@@ -44,7 +45,8 @@ function receive(notice: MatchNotice): void {
   if (notice.matchId === open) return;
   notices.list = withNotice(notices.list, notice, open);
   notices.announcements = [...notices.announcements, { id: nextAnnouncementId++, text: `${notice.title}. ${notice.body}` }].slice(-KEPT_ANNOUNCEMENTS);
-  if (document.hidden) void platform.notify(notice.title, notice.body);
+  // The Android app's watcher shows it already when the app is in the background.
+  if (document.hidden && !watchingInBackground()) void platform.notify(notice.title, notice.body);
 }
 
 export function dismissNotice(matchId: string): void {

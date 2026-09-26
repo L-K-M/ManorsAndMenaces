@@ -27,26 +27,27 @@ The server picks one way to reach you, depending on where the game is open:
 | That match is on screen | Nothing extra. The match shows your turn. |
 | The game is open on another screen (title, lobby, another match), on any device signed in as you | A banner with an **Open** button, and a system notification if the page is in a background tab or minimized. Screen readers announce it. |
 | The game is closed everywhere | A Web Push notification on every browser where you turned it on, **and** an email if you confirmed an address. |
+| The Android app is closed, with **Notify me when it's my turn** on in it | An Android notification from the app's background connection. |
 
 "Signed in as you" means the same guest. A guest belongs to one browser or one app install: your phone's Chrome and your laptop's Firefox are two guests unless you only ever play from one. Notification settings belong to the guest, and each match belongs to the guest that joined it. Set notifications up on the device you actually play that match from.
 
-While the game is open anywhere, pushes and emails are held back. If your laptop has the game open in a forgotten tab, your phone stays quiet.
+While the game is open anywhere, pushes and emails are held back. If your laptop has the game open in a forgotten tab, your phone stays quiet. The Android app's background connection counts as well: while it runs, your phone gets the notice and pushes and emails are held back. It does not make you look online to your opponents.
 
 ## Which option to use
 
-| | Web Push | Email | App open only |
-| --- | --- | --- | --- |
-| Arrives when the game is closed | Yes | Yes | No |
-| Where it works | Browsers with Web Push: Chrome, Edge, Firefox, Safari (iOS: Home Screen web app only) | Anywhere you read mail | The desktop app, the Android app, the development server |
-| Needs from the server | HTTPS and the production web build (nothing else to configure) | The operator to set up SMTP | Nothing |
-| Speed | Usually seconds. An idle phone may hold it back (see [Android](#android)). | As fast as your mail app checks | Instant |
-| If the device is off for a day | Dropped after 24 hours | Waits in your inbox | Missed; the lobby shows "your turn" later |
+| | Web Push | Android app | Email | App open only |
+| --- | --- | --- | --- | --- |
+| Arrives when the game is closed | Yes | Yes | Yes | No |
+| Where it works | Browsers with Web Push: Chrome, Edge, Firefox, Safari (iOS: Home Screen web app only) | The Android app | Anywhere you read mail | The desktop app, the development server |
+| Needs from the server | HTTPS and the production web build (nothing else to configure) | Nothing, if proxies in front let idle WebSockets stay open (see [Running a server](#running-a-server)) | The operator to set up SMTP | Nothing |
+| Speed | Usually seconds. An idle phone may hold it back (see [Android](#android)). | Seconds | As fast as your mail app checks | Instant |
+| If the device is off for a day | Dropped after 24 hours | Turns still waiting for you show up when it reconnects | Waits in your inbox | Missed; the lobby shows "your turn" later |
 
 You can turn on both push and email. Each channel is independent, so you would then get both for the same turn.
 
 ## Android
 
-There are three ways to get notices on an Android phone. Pick the one that matches how you play.
+There are three ways to get notices on an Android phone. Pick the one that matches how you play: in Chrome, in the Android app, or by email.
 
 ### Option 1: play in Chrome (recommended)
 
@@ -74,17 +75,28 @@ Firefox for Android supports Web Push too, and the steps are the same. It relays
 
 ### Option 2: the Android app
 
-The Android app (the `.apk` from the releases page) shows the game in Android's WebView, which has no Web Push. So the app can only tell you about a turn while it is running:
+The Android app (the `.apk` from the releases page) can keep one light connection to the server while it is closed, and tells you when it is your turn. Android's WebView has no Web Push, so this connection does the job instead; it needs no Google services.
 
-- While the app is open, you get the in-app banner.
-- Just after you switch away, you get an Android notification. On Android 13 and later the app needs notification permission and asks the first time it wants to show one. If you missed that prompt, allow notifications in **Settings > Apps > Manors & Menaces > Notifications**.
-- Soon after the app goes to the background, Android suspends it and closes its connection to the server. From then on nothing arrives until you open it again.
+1. In the app, tap **Play online** and tick **Notify me when it's my turn**.
+2. Allow notifications when Android asks (Android 13 and later).
+3. Android then asks whether the app may run in the background: allow it. Without that, Android cuts the app's network access while the phone lies idle, and your turns arrive late. If you declined, the lobby says so and offers **Allow** again. You can also change it later in **Settings > Apps > Manors & Menaces > Battery** (**Unrestricted**).
 
-The **Notify me when it's my turn** box does not appear in the app for this reason. To be told while the app is closed, use email (Option 3). You can also set up Chrome as in Option 1 and play some matches there.
+From then on:
+
+- A quiet **Listening for your turns** notification stays in the notification shade while the connection is kept. Android requires it. To hide it, long-press it and turn off the **Background connection** category; keep **Turn notices** on. On Android 14 and later you can also swipe it away.
+- Tapping a turn notice opens the app at that match.
+- The connection comes back after the phone restarts or the app is updated. Unticking the box stops it.
+- After a stretch without network (a tunnel, flight mode), the app catches up as soon as it reconnects: it shows every turn that is still waiting for you. A match that ended in the meantime is not announced; the lobby shows it.
+
+**Battery.** The server sends the connection one small message every 10 minutes and the app sends nothing on its own, so the phone wakes about 150 times a day, briefly, for this. ntfy, an app that works the same way, reports "about 0-1% of battery in 17h". To see the cost on your phone, check **Settings > Battery** after a day.
+
+**Phones that stop background apps.** Some makers (Xiaomi, Huawei, OnePlus, some Samsung models) stop background apps beyond Android's own rules. If notices stop after a while, allow the app to autostart and run without battery restrictions in the maker's settings; [dontkillmyapp.com](https://dontkillmyapp.com) has the steps for each brand.
+
+With the box unticked, the app tells you about turns only while it is running: the in-app banner while it is open, and an Android notification just after you switch away.
 
 ### Option 3: email
 
-Email works on any phone, including with the Android app. It needs the server operator to have set up email; if they have not, the option does not appear.
+Email works on any phone, in the browser and in the Android app. It needs the server operator to have set up email; if they have not, the option does not appear.
 
 1. In the lobby, enter your address under **Email me when it's my turn** and tap **Send link**.
 2. Open the email "Confirm turn emails from Manors & Menaces" and follow the link.
@@ -114,7 +126,9 @@ In a Safari tab the box does not appear. Email works in both cases.
 
 | What you see | Why, and what to do |
 | --- | --- |
-| No **Notify me when it's my turn** box | Web Push needs the production web build over HTTPS in a browser that supports it. The box is missing in the desktop and Android apps, in the development server, and in iOS Safari outside a Home Screen web app. Private and incognito windows usually cannot receive pushes either: the box is missing or blocked there. Use email instead. |
+| No **Notify me when it's my turn** box | In a browser, Web Push needs the production web build over HTTPS in a browser that supports it. The box is missing in the desktop app, in the development server, and in iOS Safari outside a Home Screen web app. Private and incognito windows usually cannot receive pushes either: the box is missing or blocked there. Use email instead. (The Android app has the box.) |
+| Android app: turns arrive late, or only when you open the app | Allow the app to run in the background (the lobby's **Allow**, or **Settings > Apps > Manors & Menaces > Battery > Unrestricted**). On phones that stop background apps, see [Option 2](#option-2-the-android-app). If it still happens, the server's proxy may be closing idle connections; tell its operator. |
+| Android app: "Notifications are turned off for this app" | Turn them on in **Settings > Apps > Manors & Menaces > Notifications**, then tick the box again. |
 | "Notifications are blocked for this site" | You or the browser declined the permission earlier. Allow notifications in the browser's site settings (see [Android](#android) for Chrome's menu), then tick the box again. |
 | Notices arrive late on Android | The phone was idle (Doze) or Chrome's battery usage is **Restricted**. See [Make sure notices arrive on time](#option-1-play-in-chrome-recommended). |
 | Nothing arrives, but the game is closed on this device | Is it still open somewhere else, signed in as you? Any open copy of the game receives the notice instead. Close forgotten tabs. |
@@ -132,6 +146,14 @@ The Docker image serves the web client and the API from one address, which is wh
 ### HTTPS
 
 Browsers allow Web Push only on HTTPS pages, and the one-click unsubscribe that mail apps offer needs an HTTPS link. Put the server behind a reverse proxy with a certificate (Caddy, nginx, Traefik), and pass WebSocket upgrades on `/api/ws` through, since the in-app notices use that connection. If the proxy is the only way in, set `TRUST_PROXY` (see `docker-compose.yml`).
+
+### Idle WebSockets and the Android app
+
+The Android app's background connection hears from the server only every 10 minutes (`BACKGROUND_PING_SECONDS`, default 600). A proxy that closes WebSockets idle for less than that cuts it every time. The app then backs off to reconnecting every 10 minutes and catches up on waiting turns each time, so turns arrive late. Let `/api/ws` stay idle for longer than the interval:
+
+- **nginx** closes idle proxied connections after 60 seconds by default. In the `location` for `/api/ws`, set `proxy_read_timeout 15m;` and `proxy_send_timeout 15m;`.
+- **Cloudflare's proxy** closes WebSockets that are idle for 100 seconds on the Free and Pro plans, and only Enterprise can change that. Set `BACKGROUND_PING_SECONDS=90`. That wakes the phone about 960 times a day instead of 150, so it costs more battery.
+- Other proxies have similar settings, often called an idle or read timeout.
 
 ### Web Push
 
@@ -175,4 +197,11 @@ Any provider with SMTP works: your own mail server, Fastmail, Mailgun, Amazon SE
 
 ### About the Android app
 
-The Android build takes its notification permission (`POST_NOTIFICATIONS`) from `tauri-plugin-notification`'s manifest, which merges into the app. The app has no Firebase Cloud Messaging integration, so it cannot receive pushes while closed. Adding that would need a Firebase project, its `google-services.json` in the Android project, a native push plugin, and a server that sends through the FCM HTTP v1 API. That is a separate project. Until then, email covers the closed app.
+The Android app's watcher is a foreground service in `src-tauri/gen/android/app/src/main/java/ch/lkm/manorsmenaces/turnwatch`, registered as the `turn-watch` plugin in `src-tauri/src/lib.rs`:
+
+- It uses Android's `specialUse` foreground service type, which has no daily time limit (Android 15 limits `dataSync` to 6 hours a day) and may restart after a reboot. Google Play reviews that type and the battery exemption request; the app is not distributed there.
+- It opens `/api/ws?mode=background` with the guest's session. The server pings that connection every `BACKGROUND_PING_SECONDS` and sends a `keepalive` message with each ping, since Android's WebSocket library answers pings without telling the app. On connecting it sends the turns waiting for the guest, so notices lost in a connection that a mobile network dropped silently are not lost for good.
+- A background connection does not count as the player being online.
+- The logic that decides what to show, how long to wait before reconnecting and when a connection has gone quiet is in `TurnWatchLogic.kt`, with JVM unit tests in `app/src/test`.
+
+Firebase Cloud Messaging would save the phone even these few wake-ups, since all apps share one connection, but it needs a Firebase project and ties every self-hosted server to it.

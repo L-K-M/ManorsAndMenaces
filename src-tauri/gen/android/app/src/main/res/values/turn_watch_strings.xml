@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="turn_watch_channel_turns">Turn notices</string>
+    <string name="turn_watch_channel_turns_description">When it is your turn in an online match, or a match ends.</string>
+    <string name="turn_watch_channel_connection">Background connection</string>
+    <string name="turn_watch_channel_connection_description">Shown while the app listens for your turns. You can turn this one off and keep the turn notices.</string>
+    <string name="turn_watch_connection_title">Listening for your turns</string>
+    <string name="turn_watch_connection_text">Manors &amp; Menaces tells you when an online match is waiting for you.</string>
+</resources>

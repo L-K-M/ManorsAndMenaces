@@ -25,6 +25,31 @@ export interface PlatformAdapter {
    */
   exportFile(name: string, data: string): Promise<boolean>;
   notify(title: string, body: string): Promise<void>;
+  /** The Android app's turn watcher; absent in browsers. Its calls reject where the app has none (desktop). */
+  readonly turnWatch?: TurnWatch;
+}
+
+/**
+ * A native service in the Android app that keeps one connection to the game
+ * server while the app is closed and shows turn notices itself
+ * (src-tauri/gen/android/app/src/main/java/ch/lkm/manorsmenaces/turnwatch).
+ */
+export interface TurnWatch {
+  status(): Promise<TurnWatchStatus>;
+  /** Starts watching for this server and guest session, or switches to them; asks for notification permission first. */
+  start(serverUrl: string, token: string): Promise<TurnWatchStatus>;
+  stop(): Promise<TurnWatchStatus>;
+  /** Opens Android's "let the app run in the background" prompt; its answer shows in a later status. */
+  requestBatteryExemption(): Promise<TurnWatchStatus>;
+  /** The match of the notice the player tapped to open the app, once. */
+  takeOpenedMatch(): Promise<string | null>;
+}
+
+export interface TurnWatchStatus {
+  enabled: boolean;
+  notificationsAllowed: boolean;
+  /** Whether Android lets the app keep its connection while the phone dozes. */
+  batteryUnrestricted: boolean;
 }
 
 // ------------------------------------------------------------------ IndexedDB (spec §75)
@@ -148,13 +173,36 @@ export class TauriPlatformAdapter extends BrowserPlatformAdapter {
   override async notify(title: string, body: string): Promise<void> {
     const n = this.tauri?.notification;
     if (!n) return super.notify(title, body);
-    let granted = await n.isPermissionGranted();
-    if (!granted) granted = (await n.requestPermission()) === "granted";
-    if (granted) n.sendNotification({ title, body });
+    if (await this.notificationsGranted()) n.sendNotification({ title, body });
+  }
+
+  private async notificationsGranted(): Promise<boolean> {
+    const n = this.tauri?.notification;
+    if (!n) return false;
+    return (await n.isPermissionGranted()) || (await n.requestPermission()) === "granted";
+  }
+
+  readonly turnWatch: TurnWatch = {
+    status: () => this.turnWatchCall("status"),
+    start: async (serverUrl, token) => {
+      // Android 13+ asks once; without it the watcher could not show anything.
+      await this.notificationsGranted();
+      return this.turnWatchCall("start", { serverUrl, token });
+    },
+    stop: () => this.turnWatchCall("stop"),
+    requestBatteryExemption: () => this.turnWatchCall("request_battery_exemption"),
+    takeOpenedMatch: async () => (await this.turnWatchCall<{ matchId: string | null }>("take_opened_match")).matchId,
+  };
+
+  private turnWatchCall<T = TurnWatchStatus>(command: string, args?: Record<string, unknown>): Promise<T> {
+    const invoke = this.tauri?.core?.invoke;
+    if (!invoke) return Promise.reject(new Error("no Tauri bridge"));
+    return invoke<T>(`plugin:turn-watch|${command}`, args);
   }
 }
 
 interface TauriGlobal {
+  core?: { invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> };
   dialog?: { save(opts: { defaultPath: string; filters: { name: string; extensions: string[] }[] }): Promise<string | null> };
   fs?: { writeTextFile(path: string, data: string): Promise<void> };
   notification?: {

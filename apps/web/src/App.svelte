@@ -17,6 +17,7 @@
   import OnlineLobby from "./lib/online/OnlineLobby.svelte";
   import NoticeBanner from "./lib/online/NoticeBanner.svelte";
   import { dismissNotice, watchNotices } from "./lib/online/notices.svelte.js";
+  import { primeWatching } from "./lib/online/turnNotices.js";
   import { setMatchRoute } from "./lib/online/route.js";
   import UpdatePrompt from "./lib/components/UpdatePrompt.svelte";
   import TitleVignette from "./lib/components/TitleVignette.svelte";
@@ -170,6 +171,24 @@
     screen = "online";
     lobbyKey++;
   }
+  // The Android app: a tapped turn notice opens its match (turnwatch/ in src-tauri/gen/android).
+  function openTappedNotice() {
+    void platform.turnWatch
+      ?.takeOpenedMatch()
+      .then((matchId) => {
+        if (matchId) openMatchFromNotice(matchId);
+      })
+      .catch(() => {}); // no watcher here (the desktop app)
+  }
+  $effect(() => {
+    void primeWatching();
+    openTappedNotice();
+    const onVisible = () => {
+      if (!document.hidden) openTappedNotice();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  });
   $effect(() => {
     if (!("serviceWorker" in navigator)) return;
     // The service worker hands over clicks on its notifications (sw.template.js).

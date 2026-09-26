@@ -20,6 +20,10 @@ services:
       # Contact for Web Push services (turn notices to players whose app is
       # closed): mailto:you@example.org or an https: URL of yours.
       VAPID_SUBJECT: ${VAPID_SUBJECT:-https://github.com/L-K-M/ManorsAndMenaces}
+      # How often the Android app's background connection is pinged, in
+      # seconds. Each ping wakes the phone; lower it only if a proxy in front
+      # closes idle WebSockets sooner (Cloudflare Free/Pro: 100 s, so 90).
+      BACKGROUND_PING_SECONDS: ${BACKGROUND_PING_SECONDS:-600}
       # Turn emails, for players who confirm an address in the lobby. All
       # three are needed; leave SMTP_URL empty to keep email off. See
       # docs/notifications.md.
