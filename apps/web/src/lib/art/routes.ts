@@ -3,6 +3,27 @@
 // from the two end Sites of a Route.
 
 import { polyline, type Pt } from "./geometry.js";
+import type { RouteDefinition } from "@manors-menaces/content";
+
+/** The same road geometry drives its drawing, hit area and attached markers. */
+export function routeGeometry(route: RouteDefinition, a: Pt, b: Pt) {
+  const points = route.points ?? [a, b];
+  const segments = points.slice(1).map((point, i) => ({ a: points[i]!, b: point }));
+  const lengths = segments.map((s) => Math.hypot(s.b.x - s.a.x, s.b.y - s.a.y));
+  let remaining = lengths.reduce((sum, n) => sum + n, 0) / 2;
+  let mid = a;
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]!;
+    const length = lengths[i]!;
+    if (remaining <= length && length > 0) {
+      const t = remaining / length;
+      mid = { x: segment.a.x + (segment.b.x - segment.a.x) * t, y: segment.a.y + (segment.b.y - segment.a.y) * t };
+      break;
+    }
+    remaining -= length;
+  }
+  return { d: polyline(points), mid, segments };
+}
 
 /** Half the length of the stream crossing a bridge (board units). */
 export const RIVER_HALF = 46;

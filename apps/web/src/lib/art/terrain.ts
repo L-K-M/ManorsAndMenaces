@@ -12,7 +12,7 @@
 
 import type { MapDefinition, RegionDefinition } from "@manors-menaces/content";
 import type { ResourceType } from "@manors-menaces/rules";
-import { PASS_OFFSET, RIVER_HALF, passRidges, riverAcross } from "./routes.js";
+import { PASS_OFFSET, RIVER_HALF, passRidges, riverAcross, routeGeometry } from "./routes.js";
 import { artRng, bounds, edgeDistance, inside, polygonPoints, segmentDistance, signedArea, type Pt } from "./geometry.js";
 import { LABEL, MENACE_OFFSET, PIECE_SCALE } from "../game/board-view.js";
 
@@ -150,8 +150,9 @@ function keepOutZones(map: MapDefinition): Zones {
     const a = sites.get(route.siteA);
     const b = sites.get(route.siteB);
     if (!a || !b) continue;
-    z.segments.push({ a, b });
-    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const geometry = routeGeometry(route, a, b);
+    z.segments.push(...geometry.segments);
+    const mid = geometry.mid;
     z.circles.push({ ...mid, r: C.routeMid });
     const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
     const n = { x: (a.y - b.y) / len, y: (b.x - a.x) / len };
@@ -526,7 +527,7 @@ function scatter(region: RegionDefinition, recipe: Recipe, c: Ctx, rng: () => nu
   for (let i = 0; i < tries && out.length < recipe.max; i++) tryPlace(pickKind(recipe.kinds, rng), 1);
   // Bays can leave usable pockets outside the random clusters. Give sparse
   // Regions a bounded, uniform pass, preserving all gameplay clearances.
-  for (let i = 0; i < 160 && out.length < 2; i++) tryPlace(pickKind(recipe.kinds, rng), 1, "uniform");
+  for (let i = 0; i < 800 && out.length < 2; i++) tryPlace(pickKind(recipe.kinds, rng), 1, "uniform");
   return out;
 }
 

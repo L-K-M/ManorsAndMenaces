@@ -6,7 +6,7 @@ import { BrowserPlatformAdapter } from "../src/lib/platform/adapter.js";
 import { FakeIndexedDB } from "./fake-indexeddb.js";
 
 function saveFile(savedAt = "2026-01-01T00:00:00.000Z"): SaveFile {
-  const state = engineFor().createGame({
+  const state = engineFor("greenvale").createGame({
     matchId: "m1",
     seed: "s",
     rulesetVersion: RULESET_VERSION,

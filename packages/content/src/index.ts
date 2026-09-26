@@ -1,6 +1,7 @@
 import { clone, type BoardTopology, type RulesContent } from "@manors-menaces/rules";
 import { CARDS } from "./cards.js";
 import { GREENVALE_MAP } from "./maps/greenvale.js";
+import { LEGACY_GREENVALE_MAP } from "./maps/greenvale-legacy.js";
 import { QUESTS } from "./quests.js";
 import type { MapDefinition } from "./types.js";
 import { validateMap } from "./validate.js";
@@ -14,7 +15,9 @@ export { RIVALS, RIVAL_QUIP_TRIGGERS, rivalById, rivalQuipKeys, type RivalDefini
 export { validateMap, maximumIndependentSet, type MapValidation } from "./validate.js";
 export { GREENVALE_MAP } from "./maps/greenvale.js";
 
-export const MAPS: Record<string, MapDefinition> = { [GREENVALE_MAP.id]: GREENVALE_MAP };
+export { LEGACY_GREENVALE_MAP } from "./maps/greenvale-legacy.js";
+
+export const MAPS: Record<string, MapDefinition> = { [GREENVALE_MAP.id]: GREENVALE_MAP, [LEGACY_GREENVALE_MAP.id]: LEGACY_GREENVALE_MAP };
 
 /** Strip geometry: the rules engine only sees topology (spec §103). */
 export function toBoardTopology(map: MapDefinition): BoardTopology {

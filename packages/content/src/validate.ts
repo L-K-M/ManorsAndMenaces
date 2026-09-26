@@ -34,6 +34,15 @@ export function validateMap(map: MapDefinition, maxPlayers = 4): MapValidation {
   const sitePairs = new Map<string, string>();
   for (const r of map.routes) {
     if (!sites.has(r.siteA) || !sites.has(r.siteB)) errors.push(`route ${r.id} has an unknown endpoint`);
+    if (r.points) {
+      const a = sites.get(r.siteA), b = sites.get(r.siteB);
+      const first = r.points[0], last = r.points.at(-1);
+      if (r.points.length < 2 || r.points.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y)) ||
+          first?.x !== a?.x || first?.y !== a?.y || last?.x !== b?.x || last?.y !== b?.y ||
+          r.points.some((p, i) => i > 0 && p.x === r.points![i - 1]!.x && p.y === r.points![i - 1]!.y)) {
+        errors.push(`route ${r.id} has invalid drawing points`);
+      }
+    }
     if (r.siteA === r.siteB) errors.push(`route ${r.id} is a loop`);
     const pair = [r.siteA, r.siteB].sort().join("|");
     const twin = sitePairs.get(pair);
@@ -69,9 +78,8 @@ export function validateMap(map: MapDefinition, maxPlayers = 4): MapValidation {
     if (!isResourceType(r.resource)) errors.push(`region ${r.id} has unknown resource ${String(r.resource)}`);
     if (r.adjacentSiteIds.length === 0) errors.push(`region ${r.id} touches no Site`);
     // A Royal Writ needs a Holding next to the Region, so one Site's owner keeps it for good.
-    // A warning for now: Greenvale's Honeydew Pastures has one Site, and an error would
-    // make rulesContentFor refuse the shipped map. It becomes an error once the map
-    // generator stops leaving such Regions.
+    // Keep this a warning for the legacy Greenvale map used by existing saves;
+    // its Honeydew Pastures has only one Site.
     else if (r.adjacentSiteIds.length === 1) warnings.push(`region ${r.id} touches only one Site, so no Writ can contest it`);
     for (const sid of r.adjacentSiteIds) {
       const site = sites.get(sid);

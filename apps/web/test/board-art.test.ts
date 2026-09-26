@@ -3,7 +3,7 @@ import { GREENVALE_MAP } from "@manors-menaces/content";
 import { CLEARANCE, terrainArt } from "../src/lib/art/terrain.js";
 import { CARTOUCHE, RIPPLES, coastArt } from "../src/lib/art/coast.js";
 import { edgeDistance, inside, offsetPolygon, polygonPoints, segmentDistance } from "../src/lib/art/geometry.js";
-import { RIVER_HALF, riverAcross } from "../src/lib/art/routes.js";
+import { RIVER_HALF, riverAcross, routeGeometry } from "../src/lib/art/routes.js";
 import { bannerSlot } from "../src/lib/game/board-view.js";
 
 const map = GREENVALE_MAP;
@@ -68,7 +68,9 @@ describe("terrain illustration", () => {
       for (const route of map.routes) {
         const a = sites.get(route.siteA)!;
         const b = sites.get(route.siteB)!;
-        expect(segmentDistance(m, a, b)).toBeGreaterThanOrEqual(CLEARANCE.route + m.r - 0.1);
+        for (const segment of routeGeometry(route, a, b).segments) {
+          expect(segmentDistance(m, segment.a, segment.b)).toBeGreaterThanOrEqual(CLEARANCE.route + m.r - 0.1);
+        }
       }
     }
   });

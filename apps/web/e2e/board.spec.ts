@@ -414,3 +414,24 @@ test.describe("harvest notes", () => {
     expect(await coveredPieces(page)).toBe(0);
   });
 });
+
+test("restored beach Sites can build roads along the shoreline", async ({ page }) => {
+  await startHotseat(page);
+  await expect(page.locator(".site")).toHaveCount(43);
+  // The seven restored junctions are appended after the published 36 Sites.
+  await page.locator(".site").nth(36).click();
+  const coast = page.locator(".route.hl").filter({ has: page.locator('path.hit[d*="L"]') });
+  const roads = await coast.locator("path.hit").evaluateAll((els) => els.map((el) => {
+    const path = el as SVGPathElement;
+    const p = path.getPointAtLength(path.getTotalLength() / 2);
+    const point = new DOMPoint(p.x, p.y).matrixTransform(path.getScreenCTM()!);
+    const style = getComputedStyle(path);
+    return { bends: (path.getAttribute("d")?.match(/L/g) ?? []).length, fill: style.fill, pointerEvents: style.pointerEvents, x: point.x, y: point.y };
+  }));
+  const road = roads.find((r) => r.bends > 1)!;
+  expect(road).toBeDefined();
+  expect(road.fill).toBe("none");
+  expect(road.pointerEvents).toBe("stroke");
+  await page.mouse.click(road.x, road.y);
+  await expect(page.locator('.route[aria-label*="owned by"]')).toHaveCount(1);
+});

@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
 import type { GuestSessionResponse, MatchView, SubmitCommandsResponse } from "@manors-menaces/protocol";
 import { chooseAction } from "@manors-menaces/ai";
-import { rulesContentFor } from "@manors-menaces/content";
+import { GREENVALE_MAP, rulesContentFor } from "@manors-menaces/content";
 import { createRng, createRulesEngine, getLegalActions, seedRng, type CommandIntent, type GameCommand, type GameState } from "@manors-menaces/rules";
 import { createApp, type AppOptions } from "../src/app.js";
 
@@ -128,7 +128,7 @@ describe("AI seats after a restart", () => {
   it("keeps the server up and retries when an AI step throws", async () => {
     const { app, base } = await start({ aiDelayMs: 5 });
     // A latent rules or AI bug: every AI command blows up in the engine.
-    const aiEngine = (app.service as unknown as { engine: { applyCommand: (s: GameState, c: GameCommand) => unknown } }).engine;
+    const aiEngine = (app.service as unknown as { engineFor: (mapId: string) => { applyCommand: (s: GameState, c: GameCommand) => unknown } }).engineFor(GREENVALE_MAP.id);
     const apply = aiEngine.applyCommand.bind(aiEngine);
     let aiAttempts = 0;
     aiEngine.applyCommand = (s, c) => {

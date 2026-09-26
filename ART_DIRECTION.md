@@ -663,3 +663,53 @@ selector initializes it for every action before checking blocked states.
 The base button rule already retains a 44px minimum height, and the phone
 touch-target audit passed. Initial Mac packaging succeeded; rebuild after the
 final CSS change and wait for latest-commit CI/review before merging.
+
+## Complete coastal building network (in progress)
+
+PR #46 merged as `413e925`, with all CI passing (147 browser tests, two
+intentional skips) and two review rounds without important findings. The final
+Mac bundle rebuilt. Optional containment-test refinements were deferred; the
+no-scroll suggestion conflicted with the intended narrow-screen action strip.
+
+The beach screenshot exposes topology omitted by the generator, not a build
+legality issue. It prunes coastal junctions to reach 36 Sites and explicitly
+excludes coastline Routes. The current map has seven missing beach junctions;
+16 junctions in total should form the coastal network. The fix will restore
+those Sites and their inland links, and add roads following the shoreline
+between consecutive coastal junctions. Ordinary manor spacing, network and
+resource rules still apply. Decorative coastline bends are not building Sites.
+
+Because adding adjacency changes gameplay, keep the published `greenvale` map
+for existing saves and introduce a new default map ID for new local/online
+games. Preserve existing region names, resource placement and interior artwork.
+Coastal roads need explicit drawing points so they follow bays rather than
+crossing water. Use the same geometry for rendering, hit areas, highlights,
+Menace positions, camera targets and terrain/note clearance. Add regressions
+for complete coastal connectivity, coastal setup/build legality, old-save
+compatibility and curved route rendering before merging.
+
+Implemented on `codex/coastal-building-network`: new games use
+`greenvale-coastal-v2` with 43 Sites and 66 Routes. Restored seven junctions and
+seven inland links; added 16 shoreline roads. The exact boundary segments drive
+road drawing, stroke-only hit areas, highlights, Menace/effect positions,
+hover anchors, camera targets and scenery/note clearance. Sparse terrain gets
+more bounded placement attempts to retain its minimum illustration density.
+The published `greenvale` remains registered and its gameplay fingerprint is
+unchanged. The server now selects an engine using each match's stored map ID,
+including old lobbies, AI turns, submitted commands and history replay.
+
+The coastal-network and invalid-polyline regressions failed before their fixes.
+All 589 unit/integration/server tests, typecheck, lint, deterministic map check
+and production build/smoke test pass. New coverage verifies every shoreline
+segment exactly once, coastal Manor/Route setup, route marker geometry and old
+versus new online match legality. Existing save fixtures explicitly use the
+legacy engine. Browser preview reopened the old 36-Site save successfully,
+then created and resumed a new coastal game and built a shoreline road.
+A focused browser run verified the actual curved-road click; its assertion
+initially assumed Alice started, corrected to accept either shuffled player.
+Two other checks were interrupted by Vite reloads during edits; a full browser
+run is now in progress. Also recheck the harvest-note zoom scenario, which
+failed to keep a note visible with the denser road network.
+Logs: `/tmp/mm-coast-check.log`, `/tmp/mm-coast-e2e.log`,
+`/tmp/mm-coast-regressions.log`. The localhost:5175 preview contains a fresh
+Alice/Madame Quill/Dame Brash game with a coastal Manor and road.
