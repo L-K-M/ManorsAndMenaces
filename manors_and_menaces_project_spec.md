@@ -4498,7 +4498,7 @@ Findings:
 1. **Length** stays inside the §68 target of 12–16 turns at the default targets, 4-player games at its top (15.8). The cards add about a turn in 2- and 4-player games.
 2. **Seat balance** moves within the noise of 40 games (about ±8 points per seat): the 2-player first seat falls from 60 to 53 %, the 4-player first seat rises from 30 to 38 %, above the 30 % target. Worth rechecking with more games before tuning.
 3. **The siege cards are rare in AI play.** Siege Engines and Raiders need one of the caster's Routes to reach a rival's Holding, and AI networks seldom do; Siege Fireball needs a leader with 3 or more Holdings. Disgrace, Stolen Glory and Sabotage are played most. Human players can build toward a rival on purpose, so playtests should show whether the siege cards come up more often in their hands.
-4. **A 20 Renown target** (§129.6) is too long for the AI on The Greenvale with or without these cards: 12 to 14 of 40 three-player games and 34 to 35 of 40 four-player games stall at the 60-round cap, and those that finish run 20 to 25 turns.
+4. **A 20 Renown target** (§129.6) is too long for the AI on The Greenvale with or without these cards: 12 to 14 of 40 three-player games and 34 to 35 of 40 four-player games stall at the 60-round cap, and those that finish run 20 to 25 turns. The full-board end rule (§7) now ends those games; §129.6 has the runs with it.
 
 ## 129.6 Renown goal chosen at game creation (September 2026)
 
@@ -4520,4 +4520,14 @@ Players found 15 Renown too short. The goal is now picked when a game is created
 Findings and open questions:
 
 1. **Two players** reach 20 Renown in 16.3 rounds, at the top of the §68 range of 12–16 turns per player.
-2. **Three and four players often run out of board.** In the stalled games checked (3 players, goal 20), every Holding is a Stronghold, no free Site is far enough from the others to build on, one or two Quests are left, and the leaders are 1 to 3 Renown short. Only Ragnarök can end such a game. The drawn islands new games use behave the same: 13 of 20 three-player games at 20 finished (`--map drawn`). The Renown budget of §7.1 does not reach 20 with 3 players or 18 with 4 on these boards. Before these defaults meet human players, consider an end condition for a board with no Renown left to gain, larger boards for the higher goals, or offering the higher goals only to fewer players. Goals 25 and 30 were not simulated.
+2. **Three and four players often run out of board.** In the stalled games checked (3 players, goal 20), every Holding is a Stronghold, no free Site is far enough from the others to build on, one or two Quests are left, and the leaders are 1 to 3 Renown short. Only Ragnarök can end such a game. The drawn islands new games use behave the same: 13 of 20 three-player games at 20 finished (`--map drawn`). The Renown budget of §7.1 does not reach 20 with 3 players or 18 with 4 on these boards. The full-board end rule (§7) answers this: a round that ends on a full board ends the game, and the most Renown wins. Goals 25 and 30 were not simulated.
+
+The same runs with the full-board end rule and the third-wave cards (§129.5), ruleset 0.7.0:
+
+| Players | Goal | Finished | Ended on a full board | Rounds (avg, range) | Winner Renown | Seat win rates |
+|---:|---:|---:|---|---|---:|---|
+| 2 | 20 | 40/40 | 0 | 17.4 (15–21) | 20.5 | 58 / 43 % |
+| 3 | 20 | 40/40 | 18 (avg round 21.8) | 20.0 (15–31) | 18.9 | 33 / 15 / 53 % |
+| 4 | 18 | 40/40 | 29 (avg round 23.8) | 22.4 (15–37) | 15.6 | 33 / 20 / 28 / 20 % |
+
+Every game finishes. At the default goals games still run past the §68 target of 12–16 turns per player, most with 4 players, and nearly half of the three-player games and most four-player games end on a full board rather than at the goal. The third seat won 53 % of three-player games, above the 45 % target; with about ±8 points of noise in 40 games, that needs a larger run before any tuning.
