@@ -1479,7 +1479,7 @@ No randomness is involved beyond the setup shuffle of the Quest deck (§30), so 
 
 ## 27.3 The Crown's Levy
 
-On in the Standard and async rules at every goal (`RulesetConfig.crownLevy`, from ruleset 0.8.0). The Core rules have no Quests and no Levy. Games created before 0.8.0 have no `crownLevy` field and play on without it: the engine never draws a Levy for them, so they replay as before.
+On in the Standard and async rules at every goal (`RulesetConfig.crownLevy`, from ruleset 0.9.0). The Core rules have no Quests and no Levy. Games created before 0.9.0 have no `crownLevy` field and play on without it: the engine never draws a Levy for them, so they replay as before.
 
 The first round that begins with the Quest deck empty, or round 15 (`proclaimByRound`) at the latest, the King's Marshal rides in and proclaims a Levy for the next round. From then on, as each round begins, the proclaimed Levy takes effect and the Marshal proclaims the next. This round's Levy and the next round's are always public (`GameState.crownLevy`).
 
@@ -1497,7 +1497,7 @@ The first round that begins with the Quest deck empty, or round 15 (`proclaimByR
 
 # 27A. Sealed Charges
 
-A lobby option, off unless chosen on New Game (under Advanced) or in the online lobby: `RulesetConfig.sealedCharges`, from ruleset 0.8.0. Each player keeps a secret personal goal, a **Sealed Charge**, and scores it when it is met. The goal is hidden; the Renown it scores is public like all Renown (§83), because a Charge scores only when it is revealed. Games created without the option hold no Charge and replay unchanged.
+A lobby option, off unless chosen on New Game (under Advanced) or in the online lobby: `RulesetConfig.sealedCharges`, from ruleset 0.9.0. Each player keeps a secret personal goal, a **Sealed Charge**, and scores it when it is met. The goal is hidden; the Renown it scores is public like all Renown (§83), because a Charge scores only when it is revealed. Games created without the option hold no Charge and replay unchanged.
 
 ## 27A.1 The Charge deck
 
@@ -4710,7 +4710,7 @@ The hint under "Renown to win" on New Game and in the online lobby follows these
 
 The Core rules were not simulated, so their hint gives only the last round.
 
-## 129.9 Sealed Charges (ruleset 0.8.0)
+## 129.9 Sealed Charges (ruleset 0.9.0)
 
 Sealed Charges (§27A) came from a study of hidden personal goals in other games: Ticket to Ride, Lords of Waterdeep, Twilight Imperium 4, Clash of Cultures, Risk's Secret Missions, Wingspan and Catan. Twilight Imperium's secret objectives, revealed and scored the moment they are met, keep the goal hidden but the score public, which §83 and the End Turn victory check (§7) need. Goals kept secret until the end (Lords of Waterdeep) were rejected: Renown would become hidden and the game would need a "reveal to win" rule. Risk removes missions that name a colour not in play, and the Charge deck removes Charges naming a Menace not in play. Wingspan's keep 1 of 2 gives a choice without slowing setup.
 
@@ -4735,11 +4735,11 @@ Findings and open questions:
 4. **Menace Charges are the easiest for the AI** (76 to 94 % met) and Banner Charges the hardest (23 to 52 %). Three moves of the named Menace, or 2 Grain Regions instead of 3, would even them out; both need a human playtest first, since the AI's play is not a person's.
 5. **Seat win rates move within the noise** of 30 games (about ±9 points). The second seat's 40 % with 4 players is above the 30 % target, as the third seat's 43 % is without Charges; a larger run should come before any seat tuning (§129.4).
 
-## 129.10 Experimental: the Crown's Voice (ruleset 0.8.0)
+## 129.10 Experimental: the Crown's Voice (ruleset 0.9.0)
 
 A prototype of La Città's Voice of the People, built to be simulated beside the Crown's Levy. With 3 players the board fills around round 20 with the leader near 18 Renown (§129.6), so goals of 20 and more mostly end on a full board short of the goal. The Voice adds Renown that renews itself through competition between neighbours, and gives a full board something to fight over.
 
-It is off unless a game is created with `RulesetConfig.crownsVoice`: New Game > Advanced > "Crown's Voice (experimental)", in local games only. The server never offers it. Games created without it, every game before ruleset 0.8.0 among them, play and replay unchanged.
+It is off unless a game is created with `RulesetConfig.crownsVoice`: New Game > Advanced > "Crown's Voice (experimental)", in local games only. The server never offers it. Games created without it, every game before ruleset 0.9.0 among them, play and replay unchanged.
 
 **Rival neighbours.** Two Holdings of different players whose Sites touch the same Region. Each pair counts once, however many Regions its Holdings share, and a player's own Holdings never pair. The shared Region is on the board, so anyone can see who neighbours whom.
 

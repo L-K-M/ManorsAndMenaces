@@ -94,7 +94,7 @@ export const BALANCE = {
   },
 } as const;
 
-export const RULESET_VERSION = "0.8.0";
+export const RULESET_VERSION = "0.9.0";
 
 /** The Crown's Voice as a new game gets it (§129.10). */
 export function crownsVoiceRules(): CrownsVoiceRules {

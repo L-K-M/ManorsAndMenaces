@@ -253,20 +253,20 @@ export interface RulesetConfig {
   /**
    * The Crown's Levy (§27.3): once the Quest deck runs out, each round names
    * a resource that anyone may pay for Renown. Absent in games created before
-   * ruleset 0.8.0 and in the Core rules, which never hear of it.
+   * ruleset 0.9.0 and in the Core rules, which never hear of it.
    */
   crownLevy?: CrownLevyRules;
   /**
    * Sealed Charges (§27A): each player keeps a hidden personal goal, revealed
    * and scored at their End Turn once met. A lobby option from ruleset
-   * 0.8.0; absent or false, nobody holds a Charge.
+   * 0.9.0; absent or false, nobody holds a Charge.
    */
   sealedCharges?: boolean;
   /**
    * The Crown's Voice (experimental, §129.10): at the end of each round rival
    * Holdings that touch the same Region contest the virtue the Crown favours,
    * for Favour that counts as Renown. Absent: off, as in every game created
-   * before ruleset 0.8.0. Local games only.
+   * before ruleset 0.9.0. Local games only.
    */
   crownsVoice?: CrownsVoiceRules;
 }
