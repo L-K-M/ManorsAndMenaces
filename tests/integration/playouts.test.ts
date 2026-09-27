@@ -6,6 +6,7 @@ import {
   createRulesEngine,
   crownsVoiceRules,
   getRenown,
+  getRenownSources,
   hashState,
   mvpRuleset,
   rankPlayers,
@@ -80,6 +81,13 @@ function checkInvariants(s: GameState, cards: number): void {
   }
   for (const p of Object.values(s.players)) {
     expect(getRenown(ctx, s, p.id), `${p.id}'s Renown`).toBeGreaterThanOrEqual(0);
+    // The Renown dialog and the results show the sources; they add up to the Renown that wins.
+    const src = getRenownSources(ctx, s, p.id);
+    const quests = src.quests.reduce((n, q) => n + q.renown, 0);
+    const charges = src.charges.reduce((n, c) => n + c.renown, 0);
+    expect(src.manors.renown + src.strongholds.renown + quests + src.levy + charges + src.favour + src.bonus - src.lost, `${p.id}'s Renown sources`).toBe(
+      getRenown(ctx, s, p.id),
+    );
     expect(p.lostRenown ?? 0).toBeGreaterThanOrEqual(0);
     expect(p.favour ?? 0).toBeGreaterThanOrEqual(0);
   }
@@ -360,6 +368,31 @@ describe("AI playouts with Sealed Charges (§27A)", () => {
       expect(hashState(engine.replay(initial, commands))).toBe(hashState(final));
       console.log(name, "rounds", final.round, "charges revealed", revealed, describeWin(final, won));
     }, 180_000);
+  }
+});
+
+// Everything the late game adds at once: the last round (§7), the Crown's
+// Levy (§27.3), The Dowager (§19.28) among the free cards, Sealed Charges
+// with further draws at goals 25 and 30 (§27A) and the Crown's Voice
+// (§129.10), waiting for the Quest deck or speaking from round 1.
+describe("AI playouts with every late-game rule together", () => {
+  for (const [players, targetRenown, from, name] of [
+    [3, 25, "quest_deck_empty", "late-3p-25"],
+    [4, 30, "first_round", "late-4p-30"],
+  ] as const) {
+    it(`${name}: finishes, keeps invariants and replays`, () => {
+      const rs: RulesetConfig = { ...standardRuleset(players, { targetRenown, sealedCharges: true }), crownsVoice: { ...crownsVoiceRules(), from } };
+      const { initial, final, steps, won } = playGame(players, rs, name, { freeCardEachTurn: true });
+      expect(final.status).toBe("finished");
+      if (won?.type === "game_won" && won.cause) expect(rankPlayers(ctx, final, final.turnOrder)[0]).toBe(final.winnerId);
+      else expectWinner(final, won, targetRenown);
+      const replayed = replaySteps(initial, steps);
+      expect(hashState(replayed.state)).toBe(hashState(final));
+      for (const type of ["levy_answered", "charge_revealed", "crowns_voice_turned", "favour_won"] as const) expect(replayed.eventTypes, type).toContain(type);
+      const dowagers = steps.filter((step) => "command" in step && step.command.type === "play_card" && step.command.cardId.startsWith("the_dowager#")).length;
+      expect(dowagers, "The Dowager played").toBeGreaterThan(0);
+      console.log(name, "rounds", final.round, "steps", steps.length, "Dowagers", dowagers, describeWin(final, won));
+    }, 300_000);
   }
 });
 
