@@ -545,7 +545,7 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   const revealed = revealMetCharge(tx, playerId);
   tx.emit({ type: "turn_ended", playerId });
 
-  // These checks are shared with hasNextHarvest (selectors.ts), which says
+  // These checks are shared with hasNextHarvest (nextHarvest.ts), which says
   // whether a player harvests again before the game ends.
   const endsRound = isLastSeat(s, playerId);
   // The Crown's Voice speaks as the round ends, so its Favour counts in the

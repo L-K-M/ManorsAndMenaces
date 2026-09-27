@@ -219,7 +219,8 @@ export function isBoardFull(ctx: RulesContext, state: GameState): boolean {
 }
 
 // ------------------------------------------------------------------ game end (§7)
-// The End Turn checks (engine.ts endTurn) and hasNextHarvest share these.
+// The End Turn checks (engine.ts endTurn) and hasNextHarvest (nextHarvest.ts)
+// share these.
 
 /** Whether the player takes the round's last turn, so their End Turn ends the round. */
 export function isLastSeat(state: GameState, playerId: PlayerId): boolean {
@@ -243,22 +244,6 @@ export function playersAtTarget(ctx: RulesContext, state: GameState): PlayerId[]
 /** Whether a round that ends now ends the game on a full board (§7). */
 export function endsOnFullBoard(ctx: RulesContext, state: GameState): boolean {
   return state.ruleset.endOnFullBoard === true && isBoardFull(ctx, state);
-}
-
-/**
- * Whether the player harvests again, at the start of their next turn:
- * false when the game is sure to end first. That is when someone has the
- * target Renown (the game ends at this End Turn, or with the round under
- * equal turns), when equal turns already end the game with this round, in
- * the last round, and when the player ends the round on a full board.
- * Endings still open are not foreseen: Ragnarök, a rival reaching the
- * target later in the round, and a board that fills before the round's last
- * seat, which a card could empty again.
- */
-export function hasNextHarvest(ctx: RulesContext, state: GameState, playerId: PlayerId): boolean {
-  if (state.status === "finished" || state.endTriggered || isLastRound(state)) return false;
-  if (playersAtTarget(ctx, state).length > 0) return false;
-  return !(isLastSeat(state, playerId) && endsOnFullBoard(ctx, state));
 }
 
 // ------------------------------------------------------------------ build requirements

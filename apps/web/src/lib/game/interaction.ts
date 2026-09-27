@@ -567,7 +567,7 @@ export function bannerWarningFor(session: GameSession, legal: LegalActionSummary
   const last = lastWarning;
   if (last && last.ctx === ctx && last.state === state && last.playerId === playerId && last.draft === draft) return last.advice;
   let advice: BannerAdvice | null = null;
-  if (hasNextHarvest(ctx, state, playerId)) {
+  if (hasNextHarvest(ctx, state, playerId, ui.bannerDraft)) {
     const found = getBannerAdvice(ctx, state, playerId, ui.bannerDraft);
     if (found.best > found.current) advice = found;
   }

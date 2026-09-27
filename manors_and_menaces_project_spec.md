@@ -801,7 +801,7 @@ Before the turn ends, the UI warns when another legal placement of the player's 
 - **Place them for me**: the suggestion goes into the draft, and the turn does not end;
 - **End turn anyway**.
 
-There is no warning when the player will not harvest again, because the game ends first (`hasNextHarvest`, which shares its checks with the End Turn): someone has the target Renown, equal turns already end the game with the round, the round is the last (§7), or the player ends the round on a full board. When two Banners swap full Regions, the moves start by sending one of them home, so each can be made in turn.
+There is no warning when the player will not harvest again, because the game ends first (`hasNextHarvest`, which shares its checks with the End Turn): someone has the target Renown once the End Turn has scored, equal turns already end the game with the round, the round is the last (§7), or the player ends the round on a full board. The End Turn scores the player's own Sealed Charge if the Banners as placed meet it (§27A) and, at the round's last seat, the Crown's Voice's Favour (§129.10). The player knows both: their own Charge is on their view, and Favour is public and settled by then. Favour at a later seat's End Turn is not foreseen, as rivals can still change the scores. When two Banners swap full Regions, the moves start by sending one of them home, so each can be made in turn.
 
 A setting, also offered as "Don't warn me again", turns the warning off. It is advice only: no command, protocol or server change, and AI seats never see it.
 

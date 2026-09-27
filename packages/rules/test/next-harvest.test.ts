@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getRenown, hasNextHarvest, isBoardFull, type GameState, type PlayerId, type RulesetConfig } from "../src/index.js";
+import { clone, getRenown, hasNextHarvest, isBoardFull, type GameState, type PlayerId, type RulesetConfig } from "../src/index.js";
 import { act, engine, grant, mvpRuleset, passTurn, routeId, setupGame } from "./helpers.js";
 
 // Whether a player harvests again (§16.3): the Banner warning is only given
@@ -98,6 +98,43 @@ describe("hasNextHarvest", () => {
     const on = { ...s, ruleset: { ...s.ruleset, endOnFullBoard: false } };
     expect(hasNextHarvest(ctx, on, p2)).toBe(true);
     expect(passTurn(on).status).toBe("playing");
+  });
+
+  // Regression: the Banner warning came up on an End Turn that reveals a
+  // Sealed Charge or moves Favour into the target, which ends the game.
+  it("foresees the player's own Sealed Charge, met by the Banners as drafted (§27A)", () => {
+    const { state, p1, bannerOf } = setupGame(withRules({ sealedCharges: true }));
+    // p1 keeps the Banner Charge "grain" (2 Grain Regions): R7 would meet it.
+    let s = clone(state);
+    for (const p of Object.values(s.players)) delete p.sealedCharge;
+    s.pending = { kind: "charge", playerId: p1, chargeIds: ["grain"] };
+    s = act(s, p1, { type: "choose_charge", chargeId: "grain" }).state;
+    s = toBanners(setBonus(s, p1, s.ruleset.targetRenown - 2 - getRenown(ctx, s, p1)));
+    expect(getRenown(ctx, s, p1)).toBe(s.ruleset.targetRenown - 2);
+    const meets = { [bannerOf(p1, "s9")]: "R7" };
+    expect(hasNextHarvest(ctx, s, p1)).toBe(true);
+    expect(hasNextHarvest(ctx, s, p1, meets)).toBe(false);
+    // The engine agrees: the reveal ends the game at this End Turn.
+    const placed = act(s, p1, { type: "assign_banners", assignments: meets }).state;
+    expect(act(placed, p1, { type: "end_turn" }).state).toMatchObject({ status: "finished", winnerId: p1 });
+    expect(act(act(s, p1, { type: "assign_banners", assignments: {} }).state, p1, { type: "end_turn" }).state.status).toBe("playing");
+  });
+
+  it("foresees the Crown's Voice's Favour at the round's last seat, not before (§129.10)", () => {
+    const { state, p1, p2 } = setupGame(withRules({ crownsVoice: { purse: 10, from: "first_round" } }));
+    // p1's two Strongholds out-score p2's Manors in Might, worth 2 Favour
+    // as the round ends: enough to reach the target from 2 short.
+    let s = upgradeAll(passUntilRound(state, 2));
+    s = clone(s);
+    if (s.crownsVoice) s.crownsVoice.current = "might";
+    s = toBanners(setBonus(s, p1, s.ruleset.targetRenown - 2 - (getRenown(ctx, s, p1) - (s.players[p1]?.bonusRenown ?? 0))));
+    expect(getRenown(ctx, s, p1)).toBe(s.ruleset.targetRenown - 2);
+    // p2 could still change the scores in their turn.
+    expect(hasNextHarvest(ctx, s, p1)).toBe(true);
+    s = toBanners(passTurn(s));
+    expect(s.activePlayerId).toBe(p2);
+    expect(hasNextHarvest(ctx, s, p2)).toBe(false);
+    expect(passTurn(s)).toMatchObject({ status: "finished", winnerId: p1 });
   });
 
   it("is false once the game is over", () => {
