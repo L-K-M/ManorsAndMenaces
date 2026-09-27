@@ -64,7 +64,8 @@
   Writs or 2 moves of a Menace). A goal you meet is revealed at your End
   Turn for 2 Renown. At goals 25 and 30 you draw again after a reveal,
   and once per game you may pay 1 Essence to trade your Charge in. Rivals
-  see only that you hold one.
+  see only that you hold one. The Banner warning never suggests moves
+  that would unmeet a Charge your Banners meet.
 - The Crown's Voice, an experimental option for local games (ruleset
   0.9.0), under Advanced on New Game. From the first round that begins
   with the Quest deck empty (round 1 in the Core rules), the Crown favours

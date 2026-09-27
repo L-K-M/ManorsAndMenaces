@@ -579,6 +579,13 @@ export interface BannerMove {
   reason: BannerMoveReason;
 }
 
+export interface BannerAdviceOptions {
+  /** Search nodes to visit at most; the default suits a warning shown before End Turn. */
+  budget?: number;
+  /** The advice is the draft or a placement this accepts. */
+  keep?: (assignment: Readonly<Record<BannerId, RegionId | null>>) => boolean;
+}
+
 export interface BannerAdvice {
   /** Next Harvest total with the draft as it stands. */
   current: number;
@@ -602,14 +609,15 @@ export interface BannerAdvice {
  *
  * A branch-and-bound over the Banners, fewest adjacent Regions first. It
  * starts from the draft when that is legal, so running out of `budget`
- * can only miss a gain, never suggest a worse or illegal placement.
+ * can only miss a gain, never suggest a worse or illegal placement. With
+ * `keep`, a complete placement it rejects is never taken.
  */
 export function getBannerAdvice(
   ctx: RulesContext,
   state: GameState,
   playerId: PlayerId,
   draft: Readonly<Record<BannerId, RegionId | null>> = {},
-  budget = BANNER_ADVICE_BUDGET,
+  { budget = BANNER_ADVICE_BUDGET, keep }: BannerAdviceOptions = {},
 ): BannerAdvice {
   const banners = getPlayerBanners(state, playerId);
   const placed: Record<BannerId, RegionId | null> = {};
@@ -675,7 +683,7 @@ export function getBannerAdvice(
     if (++nodes > budget) return;
     const b = order[i];
     if (!b) {
-      if (score > best.score) best = { score, assignment: { ...work } };
+      if (score > best.score && (!keep || keep(work))) best = { score, assignment: { ...work } };
       return;
     }
     if (score + (bound[i] ?? 0) <= best.score) return;

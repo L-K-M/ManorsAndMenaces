@@ -9,7 +9,7 @@ import { check } from "./errors.js";
 import { reachedSites, type QuestProgress } from "./quests.js";
 import { getPlayerBanners } from "./selectors.js";
 import type { Tx } from "./tx.js";
-import type { ChargeGoal, ChargeId, ChargeRulesDefinition, GameState, PlayerId, PlayerState, RulesetConfig, SealedCharge } from "./types.js";
+import type { BannerId, ChargeGoal, ChargeId, ChargeRulesDefinition, GameState, PlayerId, PlayerState, RegionId, RulesetConfig, SealedCharge } from "./types.js";
 import { HIDDEN_CHARGE } from "./views.js";
 
 /**
@@ -123,6 +123,22 @@ export function getChargeProgress(ctx: RulesContext, state: GameState, playerId:
     case "menace":
       return progress(deedCount(p, goal) - (charge.since ?? 0), goal.count);
   }
+}
+
+/**
+ * Whether the player's Sealed Charge is met with their Banners placed as
+ * `placement` says (a Banner Assignment draft or a whole assignment), the
+ * others where they stand: what their End Turn would reveal.
+ */
+export function meetsChargeWith(ctx: RulesContext, state: GameState, playerId: PlayerId, placement: Readonly<Record<BannerId, RegionId | null>>): boolean {
+  const charge = state.players[playerId]?.sealedCharge;
+  if (!charge) return false;
+  const banners = { ...state.banners };
+  for (const [id, regionId] of Object.entries(placement)) {
+    const banner = banners[id];
+    if (banner) banners[id] = { ...banner, regionId };
+  }
+  return getChargeProgress(ctx, { ...state, banners }, playerId, charge).complete;
 }
 
 /** Whether the deck still holds a Charge a later draw may take. */
