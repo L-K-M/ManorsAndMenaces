@@ -4568,15 +4568,23 @@ A few games ran on long after the board had stopped changing. Every game now end
 
 Normal AI with the full-board rule, on drawn islands unless marked G (The Greenvale):
 
-| Setup | Games | End round p50 / p90 / max | Games past round 30 |
-|---|---:|---|---:|
-| Goals 15 and 13, 2 to 4 players (drawn and G) | 230 | 13–17 / 17–24 / 35 | 1 |
-| 2 players, goal 30 | 30 | 22.5 / 28 / 33 | 1 |
-| 3 players, goal 25 | 30 | 20 / 24 / 37 | 1 |
-| 4 players, goal 25 | 30 | 21.5 / 30 / 36 | 3 |
-| 3 players, goal 30, G | 40 | 23.5 / 32 / 45 | 6 |
-| 4 players, goal 18, G | 40 | 20 / 30 / 37 | 4 |
+| Setup | Games | End round p50 / p90 / max | Ended on a full board | Games past round 30 |
+|---|---:|---|---:|---:|
+| Goals 15 and 13, 2 to 4 players (drawn and G) | 230 | 13–17 / 17–24 / 35 | 24 (16 of them 4 players at goal 15) | 1 |
+| 2 players, goal 30 | 30 | 22.5 / 28 / 33 | 26 | 1 |
+| 3 players, goal 25 | 30 | 20 / 24 / 37 | 29 | 1 |
+| 4 players, goal 25 | 30 | 21.5 / 30 / 36 | 30 | 3 |
+| 3 players, goal 30, G | 40 | 23.5 / 32 / 45 | 40 | 6 |
+| 4 players, goal 18, G | 40 | 20 / 30 / 37 | 29 | 4 |
 
-Games past round 30 were mostly waiting. In 16 of the 17 checked, no Site was left by rounds 10 to 23, and a Manor nobody had upgraded kept the board from counting as full for another 9 to 24 rounds. The leader after round 30 went on to win 16 of the 17. A later limit for four players (32) would have spared 4 of 70 four-player games at the higher goals, none with a different winner.
+Games past round 30 were mostly waiting. The 16 in the table were checked, and one more: a four-player game at goal 18 on a drawn island (Mistholm), which ended in round 34. In 16 of these 17, no Site was left by rounds 10 to 23, and a Manor nobody had upgraded kept the board from counting as full for another 9 to 24 rounds. The leader after round 30 went on to win 16 of the 17; the other is a four-player game at goal 13 that never counted as full and ended in round 35. A later limit for four players (32) would have spared 4 of 70 four-player games at the higher goals, none with a different winner.
 
-The same runs give the hint under "Renown to win" on New Game and in the online lobby: at goals 25 and 30, and at 20 with 4 players, the board usually fills first, and then the most Renown wins. The Core rules were not simulated, so their hint gives only the last round.
+The hint under "Renown to win" on New Game and in the online lobby follows these runs: the board usually fills first, and then the most Renown wins, at goal 30 with 2 players, from 25 with 3 and from 20 with 4. Games that ended on a full board, on drawn islands with the normal AI; where a cell has two figures, the second is a later check on ruleset 0.8.0 (`pnpm simulate --map drawn --rules standard`):
+
+| Players | Goal 15 (13 with 4) | Goal 20 | Goal 25 | Goal 30 |
+|---:|---|---|---|---|
+| 2 | 0 of 40 | 0 of 20 | 5 of 30; 1 of 20 | 26 of 30; 17 of 20 |
+| 3 | 2 of 40 | 20 of 30 | 29 of 30; 12 of 12 | 30 of 30 |
+| 4 | 5 of 40 at 13, 16 of 30 at 15 | 19 of 20; 11 of 12 | 30 of 30 | 6 of 6 |
+
+The Core rules were not simulated, so their hint gives only the last round.

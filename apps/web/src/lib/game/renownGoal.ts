@@ -28,18 +28,18 @@ export function renownGoal(rules: RulesetName, playerCount: number, picked: numb
 }
 
 /**
- * The lowest goals the board usually fills up before, after which the most
- * Renown wins (§7), by player count: from simulations of the Standard rules
+ * By player count, the lowest goal the board usually fills up before, after
+ * which the most Renown wins (§7): from simulations of the Standard rules
  * (§129.7). The Core rules were not simulated, so they get no such hint.
  */
-const BOARD_FILLS_FIRST_FROM = { fourPlayers: 20, fewerPlayers: 25 } as const;
+const BOARD_FILLS_FIRST_FROM: Readonly<Partial<Record<number, number>>> = { 2: 30, 3: 25, 4: 20 };
 
 /** What a goal means, shown under the choice: whether the board usually fills first, and the last round. */
 export function renownGoalHint(rules: RulesetName, playerCount: number, goal: number): string {
   const lastRound = t("ui.renown_goal_last_round", { last: BALANCE.lastRound });
   if (rules === "mvp") return lastRound;
-  const fillsFrom = playerCount >= 4 ? BOARD_FILLS_FIRST_FROM.fourPlayers : BOARD_FILLS_FIRST_FROM.fewerPlayers;
-  return goal >= fillsFrom ? `${t("ui.renown_goal_board_fills")} ${lastRound}` : lastRound;
+  const fillsFrom = BOARD_FILLS_FIRST_FROM[playerCount];
+  return fillsFrom !== undefined && goal >= fillsFrom ? `${t("ui.renown_goal_board_fills")} ${lastRound}` : lastRound;
 }
 
 /** The goal you last picked, or null. The rules check it before it is used. */

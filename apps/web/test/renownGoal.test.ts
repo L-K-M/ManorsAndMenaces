@@ -37,20 +37,24 @@ describe("renownGoalHint", () => {
   const LAST = "Every game ends after round 30 at the latest.";
   const FILLS = "The board usually fills first, and then the most Renown wins.";
 
-  it("gives the default goals only the last round", () => {
+  it("gives the goals the board seldom fills before only the last round", () => {
     expect(renownGoalHint("standard", 2, 15)).toBe(LAST);
     expect(renownGoalHint("standard", 3, 15)).toBe(LAST);
     expect(renownGoalHint("async", 4, 13)).toBe(LAST);
     expect(renownGoalHint("standard", 4, 15)).toBe(LAST);
     expect(renownGoalHint("standard", 3, 20)).toBe(LAST);
+    // Two players reach 25 first in most games (§129.7).
+    expect(renownGoalHint("standard", 2, 20)).toBe(LAST);
+    expect(renownGoalHint("standard", 2, 25)).toBe(LAST);
+    expect(renownGoalHint("async", 2, 25)).toBe(LAST);
   });
 
-  it("says the board usually fills first at 25 and 30, and at 20 with four players", () => {
-    for (const players of [2, 3, 4]) {
-      expect(renownGoalHint("standard", players, 25)).toBe(`${FILLS} ${LAST}`);
-      expect(renownGoalHint("async", players, 30)).toBe(`${FILLS} ${LAST}`);
-    }
-    expect(renownGoalHint("standard", 4, 20)).toBe(`${FILLS} ${LAST}`);
+  it("says the board usually fills first at 30 with two players, from 25 with three and from 20 with four", () => {
+    const fills = (rules: "standard" | "async", players: number, goal: number) => expect(renownGoalHint(rules, players, goal)).toBe(`${FILLS} ${LAST}`);
+    fills("standard", 2, 30);
+    fills("async", 2, 30);
+    for (const goal of [25, 30]) fills("standard", 3, goal);
+    for (const goal of [20, 25, 30]) fills("async", 4, goal);
   });
 
   it("gives the Core rules only the last round", () => {
