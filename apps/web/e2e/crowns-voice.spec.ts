@@ -32,14 +32,54 @@ async function start(page: Page, voice: boolean, rules: "Standard" | "Core" = "S
   await expect(page.getByRole("button", { name: /Assign Banners →/ })).toBeVisible();
 }
 
+/** How far each top-bar item's middle lies from the menu button's; `score` includes the scoreboard. */
+async function rowOffsets(page: Page, score: boolean): Promise<number[]> {
+  return page.locator(".topbar").evaluate((bar, withScore) => {
+    const middle = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return (r.top + r.bottom) / 2;
+    };
+    const items = Array.from(bar.children).filter((el) => (withScore || !el.classList.contains("score")) && el.getBoundingClientRect().width > 0);
+    return items.map((el) => Math.abs(middle(el) - middle(bar.children[0] as Element)));
+  }, score);
+}
+
+/** The development-only Debug button is not in a player's top bar. */
+async function hideDebug(page: Page) {
+  await page.getByRole("button", { name: "Debug" }).evaluateAll((els) => els.forEach((el) => ((el as HTMLElement).style.display = "none")));
+}
+
 async function endTurn(page: Page) {
   await page.getByRole("button", { name: /Assign Banners →/ }).click();
   await page.getByRole("button", { name: /End Turn/ }).click();
 }
 
+const WAITING = /^Once the Quest deck is empty, the Crown favours (Might|Roads|Plenty) \(next: (Might|Roads|Plenty)\)$/;
+
 test("the Crown's Voice waits for the Quest deck to empty in Standard games", async ({ page }) => {
   await start(page, true);
-  await expect(page.locator(".topbar .voice .text")).toHaveText(/^Once the Quest deck is empty, the Crown favours (Might|Roads|Plenty) \(next: (Might|Roads|Plenty)\)$/);
+  await expect(page.locator(".topbar .voice .text")).toHaveText(WAITING);
+});
+
+// The full sentence stays while the Voice waits, until about round 16 in a
+// Standard game. On a laptop it wrapped the top bar and crowded out the
+// scoreboard, so every width shows the short form, and the sentence is the
+// chip's name and tooltip.
+test.describe("the Crown's Voice on a small laptop", () => {
+  test.use({ viewport: { width: 1024, height: 768 } });
+
+  test("the waiting chip keeps the top bar to one row", async ({ page }) => {
+    await start(page, true);
+    await hideDebug(page);
+    const chip = page.getByRole("button", { name: WAITING });
+    await expect(chip).toBeVisible();
+    expect(Math.max(...(await rowOffsets(page, true)))).toBeLessThan(4);
+    expect((await chip.boundingBox())?.width).toBeLessThan(160);
+    await expect(chip).toHaveAttribute("title", WAITING);
+    await expect(chip.locator(".short")).toHaveText(/^(Might|Roads|Plenty) › (Might|Roads|Plenty)$/);
+    // Waiting shows as an hourglass, not only as a dashed outline.
+    await expect(chip.locator(".waiting")).toBeVisible();
+  });
 });
 
 // Core games have no Quests, so the Voice speaks from the first round.
@@ -71,22 +111,12 @@ test.describe("the Crown's Voice on a phone", () => {
 
   test("the chip fits a phone's top bar and opens on a tap", async ({ page }) => {
     await start(page, true, "Core");
-    // The development-only Debug button is not in a player's top bar.
-    await page.getByRole("button", { name: "Debug" }).evaluateAll((els) => els.forEach((el) => ((el as HTMLElement).style.display = "none")));
+    await hideDebug(page);
     const chip = page.locator(".topbar .voice");
     await expect(chip.locator(".tiny")).toBeVisible();
     await expect(chip.locator(".tiny")).toHaveText(/^(Might|Roads|Plenty)$/);
-    // Everything but the scoreboard shares the first row: how far each item's
-    // middle lies from the menu button's.
-    const offsets = await page.locator(".topbar").evaluate((bar) => {
-      const middle = (el: Element) => {
-        const r = el.getBoundingClientRect();
-        return (r.top + r.bottom) / 2;
-      };
-      const items = Array.from(bar.children).filter((el) => !el.classList.contains("score") && el.getBoundingClientRect().width > 0);
-      return items.map((el) => Math.abs(middle(el) - middle(bar.children[0] as Element)));
-    });
-    expect(Math.max(...offsets)).toBeLessThan(4);
+    // Everything but the scoreboard shares the first row.
+    expect(Math.max(...(await rowOffsets(page, false)))).toBeLessThan(4);
     await chip.tap();
     await expect(page.getByRole("dialog", { name: "The Crown's Voice" })).toContainText(/Crown's purse: 15 Favour/);
   });

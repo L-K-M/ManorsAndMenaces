@@ -3,6 +3,10 @@
   // this round and the next one. A tap opens the Voice's dialog with the
   // purse and how each virtue scores, which a tooltip could not show on a
   // touch screen. Shown only in games created with the rule.
+  //
+  // The chip shows only the virtues, at every width: the full sentence, as
+  // long as 30rem while the Voice waits, crowded the scoreboard out of the
+  // bar. The sentence is the chip's accessible name and its tooltip.
   import { getVoiceStatus } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { crownsVoiceText, virtueName } from "../game/log.js";
@@ -17,11 +21,12 @@
 </script>
 
 {#if voice}
-  <button class="voice" class:silent aria-haspopup="dialog" onclick={() => (ui.dialog = "crowns_voice")}>
+  <button class="voice" class:silent aria-haspopup="dialog" title={crownsVoiceText(gs)} onclick={() => (ui.dialog = "crowns_voice")}>
     <ToolIcon name="crown" size={16} />
+    {#if silent}<span class="waiting" aria-hidden="true"><ToolIcon name="hourglass" size={14} /></span>{/if}
     <span class="text">{crownsVoiceText(gs)}</span>
-    <!-- Phones: shorter forms keep the top bar on its two rows. -->
     <span class="short" aria-hidden="true">{t("voice.chip_short", { virtue: virtueName(voice.current), next: virtueName(voice.next) })}</span>
+    <!-- Phones: only this round's virtue fits beside the buttons. -->
     <span class="tiny" aria-hidden="true">{virtueName(voice.current)}</span>
   </button>
 {/if}
@@ -74,31 +79,32 @@
     flex: none;
     color: #e2b93b;
   }
-  .text,
+  .waiting {
+    display: inline-flex;
+  }
   .short,
   .tiny {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .short,
+  /* The accessible name: read, not shown. */
+  .text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   .tiny {
     display: none;
   }
   /* The sheet layout's top bar (GameScreen) is a size container. On a phone
-     only this round's virtue fits beside the buttons. */
-  @container topbar (max-width: 40rem) {
-    .short {
-      display: inline;
-    }
-    .text {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      clip-path: inset(50%);
-    }
-  }
+     only this round's virtue fits beside the buttons; the dashed outline
+     still tells that the Voice waits. */
   @container topbar (max-width: 28rem) {
-    .short {
+    .short,
+    .waiting {
       display: none;
     }
     .tiny {
