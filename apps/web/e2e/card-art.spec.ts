@@ -4,7 +4,7 @@ import { BALANCE } from "@manors-menaces/rules";
 import { hasCardPainting } from "../src/lib/cardPaintings";
 
 const PAINTED = CARDS.filter((c) => hasCardPainting(c.effectId));
-const UNPAINTED = CARDS.filter((c) => !hasCardPainting(c.effectId));
+const THIRD_WAVE = ["disgrace", "siege_engines", "raiders", "stolen_glory", "siege_fireball", "sabotage"];
 
 async function dealPaintedCards(page: Page, ids = CARDS.map((c) => c.id), highContrast = false, textScale = 1) {
   await page.goto("/");
@@ -57,17 +57,16 @@ test("every painted card has its own painting and a larger readable preview", as
   expect(sources.size).toBe(PAINTED.length);
 });
 
-test("cards still waiting for a painting show their emblem, without a request or an error", async ({ page }) => {
+test("third-wave cards retain readable emblems in high contrast without image requests", async ({ page }) => {
   const errors: string[] = [];
   const requested: string[] = [];
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("request", (r) => /\/art\/cards\//.test(r.url()) && requested.push(r.url()));
-  expect(UNPAINTED.map((c) => c.id)).toEqual(["disgrace", "siege_engines", "raiders", "stolen_glory", "siege_fireball", "sabotage"]);
-  await dealPaintedCards(page, UNPAINTED.map((c) => c.id));
+  await dealPaintedCards(page, THIRD_WAVE, true);
   await page.keyboard.press("Tab");
-  for (const def of UNPAINTED) {
-    const card = page.locator(".hand button.card").filter({ has: page.locator(`[data-card-art="${def.id}"]`) });
+  for (const id of THIRD_WAVE) {
+    const card = page.locator(".hand button.card").filter({ has: page.locator(`[data-card-art="${id}"]`) });
     await card.scrollIntoViewIfNeeded();
     await expect(card.locator(".card-art svg")).toBeVisible();
     await expect(card.locator(".card-art img")).toHaveCount(0);

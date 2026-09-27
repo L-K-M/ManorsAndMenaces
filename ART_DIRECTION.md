@@ -1,6 +1,6 @@
 # Storybook visual refresh
 
-Last updated: 2026-09-26. Playing-card UI merged in PR #58; integrating regular card income in PR #59.
+Last updated: 2026-09-27. Third-wave card paintings and site-remains design complete; checks pass locally.
 
 ## User request and scope
 
@@ -1123,7 +1123,7 @@ Board heights are unchanged at every size (400 px at 1280x720).
 
 ## Third-wave cards: paintings still to make
 
-The third wave adds six cards that attack Renown and Grain (spec
+Historical checkpoint before the September 27 art pass: the third wave adds six cards that attack Renown and Grain (spec
 §19.22–19.27): Disgrace, Siege Engines, Raiders, Stolen Glory, Siege Fireball
 and Sabotage. **None of them has a painting yet.** Their prompts are recorded
 in `media-sources/storybook/cards/prompts.json` in the second wave's style
@@ -1142,3 +1142,36 @@ The board also gained two small marks in `Board.svelte`: a ruined Site
 the empty-site ring, and a razed Site (Raiders) shows the burned-Route flame
 above its ring until the owner's rebuild window closes. Both are vector marks
 in the board's existing ink and stone colours; they need no painted assets.
+
+## September 27: finish third-wave gameplay art
+
+Branch `codex/third-wave-card-art` starts from current main `bca3663` (PR #66).
+All six missing paintings now have 1536 × 1024 source PNGs beside their exact
+existing prompts in `media-sources/storybook/cards/prompts.json`. Generated
+with the built-in image tool using `knight_errant.png` as the style reference;
+no API/CLI fallback. All 27 distinct cards now have optimized 600 × 400 WebPs.
+The pipeline regenerated only the six new runtime files; earlier art is intact.
+Runtime metadata enables the paintings in hands, previews and card animations,
+with the existing vector emblems retained for high contrast or failed loads.
+
+`SiteRemains.svelte` replaces the two minimal board marks with a broken cream
+stone arch, chimney, rubble and ivy for permanent ruins, and a charred open
+foundation with embers for a temporarily razed site. Distinct silhouettes
+carry the meaning without relying on colour. Both are static SVG, fit inside
+the existing site hit area, and retain the existing accessible labels and
+inspector explanations. No rules, save schema or targeting changes.
+
+The deck-completeness test was observed failing before enabling the new art.
+Validation: `pnpm check` passes (typecheck, lint, 1,457 unit/integration tests,
+map regeneration checks, production build and server smoke test). The first
+run timed out in an unchanged map-validation test while browser tests ran;
+the complete rerun without that competing suite passed. All 25 relevant
+card-art, offensive-card and board-art browser tests pass, including phone
+layouts and high-contrast emblems. A separate disposable browser save verified
+all six paintings in the hand, the large Siege Engines preview, both site
+silhouettes at zoom, and both inspector explanations. The user's game tab
+and saves were left untouched.
+
+Next: publish the focused draft PR and inspect CI. Keep the earlier Z.ai
+private diff export restriction in mind; do not trigger that external transfer
+without authorization. Previous rate-limit waivers covered PRs #58/#59.

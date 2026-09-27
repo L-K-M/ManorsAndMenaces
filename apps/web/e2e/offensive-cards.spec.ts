@@ -80,9 +80,7 @@ test("Sabotage is played from the hand and burns a rival's Grain", async ({ page
 
   await showHand(page);
   const card = handCard(page, "sabotage");
-  // No painting yet: the Spell emblem stands in.
-  await expect(card.locator(".card-art svg")).toBeVisible();
-  await expect(card.locator(".card-art img")).toHaveCount(0);
+  await expect.poll(() => card.locator(".card-art img").evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBe(600);
   await card.click();
 
   const dialog = page.getByRole("dialog", { name: "Sabotage" });

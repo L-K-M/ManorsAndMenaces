@@ -14,7 +14,7 @@ describe("card paintings", () => {
     for (const c of CARDS) expect(hasCardPainting(c.effectId), c.id).toBe(existsSync(join(PAINTINGS, `${c.effectId}.webp`)));
   });
 
-  it("are still to be made for the third wave", () => {
-    for (const id of ["disgrace", "siege_engines", "raiders", "stolen_glory", "siege_fireball", "sabotage"] as const) expect(hasCardPainting(id), id).toBe(false);
+  it("cover every card in the current deck", () => {
+    for (const card of CARDS) expect(hasCardPainting(card.effectId), card.id).toBe(true);
   });
 });
