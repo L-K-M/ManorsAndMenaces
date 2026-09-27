@@ -296,7 +296,7 @@ test("New Game shows the Renown target for each player count", async ({ page }) 
   await page.goto("/");
   await page.getByRole("button", { name: "New game" }).click();
   const goal = page.getByLabel("Renown to win");
-  for (const [players, target] of [[2, 20], [3, 20], [4, 18]]) {
+  for (const [players, target] of [[2, 15], [3, 15], [4, 13]]) {
     await page.getByRole("radio", { name: String(players), exact: true }).check({ force: true });
     await expect(page.getByRole("radio", { name: new RegExp(`Standard.*${target} Renown`) })).toBeChecked();
     await expect(page.getByRole("radio", { name: /Core.*10 Renown/ })).toBeVisible();
@@ -306,7 +306,7 @@ test("New Game shows the Renown target for each player count", async ({ page }) 
   await expect(goal).toHaveValue("10");
   await page.getByRole("radio", { name: /Standard/ }).check();
   await page.getByRole("button", { name: "Begin" }).click();
-  await expect(page.locator(".scoreboard .renown small")).toHaveText(["/18", "/18", "/18", "/18"]);
+  await expect(page.locator(".scoreboard .renown small")).toHaveText(["/13", "/13", "/13", "/13"]);
 });
 
 test("New Game plays to the Renown you pick, shows it in the game and remembers it", async ({ page }) => {
@@ -317,7 +317,7 @@ test("New Game plays to the Renown you pick, shows it in the game and remembers 
   await page.reload();
   await page.getByRole("button", { name: "New game" }).click();
   const goal = page.getByLabel("Renown to win");
-  await expect(goal).toHaveValue("20");
+  await expect(goal).toHaveValue("15");
   await goal.selectOption("25");
   // A goal you picked stays when the player count or rules change.
   for (const players of [4, 2]) {

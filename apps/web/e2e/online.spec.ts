@@ -90,7 +90,7 @@ test("two players create, join and complete setup online", async ({ browser }) =
 test("an online match plays to the Renown its creator picked, for the player who joins too", async ({ browser }) => {
   const alice = await player(browser, "Alice");
   const goal = alice.getByLabel("Renown to win");
-  await expect(goal).toHaveValue("20");
+  await expect(goal).toHaveValue("15");
   await alice.getByLabel("Rules").selectOption("mvp");
   await expect(goal).toHaveValue("10");
   await alice.getByLabel("Rules").selectOption("async");
