@@ -274,6 +274,8 @@ Simultaneous wins should be rare.
 
 **Exception: a full board.** The board can fill up before anyone reaches the target, most often with 3 or 4 players and the higher goals (§129.6). The board is full when no Site could take a new Manor, whoever builds, because each is built on, in ruins (§19.26) or too close to a Holding (§10.3), and every Holding is a Stronghold. A Site burned down by Raiders (§19.24) counts as open, since its owner may rebuild there. On a full board nobody can build for Renown any more; only Quests and cards remain. So when the round ends on a full board (the End Turn phase of the last player in turn order, after the victory check above), the game ends. The winner is decided by the same tie-break order, applied to all players, and may have less than the target Renown. Until then, each End Turn on a full board announces that the game ends with the round if the board is still full then (`board_full`); a card that empties it again, such as Raiders or Siege Engines, lets the game go on. The game records how it ended (`endCause: "full_board"`). The rule is `RulesetConfig.endOnFullBoard`, on in every ruleset from 0.7.0; games created before it play on.
 
+**Exception: the last round.** Every game ends after round 30 at the latest, whatever the goal and the number of players (§129.7). When the last player in turn order ends round 30 (their End Turn phase, after the victory check and the full-board check above), the game ends. The winner is decided by the same tie-break order, applied to all players, and may have less than the target Renown. A player who reaches the target in round 30 wins as usual, and a round 30 that also ends on a full board records the full board as its end. The round is shown as "Round n of 30" from the start ("n/30" where the top bar is narrow), and it opens how the game can end. As rounds 29 and 30 begin, the game announces that the reign is ending (`reign_ending`), and a game that ends this way records it (`endCause: "last_round"`). Ragnarök can still end the game sooner. The rule is `RulesetConfig.lastRound` (`BALANCE.lastRound`), 30 in every ruleset from 0.8.0; games created before it play on, and "Play again" after one of them adds it. A last round must be 3 or more, so that both announcements fall after setup.
+
 ## 7.1 Renown budget
 
 The target must be reachable on the chosen map. Use this budget when tuning:
@@ -783,6 +785,16 @@ No resource cost.
 The UI must preview next Harvest.
 
 The player explicitly confirms assignments.
+
+Before the turn ends, the UI warns when another legal placement of the player's own Banners would harvest more at their next Harvest (`getBannerAdvice`). Rival Banners stay where they are, and among equal totals the placement with the fewest moves wins, so a Bog Witch (same amount) or a sick Banner (nothing anywhere) never warns by itself, and neither does a Banner at home with no Region to go to. The warning names each move and its reason (at home, the Toll Troll, the Young Dragon, a Druid's Blessing outside Grain and Timber, or room for another Banner) and offers:
+
+- **Place Banners** (the default): back to the board, the first Banner to move picked up;
+- **Place them for me**: the suggestion goes into the draft, and the turn does not end;
+- **End turn anyway**.
+
+There is no warning when the player will not harvest again, because the game ends first (`hasNextHarvest`, which shares its checks with the End Turn): someone has the target Renown, equal turns already end the game with the round, the round is the last (§7), or the player ends the round on a full board. When two Banners swap full Regions, the moves start by sending one of them home, so each can be made in turn.
+
+A setting, also offered as "Don't warn me again", turns the warning off. It is advice only: no command, protocol or server change, and AI seats never see it.
 
 ## 16.4 Phase 4 — End Turn
 
@@ -1650,7 +1662,7 @@ export interface GameState {
   ruinedSiteIds?: SiteId[]; // Siege Fireball (§19.26): nobody may build there again
   historyMeta: HistoryMeta;
   winnerId?: PlayerId;
-  endCause?: "ragnarok" | "full_board"; // §19.13, §7; absent when the target was reached
+  endCause?: "ragnarok" | "full_board" | "last_round"; // §19.13, §7; absent when the target was reached
 }
 ```
 
@@ -2476,6 +2488,8 @@ Bog Witch
 ```
 
 The preview should update immediately as Banners move.
+
+Ending the turn compares the preview's total with the best legal placement and warns when that is higher (§16.3).
 
 ---
 
@@ -4549,3 +4563,30 @@ The same runs with the full-board end rule and the third-wave cards (§129.5), r
 Every game finishes. At the default goals games still run past the §68 target of 12–16 turns per player, most with 4 players, and nearly half of the three-player games and most four-player games end on a full board rather than at the goal. The third seat won 53 % of three-player games, above the 45 % target; with about ±8 points of noise in 40 games, that needs a larger run before any tuning.
 
 **The default returns to 15 (September 2026).** Players found 20 out of reach. With 3 or 4 players the board usually fills first, and the leader then has about 19 Renown with 3 players and about 15 with 4, as the tables above show. The Standard and async default is 15 again, or 13 with 4 players. 20, 25 and 30 stay on offer; 18 is no longer offered with 4 players. Saved games and running matches keep the goal they were created with.
+
+## 129.7 The last round (ruleset 0.8.0, September 2026)
+
+A few games ran on long after the board had stopped changing. Every game now ends after round 30 at the latest, and the most Renown wins (§7). One number serves every goal, player count and ruleset: the round the board fills in hardly depends on the goal, and the Core rules' goal does not depend on the player count.
+
+Normal AI with the full-board rule, on drawn islands unless marked G (The Greenvale):
+
+| Setup | Games | End round p50 / p90 / max | Ended on a full board | Games past round 30 |
+|---|---:|---|---:|---:|
+| Goals 15 and 13, 2 to 4 players (drawn and G) | 230 | 13–17 / 17–24 / 35 | 24 (16 of them 4 players at goal 15) | 1 |
+| 2 players, goal 30 | 30 | 22.5 / 28 / 33 | 26 | 1 |
+| 3 players, goal 25 | 30 | 20 / 24 / 37 | 29 | 1 |
+| 4 players, goal 25 | 30 | 21.5 / 30 / 36 | 30 | 3 |
+| 3 players, goal 30, G | 40 | 23.5 / 32 / 45 | 40 | 6 |
+| 4 players, goal 18, G | 40 | 20 / 30 / 37 | 29 | 4 |
+
+Games past round 30 were mostly waiting. The 16 in the table were checked, and one more: a four-player game at goal 18 on a drawn island (Mistholm), which ended in round 34. In 16 of these 17, no Site was left by rounds 10 to 23, and a Manor nobody had upgraded kept the board from counting as full for another 9 to 24 rounds. The leader after round 30 went on to win 16 of the 17; the other is a four-player game at goal 13 that never counted as full and ended in round 35. A later limit for four players (32) would have spared 4 of 70 four-player games at the higher goals, none with a different winner.
+
+The hint under "Renown to win" on New Game and in the online lobby follows these runs: the board usually fills first, and then the most Renown wins, at goal 30 with 2 players and from 20 with 3 or 4. Four players at goal 15 fill it first in about half of games, so that goal gets no such hint. Games that ended on a full board, on drawn islands with the normal AI; where a cell has two figures, the second is a later check on ruleset 0.8.0 (`pnpm simulate --map drawn --rules standard`):
+
+| Players | Goal 15 (13 with 4) | Goal 20 | Goal 25 | Goal 30 |
+|---:|---|---|---|---|
+| 2 | 0 of 40 | 0 of 20 | 5 of 30; 1 of 20 | 26 of 30; 17 of 20 |
+| 3 | 2 of 40 | 20 of 30 | 29 of 30; 12 of 12 | 30 of 30 |
+| 4 | 5 of 40 at 13, 16 of 30 at 15 | 19 of 20; 11 of 12 | 30 of 30 | 6 of 6 |
+
+The Core rules were not simulated, so their hint gives only the last round.

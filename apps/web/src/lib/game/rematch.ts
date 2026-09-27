@@ -1,7 +1,7 @@
 // What "Play again" does at the end of a game.
 
 import type { SeatConfig } from "@manors-menaces/protocol";
-import { clone, type GameState } from "@manors-menaces/rules";
+import { BALANCE, clone, type GameState, type RulesetConfig } from "@manors-menaces/rules";
 import { parseMapId } from "@manors-menaces/content";
 import { TUTORIAL_SEED } from "./saves.js";
 import type { BoardChoice, NewGameOptions } from "./session.svelte.js";
@@ -37,6 +37,16 @@ export function planRematch(game: FinishedGame): RematchPlan {
     game.board ?? (drawnOn?.layout != null ? { kind: "drawn", islandId: drawnOn.islandId } : { kind: "fixed", mapId: game.mapId });
   return {
     kind: "local",
-    options: { seats: clone([...game.seats]), ruleset: clone(game.initialState.ruleset), board: clone(board) },
+    options: { seats: clone([...game.seats]), ruleset: withRulesAddedSince(game.initialState.ruleset), board: clone(board) },
   };
+}
+
+/**
+ * A rematch is a new game, so it gets the rules added since an older save
+ * was made, which that game played on without: the full-board end (ruleset
+ * 0.7.0, on in every ruleset) and the last round (0.8.0). The goal and the
+ * other options the players chose stay as they were.
+ */
+function withRulesAddedSince(ruleset: RulesetConfig): RulesetConfig {
+  return { ...clone(ruleset), endOnFullBoard: ruleset.endOnFullBoard ?? true, lastRound: ruleset.lastRound ?? BALANCE.lastRound };
 }

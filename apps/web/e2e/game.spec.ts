@@ -13,7 +13,7 @@ import { pick } from "./pick";
 async function startHotseat(page: Page, rules: "standard" | "mvp" = "standard") {
   await page.goto("/");
   await page.evaluate(() => {
-    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true }));
+    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true, bannerWarning: false }));
     indexedDB.deleteDatabase("manors-menaces");
   });
   await page.reload();
@@ -194,7 +194,7 @@ test("a finished saved game opens on the full results", async ({ page }) => {
   await page.getByRole("button", { name: /Game over/ }).click();
   await victory.getByRole("button", { name: "Play again" }).click();
   await passCurtain(page);
-  await expect(page.locator(".round")).toHaveText("Round 1");
+  await expect(page.locator(".round")).toHaveText("Round 1 of 30");
   await page.getByRole("tab", { name: "Players" }).click();
   for (const name of ["Ysolde", "Wat", "Maud"]) await expect(page.locator(".players")).toContainText(name);
   expect(errors).toEqual([]);
@@ -216,6 +216,94 @@ test("a game that ends on a full board says so on the results", async ({ page })
   await page.getByRole("tab", { name: /Chronicle/ }).click();
   await expect(page.getByText("If it is still full when this round ends, the game ends.").first()).toBeVisible();
 });
+
+/**
+ * A three-player game in play in `round`, for the round chip: a fresh game
+ * moved on to that round, saved without a history (as quest-art.spec.ts does).
+ */
+function saveInRound(round: number): SaveFile {
+  const engine = createRulesEngine(rulesContentFor("greenvale"));
+  const seats = ["Ysolde", "Wat", "Maud"].map((displayName, i) => ({ playerId: `P${i + 1}`, displayName, kind: "human" as const, color: i }));
+  const state = engine.createGame({
+    matchId: "local-e2e-reign",
+    seed: "e2e-reign",
+    rulesetVersion: RULESET_VERSION,
+    ruleset: standardRuleset(3),
+    players: seats.map((s) => ({ id: s.playerId, displayName: s.displayName })),
+  });
+  state.status = "playing";
+  state.phase = "main";
+  state.round = round;
+  state.activePlayerId = "P1";
+  delete state.setup;
+  return { schemaVersion: SAVE_SCHEMA_VERSION, rulesetVersion: RULESET_VERSION, savedAt: new Date(0).toISOString(), mapId: "greenvale", seats, initialState: structuredClone(state), state, commandHistory: [] };
+}
+
+test("a game that ends on the last round says so, and the round chip counts toward it", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: false })));
+  await page.reload();
+
+  // Nobody gets near 30 Renown in 8 rounds, so the last round ends the game.
+  await page.getByRole("button", { name: "Load game" }).click();
+  const save = finishedSave(undefined, undefined, { ...standardRuleset(3, { targetRenown: 30 }), lastRound: 8 });
+  await page.getByLabel(/Import a save file/).setInputFiles({ name: "last-round.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(save)) });
+  const victory = page.getByRole("dialog", { name: "Victory!" });
+  await expect(victory).toContainText("had the most Renown when the reign ended");
+  await expect(victory).toContainText("The reign ended with round 8, the last round");
+  await expect(victory.locator(".recap li").last()).toContainText("the last of the reign");
+  await victory.getByRole("button", { name: "View board" }).click();
+  await expect(page.locator(".round")).toHaveText("Last round");
+  await page.getByRole("tab", { name: /Chronicle/ }).click();
+  await expect(page.getByText("The reign ends after round 8. The next round is the last.").first()).toBeVisible();
+  await expect(page.getByText("Round 8 is the last. When it ends, the most Renown wins.").first()).toBeVisible();
+
+  // In the Standard rules the chip counts to round 30, says how the game can
+  // end, and from round 29 stands out.
+  await loadSave(page, saveInRound(29));
+  const chip = page.getByRole("button", { name: "Round 29 of 30" });
+  await expect(chip).toHaveText("Round 29 of 30");
+  await expect(chip).toHaveClass(/ending/);
+  await expect(chip).toHaveAttribute("title", /reaches 15 Renown, when a round ends with the board full, or when round 30 ends/);
+  // Touch and the keyboard reach the same text as the tooltip.
+  await chip.focus();
+  await page.keyboard.press("Enter");
+  const endings = page.getByRole("dialog", { name: "How the game ends" });
+  await expect(endings).toContainText("reaches 15 Renown, when a round ends with the board full, or when round 30 ends");
+  await endings.getByRole("button", { name: "Close" }).click();
+  await expect(endings).toBeHidden();
+});
+
+for (const width of [320, 360]) {
+  test(`on a ${width}px phone the round chip shortens rather than wrap the top bar`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 740 });
+    await page.goto("/");
+    await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: false })));
+    const barHeight = () => page.locator(".topbar").evaluate((el) => el.getBoundingClientRect().height);
+    const shortLabel = () => page.locator(".round .pill").evaluate((el) => getComputedStyle(el, "::after").content);
+
+    // Round 28: no chip on a narrow bar.
+    await loadSave(page, saveInRound(28));
+    await expect(page.locator(".round")).toBeHidden();
+    const plain = await barHeight();
+    // Rounds 29 and 30 show it, short, in the same height.
+    for (const [round, label] of [[29, "Round 29 of 30"], [30, "Last round"]] as const) {
+      await loadSave(page, saveInRound(round));
+      const chip = page.getByRole("button", { name: label });
+      await expect(chip).toBeVisible();
+      expect(await shortLabel()).toBe(`"${round}/30"`);
+      expect(await barHeight()).toBe(plain);
+    }
+  });
+}
+
+/** Loads a save from the title screen, as players see it: without the development build's Debug button. */
+async function loadSave(page: Page, save: SaveFile) {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Load game", exact: true }).click();
+  await page.getByLabel(/Import a save file/).setInputFiles({ name: `round-${save.state.round}.json`, mimeType: "application/json", buffer: Buffer.from(JSON.stringify(save)) });
+  await page.locator(".topbar").getByRole("button", { name: "Debug" }).evaluate((el) => (el.style.display = "none"));
+}
 
 // Review question: does "Play again" after a tutorial continued from a save
 // drop into an unguided game? It opens the New Game setup instead.
@@ -313,7 +401,7 @@ test("New Game plays to the Renown you pick, shows it in the game and remembers 
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   await page.goto("/");
-  await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true })));
+  await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true, bannerWarning: false })));
   await page.reload();
   await page.getByRole("button", { name: "New game" }).click();
   const goal = page.getByLabel("Renown to win");

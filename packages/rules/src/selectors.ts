@@ -194,6 +194,49 @@ export function isBoardFull(ctx: RulesContext, state: GameState): boolean {
   return ctx.board.topology.sites.every(({ id }) => occupied.has(id) || isRuinedSite(state, id) || ctx.board.neighbours(id).some((n) => occupied.has(n)));
 }
 
+// ------------------------------------------------------------------ game end (§7)
+// The End Turn checks (engine.ts endTurn) and hasNextHarvest share these.
+
+/** Whether the player takes the round's last turn, so their End Turn ends the round. */
+export function isLastSeat(state: GameState, playerId: PlayerId): boolean {
+  return state.turnOrder.indexOf(playerId) === state.turnOrder.length - 1;
+}
+
+/**
+ * Whether the round in play is the game's last (§7): the game ends when it
+ * ends. Never in games created without one (before ruleset 0.8.0).
+ */
+export function isLastRound(state: GameState): boolean {
+  const lastRound = state.ruleset.lastRound ?? 0;
+  return lastRound > 0 && state.round >= lastRound;
+}
+
+/** Players with the target Renown, in turn order: an End Turn now ends the game (§7). */
+export function playersAtTarget(ctx: RulesContext, state: GameState): PlayerId[] {
+  return state.turnOrder.filter((id) => getRenown(ctx, state, id) >= state.ruleset.targetRenown);
+}
+
+/** Whether a round that ends now ends the game on a full board (§7). */
+export function endsOnFullBoard(ctx: RulesContext, state: GameState): boolean {
+  return state.ruleset.endOnFullBoard === true && isBoardFull(ctx, state);
+}
+
+/**
+ * Whether the player harvests again, at the start of their next turn:
+ * false when the game is sure to end first. That is when someone has the
+ * target Renown (the game ends at this End Turn, or with the round under
+ * equal turns), when equal turns already end the game with this round, in
+ * the last round, and when the player ends the round on a full board.
+ * Endings still open are not foreseen: Ragnarök, a rival reaching the
+ * target later in the round, and a board that fills before the round's last
+ * seat, which a card could empty again.
+ */
+export function hasNextHarvest(ctx: RulesContext, state: GameState, playerId: PlayerId): boolean {
+  if (state.status === "finished" || state.endTriggered || isLastRound(state)) return false;
+  if (playersAtTarget(ctx, state).length > 0) return false;
+  return !(isLastSeat(state, playerId) && endsOnFullBoard(ctx, state));
+}
+
 // ------------------------------------------------------------------ build requirements
 
 export type BuildCheck =
@@ -457,6 +500,190 @@ export function getHarvestPreview(
     if (h.produced && h.amount > 0) totals[h.produced] += h.amount;
   }
   return { banners, totals, total: RESOURCE_TYPES.reduce((s, r) => s + totals[r], 0) };
+}
+
+/**
+ * Search nodes `getBannerAdvice` visits at most. The largest position
+ * measured in AI games (12 Banners) needed under 3,000.
+ */
+const BANNER_ADVICE_BUDGET = 50_000;
+
+/** Why a suggested move helps: the Banner's own gain, or room for another. */
+export type BannerMoveReason = "unplaced" | "blocked_by_troll" | "taken_by_dragon" | "blessing_lost" | "make_room";
+
+export interface BannerMove {
+  bannerId: BannerId;
+  from: RegionId | null;
+  to: RegionId | null;
+  reason: BannerMoveReason;
+}
+
+export interface BannerAdvice {
+  /** Next Harvest total with the draft as it stands. */
+  current: number;
+  /** Highest next Harvest total found over legal placements of the player's own Banners. */
+  best: number;
+  /** A placement of every one of the player's Banners that yields `best`. */
+  assignment: Record<BannerId, RegionId | null>;
+  /**
+   * The changes from the draft to `assignment`, ordered so each can be made
+   * in turn. A Banner that goes home first to break a swap has two.
+   */
+  moves: BannerMove[];
+}
+
+/**
+ * §16.3: the best placement of the player's own Banners for the next
+ * Harvest, for a warning before the turn ends: warn when `best > current`.
+ * Rival Banners stay where they are, and among placements with the same
+ * total the one with the fewest moves wins. Like the Harvest preview, it
+ * assumes the board does not change before that Harvest.
+ *
+ * A branch-and-bound over the Banners, fewest adjacent Regions first. It
+ * starts from the draft when that is legal, so running out of `budget`
+ * can only miss a gain, never suggest a worse or illegal placement.
+ */
+export function getBannerAdvice(
+  ctx: RulesContext,
+  state: GameState,
+  playerId: PlayerId,
+  draft: Readonly<Record<BannerId, RegionId | null>> = {},
+  budget = BANNER_ADVICE_BUDGET,
+): BannerAdvice {
+  const banners = getPlayerBanners(state, playerId);
+  const placed: Record<BannerId, RegionId | null> = {};
+  for (const b of banners) placed[b.id] = b.id in draft ? (draft[b.id] ?? null) : b.regionId;
+  const current = getHarvestPreview(ctx, state, playerId, placed).total;
+
+  const amounts = new Map<string, number>();
+  const amountOf = (b: Banner, regionId: RegionId | null): number => {
+    if (!regionId) return 0;
+    const key = `${b.id} ${regionId}`;
+    let amount = amounts.get(key);
+    if (amount === undefined) {
+      amount = computeBannerHarvest(ctx, state, b, regionId).amount;
+      amounts.set(key, amount);
+    }
+    return amount;
+  };
+  // One more resource outweighs any number of Banners left where they are.
+  const weight = banners.length + 1;
+  const scoreOf = (b: Banner, regionId: RegionId | null): number => amountOf(b, regionId) * weight + (placed[b.id] === regionId ? 1 : 0);
+  const adjacent = (b: Banner): readonly RegionId[] => {
+    const holding = state.holdings[b.holdingId];
+    return holding ? ctx.board.site(holding.siteId).adjacentRegionIds : [];
+  };
+
+  const order = [...banners].sort((a, b) => adjacent(a).length - adjacent(b).length);
+  // What order[i..] could add at most, ignoring room in the Regions.
+  const bound: number[] = new Array<number>(order.length + 1).fill(0);
+  for (let i = order.length - 1; i >= 0; i--) {
+    const b = order[i] as Banner;
+    bound[i] = (bound[i + 1] ?? 0) + Math.max(scoreOf(b, null), ...adjacent(b).map((r) => scoreOf(b, r)));
+  }
+
+  // Banners not yet decided wait at home, where they block nothing.
+  const work: Record<BannerId, RegionId | null> = {};
+  for (const b of banners) work[b.id] = null;
+  // getLegalBannerRegions against `work`, without scanning every Banner at
+  // every step: rival Banners stay put, so the Banners in each Region are
+  // counted once and kept up to date as the search places the player's own.
+  const mine = new Set(banners.map((b) => b.id));
+  const inRegion = new Map<RegionId, number>();
+  for (const b of Object.values(state.banners)) if (!mine.has(b.id) && b.regionId) inRegion.set(b.regionId, (inRegion.get(b.regionId) ?? 0) + 1);
+  const siblings = new Map(banners.map((b) => [b.id, Object.values(state.banners).filter((o) => o.holdingId === b.holdingId && o.id !== b.id)]));
+  const positionOf = (b: Banner): RegionId | null => (mine.has(b.id) ? (work[b.id] ?? null) : b.regionId);
+  const hasRoom = (b: Banner, r: RegionId): boolean =>
+    (inRegion.get(r) ?? 0) < ctx.board.region(r).capacity && !siblings.get(b.id)?.some((o) => positionOf(o) === r);
+  // Each Banner's places, best first (home last among equals); the search
+  // skips those without room.
+  const choices = new Map(
+    banners.map((b) => [b.id, [...adjacent(b), null].map((regionId) => ({ regionId, score: scoreOf(b, regionId) })).sort((x, y) => y.score - x.score)]),
+  );
+  const moveTo = (b: Banner, regionId: RegionId | null): void => {
+    const from = work[b.id];
+    if (from) inRegion.set(from, (inRegion.get(from) ?? 0) - 1);
+    if (regionId) inRegion.set(regionId, (inRegion.get(regionId) ?? 0) + 1);
+    work[b.id] = regionId;
+  };
+  let best = validateBannerAssignment(ctx, state, playerId, placed).ok
+    ? { score: banners.reduce((n, b) => n + scoreOf(b, placed[b.id] ?? null), 0), assignment: { ...placed } }
+    : { score: -1, assignment: { ...work } };
+  let nodes = 0;
+  const visit = (i: number, score: number): void => {
+    if (++nodes > budget) return;
+    const b = order[i];
+    if (!b) {
+      if (score > best.score) best = { score, assignment: { ...work } };
+      return;
+    }
+    if (score + (bound[i] ?? 0) <= best.score) return;
+    const options = (choices.get(b.id) ?? []).filter((o) => o.regionId === null || hasRoom(b, o.regionId));
+    for (const o of options) {
+      moveTo(b, o.regionId);
+      visit(i + 1, score + o.score);
+    }
+    moveTo(b, null);
+  };
+  visit(0, 0);
+
+  const assignment = best.assignment;
+  const moves = banners
+    .filter((b) => (assignment[b.id] ?? null) !== placed[b.id])
+    .map((b): BannerMove => {
+      const from = placed[b.id] ?? null;
+      const to = assignment[b.id] ?? null;
+      return { bannerId: b.id, from, to, reason: moveReason(ctx, state, b, from, to) };
+    });
+  return {
+    current,
+    best: getHarvestPreview(ctx, state, playerId, assignment).total,
+    assignment,
+    moves: inPlayableOrder(ctx, state, placed, moves),
+  };
+}
+
+/** Why moving `banner` from `from` to `to` is part of the best placement. */
+function moveReason(ctx: RulesContext, state: GameState, banner: Banner, from: RegionId | null, to: RegionId | null): BannerMoveReason {
+  if (!from) return "unplaced";
+  const here = computeBannerHarvest(ctx, state, banner, from);
+  const there = to ? computeBannerHarvest(ctx, state, banner, to).amount : 0;
+  if (there <= here.amount) return "make_room";
+  if (here.notes.includes("blocked_by_troll")) return "blocked_by_troll";
+  if (here.notes.includes("taken_by_dragon")) return "taken_by_dragon";
+  // Nothing else changes the amount but Druid's Blessing, which adds only
+  // in Grain and Timber Regions.
+  return "blessing_lost";
+}
+
+/**
+ * Orders the moves so a player can make them one at a time, each legal when
+ * its turn comes: a move whose destination has room goes first. A cycle
+ * (two Banners swapping full Regions) has none; its first Banner goes home
+ * as a step of its own, and moves on once the others have made room.
+ *
+ * This ends: the whole placement is legal, so once every Banner still to
+ * move is at home, each of their destinations has room.
+ */
+function inPlayableOrder(ctx: RulesContext, state: GameState, placed: Readonly<Record<BannerId, RegionId | null>>, moves: BannerMove[]): BannerMove[] {
+  const at = { ...placed };
+  const left = [...moves];
+  const out: BannerMove[] = [];
+  while (left.length > 0) {
+    const next = left.findIndex((m) => m.to === null || getLegalBannerRegions(ctx, state, m.bannerId, at).includes(m.to));
+    if (next < 0) {
+      const i = left.findIndex((m) => at[m.bannerId] != null);
+      const m = left[i] as BannerMove;
+      out.push({ bannerId: m.bannerId, from: m.from, to: null, reason: "make_room" });
+      at[m.bannerId] = null;
+      left[i] = { ...m, from: null };
+      continue;
+    }
+    const [m] = left.splice(next, 1) as [BannerMove];
+    at[m.bannerId] = m.to;
+    out.push(m);
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------ menaces (§20–26)

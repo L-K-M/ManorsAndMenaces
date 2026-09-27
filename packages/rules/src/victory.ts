@@ -1,6 +1,6 @@
 // Victory ranking and game end (spec §7). Shared by the End Turn check, a
-// round that ends on a full board, and Ragnarök (§19.13), which ends the game
-// in the middle of a turn.
+// round that ends on a full board, the last round, and Ragnarök (§19.13),
+// which ends the game in the middle of a turn.
 
 import type { RulesContext } from "./context.js";
 import { totalResources } from "./resources.js";

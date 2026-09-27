@@ -33,6 +33,16 @@
   cards two to three times as often, uses Fog of Confusion and Very Minor
   Prophecy, and discards its weakest cards. It saves for cards only once
   its opening is built, which keeps the first seat's lead from growing.
+- Every game ends after round 30 at the latest, and the most Renown wins
+  (ruleset 0.8.0). The round shows as "Round n of 30" and tells how the
+  game ends, the game announces rounds 29 and 30, and New Game and the
+  lobby say when the board usually fills before the chosen goal. Games
+  saved earlier play on without the limit; "Play again" adds it.
+- Ending a turn warns when your Banners could harvest more next turn: a
+  Banner left at home, or one under the Toll Troll or the Young Dragon,
+  while a better Region has room. The warning lists the moves and can
+  place the Banners for you; a setting turns it off. It stays quiet when
+  the game ends before your next Harvest.
 - Svelte/SVG web client and an online server, with Playwright E2E tests
   covering create/join/setup across two browsers.
 - Tauri desktop shell (macOS universal, Linux, Windows) and an unsigned

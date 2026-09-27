@@ -4,7 +4,7 @@ import { pick } from "./pick";
 async function start(page: Page, income = true) {
   await page.goto("/");
   await page.evaluate(() => {
-    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", privacyCurtain: false, sound: false }));
+    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", privacyCurtain: false, sound: false, bannerWarning: false }));
     indexedDB.deleteDatabase("manors-menaces");
   });
   await page.reload();

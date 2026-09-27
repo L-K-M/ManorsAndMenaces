@@ -198,6 +198,13 @@ export interface RulesetConfig {
    * play on.
    */
   endOnFullBoard?: boolean;
+  /**
+   * The game ends when this round ends at the latest, and the most Renown
+   * wins (§7). Absent or 0 in games created before ruleset 0.8.0, which play
+   * on. Otherwise 3 or more, so that both rounds that announce the end
+   * (`reign_ending`) begin after setup.
+   */
+  lastRound?: number;
 }
 
 export interface PlayerConfig {
@@ -403,7 +410,10 @@ export interface GameState {
   endTriggered?: boolean;
 }
 
-/** How a game can end before anyone reaches the target (§7): Ragnarök, or a round that ends on a full board. */
-export type GameEndCause = "ragnarok" | "full_board";
+/**
+ * How a game can end before anyone reaches the target (§7): Ragnarök, a round
+ * that ends on a full board, or the end of the last round.
+ */
+export type GameEndCause = "ragnarok" | "full_board" | "last_round";
 
 export type RngState = [number, number, number, number];

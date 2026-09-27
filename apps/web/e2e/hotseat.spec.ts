@@ -14,7 +14,7 @@ const AI = "Cordelia";
 async function startTwoHumansAndAi(page: Page) {
   await page.goto("/");
   await page.evaluate(() => {
-    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true }));
+    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true, bannerWarning: false }));
     indexedDB.deleteDatabase("manors-menaces");
   });
   await page.reload();

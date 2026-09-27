@@ -30,6 +30,7 @@
   // Ragnarök ended the world: the winner may be short of the target.
   const ragnarok = $derived(report.endCause === "ragnarok");
   const fullBoard = $derived(report.endCause === "full_board");
+  const lastRound = $derived(report.endCause === "last_round");
   const chart = $derived(
     report.timeline
       ? renownChart(
@@ -201,7 +202,9 @@
               ? t("ui.victory_subtitle_ragnarok", { renown: winner.renown.total, round: report.round })
               : fullBoard
                 ? t("ui.victory_subtitle_full_board", { renown: winner.renown.total, round: report.round })
-                : t("ui.victory_subtitle", { renown: winner.renown.total, round: report.round })}
+                : lastRound
+                  ? t("ui.victory_subtitle_last_round", { renown: winner.renown.total, round: report.round })
+                  : t("ui.victory_subtitle", { renown: winner.renown.total, round: report.round })}
           </p>
         </div>
         <button class="close" aria-label={t("ui.close")} onclick={close}><ToolIcon name="close" size={20} /></button>
@@ -211,6 +214,7 @@
         <div class="col">
           {#if ragnarok}<p class="note ragnarok-note">{t("ui.ragnarok_ending")}</p>{/if}
           {#if fullBoard}<p class="note">{t("ui.full_board_ending")}</p>{/if}
+          {#if lastRound}<p class="note">{t("ui.last_round_ending", { round: report.round })}</p>{/if}
           <section class="sec-standings">
             <h3>{t("ui.final_standings")}</h3>
             <ol class="standings">

@@ -182,6 +182,14 @@ describe("feedItemsFor: second-wave cards", () => {
     }
   });
 
+  it("tells every viewer as the last two rounds begin", () => {
+    const omen = (text: string) => ({ actorId: null, text, at: null, gains: null, againstViewer: false, self: false, omen: true });
+    for (const viewer of ["P1", "P2", null]) {
+      expect(feedItemsFor([{ type: "reign_ending", round: 29, lastRound: 30 }], state, map, viewer)).toEqual([omen("The reign ends after round 30: the next round is the last")]);
+      expect(feedItemsFor([{ type: "reign_ending", round: 30, lastRound: 30 }], state, map, viewer)).toEqual([omen("Round 30 is the last: when it ends, the most Renown wins")]);
+    }
+  });
+
   it("marks the omen for every viewer", () => {
     const omen: GameEvent = { type: "card_foretold", cardId: "ragnarok#1" };
 

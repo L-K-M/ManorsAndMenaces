@@ -10,7 +10,7 @@ async function player(browser: Browser, name: string, prepare?: (ctx: BrowserCon
   await prepare?.(ctx);
   const page = await ctx.newPage();
   await page.goto("/");
-  await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false })));
+  await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, bannerWarning: false })));
   await page.reload();
   await page.getByRole("button", { name: "Play online" }).click();
   await page.getByLabel("Your name").fill(name);

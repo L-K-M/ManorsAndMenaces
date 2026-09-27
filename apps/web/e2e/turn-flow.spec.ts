@@ -2,14 +2,16 @@ import { expect, test, type Page } from "@playwright/test";
 import { pick } from "./pick";
 
 // Turn flow: phase buttons that survive repeated clicks, the Market staying
-// open between trades, the Banner phase fast path and action explanations.
+// open between trades, the Banner phase fast path, the idle Banner warning
+// and action explanations.
 
-async function startHotseat(page: Page, seed = "e2e-seed") {
+/** The Banner warning is off unless a test turns it on. */
+async function startHotseat(page: Page, seed = "e2e-seed", bannerWarning = false) {
   await page.goto("/");
-  await page.evaluate(() => {
-    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true }));
+  await page.evaluate((bannerWarning) => {
+    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true, bannerWarning }));
     indexedDB.deleteDatabase("manors-menaces");
-  });
+  }, bannerWarning);
   await page.reload();
   await page.getByRole("button", { name: "New game" }).click();
   await page.getByRole("radio", { name: "2", exact: true }).check({ force: true });
@@ -231,4 +233,147 @@ test("a claimable Quest is badged, prompted, and recalled when leaving Main", as
   await expect(page.getByRole("button", { name: /Assign Banners/ })).toBeVisible();
   await page.getByRole("tab", { name: /Quests/ }).click();
   await expect(page.getByText(/Far Reaches — /)).toBeVisible();
+});
+
+// §16.3: ending a turn while the Banners could harvest more asks first.
+const warningDialog = (page: Page) => page.getByRole("dialog", { name: "Your Banners could harvest more" });
+
+/** In Banner Assignment: sends every Banner of the active player home, freeing the Regions they held. */
+async function sendBannersHome(page: Page) {
+  const banners = page.locator(".banner.hl");
+  const n = await banners.count();
+  for (let i = 0; i < n; i++) {
+    await banners.nth(i).click();
+    await page.getByRole("button", { name: /Send home/ }).click();
+  }
+  await expect(page.locator(".banner.hl.home")).toHaveCount(n);
+}
+
+/** Into Banner Assignment with every Banner at home, then End Turn. */
+async function endTurnWithBannersHome(page: Page) {
+  await page.getByRole("button", { name: /Assign Banners/ }).click();
+  await sendBannersHome(page);
+  await page.getByRole("button", { name: /Confirm & End Turn/ }).click();
+}
+
+test("idle Banners warn before the turn ends; Place Banners keeps the phase", async ({ page }) => {
+  await startHotseat(page, "e2e-seed", true);
+  await completeSetup(page);
+  await endTurnWithBannersHome(page);
+
+  const warning = warningDialog(page);
+  await expect(warning).toBeVisible();
+  await expect(warning).toContainText("Next Harvest: +0 now");
+  const place = warning.getByRole("button", { name: "Place Banners" });
+  await expect(place).toBeFocused();
+  await place.click();
+
+  await expect(warning).toBeHidden();
+  await expect(statusLine(page)).toContainText("Banner Assignment");
+  // The first Banner to move is picked up, with its Regions highlighted.
+  await expect(page.locator(".banner.selected")).toHaveCount(1);
+  await expect(page.locator(".region.hl").first()).toBeAttached();
+  await expect(page.getByRole("button", { name: "Tap to begin turn" })).toHaveCount(0);
+});
+
+test("End turn anyway ends the turn with the Banners at home", async ({ page }) => {
+  await startHotseat(page, "e2e-seed", true);
+  await completeSetup(page);
+  await endTurnWithBannersHome(page);
+
+  await warningDialog(page).getByRole("button", { name: "End turn anyway" }).click();
+  await expect(page.getByRole("button", { name: "Tap to begin turn" })).toBeVisible();
+});
+
+test("Place them for me fills in the suggestion, and the turn then ends without a warning", async ({ page }) => {
+  await startHotseat(page, "e2e-seed", true);
+  await completeSetup(page);
+  await endTurnWithBannersHome(page);
+
+  await warningDialog(page).getByRole("button", { name: "Place them for me" }).click();
+  await expect(warningDialog(page)).toBeHidden();
+  await expect(statusLine(page)).toContainText("Banner Assignment");
+  // "Confirm & End Turn", or "End Turn" if the suggestion is where they started.
+  await page.getByRole("button", { name: /End Turn/ }).click();
+  await expect(page.getByRole("button", { name: "Tap to begin turn" })).toBeVisible();
+  await expect(warningDialog(page)).toHaveCount(0);
+});
+
+test("a double click on End Turn opens the warning and leaves it open", async ({ page }) => {
+  await startHotseat(page, "e2e-seed", true);
+  await completeSetup(page);
+  await page.getByRole("button", { name: /Assign Banners/ }).click();
+  await sendBannersHome(page);
+
+  await page.getByRole("button", { name: /Confirm & End Turn/ }).dblclick();
+  await expect(warningDialog(page)).toBeVisible();
+  await expect(statusLine(page)).toContainText("Banner Assignment");
+  await expect(page.getByRole("button", { name: "Tap to begin turn" })).toHaveCount(0);
+});
+
+test("Enter with the warning open does not end the turn", async ({ page }) => {
+  await startHotseat(page, "e2e-seed", true);
+  await completeSetup(page);
+  await page.getByRole("button", { name: /Assign Banners/ }).click();
+  await sendBannersHome(page);
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await expect(page.getByRole("button", { name: /Confirm & End Turn/ })).toBeEnabled();
+  await page.keyboard.press("Enter");
+  await expect(warningDialog(page)).toBeVisible();
+  // Focus is on Place Banners, so a second Enter goes back to the board.
+  await page.keyboard.press("Enter");
+  await expect(warningDialog(page)).toBeHidden();
+  await expect(statusLine(page)).toContainText("Banner Assignment");
+  await expect(page.getByRole("button", { name: "Tap to begin turn" })).toHaveCount(0);
+});
+
+test("with the warning switched off in Settings, idle Banners do not stop the turn", async ({ page }) => {
+  await startHotseat(page, "e2e-seed", true);
+  await completeSetup(page);
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const settingsDialog = page.getByRole("dialog", { name: "Settings" });
+  await settingsDialog.getByRole("checkbox", { name: "Warn about idle Banners" }).uncheck();
+  await settingsDialog.getByRole("button", { name: "Close" }).click();
+  await expect(settingsDialog).toBeHidden();
+
+  await endTurnWithBannersHome(page);
+  await expect(page.getByRole("button", { name: "Tap to begin turn" })).toBeVisible();
+  await expect(warningDialog(page)).toHaveCount(0);
+});
+
+test("Don't warn me again switches the warning off for later turns", async ({ page }) => {
+  await startHotseat(page, "e2e-seed", true);
+  await completeSetup(page);
+  await endTurnWithBannersHome(page);
+
+  const warning = warningDialog(page);
+  await warning.getByRole("checkbox", { name: "Don't warn me again" }).check();
+  await warning.getByRole("button", { name: "End turn anyway" }).click();
+  await passCurtain(page);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("mm.settings.v1") ?? "{}") as { bannerWarning?: boolean });
+  expect(saved.bannerWarning).toBe(false);
+
+  await endTurnWithBannersHome(page);
+  await expect(page.getByRole("button", { name: "Tap to begin turn" })).toBeVisible();
+  await expect(warningDialog(page)).toHaveCount(0);
+});
+
+// The warning can open under the pointer of a double click on End Turn: its
+// follow-up click (detail 2) must neither tick the box nor close the dialog.
+test("the follow-up click of a double click changes nothing in the warning", async ({ page }) => {
+  await startHotseat(page, "e2e-seed", true);
+  await completeSetup(page);
+  await endTurnWithBannersHome(page);
+
+  const warning = warningDialog(page);
+  const dontWarn = warning.getByRole("checkbox", { name: "Don't warn me again" });
+  await warning.locator("label.dont").dispatchEvent("click", { detail: 2 });
+  await dontWarn.dispatchEvent("click", { detail: 2 });
+  await expect(dontWarn).not.toBeChecked();
+  await warning.getByRole("button", { name: "Close" }).dispatchEvent("click", { detail: 2 });
+  await expect(warning).toBeVisible();
+  // A double click on the box ticks it once.
+  await dontWarn.dblclick();
+  await expect(dontWarn).toBeChecked();
 });

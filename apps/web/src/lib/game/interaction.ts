@@ -9,15 +9,18 @@ import {
   dragonsLandingTargets,
   enumerateCardTargets,
   getActionAvailability,
+  getBannerAdvice,
   getBannerRegionOptions,
   getLegalActions,
   getLegalBannerRegions,
   getLegalMenaceDestinations,
   getPlayerBanners,
   getRenown,
+  hasNextHarvest,
   insurancePolicyOf,
   plagueBanners,
   type ActionAvailability,
+  type BannerAdvice,
   type BannerId,
   type BannerRegionOption,
   type CardTarget,
@@ -510,6 +513,43 @@ export async function confirmBanners(session: GameSession, legal: LegalActionSum
     ui.selectedBannerId = null;
   }
   return ok;
+}
+
+/**
+ * The last warning worked out. End Turn works it out, then the dialog it
+ * opens asks again for the same state and draft; on a crowded board the
+ * search takes a while, so it runs again only when either changes.
+ */
+let lastWarning: { ctx: RulesContext; state: GameState; playerId: PlayerId; draft: string; advice: BannerAdvice | null } | null = null;
+
+/**
+ * §16.3: how the Banners could harvest more next turn than the draft does,
+ * or null when they cannot, or when the game ends before that Harvest.
+ * Asked before a turn ends.
+ */
+export function bannerWarningFor(session: GameSession, legal: LegalActionSummary | null): BannerAdvice | null {
+  if (legal?.mode !== "banner_assignment") return null;
+  const { ctx, draft: state } = session;
+  const { playerId } = legal;
+  // Reading every entry also makes a Svelte $derived follow the draft.
+  const draft = JSON.stringify(ui.bannerDraft);
+  const last = lastWarning;
+  if (last && last.ctx === ctx && last.state === state && last.playerId === playerId && last.draft === draft) return last.advice;
+  let advice: BannerAdvice | null = null;
+  if (hasNextHarvest(ctx, state, playerId)) {
+    const found = getBannerAdvice(ctx, state, playerId, ui.bannerDraft);
+    if (found.best > found.current) advice = found;
+  }
+  lastWarning = { ctx, state, playerId, draft, advice };
+  return advice;
+}
+
+/** Puts the suggested placement in the draft, for the player to confirm. */
+export function applyBannerAdvice(advice: BannerAdvice): void {
+  const draft = { ...ui.bannerDraft };
+  for (const m of advice.moves) draft[m.bannerId] = m.to;
+  ui.bannerDraft = draft;
+  ui.selectedBannerId = null;
 }
 
 /**
