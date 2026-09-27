@@ -1172,6 +1172,9 @@ all six paintings in the hand, the large Siege Engines preview, both site
 silhouettes at zoom, and both inspector explanations. The user's game tab
 and saves were left untouched.
 
-Next: publish the focused draft PR and inspect CI. Keep the earlier Z.ai
-private diff export restriction in mind; do not trigger that external transfer
-without authorization. Previous rate-limit waivers covered PRs #58/#59.
+Published draft PR #67: https://github.com/L-K-M/ManorsAndMenaces/pull/67.
+Local implementation and verification are complete; CI is running. The user
+has been asked to authorize this PR's code diff going to Z.ai or waive that
+external review and merge after CI. Keep the draft until that choice arrives:
+the earlier automatic approval review rejected that private-code transfer.
+Previous rate-limit waivers covered PRs #58/#59.
