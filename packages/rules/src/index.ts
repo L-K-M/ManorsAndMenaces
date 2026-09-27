@@ -14,6 +14,6 @@ export * from "./views.js";
 export * from "./hash.js";
 export { createRulesEngine, type ApplyResult, type RulesEngine } from "./engine.js";
 export { isCardUsableInRuleset, validateCardTarget } from "./cards.js";
-export { canRecommission, chargeDeckFor, chargesPerGame, getChargeProgress, isChargeInPlay } from "./charges.js";
+export { canRecommission, chargeDeckFor, chargesPerGame, getChargeProgress } from "./charges.js";
 export { rankPlayers } from "./victory.js";
 export { clone } from "./clone.js";

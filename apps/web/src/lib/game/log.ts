@@ -346,6 +346,17 @@ export function noticeEntry(text: string, playerId: string | null): LogEntry {
 }
 
 /**
+ * Chronicle lines for what a new game drew before any command: the first
+ * seat's Sealed Charges (§27A.2). Creating a game reports no events, so the
+ * line comes from its initial state.
+ */
+export function openingLog(initial: GameState, map: MapDefinition): LogEntry[] {
+  const pending = initial.pending;
+  if (pending?.kind !== "charge") return [];
+  return formatEvents([{ type: "charges_drawn", playerId: pending.playerId, chargeIds: null, count: pending.chargeIds.length }], initial, map);
+}
+
+/**
  * Rebuilds the Chronicle of a saved game by replaying its history (the log
  * itself is not saved). When the replay stops early or does not reach
  * `saved` (unrecorded debug commands), the entries it could derive end with
@@ -358,7 +369,7 @@ export function rebuildLog(
   history: readonly GameCommand[],
   saved: GameState,
 ): { entries: LogEntry[]; complete: boolean } {
-  const entries: LogEntry[] = [];
+  const entries = openingLog(initial, map);
   const { complete } = replayHistory(engine, initial, history, (step) => entries.push(...formatEvents(step.events, step.after, map)), saved);
   if (!complete) entries.push({ id: nextId++, text: t("log.history_unavailable"), playerId: null, kind: "info" });
   return { entries, complete };

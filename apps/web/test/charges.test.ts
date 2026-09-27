@@ -4,7 +4,7 @@ import { clone, mvpRuleset, type GameEvent, type GameState, type PlayerId } from
 import { mapFor } from "../src/lib/game/engine.js";
 import { chargeChoices, chargeDescription, chargeName, heldCharge, revealedCharges } from "../src/lib/game/charges.js";
 import { feedItemsFor } from "../src/lib/game/feed.js";
-import { formatEvents } from "../src/lib/game/log.js";
+import { formatEvents, openingLog, rebuildLog } from "../src/lib/game/log.js";
 import { engine, playGame } from "./helpers.js";
 
 // Sealed Charges (§27A) on screen: your own Charge and its progress, the
@@ -73,6 +73,17 @@ describe("the Chronicle and the feed", () => {
     expect(lines).toEqual(["Player 1 sealed a Charge.", "Player 2 drew 2 Sealed Charges to choose from."]);
     for (const line of lines) for (const name of chargeNames) expect(line).not.toContain(name);
     expect(feedItemsFor(events, start, map, second)).toEqual([]);
+  });
+
+  // Regression (review): the first seat draws when the game is created,
+  // which reports no events, so the Chronicle told every draw but theirs.
+  it("tell the first seat's draw at the start of a new or loaded game", () => {
+    const opening = ["Player 1 drew 2 Sealed Charges to choose from."];
+    expect(openingLog(start, map).map((e) => e.text)).toEqual(opening);
+    const command = { type: "choose_charge" as const, chargeId: drawn[1] as string, commandId: "keep-1", matchId: start.matchId, playerId: first };
+    const loaded = rebuildLog(engine, map, start, [command], keep(start, first, drawn[1] as string).state);
+    expect(loaded.entries.map((e) => e.text)).toEqual([...opening, "Player 1 sealed a Charge.", "Player 2 drew 2 Sealed Charges to choose from."]);
+    expect(openingLog(playGame(mvpRuleset(), "no-charges", 2, 0).initial, map)).toEqual([]);
   });
 
   it("name a Charge once it is revealed, and tell a Recommission", () => {

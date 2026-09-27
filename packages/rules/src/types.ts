@@ -14,7 +14,7 @@ export type CardId = string;
 /** A card definition id, e.g. "wizard_interference". */
 export type CardDefId = string;
 export type QuestId = string;
-/** A Sealed Charge definition id (§27A), e.g. "merchant_prince". */
+/** A Sealed Charge definition id (§27A), e.g. "merchant_venturer". */
 export type ChargeId = string;
 
 export const RESOURCE_TYPES = ["grain", "timber", "stone", "iron", "essence"] as const;

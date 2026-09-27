@@ -122,6 +122,17 @@ describe("the deal at setup", () => {
     act(done, first, { type: "place_initial_manor", siteId: "s1" });
   });
 
+  it("refuses a choice when no Charge is being chosen, such as the same choice sent twice", () => {
+    const { state, p1 } = sealedGame();
+    const drawn = act(grant(seal(state, p1, "inn"), p1, { essence: 1 }), p1, { type: "recommission_charge" }).state;
+    const offer = drawn.pending?.kind === "charge" ? drawn.pending.chargeIds : [];
+    const kept = act(drawn, p1, { type: "choose_charge", chargeId: offer[0] as string }).state;
+    reject(kept, p1, { type: "choose_charge", chargeId: offer[0] as string }, "NO_CHARGE_CHOICE");
+    // Another decision waiting is not a Charge to choose either.
+    const prophecy: GameState = { ...clone(kept), pending: { kind: "prophecy", playerId: p1, cardIds: [] } };
+    reject(prophecy, p1, { type: "choose_charge", chargeId: offer[1] as string }, "NO_CHARGE_CHOICE");
+  });
+
   it("gives every player a Charge of their own, and never one naming a Menace not in play", () => {
     for (let game = 0; game < 30; game++) {
       const ruleset = sealed(cardTestRuleset(4));
@@ -154,6 +165,10 @@ describe("the deal at setup", () => {
     expect(chargeDeckFor(ctx, sealed(cardTestRuleset(2))).sort()).toEqual(["cards", "castle", "grain", "highwayman", "inn", "stone", "tower", "trades", "troll", "writs"]);
     const noWrits = sealed({ ...mvpRuleset(), writ: { ...mvpRuleset().writ, enabled: false } });
     expect(chargeDeckFor(ctx, noWrits)).not.toContain("writs");
+    // A Menace Charge needs a way to move the Menace: a Warden, or a card such as Knight Errant.
+    const noWardens = (ruleset: RulesetConfig) => sealed({ ...ruleset, warden: { ...ruleset.warden, enabled: false } });
+    expect(chargeDeckFor(ctx, noWardens(mvpRuleset()))).not.toContain("troll");
+    expect(chargeDeckFor(ctx, noWardens(cardTestRuleset(2)))).toContain("troll");
   });
 });
 

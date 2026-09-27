@@ -61,8 +61,8 @@ export const BALANCE = {
     /** Recommission, once per game: discard your Charge and draw again. */
     recommission: { essence: 1 },
     /**
-     * Charges a player may hold over a game at these Renown goals and above,
-     * one after another: after a reveal they draw again. One below 25.
+     * Charges a player may reveal over a game at these Renown goals and
+     * above, one after another: after a reveal they draw again. One below 25.
      */
     perGame: [
       { fromGoal: 25, charges: 2 },

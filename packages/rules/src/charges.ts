@@ -21,7 +21,7 @@ export type ChargeDraw = "setup" | "later";
 
 const progress = (current: number, target: number): QuestProgress => ({ complete: current >= target, current: Math.max(0, Math.min(current, target)), target });
 
-/** Charges a player may hold over a game with this Renown goal, one after another (§27A). */
+/** Charges a player may reveal over a game with this Renown goal, one after another (§27A). */
 export function chargesPerGame(targetRenown: number): number {
   let charges = 1;
   for (const step of BALANCE.sealedCharges.perGame) if (targetRenown >= step.fromGoal) charges = step.charges;
@@ -30,11 +30,11 @@ export function chargesPerGame(targetRenown: number): number {
 
 /**
  * Whether a Charge can be met in a game with these rules on this board: its
- * Menace is in play (Charges naming another are removed first), its landmark
- * is on the board, its deed is part of the rules and the board has enough
- * Regions for its Banners.
+ * Menace is in play (Charges naming another are removed first) and a Warden
+ * or a card can move it, its landmark is on the board, its deed is part of
+ * the rules and the board has enough Regions for its Banners.
  */
-export function isChargeInPlay(ctx: RulesContext, ruleset: RulesetConfig, def: ChargeRulesDefinition): boolean {
+function isChargeInPlay(ctx: RulesContext, ruleset: RulesetConfig, def: ChargeRulesDefinition): boolean {
   const goal = def.goal;
   switch (goal.kind) {
     case "landmark":
@@ -46,7 +46,7 @@ export function isChargeInPlay(ctx: RulesContext, ruleset: RulesetConfig, def: C
       if (goal.deed === "cards_bought") return ruleset.enableCards;
       return true;
     case "menace":
-      return ruleset.activeMenaces.includes(goal.menaceType);
+      return ruleset.activeMenaces.includes(goal.menaceType) && (ruleset.warden.enabled || ruleset.enableCards);
   }
 }
 
@@ -156,7 +156,7 @@ export function drawCharges(tx: Tx, playerId: PlayerId, draw: ChargeDraw): boole
 export function keepCharge(tx: Tx, playerId: PlayerId, chargeId: unknown): void {
   const s = tx.s;
   const pending = s.pending;
-  check(pending && pending.kind === "charge", "NO_PENDING_REACTION");
+  check(pending && pending.kind === "charge", "NO_CHARGE_CHOICE");
   check(pending.playerId === playerId, "NOT_ACTIVE_PLAYER");
   check(typeof chargeId === "string" && pending.chargeIds.includes(chargeId), "CHARGE_NOT_OFFERED");
   const p = tx.player(playerId);
@@ -179,7 +179,7 @@ export function revealMetCharge(tx: Tx, playerId: PlayerId): boolean {
   return true;
 }
 
-/** After a reveal: whether the player has held fewer Charges than the goal allows, and so draws again. */
+/** After a reveal: whether the player has revealed fewer Charges than the goal allows, and so draws again. */
 export function drawsAnotherCharge(state: GameState, playerId: PlayerId): boolean {
   const p = state.players[playerId];
   return !!p && !p.sealedCharge && (p.revealedChargeIds?.length ?? 0) < chargesPerGame(state.ruleset.targetRenown);

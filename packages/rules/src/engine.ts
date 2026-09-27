@@ -334,8 +334,9 @@ function execute(tx: Tx, cmd: GameCommand): void {
     case "react":
     case "pass_reaction":
     case "resolve_prophecy":
-    case "choose_charge":
       throw new RuleViolation("NO_PENDING_REACTION");
+    case "choose_charge":
+      throw new RuleViolation("NO_CHARGE_CHOICE");
     case "place_initial_manor":
     case "place_initial_route":
     case "assign_initial_banners":

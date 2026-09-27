@@ -1,7 +1,7 @@
 <script lang="ts">
   // Sealed Charges (§27A): the viewer's own Charge with its progress and
-  // Recommission, then every Charge revealed so far. Shown only with the
-  // option on, above the Royal Quests.
+  // Recommission, how many Charges the deck holds, then every Charge
+  // revealed so far. Shown only with the option on, above the Royal Quests.
   import { BALANCE, type LegalActionSummary } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { chargeDescription, chargeName, heldCharge, revealedCharges } from "../game/charges.js";
@@ -55,6 +55,8 @@
     {:else}
       <p class="none">{viewer ? t("ui.sealed_charge_none") : t("ui.sealed_charge_hidden")}</p>
     {/if}
+    <!-- A redacted deck keeps its length (§105), so everyone sees the count. -->
+    <p class="note deck">{t("ui.charges_in_deck", { count: gs.chargeDeck?.length ?? 0 })}</p>
     {#if revealed.length}
       <h4>{t("ui.charges_revealed")}</h4>
       <ul class="done">
@@ -145,6 +147,9 @@
     font-variant-numeric: tabular-nums;
     color: var(--ink-soft);
     text-align: right;
+  }
+  .deck {
+    margin-top: 0.3rem;
   }
   .recommission {
     display: grid;
