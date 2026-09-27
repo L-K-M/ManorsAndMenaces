@@ -1479,7 +1479,7 @@ No randomness is involved beyond the setup shuffle of the Quest deck (§30), so 
 
 ## 27.3 The Crown's Levy
 
-On in the Standard and async rules at every goal (`RulesetConfig.crownLevy`, from ruleset 0.9.0). The Core rules have no Quests and no Levy. Games created before 0.9.0 have no `crownLevy` field and play on without it: the engine never draws a Levy for them, so they replay as before.
+On in the Standard and async rules at every goal (`RulesetConfig.crownLevy`, from ruleset 0.9.0). The Core rules have no Quests and no Levy. Games created before 0.9.0 have no `crownLevy` field and play on without it: the engine never draws a Levy for them, so they replay as before. "Play again" after a Standard or async one adds it (`crownLevyRules`), as it adds the last round.
 
 The first round that begins with the Quest deck empty, or round 15 (`proclaimByRound`) at the latest, the King's Marshal rides in and proclaims a Levy for the next round. From then on, as each round begins, the proclaimed Levy takes effect and the Marshal proclaims the next. This round's Levy and the next round's are always public (`GameState.crownLevy`).
 

@@ -195,8 +195,8 @@ export function mvpRuleset(options: RulesetOptions = {}): RulesetConfig {
   };
 }
 
-/** The Crown's Levy for a game with this goal (§27.3). */
-function crownLevy(targetRenown: number): CrownLevyRules {
+/** The Crown's Levy a new Standard or async game with this goal gets (§27.3). */
+export function crownLevyRules(targetRenown: number): CrownLevyRules {
   const { price, renown, highGoalRenown, highGoal, proclaimByRound } = BALANCE.crownLevy;
   return { price, renown: targetRenown >= highGoal ? highGoalRenown : renown, proclaimByRound };
 }
@@ -215,7 +215,7 @@ export function standardRuleset(playerCount: number, options: RulesetOptions = {
     questExpiryRounds: BALANCE.questExpiryRounds,
     initialCards: BALANCE.initialCards,
     cardDrawEveryRounds: BALANCE.cardDrawEveryRounds,
-    crownLevy: crownLevy(targetRenown),
+    crownLevy: crownLevyRules(targetRenown),
     ...sealedChargesOption(options),
   };
 }

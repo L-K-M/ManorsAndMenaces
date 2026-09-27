@@ -51,7 +51,7 @@
   and the next round's Levy is always known. The Quest panel shows the
   Levy with a button that says why it is unavailable, a chip by the round
   number names it, and the AI saves and trades for it. Games created
-  before 0.9.0 play on without it.
+  before 0.9.0 play on without it; "Play again" adds it.
 - The Dowager, a Hero ×2, brings the deck to 53 cards (ruleset 0.9.0): at
   full cost she builds a Manor at the far end of your Route from one of
   your Strongholds, next to your own Holdings but never a rival's.
