@@ -815,13 +815,15 @@ Resolve, in order:
 4. expiration of temporary effects;
 5. reset per-turn counters (Market trades, cards played, Writs, Warden hires);
 6. with Sealed Charges, reveal the player's Charge if it is met (§27A);
-7. victory check (§7);
-8. if the game did not end, the endgame omen (§19.13);
-9. with Sealed Charges at goals 25 and 30, after a reveal, the player keeps one of two new Charges (§27A.4).
+7. at the round's last seat, with the Crown's Voice, Favour moves between rival neighbours (§129.10);
+8. victory check (§7);
+9. at the round's last seat, a full board or the last round ends the game (§7);
+10. if the game did not end, the endgame omen (§19.13);
+11. with Sealed Charges at goals 25 and 30, after a reveal, the player keeps one of two new Charges (§27A.4).
 
 All Quest claims in the base game are manual (§116). None resolve automatically here.
 
-Then advance to the next player.
+Then advance to the next player. When that begins a new round, before cards are dealt (§18.2) and the next player's Harvest: the last two rounds are announced (§7), unclaimed Quests expire (§27.2), the Crown's Levy is proclaimed (§27.3), and the Crown's Voice turns its next card (§129.10).
 
 ---
 
