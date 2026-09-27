@@ -194,6 +194,49 @@ export function isBoardFull(ctx: RulesContext, state: GameState): boolean {
   return ctx.board.topology.sites.every(({ id }) => occupied.has(id) || isRuinedSite(state, id) || ctx.board.neighbours(id).some((n) => occupied.has(n)));
 }
 
+// ------------------------------------------------------------------ game end (§7)
+// The End Turn checks (engine.ts endTurn) and hasNextHarvest share these.
+
+/** Whether the player takes the round's last turn, so their End Turn ends the round. */
+export function isLastSeat(state: GameState, playerId: PlayerId): boolean {
+  return state.turnOrder.indexOf(playerId) === state.turnOrder.length - 1;
+}
+
+/**
+ * Whether the round in play is the game's last (§7): the game ends when it
+ * ends. Never in games created without one (before ruleset 0.8.0).
+ */
+export function isLastRound(state: GameState): boolean {
+  const lastRound = state.ruleset.lastRound ?? 0;
+  return lastRound > 0 && state.round >= lastRound;
+}
+
+/** Players with the target Renown, in turn order: an End Turn now ends the game (§7). */
+export function playersAtTarget(ctx: RulesContext, state: GameState): PlayerId[] {
+  return state.turnOrder.filter((id) => getRenown(ctx, state, id) >= state.ruleset.targetRenown);
+}
+
+/** Whether a round that ends now ends the game on a full board (§7). */
+export function endsOnFullBoard(ctx: RulesContext, state: GameState): boolean {
+  return state.ruleset.endOnFullBoard === true && isBoardFull(ctx, state);
+}
+
+/**
+ * Whether the player harvests again, at the start of their next turn:
+ * false when the game is sure to end first. That is when someone has the
+ * target Renown (the game ends at this End Turn, or with the round under
+ * equal turns), when equal turns already end the game with this round, in
+ * the last round, and when the player ends the round on a full board.
+ * Endings still open are not foreseen: Ragnarök, a rival reaching the
+ * target later in the round, and a board that fills before the round's last
+ * seat, which a card could empty again.
+ */
+export function hasNextHarvest(ctx: RulesContext, state: GameState, playerId: PlayerId): boolean {
+  if (state.status === "finished" || state.endTriggered || isLastRound(state)) return false;
+  if (playersAtTarget(ctx, state).length > 0) return false;
+  return !(isLastSeat(state, playerId) && endsOnFullBoard(ctx, state));
+}
+
 // ------------------------------------------------------------------ build requirements
 
 export type BuildCheck =

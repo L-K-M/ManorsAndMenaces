@@ -201,7 +201,8 @@ export interface RulesetConfig {
   /**
    * The game ends when this round ends at the latest, and the most Renown
    * wins (§7). Absent or 0 in games created before ruleset 0.8.0, which play
-   * on.
+   * on. Otherwise 3 or more, so that both rounds that announce the end
+   * (`reign_ending`) begin after setup.
    */
   lastRound?: number;
 }

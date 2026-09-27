@@ -18,13 +18,16 @@ import {
   checkUpgrade,
   checkWritTarget,
   computeBannerHarvest,
+  endsOnFullBoard,
   getPlayerBanners,
   getRenown,
   holdingAt,
-  isBoardFull,
+  isLastRound,
+  isLastSeat,
   isLegalMenaceDestination,
   isRuinedSite,
   passesSpacing,
+  playersAtTarget,
   totalBuildCost,
   validateBannerAssignment,
   type BuildCheck,
@@ -513,7 +516,7 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   // Refill revealed Quests. After the last seat's turn they are first
   // claimable next round, so their expiry clock (§27.2) starts there. This
   // last-seat test must match the seat wrap that advances s.round below.
-  const claimableFrom = s.turnOrder.indexOf(playerId) === s.turnOrder.length - 1 ? s.round + 1 : s.round;
+  const claimableFrom = isLastSeat(s, playerId) ? s.round + 1 : s.round;
   while (s.ruleset.enableQuests && s.revealedQuestIds.length < s.ruleset.revealedQuestCount && s.questDeck.length > 0) revealTopQuest(tx, undefined, claimableFrom);
   // A burned Route's owner had their turn to rebuild it (Fire Bolt, §19.14).
   if (s.activeEffects.some((e) => e.kind === "smouldering" && e.ownerId === playerId)) {
@@ -531,7 +534,9 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   p.wardensHiredThisTurn = 0;
   tx.emit({ type: "turn_ended", playerId });
 
-  const endsRound = s.turnOrder.indexOf(playerId) === s.turnOrder.length - 1;
+  // These checks are shared with hasNextHarvest (selectors.ts), which says
+  // whether a player harvests again before the game ends.
+  const endsRound = isLastSeat(s, playerId);
   let winner = checkVictory(tx);
   if (winner && s.ruleset.equalTurns) {
     s.endTriggered = true;
@@ -544,20 +549,21 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   // Renown any more, so the best Renown wins, target reached or not (§7).
   // Until the round's last seat, each turn on a full board says so; a card
   // that empties the board again (Raiders, Siege Engines) lets the game go on.
-  if (s.ruleset.endOnFullBoard && isBoardFull(tx.ctx, s)) {
+  if (endsOnFullBoard(tx.ctx, s)) {
     if (endsRound) return finishGame(tx, checkVictory(tx, true) as PlayerId, "full_board");
     tx.emit({ type: "board_full" });
   }
   // Every game ends with its last round at the latest, and the most Renown
   // wins, target reached or not (§7). Absent or 0 in older games, which play on.
-  const lastRound = s.ruleset.lastRound ?? 0;
-  if (lastRound > 0 && endsRound && s.round >= lastRound) return finishGame(tx, checkVictory(tx, true) as PlayerId, "last_round");
+  if (endsRound && isLastRound(s)) return finishGame(tx, checkVictory(tx, true) as PlayerId, "last_round");
   foretellEndgame(tx);
   const idx = s.turnOrder.indexOf(playerId);
   const nextIdx = (idx + 1) % s.turnOrder.length;
   if (nextIdx === 0) {
     s.round += 1;
-    // Told one round ahead, and again as the last round begins.
+    // Told one round ahead, and again as the last round begins (lastRound
+    // is 3 or more: round 1 begins at setup, which tells nothing).
+    const lastRound = s.ruleset.lastRound ?? 0;
     if (lastRound > 0 && s.round >= lastRound - 1 && s.round <= lastRound) tx.emit({ type: "reign_ending", round: s.round, lastRound });
     expireQuests(tx);
     const interval = s.ruleset.cardDrawEveryRounds ?? 0;
@@ -571,7 +577,7 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
 /** §7 victory check with tie-breaks. */
 function checkVictory(tx: Tx, anyPlayer = false): PlayerId | null {
   const s = tx.s;
-  const eligible = anyPlayer ? [...s.turnOrder] : s.turnOrder.filter((id) => getRenown(tx.ctx, s, id) >= s.ruleset.targetRenown);
+  const eligible = anyPlayer ? [...s.turnOrder] : playersAtTarget(tx.ctx, s);
   return rankPlayers(tx.ctx, s, eligible)[0] ?? null;
 }
 

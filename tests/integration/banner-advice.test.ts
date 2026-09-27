@@ -6,11 +6,15 @@ import {
   createRulesEngine,
   getBannerAdvice,
   getHarvestPreview,
+  hasNextHarvest,
+  mvpRuleset,
   seedRng,
   standardRuleset,
   validateBannerAssignment,
   RULESET_VERSION,
   type GameState,
+  type PlayerId,
+  type RulesetConfig,
 } from "@manors-menaces/rules";
 
 // The Banner warning (§16.3) against the AI's own Banner search
@@ -69,5 +73,45 @@ describe("Banner advice against the AI", () => {
     expect(tally.aiWarnings).toBe(0);
     // Not vacuous: Banners left where they were often could do better.
     expect(tally.keptWarnings).toBeGreaterThan(tally.phases / 5);
+  }, 120_000);
+});
+
+// The warning is only given when the player harvests again (hasNextHarvest):
+// whenever it says they will not, the game ends before their next turn.
+function playOut(seed: string, ruleset: RulesetConfig, players: number): number {
+  const engine = createRulesEngine(rulesContentFor(mapIdForNewGame(seed)));
+  let s: GameState = engine.createGame({
+    matchId: `m-${seed}`,
+    seed,
+    rulesetVersion: RULESET_VERSION,
+    ruleset,
+    players: Array.from({ length: players }, (_, i) => ({ id: `P${i + 1}`, displayName: `P${i + 1}` })),
+  });
+  const rng = createRng(seedRng(`ai-${seed}`));
+  // Players told they will not harvest again, with the turn they were told in.
+  const told = new Map<PlayerId, number>();
+  for (let step = 0; step < 20000 && s.status !== "finished"; step++) {
+    const r = runAiUntilHuman(engine, s, () => true, () => ({ level: "normal", rng }), 1);
+    const command = r.commands[0];
+    if (!command) break;
+    if (s.status === "playing" && command.type === "end_turn" && !hasNextHarvest(engine.ctx, s, command.playerId)) told.set(command.playerId, s.turnNumber);
+    s = r.state;
+    const since = told.get(s.activePlayerId);
+    if (s.status === "playing" && since !== undefined) expect(s.turnNumber, `${seed}: ${s.activePlayerId} began another turn`).toBe(since);
+  }
+  expect(s.status).toBe("finished");
+  return told.size;
+}
+
+describe("hasNextHarvest against played games", () => {
+  it("never says a player will not harvest again when they do", () => {
+    // Games that end with the last round, with equal turns after the target,
+    // and on a full board; the seeds avoid Ragnarök, which nothing foretells.
+    const told = [
+      playOut("next-harvest-1", { ...standardRuleset(3), lastRound: 6 }, 3),
+      playOut("next-harvest-eq-6", { ...standardRuleset(3), equalTurns: true }, 3),
+      playOut("next-harvest-full-6", mvpRuleset({ targetRenown: 25 }), 3),
+    ];
+    for (const players of told) expect(players).toBeGreaterThan(0);
   }, 120_000);
 });
