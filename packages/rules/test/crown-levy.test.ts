@@ -158,6 +158,19 @@ describe("proclaiming the Levy (§27.3)", () => {
     // The same seed calls the same Levies.
     expect(called()).toEqual(order);
   });
+
+  it("never calls one resource two rounds running, even as a new cycle begins", () => {
+    const s = playTo(withEmptyDeck(setupGame(levyRules()).state), 2).state;
+    // The same RNG state ends a cycle with each resource in turn.
+    for (const last of RESOURCE_TYPES) {
+      const endOfCycle = clone(s);
+      endOfCycle.crownLevy = { current: null, next: last, called: [...RESOURCE_TYPES.filter((r) => r !== last), last], answeredBy: [] };
+      const levy = playTo(endOfCycle, s.round + 1).state.crownLevy;
+      expect(levy?.current).toBe(last);
+      expect(levy?.next).not.toBe(last);
+      expect(levy?.called).toEqual([levy?.next]);
+    }
+  });
 });
 
 describe("answering the Levy (§27.3)", () => {

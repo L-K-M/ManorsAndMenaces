@@ -891,8 +891,9 @@ function expireQuests(tx: Tx): void {
  * with the Quest deck empty, or as `proclaimByRound` begins, for the round
  * after; from then on the proclaimed Levy takes effect and the next is
  * proclaimed. Each Levy names a resource drawn from the match RNG among
- * those not yet called in this cycle of five. Games without the rule never
- * draw, so they replay as before.
+ * those not yet called in this cycle of five; a new cycle never opens with
+ * the resource that closed the last. Games without the rule never draw, so
+ * they replay as before.
  */
 function proclaimLevy(tx: Tx): void {
   const s = tx.s;
@@ -901,7 +902,8 @@ function proclaimLevy(tx: Tx): void {
   const levy = s.crownLevy;
   if (!levy && s.questDeck.length > 0 && s.round < rules.proclaimByRound) return;
   const cycle = levy && levy.called.length < RESOURCE_TYPES.length ? levy.called : [];
-  const open = RESOURCE_TYPES.filter((r) => !cycle.includes(r));
+  // The last Levy is in `cycle`, or closed the last cycle: never twice running.
+  const open = RESOURCE_TYPES.filter((r) => !cycle.includes(r) && r !== levy?.next);
   const next = open[tx.rng.nextInt(open.length)] as ResourceType;
   const current = levy?.next ?? null;
   s.crownLevy = { current, next, called: [...cycle, next], answeredBy: [] };

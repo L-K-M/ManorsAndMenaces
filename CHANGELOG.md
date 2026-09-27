@@ -31,10 +31,11 @@
   the Quest deck runs out, or by round 16, each round the King's Marshal
   names a resource, and each player may pay 5 of it once a round for 1
   Renown, or 2 at goals of 25 and 30. The five resources come in a random
-  order, each once before any repeats, and the next round's Levy is always
-  known. The Quest panel shows the Levy with a button that says why it is
-  unavailable, a chip by the round number names it, and the AI saves and
-  trades for it. Games created before 0.8.0 play on without it.
+  order, each once before any repeats and never one two rounds running,
+  and the next round's Levy is always known. The Quest panel shows the
+  Levy with a button that says why it is unavailable, a chip by the round
+  number names it, and the AI saves and trades for it. Games created
+  before 0.8.0 play on without it.
 - The Dowager, a Hero ×2, brings the deck to 53 cards: at full cost she
   builds a Manor at the far end of your Route from one of your
   Strongholds, next to your own Holdings but never a rival's. Raiders'
