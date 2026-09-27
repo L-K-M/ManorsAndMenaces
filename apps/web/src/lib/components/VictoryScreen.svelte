@@ -94,6 +94,7 @@
     { key: "quests", label: "stat.renown_quests" },
     { key: "levy", label: "stat.renown_levy" },
     { key: "charges", label: "stat.renown_charges" },
+    { key: "favour", label: "stat.renown_favour" },
     { key: "other", label: "stat.renown_other" },
   ] as const;
 
@@ -689,6 +690,9 @@
   }
   .seg.charges {
     background: #8a3b2c;
+  }
+  .seg.favour {
+    background: #6b4e8a;
   }
   .seg.other {
     background: #9a9489;

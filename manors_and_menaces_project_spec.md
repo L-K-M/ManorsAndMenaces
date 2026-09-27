@@ -4761,7 +4761,7 @@ It is off unless a game is created with `RulesetConfig.crownsVoice`: New Game > 
 
 As the next round begins, the next Voice becomes the current one and a new next card is turned.
 
-**Favour** is public and counts as Renown: `getRenown`, the `favour` part of `getRenownSources` and the Renown dialog. Losing Favour never takes Renown below 0 (§8). Nothing is demolished and nobody loses a Holding: La Città's cascade from lost citizens to lost buildings is left out.
+**Favour** is public and counts as Renown: `getRenown`, the `favour` part of `getRenownSources`, the Renown dialog and its own part of the results bar. Losing Favour never takes Renown below 0 (§8). Nothing is demolished and nobody loses a Holding: La Città's cascade from lost citizens to lost buildings is left out.
 
 **Settings.** `crownsVoice: { purse, from }`. `purse` is the Favour the Crown starts with. With `from: "first_round"` the Voice speaks at the end of every round. With `"quest_deck_empty"` it speaks at the end of every round from the first that begins with the Royal Quest deck empty; Core games have no Quests, so there it speaks from round 1. The deck runs out in an End Turn, as a claimed Quest is replaced, and the Voice then waits for the next round instead of speaking as that round ends. So every seat knows a full round ahead, and the player whose End Turn empties the deck cannot make the Voice speak before the others can act. The state records it as a round begins (`crownsVoice.speaking`), and it never falls silent again. A waiting Voice does not turn, and its first speaking round favours the virtue it showed while it waited. New games get `crownsVoiceRules()`: a purse of 15, speaking once the Quest deck is empty.
 

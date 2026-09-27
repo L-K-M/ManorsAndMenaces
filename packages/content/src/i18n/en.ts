@@ -1281,6 +1281,7 @@ export const EN: Record<string, string> = {
   "feed.levy_proclaimed": "The Crown levies {current} this round, and {resource} next round",
   "feed.levy_answered": "{name} answered the Crown's Levy: +{renown} Renown",
   "stat.renown_levy": "Levy",
+  "stat.renown_favour": "Favour",
   "ui.levy_renown": "The Crown's Levy",
   "ui.levy_rules": "The Crown's Levy (Standard rules): once the Quest deck runs out, by round {round} at the latest, each round names a resource. Pay {price} of it, once a round, for {renown} Renown, or {more} at goals of {goal} and more. The next round's Levy is always known.",
   "ui.levy_hint": "Once the Quest deck runs out, by round {round} at the latest, the Crown's Levy offers {renown} Renown a round for {price} of the resource it names.",
