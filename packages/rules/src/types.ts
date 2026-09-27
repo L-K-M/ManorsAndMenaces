@@ -14,6 +14,8 @@ export type CardId = string;
 /** A card definition id, e.g. "wizard_interference". */
 export type CardDefId = string;
 export type QuestId = string;
+/** A Sealed Charge definition id (§27A), e.g. "merchant_venturer". */
+export type ChargeId = string;
 
 export const RESOURCE_TYPES = ["grain", "timber", "stone", "iron", "essence"] as const;
 export type ResourceType = (typeof RESOURCE_TYPES)[number];
@@ -149,11 +151,33 @@ export interface QuestRulesDefinition {
   exclusive: boolean;
 }
 
+/** The deeds a Sealed Charge can ask for, counted from when it was drawn (§27A). */
+export const CHARGE_DEEDS = ["writs", "trades", "cards_bought"] as const;
+export type ChargeDeed = (typeof CHARGE_DEEDS)[number];
+
+/** What a Sealed Charge asks for (§27A): typed code keyed by `kind`, with the numbers from content. */
+export type ChargeGoal =
+  /** The player's network reaches the landmark, and one of their Banners is in a Region touching its Site. */
+  | { kind: "landmark"; landmarkId: LandmarkId }
+  /** Banners in `count` different Regions of `resource` at the same time. */
+  | { kind: "banners"; resource: ResourceType; count: number }
+  /** `count` of the deed since the Charge was drawn. */
+  | { kind: "deed"; deed: ChargeDeed; count: number }
+  /** Move the Menace `count` times since the Charge was drawn. */
+  | { kind: "menace"; menaceType: MenaceType; count: number };
+
+export interface ChargeRulesDefinition {
+  id: ChargeId;
+  goal: ChargeGoal;
+}
+
 /** Everything content-specific the engine is parameterised with. */
 export interface RulesContent {
   board: BoardTopology;
   cards: CardRulesDefinition[];
   quests: QuestRulesDefinition[];
+  /** The Sealed Charge deck (§27A). Absent: no Charge can be dealt. */
+  charges?: ChargeRulesDefinition[];
 }
 
 // ------------------------------------------------------------------ config
@@ -212,6 +236,12 @@ export interface RulesetConfig {
    * ruleset 0.8.0 and in the Core rules, which never hear of it.
    */
   crownLevy?: CrownLevyRules;
+  /**
+   * Sealed Charges (§27A): each player keeps a hidden personal goal, revealed
+   * and scored at their End Turn once met. A lobby option from ruleset
+   * 0.8.0; absent or false, nobody holds a Charge.
+   */
+  sealedCharges?: boolean;
 }
 
 /** How the Crown's Levy runs in a game (§27.3). */
@@ -292,6 +322,18 @@ export interface PlayerStats {
   writsReceived: number;
   marketTrades: number;
   cardsBought: number;
+  /** Moves of each Menace type by this player, kept only with Sealed Charges (§27A). */
+  menaceMoves?: Partial<Record<MenaceType, number>>;
+}
+
+/** A player's unrevealed Charge (§27A). Rivals see only that one is held. */
+export interface SealedCharge {
+  id: ChargeId;
+  /**
+   * A deed or Menace Charge: the player's count of it when the Charge was
+   * drawn, since the goal counts only what comes after.
+   */
+  since?: number;
 }
 
 export interface PlayerState {
@@ -314,6 +356,12 @@ export interface PlayerState {
   claimedQuestIds: QuestId[];
   /** Charter cards kept face up in front of the player (§18.1). Absent in older saves. */
   charters?: CardId[];
+  /** Sealed Charges (§27A): the Charge the player holds face down, if any. */
+  sealedCharge?: SealedCharge;
+  /** Sealed Charges met and revealed, in order; each is worth `BALANCE.sealedCharges.renown`. */
+  revealedChargeIds?: ChargeId[];
+  /** The player has used their one Recommission (§27A). */
+  recommissioned?: boolean;
   stats: PlayerStats;
   marketTradesThisTurn: number;
   nonReactionCardsPlayedThisTurn: number;
@@ -374,6 +422,13 @@ export type PendingDecision =
       playerId: PlayerId;
       /** Top cards of the deck, in current order (hidden from others). */
       cardIds: CardId[];
+    }
+  | {
+      /** Sealed Charges (§27A): keep one of the Charges drawn; the rest go to the bottom of the deck. */
+      kind: "charge";
+      playerId: PlayerId;
+      /** The Charges drawn (hidden from others). */
+      chargeIds: ChargeId[];
     };
 
 /** Card target payloads, discriminated by the card's effect. */
@@ -437,6 +492,8 @@ export interface GameState {
 
   questDeck: QuestId[];
   revealedQuestIds: QuestId[];
+  /** Sealed Charges (§27A): the face-down Charge deck, top first. Absent when the option is off. */
+  chargeDeck?: ChargeId[];
   /** First round each revealed Quest can be claimed in (§27.2); kept only when `ruleset.questExpiryRounds` is on. */
   revealedQuestRounds?: Record<QuestId, number>;
 

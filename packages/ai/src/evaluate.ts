@@ -23,12 +23,15 @@ import {
   type ResourceType,
   type RulesContext,
 } from "@manors-menaces/rules";
+import { SEALED_CHARGE_RENOWN, chargeOutlook, chargeSavings } from "./charges.js";
 import { BASE_NEED, planExpansion } from "./expansion.js";
 
 export const WEIGHTS = {
   renown: 8,
   nextHarvest: 1.2,
   questProgress: 1.5,
+  /** Per Renown of the player's own Sealed Charge, times their progress toward it (§27A). */
+  chargeProgress: 2,
   networkReach: 1.2,
   diversity: 1,
   menacePressureOnOpponents: 0.15,
@@ -113,6 +116,9 @@ export function resourceNeeds(ctx: RulesContext, state: GameState, playerId: Pla
   const price = state.ruleset.crownLevy?.price ?? 0;
   if (levy?.current && !levy.answeredBy.includes(playerId)) goals.push({ cost: { [levy.current]: price }, weight: LEVY_GOAL_WEIGHT });
   if (levy) goals.push({ cost: { [levy.next]: price }, weight: NEXT_LEVY_GOAL_WEIGHT });
+  // A deed Charge (§27A) is a side goal like a card: the Writ, card or Warden it needs next.
+  const deed = chargeSavings(ctx, state, playerId);
+  if (deed) goals.push({ cost: deed, weight: CARD_GOAL_WEIGHT });
   for (const goal of goals) {
     for (const r of RESOURCE_TYPES) {
       const missing = Math.max(0, (goal.cost[r] ?? 0) - p.resources[r]);
@@ -185,7 +191,12 @@ export function stockWorth(n: number): number {
  * closest to winning, as human players aim trouble at the leader.
  */
 export function threat(ctx: RulesContext, state: GameState, playerId: PlayerId): number {
-  return 0.5 + getRenown(ctx, state, playerId) / state.ruleset.targetRenown;
+  return 0.5 + expectedRenown(ctx, state, playerId) / state.ruleset.targetRenown;
+}
+
+/** A rival's Renown as the AI expects it: a sealed Charge (§27A), hidden from it, counts `SEALED_CHARGE_RENOWN`. */
+function expectedRenown(ctx: RulesContext, state: GameState, playerId: PlayerId): number {
+  return getRenown(ctx, state, playerId) + (state.players[playerId]?.sealedCharge ? SEALED_CHARGE_RENOWN : 0);
 }
 
 /**
@@ -354,6 +365,9 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
     const prog = getQuestProgress(ctx, state, playerId, q);
     quest += (prog.current / prog.target) * ctx.quest(q).renown;
   }
+  // The player's own Sealed Charge (§27A), scored at their End Turn once met.
+  const sealed = p.sealedCharge;
+  const charge = sealed ? chargeOutlook(ctx, state, playerId, sealed) * BALANCE.sealedCharges.renown : 0;
 
   let opponents = 0;
   let opponentRenown = 0;
@@ -371,7 +385,7 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
   for (const id of state.turnOrder) {
     if (id === playerId) continue;
     const weight = threat(ctx, state, id);
-    const theirRenown = getRenown(ctx, state, id);
+    const theirRenown = expectedRenown(ctx, state, id);
     const theirs = state.players[id]?.resources;
     opponents += weight * menacePressure(ctx, state, id);
     opponentRenown = Math.max(opponentRenown, theirRenown);
@@ -389,6 +403,7 @@ export function evaluate(ctx: RulesContext, state: GameState, playerId: PlayerId
     WEIGHTS.denial * opponentHarvest +
     WEIGHTS.stock * stock +
     WEIGHTS.questProgress * quest +
+    WEIGHTS.chargeProgress * charge +
     WEIGHTS.networkReach * 0.25 * reach +
     WEIGHTS.buildOptions * Math.min(buildOptions, 2) +
     WEIGHTS.expansion * expansion +

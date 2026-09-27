@@ -28,6 +28,8 @@ export interface RenownBreakdown {
   quests: number;
   /** From answering the Crown's Levy (§27.3). */
   levy: number;
+  /** Sealed Charges revealed (§27A). */
+  charges: number;
   /** Anything else (bonus Renown). */
   other: number;
   /** Renown lost for good (Disgrace, Stolen Glory): the parts above less this make the total. */
@@ -138,7 +140,8 @@ export function buildMatchReport(engine: RulesEngine, final: GameState, history:
 export function renownBreakdown(engine: RulesEngine, state: GameState, playerId: PlayerId): RenownBreakdown {
   const s = getRenownSources(engine.ctx, state, playerId);
   const quests = s.quests.reduce((sum, q) => sum + q.renown, 0);
-  return { total: s.total, manors: s.manors.renown, strongholds: s.strongholds.renown, quests, levy: s.levy, other: s.bonus, lost: s.lost };
+  const charges = s.charges.reduce((sum, c) => sum + c.renown, 0);
+  return { total: s.total, manors: s.manors.renown, strongholds: s.strongholds.renown, quests, levy: s.levy, charges, other: s.bonus, lost: s.lost };
 }
 
 /**
@@ -155,18 +158,21 @@ export function renownBar(b: RenownBreakdown): Record<RenownPart, number> {
   };
   const other = keep(b.other);
   const levy = keep(b.levy);
+  const charges = keep(b.charges);
   const quests = keep(b.quests);
   const strongholds = keep(b.strongholds);
-  return { manors: keep(b.manors), strongholds, quests, levy, other };
+  return { manors: keep(b.manors), strongholds, quests, levy, charges, other };
 }
 
 /**
  * The Renown parts the results legend keys: Manors, Strongholds and Quests
- * always, and the Crown's Levy once someone's bar shows it (§27.3).
+ * always, and the Crown's Levy (§27.3) and Sealed Charges (§27A) once
+ * someone's bar shows them.
  */
 export function legendParts(standings: readonly PlayerResult[]): RenownPart[] {
-  const levy = standings.some((r) => renownBar(r.renown).levy > 0);
-  return ["manors", "strongholds", "quests", ...(levy ? (["levy"] as const) : [])];
+  const bars = standings.map((r) => renownBar(r.renown));
+  const extra = (["levy", "charges"] as const).filter((part) => bars.some((bar) => bar[part] > 0));
+  return ["manors", "strongholds", "quests", ...extra];
 }
 
 function rankPlayers(state: GameState, result: (id: PlayerId) => PlayerResult): PlayerResult[] {

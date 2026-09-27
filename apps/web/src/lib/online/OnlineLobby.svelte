@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t } from "../i18n.js";
   import { RIVALS, rivalById } from "@manors-menaces/content";
+  import { BALANCE } from "@manors-menaces/rules";
   import { assignRivals, rivalName } from "../game/rivals.js";
   // Online lobby (spec §86): guest session, private invite links first,
   // your asynchronous matches, and joining by code.
@@ -41,6 +42,8 @@
   // The Renown to win (§7), as on New Game: the default until you pick one.
   let pickedGoal: number | null = $state(rememberedRenownGoal());
   const goal = $derived(renownGoal(rules, seatCount, pickedGoal));
+  // Sealed Charges (§27A), as on New Game: off unless chosen.
+  let sealedCharges = $state(false);
   let aiCount = $state(0);
   let aiLevel: AiLevel = $state("normal");
   let joinCode = $state(new URLSearchParams(location.hash.replace(/^#\/?join\/?/, "code=")).get("code") ?? "");
@@ -187,6 +190,7 @@
         seatCount,
         rulesetName: rules,
         targetRenown,
+        ...(sealedCharges ? { sealedCharges: true } : {}),
         aiSeats: rivalIds.map((id) => {
           const rival = rivalById(id);
           return { displayName: rival ? rivalName(rival) : "Robot", level: aiLevel };
@@ -334,6 +338,11 @@
           </select>
         </label>
         <p class="hint" id="lobby-goal-hint">{renownGoalHint(rules, seatCount, goal.value)}</p>
+        <label class="option">
+          <input type="checkbox" bind:checked={sealedCharges} />
+          {t("ui.sealed_charges_option")}
+          <small class="muted">{t("ui.sealed_charges_hint", { renown: BALANCE.sealedCharges.renown })}</small>
+        </label>
         <button class="primary" disabled={busy}>{t("ui.create_get_invite_link")}</button>
       </form>
       <form onsubmit={(e) => (e.preventDefault(), join())}>
@@ -455,6 +464,14 @@
     margin-top: 1rem;
   }
   .push small {
+    grid-column: 2;
+  }
+  .option {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: 0.4rem;
+  }
+  .option small {
     grid-column: 2;
   }
   .battery {

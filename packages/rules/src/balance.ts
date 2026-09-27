@@ -61,6 +61,23 @@ export const BALANCE = {
    * runs out, as round 15 begins at the latest.
    */
   crownLevy: { price: 5, renown: 1, highGoalRenown: 2, highGoal: 25, proclaimByRound: 15 },
+  /** Sealed Charges, the lobby option (§27A). */
+  sealedCharges: {
+    /** Renown a met Charge scores when revealed, as much as a major Quest. */
+    renown: 2,
+    /** Charges drawn each time; the player keeps one. */
+    drawn: 2,
+    /** Recommission, once per game: discard your Charge and draw again. */
+    recommission: { essence: 1 },
+    /**
+     * Charges a player may reveal over a game at these Renown goals and
+     * above, one after another: after a reveal they draw again. One below 25.
+     */
+    perGame: [
+      { fromGoal: 25, charges: 2 },
+      { fromGoal: 30, charges: 3 },
+    ],
+  },
 } as const;
 
 export const RULESET_VERSION = "0.8.0";
@@ -98,6 +115,8 @@ export interface RulesetOptions {
    * and players. Absent: the rules' default (§7).
    */
   targetRenown?: number;
+  /** Deal Sealed Charges (§27A), the lobby option. Absent: off. */
+  sealedCharges?: boolean;
 }
 
 /** The Renown goal a new game has unless another is chosen (§7). The Core goal does not depend on the player count. */
@@ -133,6 +152,16 @@ function chosenTargetRenown(fallback: number, options: RulesetOptions): number {
   return target;
 }
 
+/** Whether a request's Sealed Charges option (§27A) is valid: absent, true or false; for checking untrusted input. */
+export function isSealedChargesChoice(option: unknown): option is boolean | undefined {
+  return option === undefined || typeof option === "boolean";
+}
+
+/** The option as a ruleset field: present only when on, so rulesets without it stay as they were. */
+function sealedChargesOption(options: RulesetOptions): Pick<RulesetConfig, "sealedCharges"> {
+  return options.sealedCharges ? { sealedCharges: true } : {};
+}
+
 /** §91 — MVP: no cards, no Quests, Toll Troll only, 10 Renown unless another goal is chosen. */
 export function mvpRuleset(options: RulesetOptions = {}): RulesetConfig {
   return {
@@ -143,6 +172,7 @@ export function mvpRuleset(options: RulesetOptions = {}): RulesetConfig {
     enableCards: false,
     enableReactionCards: false,
     enableQuests: false,
+    ...sealedChargesOption(options),
   };
 }
 
@@ -167,6 +197,7 @@ export function standardRuleset(playerCount: number, options: RulesetOptions = {
     initialCards: BALANCE.initialCards,
     cardDrawEveryRounds: BALANCE.cardDrawEveryRounds,
     crownLevy: crownLevy(targetRenown),
+    ...sealedChargesOption(options),
   };
 }
 

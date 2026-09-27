@@ -42,6 +42,13 @@
   rebuild window works for her Manor, and for a Manor of yours burned
   beside it, too. The AI plays her where no ordinary Manor fits, and the
   card shows its Hero emblem until it is painted.
+- Sealed Charges, an option on New Game and in the online lobby (ruleset
+  0.8.0): every player keeps 1 of 2 secret goals (reach a landmark, hold
+  Banners in several Regions of a resource, or deeds such as 3 Royal
+  Writs or 2 moves of a Menace). A goal you meet is revealed at your End
+  Turn for 2 Renown. At goals 25 and 30 you draw again after a reveal,
+  and once per game you may pay 1 Essence to trade your Charge in. Rivals
+  see only that you hold one.
 - The AI no longer reads hidden information: it plans on what its player
   can see and weighs each Spell by the chance a rival holds a Counterspell.
   It values each card by what it tends to be worth, so it buys and plays
