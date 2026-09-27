@@ -231,8 +231,10 @@ describe("AI playouts", () => {
   }
 
   // The AI ignores the virtues (§129.7) but must still play such games out.
+  // The Voice speaks from round 1 here: by default it waits for the Quest
+  // deck, which a game to 15 Renown seldom empties.
   it("voice-3p: games with the Crown's Voice finish, move Favour and replay the same", () => {
-    const rs: RulesetConfig = { ...playoutRuleset(3), crownsVoice: crownsVoiceRules() };
+    const rs: RulesetConfig = { ...playoutRuleset(3), crownsVoice: { ...crownsVoiceRules(), from: "first_round" } };
     const { initial, final, steps, won } = playGame(3, rs, "voice-3p");
     expectWinner(final, won, rs.targetRenown);
     const replayed = replaySteps(initial, steps);

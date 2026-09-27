@@ -32,6 +32,7 @@
   // The Crown's Voice (§129.7): an experimental rule, offered in local games only.
   let crownsVoice = $state(false);
   const voiceHint = t("ui.crowns_voice_hint", {
+    start: t(`ui.crowns_voice_from.${BALANCE.crownsVoice.from}`),
     virtues: listText(CROWNS_VIRTUES.map(virtueName)),
     purse: BALANCE.crownsVoice.purse,
     max: BALANCE.crownsVoice.maxGainPerRound,

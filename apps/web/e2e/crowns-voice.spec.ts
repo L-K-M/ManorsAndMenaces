@@ -7,7 +7,7 @@ import { pick } from "./pick";
 
 const VOICE = /^The Crown favours (Might|Roads|Plenty) \(next: (Might|Roads|Plenty)\)$/;
 
-async function start(page: Page, voice: boolean) {
+async function start(page: Page, voice: boolean, rules: "Standard" | "Core" = "Standard") {
   await page.goto("/");
   await page.evaluate(() => {
     localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", privacyCurtain: false, sound: false }));
@@ -17,6 +17,7 @@ async function start(page: Page, voice: boolean) {
   await page.getByRole("button", { name: "New game", exact: true }).click();
   await page.getByRole("radio", { name: "2", exact: true }).check({ force: true });
   await page.getByLabel("Player 2 type").selectOption("human");
+  await page.getByRole("radio", { name: new RegExp(`^${rules}`) }).check();
   if (voice) {
     await page.getByText("Advanced", { exact: true }).click();
     await page.getByRole("checkbox", { name: "Crown's Voice (experimental)" }).check();
@@ -36,8 +37,14 @@ async function endTurn(page: Page) {
   await page.getByRole("button", { name: /End Turn/ }).click();
 }
 
-test("the Crown's Voice shows this round's virtue and the next, and turns as a round begins", async ({ page }) => {
+test("the Crown's Voice waits for the Quest deck to empty in Standard games", async ({ page }) => {
   await start(page, true);
+  await expect(page.locator(".topbar .voice .text")).toHaveText(/^Once the Quest deck is empty, the Crown favours (Might|Roads|Plenty) \(next: (Might|Roads|Plenty)\)$/);
+});
+
+// Core games have no Quests, so the Voice speaks from the first round.
+test("the Crown's Voice shows this round's virtue and the next, and turns as a round begins", async ({ page }) => {
+  await start(page, true, "Core");
   const chip = page.locator(".topbar .voice .text");
   await expect(chip).toHaveText(VOICE);
   const next = VOICE.exec((await chip.textContent()) ?? "")?.[2];

@@ -64,7 +64,7 @@ export const BALANCE = {
     maxGainPerRound: 2,
     /** The settings a new game with the Voice gets, chosen by simulation (§129.7). */
     purse: 15,
-    from: "first_round",
+    from: "quest_deck_empty",
   },
 } as const;
 
