@@ -2,7 +2,11 @@
 // telemetry the spec asks for, checked against the §68 targets.
 //
 // Usage: pnpm simulate [--games N] [--players 2|3|4] [--rules mvp|standard] [--level easy|normal|hard] [--max-rounds N] [--equal-turns]
-//                       [--exclude-cards a,b] [--override JSON] [--map ID|drawn|drawn:ISLAND]
+//                       [--exclude-cards a,b] [--override JSON] [--map ID|drawn|drawn:ISLAND] [--target N]
+//
+// --target sets the Renown needed to win, one of the goals a new game offers
+// for these rules and players (default: the rules' default). --override can
+// set any other value for experiments.
 //
 // --map picks the board: a map id plays every game on that map (default: The
 // Greenvale as published); "drawn" draws an island and a layout for each game
@@ -60,7 +64,8 @@ function mapIdFor(seed: string): string {
 }
 // Every map deals the same cards.
 const ctx = engineFor(GREENVALE_MAP.id).ctx;
-const RULESET = { ...(RULES === "mvp" ? mvpRuleset() : standardRuleset(PLAYERS)), equalTurns: EQUAL_TURNS, ...OVERRIDE };
+const TARGET_OPTIONS = args.includes("--target") ? { targetRenown: Number(arg("target", "")) } : {};
+const RULESET = { ...(RULES === "mvp" ? mvpRuleset(TARGET_OPTIONS) : standardRuleset(PLAYERS, TARGET_OPTIONS)), equalTurns: EQUAL_TURNS, ...OVERRIDE };
 // The card definitions this ruleset deals (Treasure Hunter and others need their Menace).
 const DECK = RULESET.enableCards ? ctx.content.cards.filter((c) => isCardUsableInRuleset(c, RULESET)) : [];
 
@@ -249,7 +254,7 @@ const finished = results.filter((r) => r.finished);
 const seatWins = Array.from({ length: PLAYERS }, (_, k) => finished.filter((r) => r.winnerSeat === k).length);
 const produced = Object.fromEntries(RESOURCE_TYPES.map((r) => [r, Math.round(avg(results.map((x) => x.produced[r] ?? 0)))]));
 
-console.log(`\n${GAMES} games · ${PLAYERS} players · ${RULES} · AI ${LEVEL} · map ${MAP} · ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+console.log(`\n${GAMES} games · ${PLAYERS} players · ${RULES} · ${RULESET.targetRenown} Renown to win · AI ${LEVEL} · map ${MAP} · ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 console.log(`finished:            ${finished.length}/${GAMES} (stalled at round ${MAX_ROUNDS}: ${GAMES - finished.length})`);
 for (const r of results.filter((x) => !x.finished)) console.log(`  stalled:           seed ${r.seed} on ${r.mapId}`);
 console.log(`rounds (turns/player): avg ${avg(finished.map((r) => r.rounds)).toFixed(1)}  min ${Math.min(...finished.map((r) => r.rounds))}  max ${Math.max(...finished.map((r) => r.rounds))}   target 12–16`);

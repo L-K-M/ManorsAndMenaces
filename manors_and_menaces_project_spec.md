@@ -237,11 +237,11 @@ Resource visibility is intentionally public to reduce memory burden and make tac
 
 # 7. Victory
 
-The standard game ends when a player reaches **15 Renown** (**13 Renown with 4 players**) and completes their current turn.
+The standard game ends when a player reaches **20 Renown** (**18 Renown with 4 players**) and completes their current turn.
 
 The MVP ruleset (no cards, no Quests) uses a target of **10 Renown**, because Holdings are its only Renown source (see §7.1).
 
-The target is `RulesetConfig.targetRenown`.
+The target is `RulesetConfig.targetRenown`. It is chosen when a game is created: the rules' default above, or **15, 20, 25 or 30 Renown** (`BALANCE.targetRenownChoices`). The server accepts only these goals for an online match (§129.6). The game keeps the target it was created with, so a saved game or running match keeps its goal when the defaults change.
 
 The winning condition is checked during the End Turn phase of the active player's turn, after all other end-of-turn effects.
 
@@ -2473,7 +2473,7 @@ Tutorial must explicitly teach:
 6. Menaces interfere with local rules.
 7. Cards move Menaces or Banners.
 8. Royal Quests score Renown.
-9. Reach the target Renown to win (Standard: 15, or 13 with 4 players; Core tutorial: 10).
+9. Reach the target Renown to win (Standard: 20 by default, or 18 with 4 players; Core tutorial: 10).
 
 Tutorial should be interactive, not a wall of text.
 
@@ -3934,7 +3934,7 @@ Support a `RulesetConfig`.
 ```ts
 interface RulesetConfig {
   playerCount: number;
-  targetRenown: number;            // 15 standard (13 with 4 players), 10 MVP
+  targetRenown: number;            // chosen at creation (§7); default 20 standard (18 with 4 players), 10 MVP
   activeMenaces: MenaceType[];     // §118
   enableCards: boolean;
   enableReactionCards: boolean;
@@ -4197,7 +4197,8 @@ Example:
 
 ```ts
 export const BALANCE = {
-  targetRenown: { standard: 15, standardFourPlayers: 13, mvp: 10 },
+  targetRenown: { standard: 20, standardFourPlayers: 18, mvp: 10 },
+  targetRenownChoices: [15, 20, 25, 30],
 
   costs: {
     route: { timber: 1, stone: 1 },
@@ -4344,7 +4345,7 @@ The core design is considered validated only if playtesting shows:
 4. Menaces add tactics rather than frustration;
 5. Market trading prevents resource deadlocks;
 6. roads and Holdings create meaningful spatial expansion;
-7. 15 Renown (13 with 4 players) produces acceptable match length;
+7. the default 20 Renown (18 with 4 players) produces acceptable match length, and the other goals (§7) offer shorter and longer games;
 8. cards do not dominate strategy;
 9. Quests create varied objectives;
 10. players want to replay with different Menaces/Quests.
@@ -4452,7 +4453,7 @@ Recommendation: ship **A** in the MVP, and log the telemetry in §67 and the bal
 
 Findings and open questions for human playtests:
 
-1. **4-player length (historical).** This simulation originally set the target to 10 Renown with 4 players. The September 2026 playtest change supersedes it with 15 for 2–3 players and 13 for 4 players (§7). 17.6 turns is still above the 12–16 target; revealing 4 Quests did not help.
+1. **4-player length (historical).** This simulation originally set the target to 10 Renown with 4 players. The September 2026 playtest change superseded it with 15 for 2–3 players and 13 for 4 players, and the goal is now chosen when a game is created (§7, §129.6). 17.6 turns is still above the 12–16 target; revealing 4 Quests did not help.
 2. **First-seat advantage with cards, 3 players.** Seat 1 wins ~60–65% of AI games when the card deck is in play, versus ~41–50% without cards. No single card causes it: excluding any one card leaves 57–63%. Neither aiming interference at the leader nor a starting bonus for later seats (`seatBonus`, up to 4 resources) closes the gap (best: 59%). `equalTurns` has no effect. Suspected cause: cards reward tempo, and the first seat reaches spare resources first. Test with people before changing rules. Candidate levers: card cost +1 Essence, one card per player per round (not per turn), or deal each later seat one starting card.
 3. **Harvest per turn** is ~2.4 early and ~4.5 later, still slightly below the §68 targets (3–5 mid-game, 4–7 late).
 4. **Hereditary Regions** remain common in AI play. The AI uses the Royal Writ cautiously (3–5 per game in 3-player games). If humans also leave Regions uncontested, try Writ variant B (§129.2).
@@ -4495,4 +4496,26 @@ Findings:
 1. **Length** stays inside the §68 target of 12–16 turns at the default targets, 4-player games at its top (15.8). The cards add about a turn in 2- and 4-player games.
 2. **Seat balance** moves within the noise of 40 games (about ±8 points per seat): the 2-player first seat falls from 60 to 53 %, the 4-player first seat rises from 30 to 38 %, above the 30 % target. Worth rechecking with more games before tuning.
 3. **The siege cards are rare in AI play.** Siege Engines and Raiders need one of the caster's Routes to reach a rival's Holding, and AI networks seldom do; Siege Fireball needs a leader with 3 or more Holdings. Disgrace, Stolen Glory and Sabotage are played most. Human players can build toward a rival on purpose, so playtests should show whether the siege cards come up more often in their hands.
-4. **A 20 Renown target** (being evaluated separately) is too long for the AI on The Greenvale with or without these cards: 12 to 14 of 40 three-player games and 34 to 35 of 40 four-player games stall at the 60-round cap, and those that finish run 20 to 25 turns.
+4. **A 20 Renown target** (§129.6) is too long for the AI on The Greenvale with or without these cards: 12 to 14 of 40 three-player games and 34 to 35 of 40 four-player games stall at the 60-round cap, and those that finish run 20 to 25 turns.
+
+## 129.6 Renown goal chosen at game creation (September 2026)
+
+Players found 15 Renown too short. The goal is now picked when a game is created (§7): 15, 20, 25 or 30 Renown, or the rules' default, which rises to 20 (18 with 4 players) in the Standard and async rules. The Core rules keep 10 and offer it as a choice too. New Game and the online lobby offer the choice and remember the last goal picked. The server accepts only the goals the rules offer and stores the goal in the match's ruleset. Every game keeps the goal it was created with, and Ragnarök's omen follows it (§19.13).
+
+`pnpm simulate --games 40 --players N --rules standard --target T` (normal AI, The Greenvale as published, stopped at round 60). Seat win rates are shares of all 40 games, so unfinished games lower them.
+
+| Players | Goal | Finished | Rounds, finished games (avg, range) | Winner Renown | Seat win rates |
+|---:|---:|---:|---|---:|---|
+| 2 | 15 | 40/40 | 12.8 (9–18) | 15.7 | 60 / 40 % |
+| 2 | 20 | 40/40 | 16.3 (12–20) | 20.4 | 63 / 38 % |
+| 3 | 15 | 40/40 | 14.4 (12–21) | 15.4 | 38 / 20 / 43 % |
+| 3 | 20 | 28/40 | 20.9 (14–46) | 19.9 | 25 / 13 / 33 % |
+| 4 | 13 | 39/40 | 14.4 (11–18) | 13.4 | 30 / 28 / 28 / 13 % |
+| 4 | 15 | 35/40 | 16.8 (12–25) | 14.9 | 28 / 23 / 20 / 18 % |
+| 4 | 18 | 14/40 | 18.0 (13–27) | 17.6 | 10 / 13 / 5 / 8 % |
+| 4 | 20 | 5/40 | 20.8 (15–24) | 19.0 | 3 / 8 / 3 / 0 % |
+
+Findings and open questions:
+
+1. **Two players** reach 20 Renown in 16.3 rounds, at the top of the §68 range of 12–16 turns per player.
+2. **Three and four players often run out of board.** In the stalled games checked (3 players, goal 20), every Holding is a Stronghold, no free Site is far enough from the others to build on, one or two Quests are left, and the leaders are 1 to 3 Renown short. Only Ragnarök can end such a game. The drawn islands new games use behave the same: 13 of 20 three-player games at 20 finished (`--map drawn`). The Renown budget of §7.1 does not reach 20 with 3 players or 18 with 4 on these boards. Before these defaults meet human players, consider an end condition for a board with no Renown left to gain, larger boards for the higher goals, or offering the higher goals only to fewer players. Goals 25 and 30 were not simulated.
