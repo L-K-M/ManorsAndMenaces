@@ -1172,9 +1172,12 @@ all six paintings in the hand, the large Siege Engines preview, both site
 silhouettes at zoom, and both inspector explanations. The user's game tab
 and saves were left untouched.
 
-Published draft PR #67: https://github.com/L-K-M/ManorsAndMenaces/pull/67.
-Local implementation and verification are complete; CI is running. The user
-has been asked to authorize this PR's code diff going to Z.ai or waive that
-external review and merge after CI. Keep the draft until that choice arrives:
-the earlier automatic approval review rejected that private-code transfer.
-Previous rate-limit waivers covered PRs #58/#59.
+PR #67: https://github.com/L-K-M/ManorsAndMenaces/pull/67.
+Implementation and local verification are complete. All CI checks passed on
+`8945e6a`, including the full Playwright suite and Linux Tauri compilation.
+On September 27 the user explicitly authorized sending this PR's code diff
+to Z.ai, explaining that they configured it to review PRs. That resolves the
+earlier export restriction for this PR; do not ask again for the same review.
+The PR is ready and the configured review has been requested. Next: inspect
+completed feedback and the latest checks, address applicable important
+findings, and merge under the repository's review stopping rules.
