@@ -6,7 +6,8 @@
 // Everything is derived from the map alone with a seeded PRNG per Region, so
 // the art is identical on every device and never touches game state or the
 // match RNG. Motifs keep clear of Region borders, the shore, Sites, Routes
-// and the label cluster (name, resource disc, pips, Banner row, Menace spot).
+// and the label cluster (name, resource disc, pips, Banner row, Menace spot),
+// wherever board-spots.ts stands the pips, Banners and Menace.
 // The output is a handful of merged <path>s per resource, so the board's
 // paint cost does not grow with the number of motifs.
 
@@ -14,7 +15,8 @@ import type { MapDefinition, RegionDefinition } from "@manors-menaces/content";
 import type { ResourceType } from "@manors-menaces/rules";
 import { PASS_OFFSET, RIVER_HALF, passRidges, riverAcross, routeGeometry } from "./routes.js";
 import { artRng, bounds, edgeDistance, inside, polygonPoints, segmentDistance, signedArea, type Pt } from "./geometry.js";
-import { LABEL, MENACE_OFFSET, PIECE_SCALE } from "../game/board-view.js";
+import { boardSpots, defaultSpots, type RegionSpots } from "./board-spots.js";
+import { FLAG_FOOTPRINT, FLAG_HIT, LABEL, NAME_AREA, PIECE_SCALE, pipsFootprint, type BoxFootprint } from "../game/board-view.js";
 
 /** How one merged terrain path is painted. */
 export interface InkStyle {
@@ -103,12 +105,13 @@ export interface TerrainArt {
 export const CLEARANCE = {
   /** Resource disc and capacity pips at the label point. */
   disc: 24,
-  /** Where a Menace stands in a Region (see menacePos in Board.svelte). */
-  menace: { dx: MENACE_OFFSET.region.x, dy: MENACE_OFFSET.region.y - 6 * PIECE_SCALE, r: 26 * PIECE_SCALE },
-  /** Region name: above the disc, about 3.6 units per character each side. */
-  name: { top: -42, bottom: -14, perChar: 3.6, pad: 8 },
+  /** Around where a Menace stands in a Region (board-spots.ts). */
+  menace: { dy: -6 * PIECE_SCALE, r: 26 * PIECE_SCALE },
+  name: NAME_AREA,
   /** Capacity pips and the Banner row under the disc (flags stand at LABEL.bannerY, poles end 4 below). */
   banners: { x: -30, y: 2, w: 56, h: LABEL.bannerY + 8 },
+  /** Around pips or a Banner that stand away from that row, as a Region too narrow for it has them. */
+  mark: 3,
   /** A Site with its Holding, emblem, Trading Post and landmark art. */
   site: { dy: -8 * PIECE_SCALE, r: 25 * PIECE_SCALE },
   landmark: { dx: -22 * PIECE_SCALE, dy: -4 - 15 * PIECE_SCALE, r: 22 * PIECE_SCALE },
@@ -125,20 +128,44 @@ interface Zones {
   segments: { a: Pt; b: Pt }[];
 }
 
+/** Whether a Region's pips and Banners all stand in the row under its disc, where they always did. */
+function rowAsAlways(region: RegionDefinition, spots: RegionSpots): boolean {
+  const home = defaultSpots(region);
+  const same = (a: Pt, b: Pt | undefined) => a.x === b?.x && a.y === b.y;
+  return same(spots.pips, home.pips) && spots.banners.every((row, k) => row.every((p, i) => same(p, home.banners[k]?.[i])));
+}
+
+/** A box placed at `p`, `pad` wider on every side. */
+function around(box: BoxFootprint, p: Pt, pad: number): Zones["rects"][number] {
+  return { x0: p.x + box.x - pad, y0: p.y + box.y - pad, x1: p.x + box.x + box.w + pad, y1: p.y + box.y + box.h + pad };
+}
+
 function keepOutZones(map: MapDefinition): Zones {
   const z: Zones = { circles: [], rects: [], segments: [] };
   const C = CLEARANCE;
+  const spots = boardSpots(map);
+  // A flag's own box and its wider hit area, so no art hides under either.
+  const flag: BoxFootprint = { kind: "box", x: FLAG_HIT.x, y: FLAG_FOOTPRINT.y, w: FLAG_FOOTPRINT.x + FLAG_FOOTPRINT.w - FLAG_HIT.x, h: FLAG_FOOTPRINT.h };
   for (const r of map.regions) {
+    const s = spots.get(r.id)!;
     z.circles.push({ x: r.labelX, y: r.labelY, r: C.disc });
-    z.circles.push({ x: r.labelX + C.menace.dx, y: r.labelY + C.menace.dy, r: C.menace.r });
+    z.circles.push({ x: s.menace.x, y: s.menace.y + C.menace.dy, r: C.menace.r });
     const half = r.name.length * C.name.perChar + C.name.pad;
     z.rects.push({ x0: r.labelX - half, y0: r.labelY + C.name.top, x1: r.labelX + half, y1: r.labelY + C.name.bottom });
-    z.rects.push({
-      x0: r.labelX + C.banners.x,
-      y0: r.labelY + C.banners.y,
-      x1: r.labelX + C.banners.x + C.banners.w,
-      y1: r.labelY + C.banners.y + C.banners.h,
-    });
+    // The row keeps its space wherever it stands as it always did, so those
+    // Regions keep their art; pips and Banners moved to fit elsewhere clear
+    // their own spots instead.
+    if (rowAsAlways(r, s)) {
+      z.rects.push({
+        x0: r.labelX + C.banners.x,
+        y0: r.labelY + C.banners.y,
+        x1: r.labelX + C.banners.x + C.banners.w,
+        y1: r.labelY + C.banners.y + C.banners.h,
+      });
+      continue;
+    }
+    z.rects.push(around(pipsFootprint(r.capacity), s.pips, C.mark));
+    for (const p of s.banners.flat()) z.rects.push(around(flag, p, C.mark));
   }
   for (const s of map.sites) {
     z.circles.push({ x: s.x, y: s.y + C.site.dy, r: C.site.r });
