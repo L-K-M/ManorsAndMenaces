@@ -10,7 +10,7 @@ const VOICE = /^The Crown favours (Might|Roads|Plenty) \(next: (Might|Roads|Plen
 async function start(page: Page, voice: boolean, rules: "Standard" | "Core" = "Standard") {
   await page.goto("/");
   await page.evaluate(() => {
-    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", privacyCurtain: false, sound: false }));
+    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", privacyCurtain: false, sound: false, bannerWarning: false }));
     indexedDB.deleteDatabase("manors-menaces");
   });
   await page.reload();
