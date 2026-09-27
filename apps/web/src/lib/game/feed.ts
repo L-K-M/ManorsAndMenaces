@@ -278,6 +278,9 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
         out.push({ actorId: null, text, at: null, gains: null, againstViewer: false, self: false, omen: true });
         break;
       }
+      case "board_full":
+        out.push({ actorId: null, text: t("feed.board_full"), at: null, gains: null, againstViewer: false, self: false, omen: true });
+        break;
       case "harvest_completed": {
         if (e.playerId === viewerId) {
           const harvested = events.some((x) => x.type === "banner_harvested" && x.playerId === e.playerId);

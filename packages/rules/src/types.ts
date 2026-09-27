@@ -192,6 +192,12 @@ export interface RulesetConfig {
   initialCards?: number;
   /** Deal one card to every player at multiples of this round. Absent/0 disables it. */
   cardDrawEveryRounds?: number;
+  /**
+   * A round that ends on a full board ends the game, and the most Renown wins
+   * (§7, `isBoardFull`). Absent in games created before ruleset 0.7.0, which
+   * play on.
+   */
+  endOnFullBoard?: boolean;
 }
 
 export interface PlayerConfig {
@@ -392,9 +398,12 @@ export interface GameState {
   nextIds: { holding: number; banner: number };
   winnerId?: PlayerId;
   /** How a finished game ended, when not by reaching the target (§7). */
-  endCause?: "ragnarok";
+  endCause?: GameEndCause;
   /** equalTurns: the target has been reached; the game ends with this round. */
   endTriggered?: boolean;
 }
+
+/** How a game can end before anyone reaches the target (§7): Ragnarök, or a round that ends on a full board. */
+export type GameEndCause = "ragnarok" | "full_board";
 
 export type RngState = [number, number, number, number];

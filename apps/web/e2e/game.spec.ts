@@ -33,8 +33,8 @@ async function beginHotseat(page: Page, rules: "standard" | "mvp" = "standard") 
 
 /**
  * A finished hot-seat game with its full history, played by the AI (three
- * players by default, to 15 Renown: at the Standard default of 20 a
- * three-player board can fill up before anyone gets there).
+ * players by default, to 15 Renown, which someone reaches: at the Standard
+ * default of 20 this seed's board fills up first, and that ends the game).
  */
 function finishedSave(seed = "e2e-finished", names = ["Ysolde", "Wat", "Maud"], ruleset: RulesetConfig = standardRuleset(3, { targetRenown: 15 })): SaveFile {
   const engine = createRulesEngine(rulesContentFor("greenvale"));
@@ -198,6 +198,23 @@ test("a finished saved game opens on the full results", async ({ page }) => {
   await page.getByRole("tab", { name: "Players" }).click();
   for (const name of ["Ysolde", "Wat", "Maud"]) await expect(page.locator(".players")).toContainText(name);
   expect(errors).toEqual([]);
+});
+
+test("a game that ends on a full board says so on the results", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false })));
+  await page.reload();
+  await page.getByRole("button", { name: "Load game" }).click();
+  const save = finishedSave(undefined, undefined, standardRuleset(3));
+  await page.getByLabel(/Import a save file/).setInputFiles({ name: "full-board.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(save)) });
+
+  const victory = page.getByRole("dialog", { name: "Victory!" });
+  await expect(victory).toContainText("had the most Renown when the board filled");
+  await expect(victory).toContainText("The board was full: no Site was left to build on and every Holding was a Stronghold");
+  await expect(victory.locator(".recap li").last()).toContainText("with the board full");
+  await victory.getByRole("button", { name: "View board" }).click();
+  await page.getByRole("tab", { name: /Chronicle/ }).click();
+  await expect(page.getByText("This round is the last.").first()).toBeVisible();
 });
 
 // Review question: does "Play again" after a tutorial continued from a save

@@ -166,6 +166,37 @@ function ragnarokGame(): { initial: GameState; final: GameState; commands: GameC
   return { initial, final: state, commands };
 }
 
+/**
+ * Three normal AIs to 20 Renown on a seed whose board fills up first: the
+ * round that ends on the full board ends the game (§7).
+ */
+function fullBoardGame(): { initial: GameState; final: GameState; commands: GameCommand[] } {
+  const initial = engine.createGame({
+    matchId: "m-full",
+    seed: "e2e-finished",
+    rulesetVersion: RULESET_VERSION,
+    ruleset: standardRuleset(3),
+    players: ["P1", "P2", "P3"].map((id, i) => ({ id, displayName: `Player ${i + 1}` })),
+  });
+  const rng = createRng(seedRng("e2e-finished-ai"));
+  const { state, commands } = runAiUntilHuman(engine, initial, () => true, () => ({ level: "normal", rng }), 20_000);
+  if (state.status !== "finished") throw new Error(`fullBoardGame() stalled: unfinished after ${commands.length} commands`);
+  return { initial, final: state, commands };
+}
+
+describe("buildMatchReport after a full board", () => {
+  const game = fullBoardGame();
+
+  it("crowns the most renowned player, short of the target", () => {
+    const report = buildMatchReport(engine, game.final, { initial: game.initial, commands: game.commands });
+    const winner = game.final.players[game.final.winnerId ?? ""]?.displayName ?? "?";
+
+    expect(report.endCause).toBe("full_board");
+    expect(getRenown(engine.ctx, game.final, game.final.winnerId ?? "")).toBeLessThan(game.final.ruleset.targetRenown);
+    expect(report.recap.at(-1)).toMatch(new RegExp(`^In round \\d+, with the board full, ${winner} was crowned`));
+  });
+});
+
 describe("buildMatchReport after Ragnarök", () => {
   const game = ragnarokGame();
 

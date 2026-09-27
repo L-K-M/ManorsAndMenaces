@@ -1,11 +1,12 @@
-// Victory ranking and game end (spec §7). Shared by the End Turn check and
-// Ragnarök (§19.13), which ends the game in the middle of a turn.
+// Victory ranking and game end (spec §7). Shared by the End Turn check, a
+// round that ends on a full board, and Ragnarök (§19.13), which ends the game
+// in the middle of a turn.
 
 import type { RulesContext } from "./context.js";
 import { totalResources } from "./resources.js";
 import { getPlayerHoldings, getRenown } from "./selectors.js";
 import type { Tx } from "./tx.js";
-import type { GameState, PlayerId, PlayerState } from "./types.js";
+import type { GameEndCause, GameState, PlayerId, PlayerState } from "./types.js";
 
 /** Players ordered by the §7 tie-break chain, best first. */
 export function rankPlayers(ctx: RulesContext, state: GameState, playerIds: readonly PlayerId[]): PlayerId[] {
@@ -23,7 +24,7 @@ export function rankPlayers(ctx: RulesContext, state: GameState, playerIds: read
   });
 }
 
-export function finishGame(tx: Tx, winnerId: PlayerId, cause?: "ragnarok"): void {
+export function finishGame(tx: Tx, winnerId: PlayerId, cause?: GameEndCause): void {
   const s = tx.s;
   s.status = "finished";
   s.winnerId = winnerId;

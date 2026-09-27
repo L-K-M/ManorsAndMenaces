@@ -174,6 +174,14 @@ describe("feedItemsFor: second-wave cards", () => {
     expect(feedItemsFor([taken], state, map, "P2")).toEqual([]);
   });
 
+  it("tells every viewer that a full board makes this round the last", () => {
+    for (const viewer of ["P1", "P2", null]) {
+      expect(feedItemsFor([{ type: "board_full" }], state, map, viewer)).toEqual([
+        { actorId: null, text: "The board is full: this round is the last", at: null, gains: null, againstViewer: false, self: false, omen: true },
+      ]);
+    }
+  });
+
   it("marks the omen for every viewer", () => {
     const omen: GameEvent = { type: "card_foretold", cardId: "ragnarok#1" };
 

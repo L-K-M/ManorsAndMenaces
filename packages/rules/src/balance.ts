@@ -75,6 +75,7 @@ const common = {
   handLimit: BALANCE.handLimit,
   maxNonReactionCardsPerTurn: BALANCE.maxNonReactionCardsPerTurn,
   revealedQuestCount: BALANCE.revealedQuestCount,
+  endOnFullBoard: true,
 };
 
 /** The rules a new game can be created with, by `RulesetConfig.name`. */

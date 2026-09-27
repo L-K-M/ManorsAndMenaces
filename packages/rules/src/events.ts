@@ -2,6 +2,7 @@ import type {
   BannerId,
   CardEffectId,
   CardId,
+  GameEndCause,
   HoldingId,
   MenaceId,
   MenaceLocation,
@@ -136,7 +137,9 @@ export type GameEvent =
   | { type: "turn_ended"; playerId: PlayerId }
   | { type: "game_started"; firstPlayerId: PlayerId; turnOrder: PlayerId[] }
   /** `cause` is absent for the normal §7 win (reaching the target). */
-  | { type: "game_won"; playerId: PlayerId; renown: number; cause?: "ragnarok" };
+  | { type: "game_won"; playerId: PlayerId; renown: number; cause?: GameEndCause }
+  /** A turn ended on a full board before the round's last seat: this round is the last (§7). */
+  | { type: "board_full" };
 
 export type ResourceReason =
   | "harvest"

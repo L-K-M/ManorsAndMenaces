@@ -21,6 +21,7 @@ import {
   getPlayerBanners,
   getRenown,
   holdingAt,
+  isBoardFull,
   isLegalMenaceDestination,
   isRuinedSite,
   passesSpacing,
@@ -530,14 +531,22 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   p.wardensHiredThisTurn = 0;
   tx.emit({ type: "turn_ended", playerId });
 
+  const endsRound = s.turnOrder.indexOf(playerId) === s.turnOrder.length - 1;
   let winner = checkVictory(tx);
   if (winner && s.ruleset.equalTurns) {
     s.endTriggered = true;
     winner = null;
   }
   // equalTurns: the game ends after the last seat of the round, best Renown wins.
-  if (s.endTriggered && s.turnOrder.indexOf(playerId) === s.turnOrder.length - 1) winner = checkVictory(tx, true);
+  if (s.endTriggered && endsRound) winner = checkVictory(tx, true);
   if (winner) return finishGame(tx, winner);
+  // A round that ends on a full board ends the game: nobody can build for
+  // Renown any more, so the best Renown wins, target reached or not (§7).
+  // Until the round's last seat, each turn says the round is the last.
+  if (s.ruleset.endOnFullBoard && isBoardFull(tx.ctx, s)) {
+    if (endsRound) return finishGame(tx, checkVictory(tx, true) as PlayerId, "full_board");
+    tx.emit({ type: "board_full" });
+  }
   foretellEndgame(tx);
   const idx = s.turnOrder.indexOf(playerId);
   const nextIdx = (idx + 1) % s.turnOrder.length;

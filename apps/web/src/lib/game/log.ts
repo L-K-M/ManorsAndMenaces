@@ -294,8 +294,12 @@ export function formatEvents(events: GameEvent[], state: GameState, map: MapDefi
       case "prophecy_revealed":
         push(t("log.prophecy", { name: nameOf(state, e.playerId) }), e.playerId, "info", e);
         break;
+      case "board_full":
+        push(t("log.board_full"), null, "omen", e);
+        break;
       case "game_won":
         if (e.cause === "ragnarok") push(t("log.won_ragnarok", { name: nameOf(state, e.playerId), renown: e.renown }), e.playerId, "omen", e);
+        else if (e.cause === "full_board") push(t("log.won_full_board", { name: nameOf(state, e.playerId), renown: e.renown }), e.playerId, "important", e);
         else push(t("log.won", { name: nameOf(state, e.playerId), renown: e.renown }), e.playerId, "important", e);
         break;
       default:

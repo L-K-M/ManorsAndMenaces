@@ -128,6 +128,22 @@ describe("formatEvents: second-wave cards", () => {
     expect(endCauseOf(formatEvents([{ type: "game_won", playerId: "P2", renown: 12 }], state, map))).toBeNull();
     expect(endCauseOf([])).toBeNull();
   });
+
+  it("says when the board is full and who it crowns, and reads the ending back", () => {
+    const entries = formatEvents(
+      [
+        { type: "board_full" },
+        { type: "game_won", playerId: "P2", renown: 17, cause: "full_board" },
+      ],
+      state,
+      map,
+    );
+    expect(entries.map((e) => [e.kind, e.text])).toEqual([
+      ["omen", "The board is full: no Site is left to build on and every Holding is a Stronghold. This round is the last."],
+      ["important", "The board is full. Player 2 wins with the most Renown: 17."],
+    ]);
+    expect(endCauseOf(entries)).toBe("full_board");
+  });
 });
 
 describe("formatEvents: third-wave cards", () => {

@@ -178,6 +178,22 @@ export function passesSpacing(ctx: RulesContext, state: GameState, siteId: SiteI
   return ctx.board.neighbours(siteId).every((n) => !holdingAt(state, n));
 }
 
+/**
+ * A full board (§7): no Site could take a new Manor, whoever builds, because
+ * each is built on, in ruins or too close to a Holding (§10.3), and every
+ * Holding is a Stronghold, so no build can gain Renown. A razed Site (§19.24)
+ * counts as open, since its owner may rebuild there.
+ */
+export function isBoardFull(ctx: RulesContext, state: GameState): boolean {
+  const occupied = new Set<SiteId>();
+  for (const h of Object.values(state.holdings)) {
+    if (h.type === "manor") return false;
+    occupied.add(h.siteId);
+  }
+  // passesSpacing, for every Site at once.
+  return ctx.board.topology.sites.every(({ id }) => occupied.has(id) || isRuinedSite(state, id) || ctx.board.neighbours(id).some((n) => occupied.has(n)));
+}
+
 // ------------------------------------------------------------------ build requirements
 
 export type BuildCheck =
