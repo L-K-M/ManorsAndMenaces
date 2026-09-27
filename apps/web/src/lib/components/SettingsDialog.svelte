@@ -59,6 +59,10 @@
       <label><input type="checkbox" bind:checked={settings.pauseOnCardPlay} aria-describedby="pause-on-card-play-hint" /> {t("ui.pause_on_card_play")}</label>
       <small id="pause-on-card-play-hint">{t("ui.pause_on_card_play_hint")}</small>
     </div>
+    <div class="with-hint">
+      <label><input type="checkbox" bind:checked={settings.bannerWarning} aria-describedby="banner-warning-hint" /> {t("ui.banner_warning")}</label>
+      <small id="banner-warning-hint">{t("ui.banner_warning_hint")}</small>
+    </div>
     <label><input type="checkbox" bind:checked={settings.showRegionNames} /> {t("ui.show_region_names_on_the")}</label>
     <label><input type="checkbox" bind:checked={settings.rivalChatter} /> {t("ui.rival_banter")}</label>
   </form>

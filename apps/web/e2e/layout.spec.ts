@@ -9,7 +9,7 @@ import { acknowledgePlays } from "./plays";
 async function startVsAi(page: Page, players = 2) {
   await page.goto("/");
   await page.evaluate(() => {
-    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: false }));
+    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: false, bannerWarning: false }));
     indexedDB.deleteDatabase("manors-menaces");
   });
   await page.reload();

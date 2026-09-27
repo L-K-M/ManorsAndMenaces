@@ -16,7 +16,7 @@ async function start(page: Page, { humans = 1, seed = "e2e-plays", pause = true 
   await page.goto("/");
   await page.evaluate(
     ({ pause }) => {
-      localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, rivalChatter: false, privacyCurtain: true, pauseOnCardPlay: pause }));
+      localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, rivalChatter: false, privacyCurtain: true, pauseOnCardPlay: pause, bannerWarning: false }));
       indexedDB.deleteDatabase("manors-menaces");
     },
     { pause },

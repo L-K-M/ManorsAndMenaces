@@ -33,6 +33,10 @@
   cards two to three times as often, uses Fog of Confusion and Very Minor
   Prophecy, and discards its weakest cards. It saves for cards only once
   its opening is built, which keeps the first seat's lead from growing.
+- Ending a turn warns when your Banners could harvest more next turn: a
+  Banner left at home, or one under the Toll Troll or the Young Dragon,
+  while a better Region has room. The warning lists the moves and can
+  place the Banners for you; a setting turns it off.
 - Svelte/SVG web client and an online server, with Playwright E2E tests
   covering create/join/setup across two browsers.
 - Tauri desktop shell (macOS universal, Linux, Windows) and an unsigned

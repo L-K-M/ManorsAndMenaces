@@ -12,6 +12,7 @@
   import {
     ACTION_LABEL,
     availabilityFor,
+    bannerWarningFor,
     confirmBanners,
     confirmBannersAndEndTurn,
     startAction,
@@ -19,7 +20,7 @@
     type Highlights,
   } from "../game/interaction.js";
   import { currentActor, type GameSession } from "../game/session.svelte.js";
-  import { animationScale } from "../stores/settings.svelte.js";
+  import { animationScale, settings } from "../stores/settings.svelte.js";
   import { resetTool, ui } from "../stores/ui.svelte.js";
   import { PLAYER_THEMES, emblemPath } from "../theme.js";
   import ResourceIcon from "./ResourceIcon.svelte";
@@ -143,7 +144,13 @@
     await session.perform({ type: "end_turn" });
   }
   function finishBanners() {
-    if (legal?.mode === "banner_assignment") return confirmBannersAndEndTurn(session, legal);
+    if (legal?.mode !== "banner_assignment") return;
+    // Nothing is sent before the player has seen the warning (§16.3).
+    if (settings.bannerWarning && bannerWarningFor(session, legal)) {
+      ui.dialog = "banner_warning";
+      return;
+    }
+    return confirmBannersAndEndTurn(session, legal);
   }
   const draftChanges = $derived(
     Object.entries(ui.bannerDraft).filter(([b, r]) => gs.banners[b]?.regionId !== r).length,

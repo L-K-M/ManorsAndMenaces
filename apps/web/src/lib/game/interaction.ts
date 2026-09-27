@@ -9,6 +9,7 @@ import {
   dragonsLandingTargets,
   enumerateCardTargets,
   getActionAvailability,
+  getBannerAdvice,
   getBannerRegionOptions,
   getLegalActions,
   getLegalBannerRegions,
@@ -18,6 +19,7 @@ import {
   insurancePolicyOf,
   plagueBanners,
   type ActionAvailability,
+  type BannerAdvice,
   type BannerId,
   type BannerRegionOption,
   type CardTarget,
@@ -510,6 +512,24 @@ export async function confirmBanners(session: GameSession, legal: LegalActionSum
     ui.selectedBannerId = null;
   }
   return ok;
+}
+
+/**
+ * §16.3: how the Banners could harvest more next turn than the draft does,
+ * or null when they cannot. Asked before a turn ends.
+ */
+export function bannerWarningFor(session: GameSession, legal: LegalActionSummary | null): BannerAdvice | null {
+  if (legal?.mode !== "banner_assignment") return null;
+  const advice = getBannerAdvice(session.ctx, session.draft, legal.playerId, ui.bannerDraft);
+  return advice.best > advice.current ? advice : null;
+}
+
+/** Puts the suggested placement in the draft, for the player to confirm. */
+export function applyBannerAdvice(advice: BannerAdvice): void {
+  const draft = { ...ui.bannerDraft };
+  for (const m of advice.moves) draft[m.bannerId] = m.to;
+  ui.bannerDraft = draft;
+  ui.selectedBannerId = null;
 }
 
 /**

@@ -13,7 +13,7 @@ import { pick } from "./pick";
 async function startHotseat(page: Page, rules: "standard" | "mvp" = "standard") {
   await page.goto("/");
   await page.evaluate(() => {
-    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true }));
+    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true, bannerWarning: false }));
     indexedDB.deleteDatabase("manors-menaces");
   });
   await page.reload();
@@ -313,7 +313,7 @@ test("New Game plays to the Renown you pick, shows it in the game and remembers 
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   await page.goto("/");
-  await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true })));
+  await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true, bannerWarning: false })));
   await page.reload();
   await page.getByRole("button", { name: "New game" }).click();
   const goal = page.getByLabel("Renown to win");
