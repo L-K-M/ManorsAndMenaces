@@ -3,6 +3,7 @@
 
 import { BALANCE } from "./balance.js";
 import { validateCardTarget } from "./cards.js";
+import { canRecommission } from "./charges.js";
 import type { RulesContext } from "./context.js";
 import { RuleViolation, unreachable } from "./errors.js";
 import { getQuestProgress } from "./quests.js";
@@ -45,6 +46,8 @@ export type ActionMode =
   | "end"
   | "reaction"
   | "prophecy"
+  /** Sealed Charges (§27A): keep one of the Charges drawn (`state.pending.chargeIds`). */
+  | "charge"
   | "finished";
 
 export interface LegalActionSummary {
@@ -69,6 +72,8 @@ export interface LegalActionSummary {
   /** Menaces a Warden may move (not guarded by another player's Warden). */
   wardenMenaces: string[];
   claimableQuests: QuestId[];
+  /** Sealed Charges (§27A): may pay to discard the Charge and draw again, once per game. */
+  canRecommission: boolean;
   mustDiscard: number;
   reactionCards: CardId[];
 }
@@ -97,6 +102,7 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
     canHireWarden: false,
     wardenMenaces: [],
     claimableQuests: [],
+    canRecommission: false,
     mustDiscard: 0,
     reactionCards: [],
   };
@@ -108,6 +114,7 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
       return { ...empty, mode: "reaction", reactionCards: p.hand.filter((c) => c !== HIDDEN_CARD && ctx.cardOf(c).timing.includes("reaction")) };
     }
     if (state.pending.kind === "prophecy" && state.pending.playerId === playerId) return { ...empty, mode: "prophecy" };
+    if (state.pending.kind === "charge" && state.pending.playerId === playerId) return { ...empty, mode: "charge" };
     return empty;
   }
   if (state.activePlayerId !== playerId) return empty;
@@ -182,6 +189,7 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
     canHireWarden,
     wardenMenaces,
     claimableQuests,
+    canRecommission: canRecommission(ctx, state, playerId),
   };
 }
 

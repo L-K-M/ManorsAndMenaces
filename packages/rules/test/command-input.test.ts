@@ -146,6 +146,8 @@ describe("hostile command fields", () => {
     react: ["cardId"],
     pass_reaction: [],
     resolve_prophecy: ["order"],
+    recommission_charge: [],
+    choose_charge: ["chargeId"],
   };
 
   /** Plausible values for every command field, so junk reaches the deep checks. */
@@ -193,6 +195,7 @@ describe("hostile command fields", () => {
       questId: s.revealedQuestIds[0],
       cardIds: hand,
       order: s.pending?.kind === "prophecy" ? s.pending.cardIds : [],
+      chargeId: s.pending?.kind === "charge" ? s.pending.chargeIds[0] : "castle",
     };
   }
 
@@ -219,8 +222,11 @@ describe("hostile command fields", () => {
     const banners = act(main, p1, { type: "end_main_phase" }).state;
     const end = act(banners, p1, { type: "assign_banners", assignments: {} }).state;
     const withCard = engine.ctx.content.cards.filter((c) => c.timing.includes("main")).map((c) => ({ id: c.id, ...holding(c.id) }));
+    const charge = newGame({ ...MENACE_RULESET, sealedCharges: true });
+    expect(charge.pending?.kind).toBe("charge");
     return [
       { name: "setup", s: setup, actor: setup.activePlayerId },
+      { name: "charge", s: charge, actor: charge.turnOrder[0] as PlayerId },
       { name: "main", s: main, actor: p1 },
       ...withCard.map((c) => ({ name: `main holding ${c.id}`, s: c.s, actor: c.p1 })),
       { name: "reaction", s: reaction, actor: p2 },

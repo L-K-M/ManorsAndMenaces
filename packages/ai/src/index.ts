@@ -7,6 +7,7 @@ import {
   BALANCE,
   computeBannerHarvest,
   dragonsLandingTargets,
+  getChargeProgress,
   getLegalActions,
   getLegalBannerRegions,
   getPlayerBanners,
@@ -34,6 +35,7 @@ import {
   type GameCommand,
 } from "@manors-menaces/rules";
 import { mainPhaseCandidates } from "./candidates.js";
+import { chargeBannerBonus, pickCharge, wantsRecommission } from "./charges.js";
 import { CARD_GOAL_HAND, cardWorth, evaluate, foresightWorth, resourceNeeds } from "./evaluate.js";
 import { counterChance, counteredOutcome } from "./hidden.js";
 import { regionOccupancy, siteValue } from "./expansion.js";
@@ -91,6 +93,13 @@ export function chooseAction(engine: RulesEngine, state: GameState, playerId: Pl
       const order = [...pending.cardIds].sort((a, b) => (buyingNext ? -1 : 1) * (cardWorth(ctx, state, a) - cardWorth(ctx, state, b)));
       return { type: "resolve_prophecy", order };
     }
+    case "charge": {
+      // Only what this player may know: their own draw, and rivals' Charges hidden (§105).
+      const view = redactState(state, playerId);
+      const drawn = view.pending?.kind === "charge" ? view.pending.chargeIds : [];
+      const chargeId = opts.level === "easy" ? drawn[opts.rng.nextInt(Math.max(1, drawn.length))] : pickCharge(ctx, view, playerId, drawn);
+      return chargeId ? { type: "choose_charge", chargeId } : null;
+    }
     case "main":
       return chooseMainAction(engine, state, playerId, opts);
   }
@@ -107,6 +116,11 @@ function chooseMainAction(engine: RulesEngine, fullState: GameState, playerId: P
   const p = state.players[playerId];
   const actionsSoFar = (p?.marketTradesThisTurn ?? 0) + (p?.writsIssuedThisTurn ?? 0) + (p?.wardensHiredThisTurn ?? 0);
   if (actionsSoFar > (opts.maxActionsPerTurn ?? 12)) return endMain;
+  // A Sealed Charge that can no longer be met is traded in first (§27A).
+  // Whether the deck still has a Charge to draw is read from the full state:
+  // a player learns as much by trying, and a refused try would cost the AI
+  // its turn (it falls back to ending the phase).
+  if (opts.level !== "easy" && wantsRecommission(ctx, fullState, playerId)) return { type: "recommission_charge" };
 
   const baseline = evaluate(ctx, state, playerId);
   const candidates = mainPhaseCandidates(ctx, state, playerId, { menaces: opts.level !== "easy" || opts.rng.nextInt(3) === 0, cards: true });
@@ -297,9 +311,44 @@ function pickInitialRoute(ctx: RulesContext, state: GameState, playerId: PlayerI
 
 /**
  * Best assignment for all of the player's Banners: exhaustive search with
- * pruning when small, greedy improvement otherwise.
+ * pruning when small, greedy improvement otherwise. When the assignment can
+ * meet the player's Sealed Charge (§27A), it does, since the Charge's
+ * Renown outweighs a Harvest.
  */
 export function optimizeBanners(ctx: RulesContext, state: GameState, playerId: PlayerId, opts: AiOptions): Record<BannerId, RegionId | null> {
+  const banners = getPlayerBanners(state, playerId);
+  const bonus = chargeBannerBonus(ctx, state, playerId);
+  let assign = bestAssignment(ctx, state, playerId, opts, null);
+  if (bonus) {
+    const sealed = bestAssignment(ctx, state, playerId, opts, bonus);
+    if (meetsCharge(ctx, state, playerId, sealed)) assign = sealed;
+  }
+  // Only send changes.
+  const out: Record<BannerId, RegionId | null> = {};
+  for (const b of banners) if ((assign[b.id] ?? null) !== b.regionId) out[b.id] = assign[b.id] ?? null;
+  return out;
+}
+
+/** Whether the player's Sealed Charge is met with their Banners placed so. */
+function meetsCharge(ctx: RulesContext, state: GameState, playerId: PlayerId, assign: Record<BannerId, RegionId | null>): boolean {
+  const charge = state.players[playerId]?.sealedCharge;
+  if (!charge) return false;
+  const banners = { ...state.banners };
+  for (const [id, regionId] of Object.entries(assign)) {
+    const b = banners[id];
+    if (b) banners[id] = { ...b, regionId };
+  }
+  return getChargeProgress(ctx, { ...state, banners }, playerId, charge).complete;
+}
+
+/** The search behind `optimizeBanners`; `extra` adds a Region's worth toward the Charge. */
+function bestAssignment(
+  ctx: RulesContext,
+  state: GameState,
+  playerId: PlayerId,
+  opts: AiOptions,
+  extra: ((regionId: RegionId) => number) | null,
+): Record<BannerId, RegionId | null> {
   const need = resourceNeeds(ctx, state, playerId);
   const banners = getPlayerBanners(state, playerId);
   const valueOf = (bannerId: BannerId, regionId: RegionId | null): number => {
@@ -310,6 +359,7 @@ export function optimizeBanners(ctx: RulesContext, state: GameState, playerId: P
     let v = h.produced && h.amount > 0 ? need[h.produced] * h.amount : 0;
     // Staying put keeps a Banner settled (and harvesting) — a small bonus.
     if (b.regionId === regionId) v += 0.15;
+    if (extra) v += extra(regionId);
     if (opts.level === "easy") v += opts.rng.nextFloat() * 0.6;
     return v;
   };
@@ -355,17 +405,14 @@ export function optimizeBanners(ctx: RulesContext, state: GameState, playerId: P
     dfs(i + 1, score);
   };
   dfs(0, 0);
-  // Only send changes.
-  const out: Record<BannerId, RegionId | null> = {};
-  for (const b of banners) if ((best.assign[b.id] ?? null) !== b.regionId) out[b.id] = best.assign[b.id] ?? null;
-  return out;
+  return best.assign;
 }
 
 /**
  * Progression moves to try, in order, when an AI choice fails or is
  * rejected, so a seat never stalls the game. Together they cover every
- * decision an actor can owe: a setup placement, a pending reaction or
- * prophecy, the main phase, the Banner assignment, a discard down to the
+ * decision an actor can owe: a setup placement, a pending reaction,
+ * prophecy or Charge to keep, the main phase, the Banner assignment, a discard down to the
  * hand limit and the end of the turn. The server and the web client share
  * this list.
  */
@@ -386,6 +433,7 @@ export function fallbackIntents(ctx: RulesContext, state: GameState, playerId: P
     ...setup,
     { type: "pass_reaction" },
     ...(pending?.kind === "prophecy" ? [{ type: "resolve_prophecy" as const, order: [...pending.cardIds] }] : []),
+    ...(pending?.kind === "charge" ? pending.chargeIds.slice(0, 1).map((chargeId) => ({ type: "choose_charge" as const, chargeId })) : []),
     { type: "end_main_phase" },
     { type: "assign_banners", assignments: {} },
     ...(excess > 0 ? [{ type: "discard_cards" as const, cardIds: hand.slice(0, excess) }] : []),
@@ -404,7 +452,7 @@ export function runAiUntilHuman(
   let s = state;
   const commands: GameCommand[] = [];
   for (let i = 0; i < maxSteps; i++) {
-    const actor = s.pending?.kind === "reaction" ? s.pending.eligiblePlayerIds[0] : s.pending?.kind === "prophecy" ? s.pending.playerId : s.activePlayerId;
+    const actor = s.pending?.kind === "reaction" ? s.pending.eligiblePlayerIds[0] : s.pending ? s.pending.playerId : s.activePlayerId;
     if (!actor || s.status === "finished" || !isAi(actor)) break;
     const intent = chooseAction(engine, s, actor, optsFor(actor));
     if (!intent) break;

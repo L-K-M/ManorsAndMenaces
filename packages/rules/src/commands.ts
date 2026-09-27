@@ -2,6 +2,7 @@ import type {
   BannerId,
   CardId,
   CardTarget,
+  ChargeId,
   MenaceId,
   MenaceLocation,
   PlayerId,
@@ -85,6 +86,10 @@ export interface ClaimQuestCommand extends CommandBase {
 export interface EndMainPhaseCommand extends CommandBase {
   type: "end_main_phase";
 }
+/** Sealed Charges (§27A): pay, discard your Charge face down and draw new ones to choose from, once per game. */
+export interface RecommissionChargeCommand extends CommandBase {
+  type: "recommission_charge";
+}
 
 // ----- banner assignment
 export interface AssignBannersCommand extends CommandBase {
@@ -115,6 +120,11 @@ export interface ResolveProphecyCommand extends CommandBase {
   /** The revealed cards in the desired new order (first = top of deck). */
   order: CardId[];
 }
+/** Sealed Charges (§27A): the Charge to keep of those drawn. */
+export interface ChooseChargeCommand extends CommandBase {
+  type: "choose_charge";
+  chargeId: ChargeId;
+}
 
 export type GameCommand =
   | PlaceInitialManorCommand
@@ -130,12 +140,14 @@ export type GameCommand =
   | HireWardenCommand
   | ClaimQuestCommand
   | EndMainPhaseCommand
+  | RecommissionChargeCommand
   | AssignBannersCommand
   | DiscardCardsCommand
   | EndTurnCommand
   | ReactCommand
   | PassReactionCommand
-  | ResolveProphecyCommand;
+  | ResolveProphecyCommand
+  | ChooseChargeCommand;
 
 export type GameCommandType = GameCommand["type"];
 

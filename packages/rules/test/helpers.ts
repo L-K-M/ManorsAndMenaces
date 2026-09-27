@@ -116,6 +116,25 @@ export function testContent(): RulesContent {
       { id: "prosperous_estates", renown: 1, conditionId: "prosperous_estates", exclusive: true },
       { id: "the_safer_road", renown: 1, conditionId: "the_safer_road", exclusive: true },
     ],
+    // Sealed Charges (§27A), sized for the test board: 2 Grain, 2 Stone and 1
+    // Iron Region. The Dwarven Hall and 3 Iron Regions are not on it.
+    charges: [
+      { id: "castle", goal: { kind: "landmark", landmarkId: "royal_castle" } },
+      { id: "tower", goal: { kind: "landmark", landmarkId: "wizard_tower" } },
+      { id: "inn", goal: { kind: "landmark", landmarkId: "adventurers_inn" } },
+      { id: "hall", goal: { kind: "landmark", landmarkId: "dwarven_hall" } },
+      { id: "grain", goal: { kind: "banners", resource: "grain", count: 2 } },
+      { id: "stone", goal: { kind: "banners", resource: "stone", count: 2 } },
+      { id: "iron", goal: { kind: "banners", resource: "iron", count: 3 } },
+      { id: "writs", goal: { kind: "deed", deed: "writs", count: 3 } },
+      { id: "trades", goal: { kind: "deed", deed: "trades", count: 5 } },
+      { id: "cards", goal: { kind: "deed", deed: "cards_bought", count: 3 } },
+      { id: "troll", goal: { kind: "menace", menaceType: "toll_troll", count: 2 } },
+      { id: "highwayman", goal: { kind: "menace", menaceType: "highwayman", count: 2 } },
+      { id: "dragon", goal: { kind: "menace", menaceType: "young_dragon", count: 2 } },
+      { id: "witch", goal: { kind: "menace", menaceType: "bog_witch", count: 2 } },
+      { id: "goblins", goal: { kind: "menace", menaceType: "goblin_tinkers", count: 2 } },
+    ],
   };
 }
 
@@ -164,10 +183,12 @@ export function newGame(ruleset: RulesetConfig = mvpRuleset(), seed = "test-seed
  * Standard 2-player setup on the test board, returning the state at the start
  * of turn 1. First player (p1): Manors on s1 (+Route s1–s2) and s9 (+s6–s9),
  * Banners on R1 (grain) and R8 (stone). Second player (p2): Manors on s3
- * (+s3–s6) and s7 (+s7–s8), Banners on R5 (essence) and R3 (stone).
+ * (+s3–s6) and s7 (+s7–s8), Banners on R5 (essence) and R3 (stone). With
+ * Sealed Charges each player first keeps the first Charge they draw.
  */
 export function setupGame(ruleset: RulesetConfig = mvpRuleset(), banners?: Record<string, string | null>[]) {
   let s = newGame(ruleset);
+  while (s.pending?.kind === "charge") s = act(s, s.pending.playerId, { type: "choose_charge", chargeId: s.pending.chargeIds[0] as string }).state;
   const [p1, p2] = s.turnOrder as [PlayerId, PlayerId];
   // Snake: p1, p2, p2, p1.
   s = act(s, p1, { type: "place_initial_manor", siteId: "s1" }).state;

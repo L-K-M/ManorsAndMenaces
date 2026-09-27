@@ -73,6 +73,11 @@ function checkInvariants(s: GameState, cards: number): void {
   }
   // Changeling, Charters and Ragnarök move cards around; none may appear or vanish.
   expect(cardCount(s)).toBe(cards);
+  // A Sealed Charge (§27A) is in one place at most: the deck, a draw being
+  // chosen from, or one player's sealed or revealed Charges.
+  const charges = [...(s.chargeDeck ?? []), ...(s.pending?.kind === "charge" ? s.pending.chargeIds : [])];
+  for (const p of Object.values(s.players)) charges.push(...(p.sealedCharge ? [p.sealedCharge.id] : []), ...(p.revealedChargeIds ?? []));
+  expect(new Set(charges).size, "a Charge in two places").toBe(charges.length);
 }
 
 const sorted = (cards: readonly string[]): string[] => [...cards].sort();
@@ -278,6 +283,27 @@ describe("AI playouts", () => {
     }
     for (const type of wanted) expect(seen, type).toContain(type);
   }, 600_000);
+});
+
+describe("AI playouts with Sealed Charges (§27A)", () => {
+  // Goal 25 draws a second Charge after a reveal; 4 players deal from the
+  // largest deck. A full board may end these games below the goal (§7).
+  for (const [players, targetRenown, name] of [
+    [3, 25, "charges-3p-25"],
+    [4, 13, "charges-4p"],
+  ] as const) {
+    it(`${name}: finishes, reveals Charges, keeps invariants and replays`, () => {
+      const rs: RulesetConfig = { ...standardRuleset(players, { targetRenown }), sealedCharges: true };
+      const { initial, final, commands, won } = playGame(players, rs, name);
+      expect(final.status).toBe("finished");
+      if (won?.type === "game_won" && won.cause) expect(rankPlayers(ctx, final, final.turnOrder)[0]).toBe(final.winnerId);
+      else expectWinner(final, won, targetRenown);
+      const revealed = Object.values(final.players).reduce((n, p) => n + (p.revealedChargeIds?.length ?? 0), 0);
+      expect(revealed, "Charges revealed").toBeGreaterThan(0);
+      expect(hashState(engine.replay(initial, commands))).toBe(hashState(final));
+      console.log(name, "rounds", final.round, "charges revealed", revealed, describeWin(final, won));
+    }, 180_000);
+  }
 });
 
 describe("AI decisions", () => {

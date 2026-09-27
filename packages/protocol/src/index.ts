@@ -82,6 +82,8 @@ export interface CreateMatchRequest {
    * seatCount)`. Absent: the rules' default (spec §7).
    */
   targetRenown?: number;
+  /** Deal Sealed Charges, hidden personal goals (spec §27A). Absent: off. */
+  sealedCharges?: boolean;
   /** Seats filled by server-side AI. */
   aiSeats?: { displayName: string; level: AiLevel }[];
 }
@@ -299,6 +301,7 @@ const COMMAND_TYPES = new Set([
   "issue_royal_writ",
   "hire_warden",
   "claim_quest",
+  "recommission_charge",
   "end_main_phase",
   "assign_banners",
   "discard_cards",
@@ -306,6 +309,7 @@ const COMMAND_TYPES = new Set([
   "react",
   "pass_reaction",
   "resolve_prophecy",
+  "choose_charge",
 ]);
 
 /**
