@@ -10,7 +10,9 @@
   import { FeedbackController } from "../game/feedback.svelte.js";
   import { computeHighlights, legalFor } from "../game/interaction.js";
   import { hasSlideOverPanel, layoutFor } from "../layout.js";
+  import { PlayQueue } from "../game/plays.svelte.js";
   import type { GameSession } from "../game/session.svelte.js";
+  import { settings } from "../stores/settings.svelte.js";
   import { resetTool, ui } from "../stores/ui.svelte.js";
   import { nudge, resetView, zoomBy, zoomTo } from "../stores/viewport.svelte.js";
   import ActionBar from "./ActionBar.svelte";
@@ -25,6 +27,7 @@
   import HarvestPreview from "./HarvestPreview.svelte";
   import LogPanel from "./LogPanel.svelte";
   import Overlays from "./Overlays.svelte";
+  import PlayedCardDialog from "./PlayedCardDialog.svelte";
   import PlayersPanel from "./PlayersPanel.svelte";
   import PrivacyCurtain from "./PrivacyCurtain.svelte";
   import QuestPanel from "./QuestPanel.svelte";
@@ -56,6 +59,18 @@
   let savedNote: string | null = $state(null);
   /** Settings opened from the game menu return to it when closed. */
   let settingsFromMenu = false;
+
+  // Cards other players played wait for the viewer's OK (plays.svelte.ts).
+  const plays = untrack(() => new PlayQueue(session));
+  onDestroy(() => plays.destroy());
+  // Switching the pause off lets everything waiting go at once.
+  $effect(() => {
+    if (!settings.pauseOnCardPlay) untrack(() => plays.release());
+  });
+  // A played card is read before any decision (a Counterspell, a Prophecy)
+  // and waits behind a dialog the viewer opened (the menu, settings).
+  const playWaiting = $derived(plays.current !== null && gs.status !== "finished");
+  const playShown = $derived(playWaiting && !ui.dialog && !ui.renownOf && !ui.showDebug);
 
   const layout = $derived(layoutFor(innerWidth.current ?? 0, innerHeight.current ?? 0));
   const slideOver = $derived(hasSlideOverPanel(layout));
@@ -275,7 +290,7 @@
           {#if previewFor && preview}
             <div class="preview"><HarvestPreview {session} playerId={previewFor} {preview} /></div>
           {/if}
-          {#if cardsEnabled}<div class="hand"><HandPanel {session} {legal} {feedback} /></div>{/if}
+          {#if cardsEnabled}<div class="hand"><HandPanel {session} {legal} {feedback} {layout} /></div>{/if}
         </div>
       {/if}
     </div>
@@ -284,7 +299,10 @@
 
 <PrivacyCurtain {session} />
 <Announcer {session} />
-<Dialogs {session} {legal} />
+<Dialogs {session} {legal} holdDecisions={playWaiting} />
+{#if playShown && plays.current}
+  {#key plays.current}<PlayedCardDialog {session} {plays} notice={plays.current} />{/key}
+{/if}
 {#if ui.dialog === "menu"}<GameMenu {session} {tutorial} {onexit} onsettings={() => ((settingsFromMenu = true), (ui.dialog = "settings"))} onclose={() => (ui.dialog = null)} />{/if}
 {#if ui.dialog === "settings"}<SettingsDialog onclose={() => ((ui.dialog = settingsFromMenu ? "menu" : null), (settingsFromMenu = false))} />{/if}
 {#if ui.renownOf}<RenownDialog {session} playerId={ui.renownOf} onclose={() => (ui.renownOf = null)} />{/if}
@@ -487,9 +505,6 @@
   [data-layout="wide"] .dock {
     --toast-inset: auto auto calc(100% + 4.1rem) 50%;
   }
-  [data-layout="wide"] .hand {
-    --cards-container: size;
-  }
   /* Large text on a small phone moves the tray toggle onto its own row
      rather than pushing it off screen. */
   .dock-head {
@@ -629,12 +644,9 @@
     gap: 0.6rem;
     overflow-y: auto;
     overscroll-behavior: contain;
-    /* The tray scrolls, so there is room to read whole cards. */
-    --rules-lines: none;
-    --hand-card-height: auto;
-    --hand-art-min: 8rem;
-    --card-rows: auto 8rem auto 1fr;
-    --flavor-display: block;
+    /* The tray scrolls, so there is room to read whole cards: as wide as
+       the rail allows, less its padding and a scrollbar. */
+    --hand-card-width: min(16rem, 40vw - 2.6rem);
   }
   [data-layout="rail"] .tray .preview {
     flex: none;
@@ -730,12 +742,8 @@
     overscroll-behavior: contain;
     border-top: 1px solid #8a765066;
     padding-top: 0.5rem;
-    /* Room to read whole cards here. */
-    --rules-lines: none;
-    --hand-card-height: auto;
-    --hand-art-min: 8rem;
-    --card-rows: auto 8rem auto 1fr;
-    --flavor-display: block;
+    /* Room to read whole cards here, most of the screen's width. */
+    --hand-card-width: clamp(12rem, 68vw, 16rem);
   }
   [data-layout="sheet"] .tray .preview {
     flex: none;

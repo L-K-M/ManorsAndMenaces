@@ -7,7 +7,7 @@
   import { t } from "../i18n.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { onPick, type Highlights } from "../game/interaction.js";
-  import { BoardAlign, FLAME_PATH, HOME_MARK, LABEL, MENACE_OFFSET, PIECE_SCALE, SICK_MARK, bannerSlot, boardToScreen, labelLod, nameLineLength, noteSlots, placeNote, screenScale, strokeWidth, wrapLabel, type Circle, type Rect, type Segment } from "../game/board-view.js";
+  import { BoardAlign, DISC, FLAG_HIT, FLAME_PATH, HOME_MARK, LABEL, MENACE_OFFSET, PIECE_SCALE, PIPS, SICK_MARK, bannerSlot, boardToScreen, labelLod, nameLineLength, noteSlots, pipX, pipsFootprint, placeNote, screenScale, strokeWidth, wrapLabel, type Circle, type Rect, type Segment } from "../game/board-view.js";
   import { describePick } from "../game/inspect.js";
   import { regionName } from "../game/log.js";
   import { ui, type Pick } from "../stores/ui.svelte.js";
@@ -16,6 +16,7 @@
   import { settings, animationScale } from "../stores/settings.svelte.js";
   import { PLAYER_THEMES, RESOURCE_COLORS, RESOURCE_GLYPHS, emblemPath } from "../theme.js";
   import { bridgeRails, routeGeometry } from "../art/routes.js";
+  import { boardSpots } from "../art/board-spots.js";
   import CoastLayer from "./board/CoastLayer.svelte";
   import HoldingFigure from "./board/HoldingFigure.svelte";
   import LandmarkArt from "./board/LandmarkArt.svelte";
@@ -48,6 +49,10 @@
     return PLAYER_THEMES[seat?.color ?? 0] ?? PLAYER_THEMES[0]!;
   }
 
+  // Where each Region's pips, Banners and a Menace stand: under and beside its
+  // label, or elsewhere in a Region with no room there (art/board-spots.ts).
+  const spots = $derived(boardSpots(map));
+
   // Banner positions: assigned Banners sit in slots around the Region label;
   // unassigned ones cluster at their Holding. During assignment the local
   // draft overrides the actor's Banners.
@@ -65,7 +70,10 @@
       const region = regionsById.get(regionId);
       if (!region) continue;
       list.sort((a, b) => a.id.localeCompare(b.id));
-      list.forEach((b, i) => out.set(b.id, bannerSlot({ x: region.labelX, y: region.labelY }, i, list.length)));
+      // Spots cover as many Banners as the Region holds; more than that would
+      // be a broken rule, drawn in the default row rather than lost.
+      const row = spots.get(regionId)?.banners[list.length - 1];
+      list.forEach((b, i) => out.set(b.id, row?.[i] ?? bannerSlot({ x: region.labelX, y: region.labelY }, i, list.length)));
     }
     for (const [holdingId, list] of byHolding) {
       const h = gs.holdings[holdingId];
@@ -90,12 +98,14 @@
     return counts;
   });
 
+  /** Where a Menace stands in a Region. */
+  function menaceSpot(regionId: string): { x: number; y: number } {
+    return spots.get(regionId)?.menace ?? { x: 0, y: 0 };
+  }
+
   function menacePos(m: MenaceInstance): { x: number; y: number } {
     const loc = m.location;
-    if (loc.kind === "region") {
-      const r = regionsById.get(loc.regionId);
-      return r ? { x: r.labelX + MENACE_OFFSET.region.x, y: r.labelY + MENACE_OFFSET.region.y } : { x: 0, y: 0 };
-    }
+    if (loc.kind === "region") return menaceSpot(loc.regionId);
     if (loc.kind === "site") {
       const s = sitesById.get(loc.siteId);
       return s ? { x: s.x + MENACE_OFFSET.site.x, y: s.y + MENACE_OFFSET.site.y } : { x: 0, y: 0 };
@@ -385,6 +395,10 @@
       }
       for (const r of map.regions) {
         obstacles.rects.push({ x: r.labelX - 20, y: r.labelY - 20, w: 40, h: LABEL.pipY + 26 });
+        // The pips, which a narrow Region may stand away from the disc.
+        const pips = spots.get(r.id)?.pips;
+        const row = pipsFootprint(r.capacity);
+        if (pips) obstacles.rects.push({ x: pips.x + row.x, y: pips.y + row.y, w: row.w, h: row.h });
         const name = nameBox(r);
         if (name) obstacles.rects.push(name);
       }
@@ -579,6 +593,7 @@
       {@const colors = RESOURCE_COLORS[region.resource]}
       {@const occupants = bannerCountByRegion.get(region.id) ?? 0}
       {@const isHl = hl.regions.has(region.id) || hl.locations.has(`region:${region.id}`)}
+      {@const pips = spots.get(region.id)?.pips ?? { x: region.labelX, y: region.labelY + LABEL.pipY }}
       <g
         class="region"
         class:hl={isHl}
@@ -597,11 +612,11 @@
         </g>
         <g transform="translate({region.labelX},{region.labelY})" pointer-events="none">
           <circle r="23" class="focus-ring" />
-          <circle r="17" fill="#fffaf0" stroke={colors.dark} stroke-width="2" />
+          <circle r={DISC.r} fill="#fffaf0" stroke={colors.dark} stroke-width={DISC.stroke} />
           <path d={RESOURCE_GLYPHS[region.resource]} fill={region.resource === "grain" ? "none" : colors.dark} stroke={colors.dark} stroke-width={region.resource === "grain" ? 2 : 1} />
-          <!-- capacity pips -->
+          <!-- capacity pips, under the disc unless the Region has no room there -->
           {#each Array.from({ length: region.capacity }) as _, i}
-            <circle cx={(i - (region.capacity - 1) / 2) * 12} cy={LABEL.pipY} r="4" fill={i < occupants ? colors.dark : "#fffaf0"} stroke={colors.dark} stroke-width="1.5" opacity="0.8" />
+            <circle cx={pips.x - region.labelX + pipX(i, region.capacity)} cy={pips.y - region.labelY} r={PIPS.r} fill={i < occupants ? colors.dark : "#fffaf0"} stroke={colors.dark} stroke-width={PIPS.stroke} opacity="0.8" />
           {/each}
         </g>
       </g>
@@ -756,7 +771,7 @@
           onpointerenter={(e) => hoverIn(e, { kind: "banner", id: banner.id })}
           onpointerleave={() => hoverOut({ kind: "banner", id: banner.id })}
         >
-          <rect x="-12" y="-26" width="26" height="30" class="hit" />
+          <rect x={FLAG_HIT.x} y={FLAG_HIT.y} width={FLAG_HIT.w} height={FLAG_HIT.h} class="hit" />
           <!-- a raised piece: cast shadows of pole and flag, gold finial, lit top edge -->
           <line x1="-6" y1="4" x2="6" y2="8.5" stroke="#1d160c" stroke-opacity="0.25" stroke-width="3" stroke-linecap="round" />
           <polygon points="-3.5,-21 14.5,-16 -3.5,-9" fill="#1d160c" opacity="0.2" />
@@ -879,8 +894,9 @@
   {#if destRegions.length > 0}
     <g class="layer-dests" pointer-events="none">
       {#each destRegions as r (r.id)}
-        <circle cx={r.labelX + MENACE_OFFSET.region.x} cy={r.labelY + MENACE_OFFSET.region.y} r={px(8, 12)} class="hl-casing" stroke-width={px(5, 6)} />
-        <circle cx={r.labelX + MENACE_OFFSET.region.x} cy={r.labelY + MENACE_OFFSET.region.y} r={px(8, 12)} class="dest" stroke-width={px(2.5, 3)} />
+        {@const at = menaceSpot(r.id)}
+        <circle cx={at.x} cy={at.y} r={px(8, 12)} class="hl-casing" stroke-width={px(5, 6)} />
+        <circle cx={at.x} cy={at.y} r={px(8, 12)} class="dest" stroke-width={px(2.5, 3)} />
       {/each}
     </g>
   {/if}
@@ -914,7 +930,8 @@
       <circle cx={pos.x} cy={pos.y} r={menaceRing + px(5, 6)} stroke-width={px(7, 9)} />
     {/each}
     {#each destRegions as r (r.id)}
-      <circle cx={r.labelX + MENACE_OFFSET.region.x} cy={r.labelY + MENACE_OFFSET.region.y} r={px(8, 12) + px(5, 6)} stroke-width={px(7, 9)} />
+      {@const at = menaceSpot(r.id)}
+      <circle cx={at.x} cy={at.y} r={px(8, 12) + px(5, 6)} stroke-width={px(7, 9)} />
     {/each}
     </g>
   </svg>

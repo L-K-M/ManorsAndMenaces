@@ -7,6 +7,7 @@
   import type { AiLevel, MatchHistoryResponse, MatchView, SeatConfig } from "@manors-menaces/protocol";
   import { mapFor } from "../game/engine.js";
   import { historyLog } from "../game/log.js";
+  import { missedPlays } from "../game/plays.js";
   import { rememberName, rememberedName } from "../game/playerName.js";
   import { ui } from "../stores/ui.svelte.js";
   import { GameSession } from "../game/session.svelte.js";
@@ -260,6 +261,8 @@
         clearMatchRoute(view.matchId);
       }),
       onlinePlayerId: view.youAre,
+      // The cards played meanwhile show one by one before play goes on.
+      ...(view.youAre ? { missedPlays: missedPlays(entries, lastSeen, view.state, view.youAre) } : {}),
     });
     stopEvents = session.events.on(() => seen.update());
     seen.update();

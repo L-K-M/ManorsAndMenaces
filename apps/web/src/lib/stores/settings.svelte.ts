@@ -15,6 +15,12 @@ export interface Settings {
   showRegionNames: boolean;
   /** Named AI rivals remark on the game in speech bubbles and the Chronicle. */
   rivalChatter: boolean;
+  /**
+   * A card another player plays waits on screen until you tap OK, and local
+   * computer players wait with it (PlayQueue). Off: toasts and the card
+   * flourish show others' plays, as before.
+   */
+  pauseOnCardPlay: boolean;
 }
 
 const KEY = "mm.settings.v1";
@@ -31,6 +37,7 @@ const defaults = (): Settings => ({
   privacyCurtain: true,
   showRegionNames: true,
   rivalChatter: true,
+  pauseOnCardPlay: true,
 });
 
 function load(): Settings {

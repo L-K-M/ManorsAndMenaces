@@ -6,6 +6,7 @@
     getPlayerHoldings,
     getRenown,
     isCardUsableInRuleset,
+    type CardDefId,
     type HarvestNote,
   } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
@@ -20,6 +21,7 @@
   import { seatRival } from "../game/rivals.js";
   import QuipBubble from "./QuipBubble.svelte";
   import RivalPortrait from "./RivalPortrait.svelte";
+  import CardViewer from "./CardViewer.svelte";
   import { ui } from "../stores/ui.svelte.js";
 
   let { session }: { session: GameSession } = $props();
@@ -43,22 +45,26 @@
 
   // Before the omen, set-aside cards lie face up beside the deck (§19.13).
   const setAside = $derived(gs.ruleset.enableCards ? [...new Set((gs.setAsideCardIds ?? []).map(cardDefIdOf))] : []);
+
+  // Cards on the table are public: any of them opens in the card viewer,
+  // which touch screens can reach where a tooltip cannot.
+  let viewing: CardDefId | null = $state(null);
 </script>
 
 <section class="players" aria-label={t("ui.players")}>
   {#each setAside as id (id)}
     {@const text = t("players.set_aside", { card: t(`card.${id}.name`) })}
-    <p class="aside" role="note" title={t(`card.${id}.rules`)} aria-label="{text} {t(`card.${id}.rules`)}">
+    <button class="aside" aria-haspopup="dialog" aria-label="{text} {t(`card.${id}.rules`)}" onclick={() => (viewing = id)}>
       <ToolIcon name="sparkle" size={12} />
       {text}
-    </p>
+    </button>
   {/each}
   {#each foretold as id (id)}
     {@const text = t("players.foretold", { card: t(`card.${id}.name`) })}
-    <p class="omen" role="note" title={t(`card.${id}.rules`)} aria-label="{text} {t(`card.${id}.rules`)}">
+    <button class="omen" aria-haspopup="dialog" aria-label="{text} {t(`card.${id}.rules`)}" onclick={() => (viewing = id)}>
       <ToolIcon name="sparkle" size={14} />
       {text}
-    </p>
+    </button>
   {/each}
   {#each gs.turnOrder as pid (pid)}
     {@const p = gs.players[pid]}
@@ -127,21 +133,22 @@
           <div class="charters">
             {#each p.charters as c (c)}
               {@const id = cardDefIdOf(c)}
-              <span
+              <button
                 class="charter"
-                role="note"
-                title={t(`card.${id}.rules`)}
+                aria-haspopup="dialog"
                 aria-label={t("players.charter", { name: p.displayName, card: t(`card.${id}.name`), rules: t(`card.${id}.rules`) })}
+                onclick={() => (viewing = id)}
               >
                 <ToolIcon name="writ" size={14} />
                 {t(`card.${id}.name`)}
-              </span>
+              </button>
             {/each}
           </div>
         {/if}
       </article>
     {/if}
   {/each}
+  {#if viewing}<CardViewer def={session.ctx.cardOf(viewing)} onclose={() => (viewing = null)} />{/if}
 </section>
 
 <style>
@@ -265,27 +272,44 @@
     font-size: 0.72rem;
     cursor: help;
   }
-  .omen {
+  /* The omen and the set-aside note are whole-line buttons that keep their
+     note look; the dotted underline says they open. */
+  .omen,
+  .aside {
+    display: flex;
+    align-items: center;
+    width: 100%;
     margin: 0;
+    box-shadow: none;
+    text-align: left;
+    text-decoration: underline dotted;
+    text-underline-offset: 0.2em;
+  }
+  .omen {
     padding: 0.35rem 0.55rem;
+    border: none;
     border-left: 4px solid #8a2f1f;
     border-radius: 6px;
     background: color-mix(in srgb, #b6402e 12%, var(--paper));
-    display: flex;
-    align-items: center;
     gap: 0.35rem;
     font-size: 0.85rem;
     font-weight: 600;
-    cursor: help;
+  }
+  .omen:hover:not(:disabled) {
+    background: color-mix(in srgb, #b6402e 20%, var(--paper));
   }
   .aside {
-    margin: 0;
-    display: flex;
-    align-items: center;
+    padding: 0 0.2rem;
+    border: none;
+    background: none;
     gap: 0.3rem;
     font-size: 0.75rem;
-    opacity: 0.7;
-    cursor: help;
+    font-weight: 400;
+    opacity: 0.75;
+  }
+  .aside:hover:not(:disabled) {
+    background: none;
+    opacity: 1;
   }
   .charters {
     display: flex;
@@ -297,14 +321,17 @@
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    padding: 0.05rem 0.4rem;
+    padding: 0.05rem 0.5rem;
     border: 1px solid #2d6a8f;
-    border-radius: 4px;
+    border-radius: 6px;
     background: color-mix(in srgb, #2d6a8f 12%, var(--paper));
+    box-shadow: none;
     color: #1f4c68;
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    cursor: help;
+  }
+  .charter:hover:not(:disabled) {
+    background: color-mix(in srgb, #2d6a8f 20%, var(--paper));
   }
   .meta {
     display: flex;

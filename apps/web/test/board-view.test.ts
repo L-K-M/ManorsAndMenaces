@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
   BoardAlign,
+  FLAG_FOOTPRINT,
   LABEL,
+  MENACE_BODY,
+  MENACE_FOOTPRINT,
+  MENACE_OFFSET,
   bannerSlot,
   boardToScreen,
   isClear,
   labelLod,
   noteSlots,
+  pipsFootprint,
   placeNote,
+  pointRectDistance,
   screenScale,
   strokeWidth,
   wrapLabel,
@@ -116,27 +122,36 @@ describe("wrapLabel", () => {
 });
 
 describe("bannerSlot", () => {
-  // Flag geometry relative to its origin (Board.svelte): pole at x -6, tip at
-  // x 12, hit area from y -26 to 4.
-  const flag = (p: { x: number; y: number }) => ({ left: p.x - 6, right: p.x + 12, top: p.y - 26, bottom: p.y + 4 });
+  const F = FLAG_FOOTPRINT;
+  const flag = (p: { x: number; y: number }) => ({ left: p.x + F.x, right: p.x + F.x + F.w, top: p.y + F.y, bottom: p.y + F.y + F.h });
 
   it("places Banners below the capacity pips", () => {
-    const pipBottom = LABEL.pipY + 4;
     for (let n = 1; n <= 3; n++) {
+      const pips = pipsFootprint(n);
+      const pipBottom = LABEL.pipY + pips.y + pips.h;
       for (let i = 0; i < n; i++) expect(flag(bannerSlot({ x: 0, y: 0 }, i, n)).top).toBeGreaterThan(pipBottom);
     }
   });
 
   it("centres Banners under the label without overlapping each other", () => {
     const slots = [0, 1, 2].map((i) => flag(bannerSlot({ x: 100, y: 0 }, i, 3)));
-    expect((slots[0]!.left + slots[2]!.right) / 2).toBeCloseTo(100);
+    // Within a unit: the flags' shadows fall to the right.
+    expect((slots[0]!.left + slots[2]!.right) / 2).toBeCloseTo(100, 0);
     expect(slots[1]!.left).toBeGreaterThan(slots[0]!.right);
   });
 
-  it("keeps Banners clear of a Menace at x+40 (radius 19)", () => {
-    const right = flag(bannerSlot({ x: 0, y: 0 }, 2, 3));
-    const menaceBottom = 4 + 19;
-    expect(right.top).toBeGreaterThan(menaceBottom);
+  it("keeps a full Region's Banners clear of a Menace beside the label", () => {
+    const menace = MENACE_OFFSET.region;
+    const feet = { x: menace.x + MENACE_FOOTPRINT.x, y: menace.y + MENACE_FOOTPRINT.y, w: MENACE_FOOTPRINT.w, h: MENACE_FOOTPRINT.h };
+    // Layouts give a Region room for one or two Banners.
+    for (let n = 1; n <= 2; n++) {
+      for (let i = 0; i < n; i++) {
+        const f = flag(bannerSlot({ x: 0, y: 0 }, i, n));
+        const box = { x: f.left, y: f.top, w: f.right - f.left, h: f.bottom - f.top };
+        expect(pointRectDistance(menace.x + MENACE_BODY.x, menace.y + MENACE_BODY.y, box), `Banner ${i + 1} of ${n}`).toBeGreaterThan(MENACE_BODY.r);
+        expect(f.right < feet.x || f.top > feet.y + feet.h, `Banner ${i + 1} of ${n}`).toBe(true);
+      }
+    }
   });
 });
 

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { pick } from "./pick";
+import { acknowledgePlays, untilVisible } from "./plays";
 
 // "What just happened?" (spec §50): harvest flights, the action feed, the
 // catch-up digest, rivals' next harvest and your own resources on screen.
@@ -32,8 +33,9 @@ async function passCurtain(page: Page) {
 }
 
 async function status(page: Page): Promise<string> {
-  const el = page.locator(".actions .status").first();
-  return (await el.count()) ? ((await el.textContent()) ?? "") : "";
+  // Read atomically: once a played card is acknowledged, play goes on and the
+  // status can end between two locator calls.
+  return page.locator(".actions .status").evaluateAll((els) => els[0]?.textContent ?? "");
 }
 
 /** Plays setup for every human seat; returns once a human's first main phase starts. */
@@ -41,6 +43,7 @@ async function completeSetup(page: Page) {
   const ready = page.getByRole("button", { name: /Assign Banners →/ });
   for (let k = 0; k < 40 && !(await ready.isVisible()); k++) {
     await passCurtain(page);
+    await acknowledgePlays(page);
     const s = await status(page);
     if (/place a Manor/.test(s)) await pick(page.locator(".site.hl").first());
     else if (/free Route/.test(s)) await pick(page.locator(".route.hl").first());
@@ -132,7 +135,8 @@ test("with animation off, harvests update at once and still say what came in", a
     ).observe(document.body, { childList: true, subtree: true });
   });
   await endTurn(page);
-  await expect(page.locator(".toast.self")).toContainText("Your harvest", { timeout: 20_000 });
+  // Bertram's cards wait for OK on the way.
+  await untilVisible(page, page.locator(".toast.self", { hasText: "Your harvest" }), 20_000);
   expect(Math.max(0, ...tokens)).toBe(0);
 });
 

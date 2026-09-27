@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { pick } from "./pick";
+import { acknowledgePlays, playDialog } from "./plays";
 
 // Hot-seat privacy (§56.1): with two humans and an AI sharing one device, the
 // screen may only show the private information of the human who has taken
@@ -29,14 +30,16 @@ async function startTwoHumansAndAi(page: Page) {
 const curtainButton = (page: Page) => page.getByRole("button", { name: "Tap to begin turn" });
 
 async function status(page: Page): Promise<string> {
-  const el = page.locator(".actions .status").first();
-  return (await el.count()) ? ((await el.textContent()) ?? "") : "";
+  // Read atomically: once a played card is acknowledged, play goes on and the
+  // status can end between two locator calls.
+  return page.locator(".actions .status").evaluateAll((els) => els[0]?.textContent ?? "");
 }
 
 /** Plays human setup steps and passes curtains until a human's main turn starts. */
 async function untilHumanMainTurn(page: Page): Promise<void> {
   for (let k = 0; k < 60; k++) {
     if (await curtainButton(page).count()) await curtainButton(page).click();
+    await acknowledgePlays(page);
     if (await page.getByRole("button", { name: /Assign Banners →/ }).count()) return;
     const s = await status(page);
     if (/place a Manor/.test(s)) await pick(page.locator(".site.hl").first());
@@ -208,6 +211,9 @@ test("revealing into a Counterspell or Prophecy decision keeps focus in its dial
   await page.keyboard.press("Enter");
   const counterspell = page.getByRole("dialog", { name: "Counterspell?" });
   await expect(counterspell).toBeVisible();
+  // The dialog shows the Spell whole, which stands in for its played-card dialog.
+  await expect(counterspell.locator(".full-card .title")).toHaveText("Very Minor Prophecy");
+  await expect(playDialog(page)).toHaveCount(0);
   await expect.poll(() => focusInDialog("Counterspell?")).toBe(true);
 
   await counterspell.getByRole("button", { name: "Pass", exact: true }).click();

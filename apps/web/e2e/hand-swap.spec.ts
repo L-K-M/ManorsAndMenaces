@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { pick } from "./pick";
+import { untilVisible } from "./plays";
 
 // A rival's Changeling swaps your whole hand. A player once found two
 // different cards in hand without noticing the toast; the hand now says which
@@ -54,8 +55,9 @@ test("says which cards a rival's Changeling took and gave @mobile", async ({ pag
 
   await page.getByRole("button", { name: /Assign Banners →/ }).click();
   await page.getByRole("button", { name: /End Turn/ }).click();
-  // Back to the human's turn (the phone tray folds when a turn begins), then open the hand.
-  await expect(page.getByRole("button", { name: /Assign Banners →/ })).toBeVisible({ timeout: 30_000 });
+  // Back to the human's turn, reading the computer's Changeling on the way
+  // (the phone tray folds when a turn begins), then open the hand.
+  await untilVisible(page, page.getByRole("button", { name: /Assign Banners →/ }));
   const tray = page.locator(".tray-toggle");
   if ((await tray.isVisible()) && (await tray.getAttribute("aria-expanded")) === "false") await tray.click();
 

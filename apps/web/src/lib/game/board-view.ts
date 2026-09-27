@@ -170,9 +170,85 @@ export const HOME_MARK = {
 /** A flame, about 16 tall around 0,0: embers on a burned Route and the Ragnarök omen. */
 export const FLAME_PATH = "M0,-8 C3,-4 7,-1 5,4 C4,7 -4,7 -5,4 C-6.5,0.5 -2.5,-1.5 -1.5,-5 C-0.2,-2.5 1.5,-1 1,1.5 C2.8,-0.5 1.8,-4.5 0,-8 Z";
 
-/** Where the `i`-th of `n` Banners stands in a Region (the flag's pole is at x-6). */
+/**
+ * Where the `i`-th of `n` Banners stands relative to a Region's label point
+ * (the flag's pole is at x-6). This is the default; a Region too narrow for
+ * it gives its Banners other spots (art/board-spots.ts).
+ */
 export function bannerSlot(label: { x: number; y: number }, i: number, n: number): { x: number; y: number } {
   return { x: label.x - 3 + (i - (n - 1) / 2) * LABEL.bannerGap, y: label.y + LABEL.bannerY };
+}
+
+// ------------------------------------------------------------------ footprints
+// What a mark covers around the point it is drawn at: its painted shapes with
+// their strokes and cast shadows, not the highlight rings that come and go.
+// Board spots (art/board-spots.ts) keep these inside their Region and apart.
+
+export type BoxFootprint = { kind: "box" } & Rect;
+export type DiscFootprint = { kind: "disc" } & Circle;
+
+/** A box or a disc around a mark's origin, in board units. */
+export type Footprint = BoxFootprint | DiscFootprint;
+
+/**
+ * A Banner's flag in Board.svelte: the pole at x -6 from its finial (top -28)
+ * to its foot at y 4, where the unsettled ring reaches x -9; the cloth and its
+ * shadow reach x 14.5 and the pole's shadow y 10. Two flags a bannerGap apart
+ * do not touch. The Plague's mark, which rides the tip for a while, is left out.
+ */
+export const FLAG_FOOTPRINT: BoxFootprint = { kind: "box", x: -9, y: -28, w: 23.5, h: 38 };
+
+/** Where a Banner takes a tap or click: wider than the flag to its left, shorter than its finial and shadow. */
+export const FLAG_HIT: Rect = { x: -12, y: -26, w: 26, h: 30 };
+
+/** The resource disc at a Region's label point. */
+export const DISC = { r: 17, stroke: 2 } as const;
+
+/** The disc's footprint, around the label point. */
+export const DISC_FOOTPRINT: DiscFootprint = { kind: "disc", x: 0, y: 0, r: DISC.r + DISC.stroke / 2 };
+
+/** Capacity pips: a row of rings `gap` apart, centred on the row's spot. */
+export const PIPS = { r: 4, stroke: 1.5, gap: 12 } as const;
+
+/** Where the `i`-th of `capacity` pips sits along its row. */
+export function pipX(i: number, capacity: number): number {
+  return (i - (capacity - 1) / 2) * PIPS.gap;
+}
+
+/** The pip row of a Region of this capacity, around the row's centre. */
+export function pipsFootprint(capacity: number): BoxFootprint {
+  const r = PIPS.r + PIPS.stroke / 2;
+  const half = pipX(capacity - 1, capacity) + r;
+  return { kind: "box", x: -half, y: -r, w: 2 * half, h: 2 * r };
+}
+
+/** A Menace's hit area in figure units (MenaceFigure.svelte, drawn at PIECE_SCALE). */
+export const MENACE_HIT_R = 22;
+
+/**
+ * Where a Menace stands: the vector figures' base (MenaceFigure.svelte, x
+ * -16.5 to 16.5 and y 8.8 to 19.5 in figure units), where the painted figures
+ * have their feet. This is what must be on the Menace's Region; the figure
+ * above it may lean over a border, as the whole figure (about 68 across)
+ * would not fit the narrowest Regions.
+ */
+export const MENACE_FOOTPRINT: BoxFootprint = { kind: "box", x: -16.5 * PIECE_SCALE, y: 8.8 * PIECE_SCALE, w: 33 * PIECE_SCALE, h: 10.7 * PIECE_SCALE };
+
+/** A Menace's body, its hit area, which the label and other marks keep clear of. */
+export const MENACE_BODY: DiscFootprint = { kind: "disc", x: 0, y: 0, r: MENACE_HIT_R * PIECE_SCALE };
+
+/**
+ * Where a Region's name may reach, relative to its label point: above the
+ * disc, about 3.6 units per character each side. Names grow as the camera
+ * zooms out; this is their reach at close range, which terrain art, Banners
+ * and pips keep clear of.
+ */
+export const NAME_AREA = { top: -42, bottom: -14, perChar: 3.6, pad: 8 } as const;
+
+/** The name area of a Region called `name`, around its label point. */
+export function nameFootprint(name: string): BoxFootprint {
+  const half = name.length * NAME_AREA.perChar + NAME_AREA.pad;
+  return { kind: "box", x: -half, y: NAME_AREA.top, w: 2 * half, h: NAME_AREA.bottom - NAME_AREA.top };
 }
 
 // ------------------------------------------------------------------ note placement
@@ -214,7 +290,8 @@ export interface Obstacles {
 /** Space kept between a note and anything it avoids, in board units. */
 const NOTE_CLEARANCE = 3;
 
-function pointRectDistance(px: number, py: number, r: Rect): number {
+/** Distance from a point to a rectangle (0 inside it). */
+export function pointRectDistance(px: number, py: number, r: Rect): number {
   return Math.hypot(Math.max(r.x - px, 0, px - (r.x + r.w)), Math.max(r.y - py, 0, py - (r.y + r.h)));
 }
 
@@ -251,7 +328,8 @@ function segmentCrossesRect(ax: number, ay: number, bx: number, by: number, r: R
   return true;
 }
 
-function segmentRectDistance(s: Segment, r: Rect): number {
+/** Distance between a segment (its `r` ignored) and a rectangle (0 where they meet). */
+export function segmentRectDistance(s: Segment, r: Rect): number {
   if (segmentCrossesRect(s.ax, s.ay, s.bx, s.by, r)) return 0;
   const corners = [
     [r.x, r.y],

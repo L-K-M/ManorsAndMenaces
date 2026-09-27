@@ -3,6 +3,7 @@
   // available for high contrast and failed image loads. Both fit the existing
   // label clearances and targeting rings, and respect reduced motion.
   import type { MenaceType } from "@manors-menaces/rules";
+  import { MENACE_HIT_R } from "../../game/board-view.js";
 
   let { type, animate, highContrast = false }: { type: MenaceType; animate: boolean; highContrast?: boolean } = $props();
   let imageFailed = $state(false);
@@ -10,7 +11,7 @@
 </script>
 
 <g class="figure {type}" class:idle={animate} data-menace={type}>
-  <circle r="22" class="hit-area" />
+  <circle r={MENACE_HIT_R} class="hit-area" />
   {#if painted}
     <g class="body painted" pointer-events="none" aria-hidden="true">
       <image href="/art/menaces/{type.replaceAll('_', '-')}.png" x="-27" y="-33" width="54" height="54" onerror={() => imageFailed = true} />

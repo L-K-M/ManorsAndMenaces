@@ -45,6 +45,7 @@ test("every distinct card has its own painting and a larger readable preview", a
     await expect(peek.locator(".card-art")).toHaveAttribute("data-card-art", def.id);
     expect((await peek.locator(".illustration").boundingBox())!.width).toBeGreaterThan((await card.locator(".illustration").boundingBox())!.width * 1.4);
     expect(await peek.locator(".rules").evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+    expect(await peek.locator(".rules").evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
     const box = (await peek.boundingBox())!;
     expect(box.y).toBeGreaterThanOrEqual(0);
     expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height);
@@ -58,7 +59,11 @@ test("card art keeps vector alternatives for high contrast and failed loads", as
   const card = page.locator(".hand button.card");
   await expect(card.locator(".card-art svg")).toBeVisible();
   await expect(card.locator(".card-art img")).toHaveCount(0);
-  await expect(card.locator(".rules")).toContainText("Banner");
+  // The dock leaves the rules to the preview, which falls back too.
+  await page.keyboard.press("Tab");
+  await card.focus();
+  await expect(page.locator(".peek .card-art svg")).toBeVisible();
+  await expect(page.locator(".peek .rules")).toContainText("Banner");
 
   await page.unroute("**/art/cards/wizard_interference.webp");
   await dealPaintedCards(page, ["knight_errant"], true);
@@ -143,4 +148,45 @@ test("hands use portrait cards with prominent artwork on desktop and phone @mobi
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
+});
+
+test("card text stays readable in the hand and preview, with a hold hint on touch screens @mobile", async ({ page }) => {
+  const touch = !!test.info().project.use.hasTouch;
+  await dealPaintedCards(page, ["royal_insurance_policy", "druids_blessing", "fire_bolt"]);
+  await expect(page.getByText("Touch and hold a card to read it.")).toBeVisible({ visible: touch });
+  const px = (el: Element) => parseFloat(getComputedStyle(el).fontSize);
+  for (const card of await page.locator(".hand button.card").all()) {
+    await card.scrollIntoViewIfNeeded();
+    expect(await card.locator(".title").evaluate(px)).toBeGreaterThanOrEqual(15);
+    // Phones show the whole card; the desktop dock shows none of the rules
+    // rather than a clipped fragment.
+    if (touch) {
+      const rules = card.locator(".rules");
+      expect(await rules.evaluate(px)).toBeGreaterThanOrEqual(14);
+      expect(await rules.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+      // Flavour is set in a true italic, not in small capitals.
+      expect(await card.locator(".flavor").evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/^"?Alegreya"?,/);
+    } else await expect(card.locator(".rules")).toHaveCount(0);
+  }
+  // The whole card at reading size: held on a touch screen, it opens in the
+  // card viewer; on the desktop keyboard focus previews it.
+  const first = page.locator(".hand button.card").first();
+  await first.scrollIntoViewIfNeeded();
+  let reading = page.locator(".hand .peek");
+  if (touch) {
+    const box = (await first.boundingBox())!;
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] });
+    reading = page.getByRole("dialog", { name: "Royal Insurance Policy" });
+    await expect(reading.locator(".face")).toBeVisible();
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  } else {
+    await page.keyboard.press("Tab");
+    await first.focus();
+  }
+  await expect(reading.locator(".rules")).toBeVisible();
+  expect(await reading.locator(".rules").evaluate(px)).toBeGreaterThanOrEqual(16);
+  const box = (await reading.locator(".face").boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
 });

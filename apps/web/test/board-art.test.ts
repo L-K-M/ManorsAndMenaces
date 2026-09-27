@@ -1,20 +1,147 @@
 import { describe, expect, it, vi } from "vitest";
-import { ISLANDS, mapById, type MapDefinition } from "@manors-menaces/content";
+import { ISLANDS, mapById, type MapDefinition, type RegionDefinition } from "@manors-menaces/content";
 import { CLEARANCE, terrainArt } from "../src/lib/art/terrain.js";
 import { CARTOUCHE, RIPPLES, coastArt } from "../src/lib/art/coast.js";
 import { edgeDistance, inside, offsetPolygon, polygonPoints, segmentDistance } from "../src/lib/art/geometry.js";
 import { RIVER_HALF, riverAcross, routeGeometry } from "../src/lib/art/routes.js";
-import { bannerSlot } from "../src/lib/game/board-view.js";
+import { EDGE_CLEARANCE, boardSpots } from "../src/lib/art/board-spots.js";
+import {
+  DISC_FOOTPRINT,
+  FLAG_FOOTPRINT,
+  FLAG_HIT,
+  LABEL,
+  MENACE_BODY,
+  MENACE_FOOTPRINT,
+  MENACE_OFFSET,
+  bannerSlot,
+  pipsFootprint,
+  pointRectDistance,
+  segmentRectDistance,
+  type BoxFootprint,
+  type Footprint,
+} from "../src/lib/game/board-view.js";
+import type { Pt } from "../src/lib/art/geometry.js";
 
 // Every island, and a layout drawn on each: the art follows each Region's
 // Resource and name, which a layout changes.
 const BOARDS = ISLANDS.flatMap((island) => [island, mapById(`${island.id}@1`) as MapDefinition]).map((m) => [m.id, m] as const);
+
+/** Banners a Region may hold: layouts give any Region capacity 1 or 2. */
+const MOST_BANNERS = 2;
+
+/**
+ * Regions with no room anywhere for two Banners EDGE_CLEARANCE off their
+ * border, clear of the disc and each other (a search on a 2-unit grid finds
+ * no such pair), so a row of two stands just inside the border.
+ */
+const TOO_THIN_FOR_TWO = new Set(["emberreach/region_05"]);
+
+const placed = <F extends Footprint>(f: F, p: Pt): F => ({ ...f, x: f.x + p.x, y: f.y + p.y });
+
+/** How far a placed footprint stays inside the polygon's border; negative when it crosses it. */
+function clearance(f: Footprint, poly: Pt[]): number {
+  if (f.kind === "disc") return (inside(f, poly) ? edgeDistance(f, poly) : -edgeDistance(f, poly)) - f.r;
+  const corners = [f, { x: f.x + f.w, y: f.y }, { x: f.x, y: f.y + f.h }, { x: f.x + f.w, y: f.y + f.h }];
+  const out = corners.filter((c) => !inside(c, poly));
+  if (out.length) return -Math.max(...out.map((c) => edgeDistance(c, poly)));
+  let least = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    least = Math.min(least, segmentRectDistance({ ax: poly[j]!.x, ay: poly[j]!.y, bx: poly[i]!.x, by: poly[i]!.y, r: 0 }, f));
+  }
+  return least;
+}
+
+/** Whether two placed footprints overlap (touching is fine). */
+function overlap(a: Footprint, b: Footprint): boolean {
+  if (a.kind === "disc") return b.kind === "disc" ? Math.hypot(a.x - b.x, a.y - b.y) < a.r + b.r : pointRectDistance(a.x, a.y, b) < a.r;
+  if (b.kind === "disc") return pointRectDistance(b.x, b.y, a) < b.r;
+  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+}
 
 describe.each(BOARDS)("terrain illustration on %s", (_, map) => {
   const coast = polygonPoints(map.coastline);
   const regions = new Map(map.regions.map((r) => [r.id, r]));
   const sites = new Map(map.sites.map((s) => [s.id, s]));
   const art = terrainArt(map);
+  const spots = boardSpots(map);
+
+  /** Every mark a Region can show, placed: the pips, a Menace and each Banner of a row of 1 and of 2. */
+  function marksOf(r: RegionDefinition): { what: string; row: number; stands: Footprint; covers: Footprint[] }[] {
+    const s = spots.get(r.id)!;
+    const pips = placed(pipsFootprint(r.capacity), s.pips);
+    const menace = placed(MENACE_FOOTPRINT, s.menace);
+    return [
+      { what: "pips", row: 0, stands: pips, covers: [pips] },
+      { what: "Menace", row: 0, stands: menace, covers: [menace, placed(MENACE_BODY, s.menace)] },
+      ...s.banners.slice(0, MOST_BANNERS).flatMap((row, k) =>
+        row.map((p, i) => {
+          const flag = placed(FLAG_FOOTPRINT, p);
+          return { what: `Banner ${i + 1} of ${k + 1}`, row: k + 1, stands: flag, covers: [flag] };
+        }),
+      ),
+    ];
+  }
+
+  it("works out each Region's spots once per map object", () => {
+    expect(boardSpots({ ...map })).not.toBe(spots);
+    expect(boardSpots({ ...map })).toEqual(spots);
+    expect(boardSpots(map)).toBe(spots);
+    for (const r of map.regions) {
+      const rows = spots.get(r.id)!.banners.map((row) => row.length);
+      expect(rows, r.id).toEqual(Array.from({ length: Math.max(MOST_BANNERS, r.capacity) }, (_, k) => k + 1));
+    }
+  });
+
+  it("stands every Banner, Menace and pip row inside its Region, clear of the border", () => {
+    const island = map.id.split("@")[0];
+    for (const r of map.regions) {
+      const poly = polygonPoints(r.path);
+      for (const m of marksOf(r)) {
+        const room = clearance(m.stands, poly);
+        if (m.row === 2 && TOO_THIN_FOR_TWO.has(`${island}/${r.id}`)) expect(room, `${m.what} in ${r.id}`).toBeGreaterThan(0);
+        else expect(room, `${m.what} in ${r.id}`).toBeGreaterThanOrEqual(EDGE_CLEARANCE);
+      }
+    }
+  });
+
+  it("keeps the marks of a Region off its resource disc and each other", () => {
+    for (const r of map.regions) {
+      const disc = placed(DISC_FOOTPRINT, { x: r.labelX, y: r.labelY });
+      const marks = marksOf(r);
+      for (const m of marks) for (const c of m.covers) expect(overlap(c, disc), `${m.what} on the disc of ${r.id}`).toBe(false);
+      for (const [i, a] of marks.entries()) {
+        for (const b of marks.slice(i + 1)) {
+          // Rows for different numbers of Banners never show together.
+          if (a.row && b.row && a.row !== b.row) continue;
+          const hit = a.covers.some((ca) => b.covers.some((cb) => overlap(ca, cb)));
+          expect(hit, `${a.what} on ${b.what} in ${r.id}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("leaves every mark that fits where it always stood", () => {
+    let kept = 0;
+    for (const r of map.regions) {
+      const poly = polygonPoints(r.path);
+      const label = { x: r.labelX, y: r.labelY };
+      const s = spots.get(r.id)!;
+      const before: [string, Footprint, Pt, Pt][] = [
+        ["pips", pipsFootprint(r.capacity), { x: label.x, y: label.y + LABEL.pipY }, s.pips],
+        ["Menace", MENACE_FOOTPRINT, { x: label.x + MENACE_OFFSET.region.x, y: label.y + MENACE_OFFSET.region.y }, s.menace],
+      ];
+      for (let n = 1; n <= MOST_BANNERS; n++) {
+        for (let i = 0; i < n; i++) before.push([`Banner ${i + 1} of ${n}`, FLAG_FOOTPRINT, bannerSlot(label, i, n), s.banners[n - 1]![i]!]);
+      }
+      for (const [what, f, then, now] of before) {
+        if (clearance(placed(f, then), poly) < EDGE_CLEARANCE) continue;
+        kept++;
+        expect(now, `${what} in ${r.id}`).toEqual(then);
+      }
+    }
+    // Most Regions fit every mark where it always stood.
+    expect(kept).toBeGreaterThan(map.regions.length * 3);
+  });
 
   it("is deterministic per map and cached per map object", () => {
     const again = terrainArt({ ...map });
@@ -59,14 +186,11 @@ describe.each(BOARDS)("terrain illustration on %s", (_, map) => {
     for (const m of art.motifs) {
       for (const r of map.regions) {
         expect(Math.hypot(m.x - r.labelX, m.y - r.labelY), `${m.regionId} vs label of ${r.id}`).toBeGreaterThanOrEqual(CLEARANCE.disc + m.r - 0.1);
-        expect(Math.hypot(m.x - r.labelX - CLEARANCE.menace.dx, m.y - r.labelY - CLEARANCE.menace.dy)).toBeGreaterThanOrEqual(CLEARANCE.menace.r + m.r - 0.1);
+        const menace = spots.get(r.id)!.menace;
+        expect(Math.hypot(m.x - menace.x, m.y - menace.y - CLEARANCE.menace.dy), `${m.kind} on the Menace of ${r.id}`).toBeGreaterThanOrEqual(CLEARANCE.menace.r + m.r - 0.1);
         const half = r.name.length * CLEARANCE.name.perChar + CLEARANCE.name.pad;
         const inName = Math.abs(m.x - r.labelX) < half && m.y > r.labelY + CLEARANCE.name.top && m.y < r.labelY + CLEARANCE.name.bottom;
         expect(inName, `${m.kind} on the name of ${r.id}`).toBe(false);
-        const row = CLEARANCE.banners;
-        const dx = Math.max(r.labelX + row.x - m.x, 0, m.x - (r.labelX + row.x + row.w));
-        const dy = Math.max(r.labelY + row.y - m.y, 0, m.y - (r.labelY + row.y + row.h));
-        expect(Math.hypot(dx, dy), `${m.kind} under the Banners of ${r.id}`).toBeGreaterThanOrEqual(m.r - 0.1);
       }
       for (const s of map.sites) expect(Math.hypot(m.x - s.x, m.y - s.y - CLEARANCE.site.dy)).toBeGreaterThanOrEqual(CLEARANCE.site.r + m.r - 0.1);
       for (const route of map.routes) {
@@ -79,18 +203,19 @@ describe.each(BOARDS)("terrain illustration on %s", (_, map) => {
     }
   });
 
-  it("keeps the Banner row clear wherever the board stands Banners", () => {
-    // Each Banner's hit box (x-12..x+14, y-26..y+4) in every slot a full
-    // Region can use lies inside the keep-out row, so no art hides under a flag.
-    const row = CLEARANCE.banners;
-    const most = Math.max(...map.regions.map((r) => r.capacity));
-    for (let n = 1; n <= most; n++) {
-      for (let i = 0; i < n; i++) {
-        const slot = bannerSlot({ x: 0, y: 0 }, i, n);
-        expect(slot.x - 12, `slot ${i + 1} of ${n}`).toBeGreaterThanOrEqual(row.x);
-        expect(slot.x + 14, `slot ${i + 1} of ${n}`).toBeLessThanOrEqual(row.x + row.w);
-        expect(slot.y - 26, `slot ${i + 1} of ${n}`).toBeGreaterThanOrEqual(row.y);
-        expect(slot.y + 4, `slot ${i + 1} of ${n}`).toBeLessThanOrEqual(row.y + row.h);
+  it("keeps the art off the pips and every Banner, wherever they stand", () => {
+    // Each Banner's hit box and the pip row, in every spot a Region with one
+    // or two Banners uses, so no art hides under a flag.
+    for (const r of map.regions) {
+      const s = spots.get(r.id)!;
+      const boxes: [string, BoxFootprint][] = [
+        ["pips", placed(pipsFootprint(r.capacity), s.pips)],
+        ...s.banners.slice(0, MOST_BANNERS).flatMap((row, k) => row.map((p, i): [string, BoxFootprint] => [`Banner ${i + 1} of ${k + 1}`, placed({ kind: "box", ...FLAG_HIT }, p)])),
+      ];
+      for (const m of art.motifs) {
+        for (const [what, box] of boxes) {
+          expect(pointRectDistance(m.x, m.y, box), `${m.kind} under the ${what} of ${r.id}`).toBeGreaterThanOrEqual(m.r - 0.1);
+        }
       }
     }
   });

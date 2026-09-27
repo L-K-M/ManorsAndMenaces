@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page, type WebSocketRoute } from "@playwright/test";
+import type { MatchHistoryResponse } from "@manors-menaces/protocol";
 import { linkIn, mailTo } from "./outbox";
 import { pick } from "./pick";
 
@@ -243,6 +244,43 @@ test("a returning player finds the moves made while they were away", async ({ br
   const log = await chronicle(back);
   await expect(log.locator("li.divider")).toHaveText("Since your last visit");
   await expect(log.locator("li.divider ~ li", { hasText: "Alice's turn" })).toHaveCount(1);
+  await expect(back.getByRole("button", { name: /Assign Banners →/ })).toBeVisible();
+});
+
+test("a returning player reads the cards played while they were away, one by one", async ({ browser }) => {
+  const [alice, bob] = await startMatch(browser);
+  await playSetup([alice, bob]);
+  await untilTurnOf(bob, alice);
+  const link = alice.url();
+  const context = alice.context();
+  await alice.close();
+
+  await toBannerPhase(bob);
+  await bob.getByRole("button", { name: /End Turn/ }).click();
+
+  // Online hands are dealt at random, so Bob's cards are written into the
+  // history the server returns: the newest command, which Alice has not seen.
+  const back = await context.newPage();
+  await back.route("**/api/matches/*/history", async (route) => {
+    const response = await route.fetch();
+    const history = (await response.json()) as MatchHistoryResponse;
+    const bobId = history.match.seats.find((s) => s.displayName === "Bob")?.playerId;
+    const newest = history.entries.at(-1);
+    if (!bobId || !newest) throw new Error("the history has no seat for Bob or no entries to add his cards to");
+    const played = (cardId: string) => ({ type: "card_played" as const, playerId: bobId, cardId });
+    newest.events.unshift(played("festival_at_the_inn#1"), played("knight_errant#1"));
+    await route.fulfill({ response, json: history });
+  });
+  await back.goto(link);
+
+  const dialog = back.getByRole("dialog", { name: "Bob played Festival at the Inn" });
+  await expect(dialog).toContainText("Card 1 of 2");
+  await expect(dialog.getByRole("button", { name: "OK", exact: true })).toBeFocused();
+  await dialog.getByRole("button", { name: "OK", exact: true }).click();
+  const second = back.getByRole("dialog", { name: "Bob played Knight Errant" });
+  await expect(second).toContainText("Card 2 of 2");
+  await second.getByRole("button", { name: "OK", exact: true }).click();
+  await expect(back.getByRole("dialog")).toHaveCount(0);
   await expect(back.getByRole("button", { name: /Assign Banners →/ })).toBeVisible();
 });
 

@@ -55,6 +55,10 @@
       <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noreferrer">CC0 1.0</a>
     </details>
     <label><input type="checkbox" bind:checked={settings.privacyCurtain} /> {t("ui.privacy_curtain_between_hot_seat")}</label>
+    <div class="with-hint">
+      <label><input type="checkbox" bind:checked={settings.pauseOnCardPlay} aria-describedby="pause-on-card-play-hint" /> {t("ui.pause_on_card_play")}</label>
+      <small id="pause-on-card-play-hint">{t("ui.pause_on_card_play_hint")}</small>
+    </div>
     <label><input type="checkbox" bind:checked={settings.showRegionNames} /> {t("ui.show_region_names_on_the")}</label>
     <label><input type="checkbox" bind:checked={settings.rivalChatter} /> {t("ui.rival_banter")}</label>
   </form>
@@ -74,6 +78,12 @@
   input[type="checkbox"] {
     width: 1.3rem;
     height: 1.3rem;
+  }
+  .with-hint small {
+    display: block;
+    margin: -0.35rem 0 0 1.8rem;
+    font-size: 0.85rem;
+    opacity: 0.8;
   }
   .volume { display: grid; grid-template-columns: minmax(0, 1fr) minmax(80px, 1.2fr) 4ch; }
   .volume input { width: 100%; min-width: 0; }

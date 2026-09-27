@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { clickRoute, pick } from "./pick";
+import { acknowledgePlays, untilVisible } from "./plays";
 
 // Chronicle auto-scroll stickiness: the log follows new entries only while it
 // is pinned to the bottom; reading history must survive new entries arriving.
@@ -19,8 +20,9 @@ async function startVsAi(page: Page) {
 }
 
 async function status(page: Page): Promise<string> {
-  const el = page.locator(".actions .status").first();
-  return (await el.count()) ? ((await el.textContent()) ?? "") : "";
+  // Read atomically: once a played card is acknowledged, play goes on and the
+  // status can end between two locator calls.
+  return page.locator(".actions .status").evaluateAll((els) => els[0]?.textContent ?? "");
 }
 
 async function assignAllBanners(page: Page) {
@@ -35,6 +37,7 @@ async function assignAllBanners(page: Page) {
 
 async function completeSetup(page: Page) {
   for (let k = 0; k < 60; k++) {
+    await acknowledgePlays(page);
     const s = await status(page);
     if (/place a Manor/.test(s)) await pick(page.locator(".site.hl").first());
     else if (/free Route/.test(s)) await pick(page.locator(".route.hl").first());
@@ -48,7 +51,8 @@ async function endFullTurn(page: Page) {
   await page.getByRole("button", { name: /Assign Banners →/ }).click();
   // The Banner phase's End Turn confirms the Banners and ends the turn.
   await page.getByRole("button", { name: /End Turn/ }).click();
-  await expect(page.getByRole("button", { name: /^Build Route/ })).toBeVisible({ timeout: 30_000 });
+  // The computer's cards wait for OK on the way.
+  await untilVisible(page, page.getByRole("button", { name: /^Build Route/ }));
 }
 
 test("the Chronicle keeps the reader's scroll position and offers a jump pill", async ({ page }) => {

@@ -6,14 +6,20 @@
   import type { FeedbackController } from "../game/feedback.svelte.js";
   import { currentActor, type GameSession } from "../game/session.svelte.js";
   import { ui, resetTool } from "../stores/ui.svelte.js";
+  import type { GameLayout } from "../layout.js";
   import CardFace from "./CardFace.svelte";
+  import CardViewer from "./CardViewer.svelte";
   import EmptyHandArt from "./EmptyHandArt.svelte";
   import HandSwapNotice from "./HandSwapNotice.svelte";
   import ResourceIcon from "./ResourceIcon.svelte";
 
   const cardCost = Object.entries(BALANCE.costs.card) as [keyof typeof BALANCE.costs.card, number][];
 
-  let { session, legal, feedback }: { session: GameSession; legal: LegalActionSummary | null; feedback: FeedbackController } = $props();
+  let { session, legal, feedback, layout }: { session: GameSession; legal: LegalActionSummary | null; feedback: FeedbackController; layout: GameLayout } = $props();
+  // The wide layout's dock has a fixed height: its cards fill it and show
+  // title and painting, and a preview shows the rules. The rail and phone
+  // trays scroll, so their cards have room for the whole text.
+  const docked = $derived(layout === "wide");
   const viewer = $derived(session.viewerId);
   const hand = $derived(viewer ? (session.draft.players[viewer]?.hand ?? []) : []);
   let discardSel: string[] = $state([]);
@@ -35,15 +41,12 @@
     const inHand = new Set(hand);
     untrack(() => {
       if (discardSel.some((c) => !inHand.has(c))) discardSel = discardSel.filter((c) => inHand.has(c));
+      if (viewing && !inHand.has(viewing)) viewing = null;
       if (viewer && ui.cardId && !inHand.has(ui.cardId)) resetTool();
     });
   });
 
   async function click(cardId: string) {
-    if (held) {
-      held = false;
-      return;
-    }
     if (discarding) {
       discardSel = discardSel.includes(cardId) ? discardSel.filter((c) => c !== cardId) : [...discardSel, cardId];
       return;
@@ -55,9 +58,9 @@
     if (await session.perform({ type: "discard_cards", cardIds: discardSel })) discardSel = [];
   }
 
-  // The dock shows compact cards with clamped rules text; hovering one with a
-  // mouse (or tabbing to it) shows the whole card above it. It is positioned
-  // against the viewport so the hand's scroll box cannot clip it.
+  // Hovering a card with a mouse (or tabbing to it) shows the whole card at
+  // reading size above it: the dock's cards leave out the rules. It is
+  // positioned against the viewport so the hand's scroll box cannot clip it.
   let peek: { cardId: string; x: number; top: number; bottom: number; viewportHeight: number } | null = $state(null);
   let peekHeight = $state(0);
   const peekTop = $derived.by(() => {
@@ -81,6 +84,7 @@
     peek = { cardId, x: r.left + r.width / 2, top: r.top, bottom: r.bottom, viewportHeight: window.innerHeight };
   }
   function showPeek(e: PointerEvent | FocusEvent, cardId: string) {
+    if (held) return;
     if (e instanceof PointerEvent && (e.pointerType !== "mouse" || !matchMedia("(hover: hover)").matches)) return;
     const el = e.currentTarget as HTMLElement;
     if (e instanceof FocusEvent && !el.matches(":focus-visible")) return;
@@ -90,26 +94,39 @@
     peek = null;
   }
 
-  // Touch has no hover: pressing and holding a card shows the same preview
-  // until the finger lifts, and that press does not also play the card.
-  // Starting to scroll the hand cancels the pointer, and with it the hold.
+  // Touch has no hover: pressing and holding a card opens it in the card
+  // viewer, which stays open after the finger lifts until the player closes
+  // it. Starting to scroll the hand cancels the pointer, and with it the hold.
   const HOLD_MS = 400;
   let holdTimer: ReturnType<typeof setTimeout> | undefined;
+  let viewing: string | null = $state(null);
+  // From the moment a hold opens the viewer until the next press or key:
+  // lifting the finger may still send mouse events to whatever is under it
+  // now, the viewer or its backdrop. That click must neither play the card
+  // nor close the viewer, its mousedown must not pull focus out of the
+  // viewer (Escape would then miss it), and a long press must not open the
+  // browser's menu for the painting under the finger.
   let held = false;
   function pressStart(e: PointerEvent, cardId: string) {
-    // Any new press clears a hold, so the click after a touch hold is not swallowed.
-    held = false;
     if (e.pointerType === "mouse") return;
     const el = e.currentTarget as HTMLElement;
     clearTimeout(holdTimer);
     holdTimer = setTimeout(() => {
       held = true;
-      placePeek(el, cardId);
+      hidePeek();
+      // Modal hands focus back to the card when the viewer closes.
+      el.focus({ preventScroll: true });
+      viewing = cardId;
     }, HOLD_MS);
   }
   function pressEnd() {
     clearTimeout(holdTimer);
-    if (held) hidePeek();
+  }
+  function swallowLiftClick(e: MouseEvent) {
+    if (!held) return;
+    held = false;
+    e.stopPropagation();
+    e.preventDefault();
   }
   // A pointer the card has not captured (a pen, say) can slide off while
   // still pressed; the hold must not fire for a card it no longer touches.
@@ -119,19 +136,29 @@
   }
 </script>
 
-<svelte:window onresize={hidePeek} />
+<svelte:window
+  onresize={hidePeek}
+  onpointerdowncapture={() => (held = false)}
+  onkeydowncapture={() => (held = false)}
+  onmousedowncapture={(e) => held && e.preventDefault()}
+  onclickcapture={swallowLiftClick}
+  oncontextmenucapture={(e) => held && e.preventDefault()}
+/>
 
 {#if session.draft.ruleset.enableCards}
-  <section class="hand" aria-label={t("ui.your_hand")}>
-    <h3>
-      {viewer ? t("ui.players_hand", { name: session.draft.players[viewer]?.displayName ?? "" }) : t("ui.hand")}
-      {#if viewer}<small>({hand.length}/{session.draft.ruleset.handLimit})</small>{/if}
-    </h3>
-    <HandSwapNotice {session} {feedback} />
-    {#if session.draft.status === "playing" && (session.draft.ruleset.cardDrawEveryRounds ?? 0) > 0}
-      {@const interval = session.draft.ruleset.cardDrawEveryRounds!}
-      <p class="draw-note">{t("hand.next_free_card", { round: (Math.floor(session.draft.round / interval) + 1) * interval })}</p>
-    {/if}
+  <section class="hand" class:docked aria-label={t("ui.your_hand")}>
+    <div class="head">
+      <h3>
+        {viewer ? t("ui.players_hand", { name: session.draft.players[viewer]?.displayName ?? "" }) : t("ui.hand")}
+        {#if viewer}<small>({hand.length}/{session.draft.ruleset.handLimit})</small>{/if}
+      </h3>
+      {#if session.draft.status === "playing" && (session.draft.ruleset.cardDrawEveryRounds ?? 0) > 0}
+        {@const interval = session.draft.ruleset.cardDrawEveryRounds!}
+        <p class="draw-note">{t("hand.next_free_card", { round: (Math.floor(session.draft.round / interval) + 1) * interval })}</p>
+      {/if}
+      {#if viewer && hand.length > 0}<p class="hold-hint">{t("hand.hold_hint")}</p>{/if}
+    </div>
+    <div class="swap"><HandSwapNotice {session} {feedback} /></div>
     {#if hiddenNote}
       <p class="empty hidden">
         <svg class="lock" width="14" height="16" viewBox="0 0 14 16" aria-hidden="true">
@@ -175,11 +202,10 @@
               onpointerdown={(e) => pressStart(e, cardId)}
               onpointerup={pressEnd}
               onpointercancel={pressEnd}
-              oncontextmenu={(e) => held && e.preventDefault()}
               onfocus={(e) => showPeek(e, cardId)}
               onblur={hidePeek}
             >
-              <CardFace {def} />
+              <CardFace {def} view={docked ? "glance" : "full"} />
             </button>
           </li>
         {/if}
@@ -193,8 +219,11 @@
         style="--x: {peek.x}px; --y: {peekTop}px"
         aria-hidden="true"
       >
-        <CardFace {def} expanded />
+        <CardFace {def} view="read" />
       </div>
+    {/if}
+    {#if viewing && hand.includes(viewing)}
+      <CardViewer def={session.ctx.cardOf(viewing)} onclose={() => (viewing = null)} />
     {/if}
     {#if discarding}
       <div class="discard">
@@ -208,6 +237,16 @@
 
 <style>
   .draw-note { margin: 0 0 0.3rem; font-size: 0.75rem; color: var(--ink-soft); }
+  /* Touch screens have no hover, so they say how to read a card. */
+  .hold-hint {
+    display: none;
+    margin: 0 0 0.3rem;
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+  }
+  @media (any-pointer: coarse) {
+    .hold-hint { display: block; }
+  }
   h3 {
     margin: 0 0 0.3rem;
     font: 700 0.8rem/1 var(--font-body);
@@ -215,8 +254,7 @@
     text-transform: uppercase;
   }
   /* GameScreen sizes the hand; it fills that box and scrolls sideways.
-     A scrolling phone tray shows the full rules and flavor. A fixed-height
-     desktop container scales the portrait cards and offers a full preview. */
+     A scrolling phone tray shows whole cards, one wide card at a time. */
   .hand {
     display: flex;
     flex-direction: column;
@@ -233,11 +271,46 @@
     padding: 0.3rem 0.25rem 0.6rem;
     overflow-x: auto;
     overscroll-behavior-x: contain;
-    container-name: cards;
-    container-type: var(--cards-container, normal);
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 0.25rem;
+  }
+  ul:empty {
+    display: none;
   }
   li {
     display: flex;
+    scroll-snap-align: start;
+  }
+  /* The desktop dock has a fixed height (GameScreen). The heading moves
+     beside the cards so they get all of it; they take a portrait width
+     from it, and the preview above shows the rules. */
+  .docked {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    column-gap: 0.75rem;
+  }
+  .docked .head {
+    grid-row: 1 / -1;
+    max-width: 7.5rem;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  /* A Changeling notice sits above the cards, where it has the width to be
+     read; it is empty (and takes no height) otherwise. */
+  .docked .swap {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .docked ul,
+  .docked .empty,
+  .docked .empty-hand,
+  .docked .discard {
+    grid-column: 2;
+  }
+  .docked ul {
+    container: cards / size;
+    scroll-snap-type: none;
   }
   /* In a scrolling tray (rail, phone sheet) Discard stays in view while you
      choose which cards to let go. Its backing hides the cards behind it
@@ -298,9 +371,6 @@
     background: #fff9e899;
     white-space: nowrap;
   }
-  .empty-hand + ul:empty {
-    display: none;
-  }
   .hidden {
     display: flex;
     align-items: center;
@@ -311,10 +381,6 @@
     flex: none;
   }
   .card {
-    flex: none;
-    width: 12rem;
-    height: var(--hand-card-height, 18rem);
-    min-height: 0;
     display: block;
     padding: 0;
     border: 2px solid #795b32;
@@ -337,20 +403,43 @@
     background: url("/art/manor-troll.png") center / 85% auto no-repeat, var(--forest-panel);
     box-shadow: inset 0 0 0 5px #294532, inset 0 0 0 7px #cbaa62;
   }
-  /* A wide dock has a fixed height. Size the physical card to that space;
-     the rail and phone sheet use the roomier portrait size above. */
-  @container cards (min-height: 0px) {
-    .card:not(.peek) {
-      height: 100%;
-      width: clamp(5rem, 68cqh, 12rem);
+  /* Hand cards in a tray: GameScreen sets the width, and they are at least
+     portrait (5 : 7), taller where the text needs it. */
+  ul .card {
+    flex: none;
+    width: var(--hand-card-width, 12rem);
+    min-height: calc(var(--hand-card-width, 12rem) * 1.4);
+  }
+  /* In the dock: the full height, and a portrait width from it (1.39 : 1,
+     so a card stays a card). Larger text needs wider cards to keep titles
+     from breaking mid-word; at 150% nine of its rems fit every title on
+     two lines, even where that makes a card less than portrait. */
+  .docked ul .card {
+    height: 100%;
+    width: clamp(5rem, max(72cqh, (var(--text-scale, 1) - 1) * 18rem), 12rem);
+    min-height: 0;
+  }
+  /* A dock this short (large text on a small screen) leaves a portrait card
+     no room beyond a title broken over several lines. Wider cards keep each
+     title to two lines, over what fits of the painting; the preview still
+     shows the whole card. */
+  @container cards (max-height: 8rem) {
+    .docked ul .card {
+      width: 9rem;
+      --glance-ribbon: none;
+    }
+  }
+  @container cards (max-height: 5rem) {
+    .docked ul .card {
+      --glance-art: none;
     }
   }
   .peek {
     position: fixed;
     z-index: 40;
-    left: clamp(8px, calc(var(--x) - 9rem), calc(100vw - 18rem - 8px));
+    left: clamp(8px, calc(var(--x) - 11rem), calc(100vw - 22rem - 8px));
     top: var(--y);
-    width: min(18rem, calc(100vw - 16px));
+    width: min(22rem, calc(100vw - 16px));
     height: auto;
     max-height: calc(100dvh - 16px);
     overflow: auto;

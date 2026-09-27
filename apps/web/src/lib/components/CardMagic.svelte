@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { CardRulesDefinition } from "@manors-menaces/rules";
   import type { GameSession } from "../game/session.svelte.js";
-  import { animationScale } from "../stores/settings.svelte.js";
+  import { animationScale, settings } from "../stores/settings.svelte.js";
   import ToolIcon from "./ToolIcon.svelte";
   import CardFace from "./CardFace.svelte";
 
@@ -25,6 +25,8 @@
         if (disposed || session.curtainFor || document.hidden || !animationScale()) return;
         for (const event of batch.events) {
           if (event.type !== "card_played") continue;
+          // Others' plays wait in PlayedCardDialog instead, unless that pause is off.
+          if (event.playerId !== session.viewerId && settings.pauseOnCardPlay) continue;
           clear();
           const duration = 1600 * animationScale();
           played = { key: ++sequence, def: session.ctx.cardOf(event.cardId), duration };
@@ -50,7 +52,7 @@
       {#each Array.from({ length: 12 }, (_, i) => i) as i}
         <span class="spark" style="--angle: {i * 30}deg; --reach: {i % 2 ? 8 : 11}rem"><ToolIcon name="sparkle" size={20} /></span>
       {/each}
-      <div class="cast-card"><CardFace def={played.def} /></div>
+      <div class="cast-card"><CardFace def={played.def} view="glance" /></div>
     </div>
   {/key}
 {/if}

@@ -68,11 +68,28 @@ test("only a committed card play casts magic, then releases the board @mobile", 
   if (await tray.isVisible() && await tray.getAttribute("aria-expanded") === "false") await tray.click();
   await expect(card).toHaveCount(1);
   await card.click();
+  // Read the flourish the moment it is added: it lasts only 1.6 seconds,
+  // which a busy machine can spend between two separate checks. It shows
+  // the card's title and painting, without a clipped fragment of the rules,
+  // and never takes the pointer.
+  await page.evaluate(() => {
+    const record = window as unknown as { cast?: unknown };
+    new MutationObserver((_, observer) => {
+      const el = document.querySelector(".card-magic");
+      if (!el) return;
+      record.cast = {
+        art: el.querySelector("[data-card-art]")?.getAttribute("data-card-art"),
+        title: el.querySelector(".title")?.textContent,
+        rules: el.querySelectorAll(".rules").length,
+        pointerEvents: getComputedStyle(el).pointerEvents,
+      };
+      observer.disconnect();
+    }).observe(document.body, { childList: true, subtree: true });
+  });
   await choice.getByRole("button", { name: "Timber", exact: true }).click();
   const magic = page.locator(".card-magic");
-  await expect(magic).toBeVisible();
-  await expect(magic.locator("[data-card-art]")).toHaveAttribute("data-card-art", "festival_at_the_inn");
-  expect(await magic.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe("none");
+  const cast = await page.waitForFunction(() => (window as unknown as { cast?: unknown }).cast);
+  expect(await cast.jsonValue()).toEqual({ art: "festival_at_the_inn", title: "Festival at the Inn", rules: 0, pointerEvents: "none" });
   await expect(card).toHaveCount(0);
   await expect(magic).toHaveCount(0, { timeout: 3000 });
 });

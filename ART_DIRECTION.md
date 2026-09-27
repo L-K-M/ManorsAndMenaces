@@ -1054,3 +1054,69 @@ layouts leave one Region with a single motif.
 Open: the generated islands share The Greenvale's bay template (rotated per
 seed) and name tables, so their silhouettes rhyme; a wider set of coast
 shapes and island-specific names would be the next step.
+
+## Readable card text and the card viewer
+
+Player feedback: "Text on cards is too small to read." The user chose
+bigger text plus a card viewer: rules at least 14 px wherever they appear,
+desktop hand cards with title and painting and the whole card on hover,
+wider phone cards, and a touch-and-hold view that stays open until closed,
+with a hint saying so. Cards stay portrait; a landscape layout was offered
+and not chosen.
+
+Measured before (Chromium, 100% text): the 1280x720 dock had 76x102 px
+card faces with rules hidden and 11.2 px titles cut off at the edge; from
+1280x800 up the rules showed at 10.9 px, cut to two lines. At 150% text
+the dock's cards were 24 px tall slivers. Phone cards were 12rem wide with
+12.2 px rules; the touch preview (13.6 px rules) vanished when the finger
+lifted, and nothing mentioned it. Charters and set-aside cards had their
+rules only in a tooltip, which touch screens cannot open.
+
+Decisions:
+- CardFace has three views: `glance` (title, painting, type ribbon; the
+  desktop dock and the play flourish), `full` (the whole card; phone and
+  rail trays) and `read` (reading size; previews and the card viewer).
+  Floors at 100% text: titles 0.95rem, ribbon 0.7rem, rules 0.875rem
+  (14 px), reading rules 1rem (16 px). Flavour uses Alegreya's true italic
+  (0.85rem) instead of the small-caps display face. The container queries
+  that shrank text in a short dock are gone: a small box shows less of the
+  card, never smaller text.
+- Desktop dock: the hand heading sits beside the cards, so they get the
+  dock's full height at a 1.39 : 1 portrait width. No rules fragments; the
+  hover or focus preview is 22rem wide with 16 px rules. Dock and board
+  sizes are unchanged.
+- Larger text widens dock cards (nine rems at 150%) so titles keep to two
+  lines. A dock under 8rem tall drops the ribbon, under 5rem the painting:
+  at 150% on 1280x720 the cards are title plates and the preview shows the
+  rest.
+- At 100% on 1280x720 a card face is 100 px wide, narrower than
+  "Interference" or "Transmutation" at 15 px. Those words break at the
+  plate's edge, hyphenated where the browser has a dictionary (headless
+  Linux Chromium has none). Titles are never clipped.
+- Phones: tray cards are clamp(12rem, 68vw, 16rem) wide (in the rail,
+  min(16rem, 40vw - 2.6rem)), at least 5 : 7, with a 16 : 9 painting and
+  horizontal scroll snapping. Their height is about what it was (377 px).
+- Touch: holding a hand card for 400 ms opens `CardViewer` (Modal's new
+  `bare` variant around a `read` CardFace). It stays until the close
+  button, a tap on the backdrop or Escape; focus moves in and back to the
+  card. The lifting finger's mouse events, which Chromium sends to whatever
+  is now under it, and a long press's context menu are swallowed, so the
+  hold neither plays the card nor closes or unfocuses the viewer. A
+  touch-only line under the hand heading says "Touch and hold a card to
+  read it."
+- The players panel's set-aside, omen and Charter entries are buttons that
+  open the same viewer.
+
+Measured after (same game and cards):
+
+| Viewport | Card (face) | Title | Rules in hand | Reading view |
+| --- | --- | --- | --- | --- |
+| 1280x720 | 100x141 | 15.2 px | none (by design) | peek 352 px wide, 16 px rules |
+| 1280x800 | 122x171 | 15.2 px | none | peek, 16 px |
+| 1440x900 | 147x206 | 15.2 px | none | peek, 16 px |
+| 1280x720, 150% | 212x82 | 22.8 px, whole | none | peek 528 px wide, 24 px |
+| 390x844 | 252x373 | 15.2 px | 14 px, whole | viewer 352 px wide, 16 px |
+| 360x640 | 241x366 | 15.2 px | 14 px, whole | viewer 328 px wide, 16 px |
+| 844x390 | 252x373 | 15.2 px | 14 px, whole | viewer 352 px wide, 16 px |
+
+Board heights are unchanged at every size (400 px at 1280x720).
