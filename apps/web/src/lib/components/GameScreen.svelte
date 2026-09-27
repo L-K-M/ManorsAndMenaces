@@ -34,6 +34,7 @@
   import ResourcePurse from "./ResourcePurse.svelte";
   import RivalQuips from "./RivalQuips.svelte";
   import ScoreStrip from "./ScoreStrip.svelte";
+  import CrownsVoiceChip from "./CrownsVoiceChip.svelte";
   import RenownDialog from "./RenownDialog.svelte";
   import ToolIcon from "./ToolIcon.svelte";
   import SettingsDialog from "./SettingsDialog.svelte";
@@ -206,6 +207,7 @@
     <img class="brand-mark" src={`${import.meta.env.BASE_URL}art/manor-troll.png`} alt="" width="40" height="40" />
     <h1>{t("app.title")}</h1>
     <span class="round">{t("ui.round_n", { n: Math.max(1, gs.round) })}</span>
+    <CrownsVoiceChip {session} />
     <div class="score"><ScoreStrip {session} /></div>
     <span class="spacer"></span>
     {#if session.transport.kind === "local" && !tutorial}<button class="ghost" onclick={save}>{savedNote ?? t("ui.save")}</button>{/if}

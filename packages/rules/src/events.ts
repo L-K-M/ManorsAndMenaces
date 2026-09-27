@@ -2,6 +2,7 @@ import type {
   BannerId,
   CardEffectId,
   CardId,
+  CrownsVirtue,
   GameEndCause,
   HoldingId,
   MenaceId,
@@ -139,7 +140,28 @@ export type GameEvent =
   /** `cause` is absent for the normal §7 win (reaching the target). */
   | { type: "game_won"; playerId: PlayerId; renown: number; cause?: GameEndCause }
   /** A turn ended on a full board before the round's last seat: the game ends with the round if the board is still full then (§7). */
-  | { type: "board_full" };
+  | { type: "board_full" }
+  /**
+   * The Crown's Voice (§129.7): `playerId`'s Holding on `siteId` out-scored
+   * `rivalId`'s neighbouring Holding on `rivalSiteId` in `virtue` and won 1
+   * Favour, from the rival's Favour or from the Crown's purse.
+   */
+  | {
+      type: "favour_won";
+      playerId: PlayerId;
+      rivalId: PlayerId;
+      source: FavourSource;
+      virtue: CrownsVirtue;
+      siteId: SiteId;
+      rivalSiteId: SiteId;
+      score: number;
+      rivalScore: number;
+    }
+  /** A new round begins: the Crown favours `virtue`, and `next` is on show. */
+  | { type: "crowns_voice_turned"; virtue: CrownsVirtue; next: CrownsVirtue };
+
+/** Where a Favour the Crown's Voice awards comes from (§129.7). */
+export type FavourSource = "rival" | "purse";
 
 export type ResourceReason =
   | "harvest"

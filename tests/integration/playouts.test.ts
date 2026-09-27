@@ -4,6 +4,7 @@ import { rulesContentFor, validateMap, GREENVALE_MAP } from "@manors-menaces/con
 import {
   createRng,
   createRulesEngine,
+  crownsVoiceRules,
   getRenown,
   hashState,
   mvpRuleset,
@@ -70,6 +71,14 @@ function checkInvariants(s: GameState, cards: number): void {
   for (const p of Object.values(s.players)) {
     expect(getRenown(ctx, s, p.id), `${p.id}'s Renown`).toBeGreaterThanOrEqual(0);
     expect(p.lostRenown ?? 0).toBeGreaterThanOrEqual(0);
+    expect(p.favour ?? 0).toBeGreaterThanOrEqual(0);
+  }
+  // The Crown's Voice only moves Favour: what players hold and the purse add up to the purse it began with (§129.7).
+  const voice = s.ruleset.crownsVoice;
+  if (voice) {
+    const held = Object.values(s.players).reduce((n, p) => n + (p.favour ?? 0), 0);
+    expect(held + (s.crownsVoice?.purse ?? 0)).toBe(voice.purse);
+    expect(s.crownsVoice?.purse).toBeGreaterThanOrEqual(0);
   }
   // Changeling, Charters and Ragnarök move cards around; none may appear or vanish.
   expect(cardCount(s)).toBe(cards);
@@ -220,6 +229,18 @@ describe("AI playouts", () => {
       console.log(name, "rounds", final.round, "commands", commands.length, describeWin(final, won));
     }, 120_000);
   }
+
+  // The AI ignores the virtues (§129.7) but must still play such games out.
+  it("voice-3p: games with the Crown's Voice finish, move Favour and replay the same", () => {
+    const rs: RulesetConfig = { ...playoutRuleset(3), crownsVoice: crownsVoiceRules() };
+    const { initial, final, steps, won } = playGame(3, rs, "voice-3p");
+    expectWinner(final, won, rs.targetRenown);
+    const replayed = replaySteps(initial, steps);
+    expect(hashState(replayed.state)).toBe(hashState(final));
+    expect(replayed.eventTypes).toContain("favour_won");
+    expect(replayed.eventTypes).toContain("crowns_voice_turned");
+    console.log("voice-3p", "rounds", final.round, "favour", final.turnOrder.map((id) => final.players[id]?.favour ?? 0), describeWin(final, won));
+  }, 120_000);
 
   // Every player draws a free card each turn, so the cards (the second wave's
   // Route burning, Holding destruction, hand swaps and Charters) actually get

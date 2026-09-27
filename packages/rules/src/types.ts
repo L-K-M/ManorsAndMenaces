@@ -157,6 +157,26 @@ export interface RulesContent {
 
 // ------------------------------------------------------------------ config
 
+/** What the Crown can favour in a round (the Crown's Voice, spec §129.7). */
+export const CROWNS_VIRTUES = ["might", "roads", "plenty"] as const;
+export type CrownsVirtue = (typeof CROWNS_VIRTUES)[number];
+
+/** When the Crown's Voice first speaks (§129.7). */
+export const CROWNS_VOICE_STARTS = ["first_round", "quest_deck_empty"] as const;
+export type CrownsVoiceStart = (typeof CROWNS_VOICE_STARTS)[number];
+
+/** The Crown's Voice settings (experimental, §129.7). */
+export interface CrownsVoiceRules {
+  /** Favour in the Crown's purse when the game begins. */
+  purse: number;
+  /**
+   * `first_round`: the Voice speaks at the end of every round.
+   * `quest_deck_empty`: only at the end of rounds that end with the Quest
+   * deck empty, which it stays once it runs out.
+   */
+  from: CrownsVoiceStart;
+}
+
 export interface RulesetConfig {
   name: string;
   targetRenown: number;
@@ -198,6 +218,13 @@ export interface RulesetConfig {
    * play on.
    */
   endOnFullBoard?: boolean;
+  /**
+   * The Crown's Voice (experimental, §129.7): at the end of each round rival
+   * Holdings that touch the same Region contest the virtue the Crown favours,
+   * for Favour that counts as Renown. Absent: off, as in every game created
+   * before ruleset 0.8.0. Local games only.
+   */
+  crownsVoice?: CrownsVoiceRules;
 }
 
 export interface PlayerConfig {
@@ -275,6 +302,8 @@ export interface PlayerState {
    * saves and until the first loss.
    */
   lostRenown?: number;
+  /** Favour won through the Crown's Voice (§129.7); counts as Renown. Absent until first won or lost. */
+  favour?: number;
   holdingIds: HoldingId[];
   routeIds: RouteId[];
   claimedQuestIds: QuestId[];
@@ -401,6 +430,25 @@ export interface GameState {
   endCause?: GameEndCause;
   /** equalTurns: the target has been reached; the game ends with this round. */
   endTriggered?: boolean;
+  /** The Crown's Voice (§129.7), present when `ruleset.crownsVoice` is on. All of it is public. */
+  crownsVoice?: CrownsVoiceState;
+}
+
+export interface CrownsVoiceState {
+  /** The virtue the Crown favours when this round ends. */
+  current: CrownsVirtue;
+  /** The virtue it favours next, on show one round ahead. */
+  next: CrownsVirtue;
+  /**
+   * Cards left in the Voice deck, by virtue. Each card is drawn from these
+   * with the match RNG as it is turned: the odds of a shuffled deck, with no
+   * hidden order kept in the state.
+   */
+  deck: Record<CrownsVirtue, number>;
+  /** Favour left in the Crown's purse. */
+  purse: number;
+  /** Banners that produced resources at their owner's Harvest this round (Plenty). */
+  harvested: BannerId[];
 }
 
 /** How a game can end before anyone reaches the target (§7): Ragnarök, or a round that ends on a full board. */

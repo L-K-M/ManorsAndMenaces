@@ -31,6 +31,7 @@ import {
 } from "./selectors.js";
 import { Tx } from "./tx.js";
 import { finishGame, rankPlayers } from "./victory.js";
+import { checkCrownsVoiceRules, createCrownsVoice, crownSpeaks, turnVoice } from "./voice.js";
 import {
   RESOURCE_TYPES,
   type BannerId,
@@ -144,6 +145,7 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
   const { players, ruleset } = config;
   if (players.length < 2 || players.length > 4) throw new Error("Manors & Menaces supports 2–4 players");
   if (new Set(players.map((p) => p.id)).size !== players.length) throw new Error("Player ids must be unique");
+  if (ruleset.crownsVoice !== undefined) checkCrownsVoiceRules(ruleset.crownsVoice);
   const rng = createRng(seedRng(config.seed));
 
   const first = rng.nextInt(players.length);
@@ -172,6 +174,8 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
     questDeck = rng.shuffle(ctx.content.quests.map((q) => q.id));
     revealedQuestIds = questDeck.splice(0, ruleset.revealedQuestCount);
   }
+  // Drawn after every older RNG use, so games without the Voice deal as before.
+  const crownsVoice = ruleset.crownsVoice ? createCrownsVoice(rng, ruleset.crownsVoice) : undefined;
 
   const playerStates: Record<PlayerId, PlayerState> = {};
   players.forEach((p, seat) => {
@@ -231,6 +235,7 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
     ...(ruleset.enableQuests && ruleset.questExpiryRounds ? { revealedQuestRounds: Object.fromEntries(revealedQuestIds.map((q) => [q, 1])) } : {}),
     activeEffects: [],
     nextIds: { holding: 1, banner: 1 },
+    ...(crownsVoice ? { crownsVoice } : {}),
   };
 }
 
@@ -488,6 +493,8 @@ function resolveHarvest(tx: Tx, playerId: PlayerId): void {
     const banner = s.banners[b.id];
     if (banner) banner.settled = true;
   }
+  // The Crown's Voice scores Plenty from the Banners that produced this round (§129.7).
+  if (s.crownsVoice) for (const o of outcomes) if (o.amount > 0) s.crownsVoice.harvested.push(o.bannerId);
   // The Plague lasts for exactly one Harvest of each sick Banner's owner.
   const cured = new Set(getPlayerBanners(s, playerId).map((b) => b.id));
   if (s.activeEffects.some((e) => e.kind === "sick" && cured.has(e.bannerId))) {
@@ -532,6 +539,9 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   tx.emit({ type: "turn_ended", playerId });
 
   const endsRound = s.turnOrder.indexOf(playerId) === s.turnOrder.length - 1;
+  // The Crown's Voice speaks as the round ends, so its Favour counts in the
+  // checks below (§129.7).
+  if (endsRound) crownSpeaks(tx);
   let winner = checkVictory(tx);
   if (winner && s.ruleset.equalTurns) {
     s.endTriggered = true;
@@ -553,6 +563,7 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   const nextIdx = (idx + 1) % s.turnOrder.length;
   if (nextIdx === 0) {
     s.round += 1;
+    turnVoice(tx);
     expireQuests(tx);
     const interval = s.ruleset.cardDrawEveryRounds ?? 0;
     if (interval > 0 && s.round % interval === 0) dealCardsToAll(tx, 1, "round");

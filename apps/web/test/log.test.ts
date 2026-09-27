@@ -129,6 +129,19 @@ describe("formatEvents: second-wave cards", () => {
     expect(endCauseOf([])).toBeNull();
   });
 
+  it("tells each Favour the Crown's Voice moves, and the Voice turning", () => {
+    const a = map.sites[0]!;
+    const b = map.sites.find((s) => s.id !== a.id && s.adjacentRegionIds.some((r) => a.adjacentRegionIds.includes(r)))!;
+    const region = map.regions.find((r) => a.adjacentRegionIds.includes(r.id) && b.adjacentRegionIds.includes(r.id))!;
+    const won = (source: "rival" | "purse"): GameEvent => ({ type: "favour_won", playerId: "P1", rivalId: "P2", source, virtue: "might", siteId: a.id, rivalSiteId: b.id, score: 2, rivalScore: 1 });
+    const entries = formatEvents([won("rival"), won("purse"), { type: "crowns_voice_turned", virtue: "roads", next: "plenty" }], state, map);
+    expect(entries.map((e) => [e.kind, e.text, e.playerId])).toEqual([
+      ["important", `The Crown favours Might: Player 1 beat Player 2 across ${region.name}, 2 to 1, and took 1 Favour from Player 2.`, "P1"],
+      ["important", `The Crown favours Might: Player 1 beat Player 2 across ${region.name}, 2 to 1, and won 1 Favour from the Crown's purse.`, "P1"],
+      ["info", "The Crown now favours Roads, and Plenty after that.", null],
+    ]);
+  });
+
   it("says when the board is full and who it crowns, and reads the ending back", () => {
     const entries = formatEvents(
       [

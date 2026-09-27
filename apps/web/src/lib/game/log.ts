@@ -4,6 +4,7 @@ import type { MapDefinition } from "@manors-menaces/content";
 import type { HistoryEntry } from "@manors-menaces/protocol";
 import {
   cardDefIdOf,
+  type CrownsVirtue,
   type GameCommand,
   type GameEvent,
   type GameState,
@@ -53,6 +54,18 @@ export function siteName(map: MapDefinition, siteId: string): string {
   if (!s) return "?";
   if (s.landmarkId) return t(`landmark.${s.landmarkId}`);
   return regionName(map, s.adjacentRegionIds[0]);
+}
+
+/** The first Region two Sites both touch, where rival neighbours meet (the Crown's Voice, §129.7). */
+export function sharedRegionId(map: MapDefinition, siteA: string, siteB: string): string | null {
+  const a = map.sites.find((x) => x.id === siteA);
+  const b = map.sites.find((x) => x.id === siteB);
+  return a?.adjacentRegionIds.find((id) => b?.adjacentRegionIds.includes(id)) ?? null;
+}
+
+/** A virtue the Crown can favour, by name. */
+export function virtueName(virtue: CrownsVirtue): string {
+  return t(`voice.virtue.${virtue}.name`);
 }
 
 /** A Route's two end Sites, or null for an unknown Route. */
@@ -296,6 +309,21 @@ export function formatEvents(events: GameEvent[], state: GameState, map: MapDefi
         break;
       case "board_full":
         push(t("log.board_full"), null, "omen", e);
+        break;
+      case "favour_won": {
+        const params = {
+          virtue: virtueName(e.virtue),
+          name: nameOf(state, e.playerId),
+          rival: nameOf(state, e.rivalId),
+          region: regionName(map, sharedRegionId(map, e.siteId, e.rivalSiteId)),
+          score: e.score,
+          other: e.rivalScore,
+        };
+        push(t(e.source === "purse" ? "log.favour_won_purse" : "log.favour_won", params), e.playerId, "important", e);
+        break;
+      }
+      case "crowns_voice_turned":
+        push(t("log.voice_turned", { virtue: virtueName(e.virtue), next: virtueName(e.next) }), null, "info", e);
         break;
       case "game_won":
         if (e.cause === "ragnarok") push(t("log.won_ragnarok", { name: nameOf(state, e.playerId), renown: e.renown }), e.playerId, "omen", e);

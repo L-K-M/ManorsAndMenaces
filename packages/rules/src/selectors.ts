@@ -49,7 +49,7 @@ function idNumber(id: string): number {
  * every platform (§30), and `localeCompare` with options built an ICU
  * collator per call, which made this sort dominate AI decision time.
  */
-function compareIds(a: string, b: string): number {
+export function compareIds(a: string, b: string): number {
   const d = idNumber(a) - idNumber(b);
   if (d) return d;
   return a < b ? -1 : a > b ? 1 : 0;
@@ -104,7 +104,7 @@ export function bannersSupported(holding: Holding): number {
 export function getRenown(ctx: RulesContext, state: GameState, playerId: PlayerId): number {
   const p = state.players[playerId];
   if (!p) return 0;
-  let renown = p.bonusRenown - (p.lostRenown ?? 0);
+  let renown = p.bonusRenown - (p.lostRenown ?? 0) + (p.favour ?? 0);
   for (const h of getPlayerHoldings(state, playerId)) renown += h.type === "manor" ? BALANCE.renown.manor : BALANCE.renown.stronghold;
   for (const q of p.claimedQuestIds) renown += ctx.quest(q).renown;
   return renown;
@@ -121,6 +121,8 @@ export interface RenownSources {
   bonus: number;
   /** Renown lost for the rest of the game (Disgrace, Stolen Glory), subtracted from the total. */
   lost: number;
+  /** Favour won through the Crown's Voice (§129.7). */
+  favour: number;
 }
 
 // Kept apart from getRenown, which the AI calls in its inner loops.
@@ -137,6 +139,7 @@ export function getRenownSources(ctx: RulesContext, state: GameState, playerId: 
     quests,
     bonus: p?.bonusRenown ?? 0,
     lost: p?.lostRenown ?? 0,
+    favour: p?.favour ?? 0,
   };
 }
 
