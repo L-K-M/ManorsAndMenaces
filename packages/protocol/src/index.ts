@@ -1,6 +1,6 @@
 // Shared client/server protocol types (spec §104) and save-file schema (§63).
 
-import type { GameCommand, GameEvent, GameState, PlayerId, RuleError, RulesetConfig } from "@manors-menaces/rules";
+import type { GameCommand, GameCommandType, GameEvent, GameState, PlayerId, RuleError, RulesetConfig } from "@manors-menaces/rules";
 
 // ------------------------------------------------------------------ seats
 
@@ -288,30 +288,32 @@ export type ClientMessage = { type: "subscribe"; matchId: string; since?: number
 
 // ------------------------------------------------------------------ runtime guards
 
-const COMMAND_TYPES = new Set([
-  "place_initial_manor",
-  "place_initial_route",
-  "assign_initial_banners",
-  "build_route",
-  "build_manor",
-  "upgrade_holding",
-  "buy_card",
-  "play_card",
-  "trade",
-  "issue_royal_writ",
-  "hire_warden",
-  "claim_quest",
-  "answer_levy",
-  "recommission_charge",
-  "end_main_phase",
-  "assign_banners",
-  "discard_cards",
-  "end_turn",
-  "react",
-  "pass_reaction",
-  "resolve_prophecy",
-  "choose_charge",
-]);
+/** Every command a client may send, keyed by type so the compiler flags a command type left out. */
+const COMMAND_TYPE_KEYS: Record<GameCommandType, true> = {
+  place_initial_manor: true,
+  place_initial_route: true,
+  assign_initial_banners: true,
+  build_route: true,
+  build_manor: true,
+  upgrade_holding: true,
+  buy_card: true,
+  play_card: true,
+  trade: true,
+  issue_royal_writ: true,
+  hire_warden: true,
+  claim_quest: true,
+  answer_levy: true,
+  recommission_charge: true,
+  end_main_phase: true,
+  assign_banners: true,
+  discard_cards: true,
+  end_turn: true,
+  react: true,
+  pass_reaction: true,
+  resolve_prophecy: true,
+  choose_charge: true,
+};
+const COMMAND_TYPES: ReadonlySet<string> = new Set(Object.keys(COMMAND_TYPE_KEYS));
 
 /**
  * Structural check for commands arriving from untrusted clients (spec §72).
