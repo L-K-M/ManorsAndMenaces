@@ -100,6 +100,8 @@ describe("missedPlays", () => {
 type Queue = typeof import("../src/lib/game/plays.svelte.js");
 let PlayQueue: Queue["PlayQueue"];
 let settings: (typeof import("../src/lib/stores/settings.svelte.js"))["settings"];
+/** The pause as the settings store loads it, with nothing saved, before any test sets it. */
+let pauseAsLoaded: boolean;
 
 beforeAll(async () => {
   // plays.svelte.ts is a runes module: outside the Svelte compiler `$state`
@@ -108,6 +110,7 @@ beforeAll(async () => {
   vi.stubGlobal("$state", Object.assign(identity, { raw: identity }));
   ({ PlayQueue } = await import("../src/lib/game/plays.svelte.js"));
   ({ settings } = await import("../src/lib/stores/settings.svelte.js"));
+  pauseAsLoaded = settings.pauseOnCardPlay;
 });
 
 beforeEach(() => {
@@ -279,7 +282,7 @@ describe("PlayQueue", () => {
   });
 
   it("pauses by default", () => {
-    expect(settings.pauseOnCardPlay).toBe(true);
+    expect(pauseAsLoaded).toBe(true);
   });
 
   it("with the pause switched off, shows nothing and never holds a computer player", async () => {
