@@ -249,6 +249,10 @@ export const CARD_WORTH: Record<CardEffectId, number> = scaleWorth({
   siege_fireball: 0.5,
   // Two Grain: worth it only against a rival who threatens to win.
   sabotage: 0.1,
+  // A Manor at full price where no ordinary Manor may stand (§19.28): its
+  // Renown alone, 8, beats keeping her, so she is played once a Site is open
+  // to her; but an ordinary Site builds the same Manor and keeps her.
+  the_dowager: 2,
 });
 
 /**

@@ -239,7 +239,9 @@ export function computeHighlights(session: GameSession, legal: LegalActionSummar
       }
       // A dialog step is its own instruction.
       if (isCardDialog(step.pick)) break;
-      h.hint = `hint.card_${step.pick}`;
+      // A card may say more about where it goes (The Dowager's Site).
+      const specific = ui.cardId ? `hint.card_${step.pick}.${ctx.cardOf(ui.cardId).effectId}` : "";
+      h.hint = hasKey(specific) ? specific : `hint.card_${step.pick}`;
       for (const value of step.options) {
         switch (step.pick) {
           case "banner":

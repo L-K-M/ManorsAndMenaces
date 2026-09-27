@@ -108,6 +108,7 @@ export function testContent(): RulesContent {
       { id: "stolen_glory", type: "spell", timing: ["main"], effectId: "stolen_glory", copies: 1 },
       { id: "siege_fireball", type: "spell", timing: ["main"], effectId: "siege_fireball", copies: 1 },
       { id: "sabotage", type: "spell", timing: ["main"], effectId: "sabotage", copies: 2 },
+      { id: "the_dowager", type: "hero", timing: ["main"], effectId: "the_dowager", copies: 2 },
     ],
     quests: [
       { id: "kings_highway", renown: 2, conditionId: "kings_highway", exclusive: true },

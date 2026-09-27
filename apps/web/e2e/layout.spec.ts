@@ -56,9 +56,10 @@ const ALWAYS_DEALT = [
   "siege_fireball",
   "wizard_interference",
   "knight_errant",
+  // The press-and-hold tests need this playable card in the first five.
+  "festival_at_the_inn",
   "druids_blessing",
   "arcane_exchange",
-  "festival_at_the_inn",
   "very_minor_prophecy",
   "fog_of_confusion",
   "royal_insurance_policy",

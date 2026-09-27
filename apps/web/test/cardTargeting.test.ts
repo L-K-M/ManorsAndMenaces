@@ -170,6 +170,32 @@ function routeTo(s: GameState, siteId: string): void {
   (s.players[actor] as Player).routeIds.push(route.id);
 }
 
+/**
+ * Readies The Dowager (§19.28): the actor's first Holding with a Route to an
+ * empty Site that no rival's Holding touches becomes a Stronghold, the actor
+ * owns that Route, and holds exactly a Manor's price. Returns the Route.
+ */
+function dowerHouseRoute(s: GameState, me: Player): string {
+  const siteHeld = (siteId: string, by: (ownerId: PlayerId) => boolean) => Object.values(s.holdings).some((h) => h.siteId === siteId && by(h.ownerId));
+  for (const id of me.holdingIds) {
+    const h = s.holdings[id];
+    if (!h) continue;
+    for (const r of ctx.board.routesAt(h.siteId)) {
+      const end = ctx.board.otherEnd(r, h.siteId);
+      if (siteHeld(end, () => true) || ctx.board.neighbours(end).some((n) => siteHeld(n, (owner) => owner !== actor))) continue;
+      h.type = "stronghold";
+      const owner = s.routeOwners[r.id];
+      if (owner && owner !== actor) (s.players[owner] as Player).routeIds = (s.players[owner] as Player).routeIds.filter((x) => x !== r.id);
+      if (owner !== actor) me.routeIds.push(r.id);
+      s.routeOwners[r.id] = actor;
+      s.activeEffects = s.activeEffects.filter((e) => !(e.kind === "fog" && e.routeId === r.id));
+      me.resources = { ...noResources, grain: 1, timber: 1, stone: 1 };
+      return r.id;
+    }
+  }
+  throw new Error("no Site for The Dowager");
+}
+
 /** Each new card, set up so it can be played, and the dialogs its flow opens. */
 const NEW_CARDS: { effect: CardEffectId; setup?: (s: GameState, me: Player) => void; dialogs: string[] }[] = [
   {
@@ -257,6 +283,8 @@ const NEW_CARDS: { effect: CardEffectId; setup?: (s: GameState, me: Player) => v
     },
     dialogs: ["player"],
   },
+  // No toll or surcharge is due, so no dialog asks for one.
+  { effect: "the_dowager", setup: (s, me) => void dowerHouseRoute(s, me), dialogs: [] },
 ];
 
 describe("card targeting flow", () => {
@@ -448,6 +476,21 @@ describe("card targeting flow", () => {
     expect(store.ui.dialog).toBe("card_confirm");
     expect(performed).toEqual([]);
     expect([...ix.computeHighlights(session, ix.legalFor(session)).sites]).toEqual([siteId]);
+  });
+
+  it("asks The Dowager's player for the Highwaywoman's toll only when her Route has one", async () => {
+    const s = prepared("the_dowager#1", (st, me) => {
+      const routeId = dowerHouseRoute(st, me);
+      me.resources.iron = 1;
+      st.menaces.menace_highwayman = { id: "menace_highwayman", type: "highwayman", location: { kind: "route", routeId }, state: {} };
+    });
+    const { session } = fakeSession(s);
+    await ix.startCard(session, "the_dowager#1");
+    expect(ix.computeHighlights(session, ix.legalFor(session)).hint).toBe("hint.card_site.the_dowager");
+    const run = await drive(s, "the_dowager#1");
+    expect(run.dialogs).toEqual(["resource"]);
+    expect(run.intent).toMatchObject({ type: "play_card", target: { effect: "the_dowager", tollPayment: "iron" } });
+    expectAccepted(s, run.intent);
   });
 
   it("closes a card's dialog when the tool is reset", async () => {

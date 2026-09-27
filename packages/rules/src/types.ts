@@ -102,6 +102,7 @@ export const CARD_EFFECT_IDS = [
   "stolen_glory",
   "siege_fireball",
   "sabotage",
+  "the_dowager",
 ] as const;
 export type CardEffectId = (typeof CARD_EFFECT_IDS)[number];
 
@@ -240,6 +241,11 @@ export interface Holding {
   siteId: SiteId;
   ownerId: PlayerId;
   type: "manor" | "stronghold";
+  /**
+   * Built by The Dowager (§19.28) next to its owner's Holdings, closer than
+   * the spacing rule allows. Absent on every other Holding.
+   */
+  dowerHouse?: true;
 }
 
 export interface Banner {
@@ -330,7 +336,14 @@ export type ActiveEffect =
    * Raiders: only the burned Manor's owner may build on the Site, or next to
    * it, until the end of their next turn.
    */
-  | { kind: "razed"; siteId: SiteId; ownerId: PlayerId; sourcePlayerId: PlayerId };
+  | {
+      kind: "razed";
+      siteId: SiteId;
+      ownerId: PlayerId;
+      sourcePlayerId: PlayerId;
+      /** The burned Manor was a Dower House (§19.28): its owner's rebuild there waives the spacing rule toward their own Holdings. */
+      dowerHouse?: true;
+    };
 
 /** A decision the game is waiting on before normal play resumes (§109). */
 export type PendingDecision =
@@ -377,7 +390,9 @@ export type CardTarget =
   | { effect: "raiders"; siteId: SiteId }
   | { effect: "stolen_glory"; opponentId: PlayerId }
   | { effect: "siege_fireball"; siteId: SiteId }
-  | { effect: "sabotage"; opponentId: PlayerId };
+  | { effect: "sabotage"; opponentId: PlayerId }
+  /** The Manor's toll and surcharge, when due, as for `build_manor`. */
+  | { effect: "the_dowager"; siteId: SiteId; tollPayment?: ResourceType; extraPayment?: ResourceType };
 
 export interface GameState {
   revision: number;

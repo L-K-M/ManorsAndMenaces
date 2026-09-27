@@ -35,6 +35,12 @@
   known. The Quest panel shows the Levy with a button that says why it is
   unavailable, a chip by the round number names it, and the AI saves and
   trades for it. Games created before 0.8.0 play on without it.
+- The Dowager, a Hero ×2, brings the deck to 53 cards: at full cost she
+  builds a Manor at the far end of your Route from one of your
+  Strongholds, next to your own Holdings but never a rival's. Raiders'
+  rebuild window works for her Manor too. The AI plays her where no
+  ordinary Manor fits, and the card shows its Hero emblem until it is
+  painted.
 - The AI no longer reads hidden information: it plans on what its player
   can see and weighs each Spell by the chance a rival holds a Counterspell.
   It values each card by what it tends to be worth, so it buys and plays

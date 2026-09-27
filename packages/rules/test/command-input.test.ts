@@ -183,6 +183,8 @@ describe("hostile command fields", () => {
         opponentId: s.turnOrder.find((p) => p !== actor),
         siteId: "s5",
         resource: "grain",
+        tollPayment: "grain",
+        extraPayment: "grain",
       },
       give: "essence",
       receive: "iron",

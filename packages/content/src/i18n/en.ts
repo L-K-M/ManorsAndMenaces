@@ -118,6 +118,9 @@ export const EN: Record<string, string> = {
   "card.sabotage.name": "Sabotage",
   "card.sabotage.rules": "Choose an opponent who has Grain. Their grain silo burns down: they lose 2 Grain, or all they have if less.",
   "card.sabotage.flavor": "Nobody saw who lit it. Everybody saw who was roasting chestnuts.",
+  "card.the_dowager.name": "The Dowager",
+  "card.the_dowager.rules": "Build a Manor, at full cost, at the far end of your Route from one of your Strongholds. It may stand next to your own Holdings, never next to a rival's.",
+  "card.the_dowager.flavor": "She adores the family seat. She simply prefers to adore it from across the lane.",
 
   // ---------------------------------------------------------------- quests
   "quest.kings_highway.name": "King's Highway",
@@ -493,6 +496,9 @@ export const EN: Record<string, string> = {
   "hint.card_hoard": "Choose a resource from the Hoard.",
   // Card targeting: dialogs, confirmations and Counterspell prompts for the second wave (§19.12–19.21).
   "hint.card_site": "Choose a Site.",
+  "hint.card_site.the_dowager": "Choose a Site at the far end of your Route from one of your Strongholds.",
+  "target.dowager_toll": "The Highwaywoman holds the Route to her Manor: choose the resource that pays her toll of 1.",
+  "target.dowager_surcharge": "Goblin Tinkers are at work on that Site: choose the resource that pays their surcharge of 1.",
   "target.you": "You",
   "target.insured": "insured",
   "target.insured_help": "An insured player's {card} stops this card and is then discarded.",

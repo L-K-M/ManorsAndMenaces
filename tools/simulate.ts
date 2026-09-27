@@ -120,6 +120,8 @@ interface GameStats {
   raided: number;
   ruined: number;
   grainBurned: number;
+  /** The Dowager (§19.28): her Manors standing when the game ended. */
+  dowerHouses: number;
   /** Longest run of consecutive rounds a Region was held by the same player, as a share of the game. */
   maxHoldShare: number;
   harvestMid: number[];
@@ -180,6 +182,7 @@ function playOne(i: number): GameStats {
     raided: 0,
     ruined: 0,
     grainBurned: 0,
+    dowerHouses: 0,
     maxHoldShare: 0,
     harvestMid: [],
     harvestLate: [],
@@ -260,6 +263,7 @@ function playOne(i: number): GameStats {
     stats.renownSources.bonus = (s.players[s.winnerId]?.bonusRenown ?? 0) - (s.players[s.winnerId]?.lostRenown ?? 0);
   }
   stats.maxHoldShare = Math.max(0, ...[...longest.values()]) / Math.max(1, s.round);
+  stats.dowerHouses = Object.values(s.holdings).filter((h) => h.dowerHouse).length;
   return stats;
 }
 
@@ -328,6 +332,9 @@ function printCardTelemetry(): void {
   console.log(
     `third wave per game: renown lost ${per((r) => r.renownLost)} stolen ${per((r) => r.renownStolen)}  strongholds besieged ${per((r) => r.besieged)}  manors raided ${per((r) => r.raided)}  sites ruined ${per((r) => r.ruined)}  grain burned ${per((r) => r.grainBurned)}`,
   );
+  if (DECK.some((c) => c.effectId === "the_dowager")) {
+    console.log(`the dowager:         played ${per((r) => r.plays.the_dowager ?? 0)} per game, Dower Houses standing at the end ${per((r) => r.dowerHouses)}`);
+  }
   if (!DECK.some((c) => c.setAside)) return;
   const omens = results.filter((r) => r.omenRound !== null);
   const endings = results.filter((r) => r.ragnarokRound !== null);

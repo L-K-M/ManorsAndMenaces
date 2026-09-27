@@ -4,6 +4,7 @@
 
 import { clone, own } from "./clone.js";
 import { BALANCE } from "./balance.js";
+import { createBanner, createHolding, payForBuild } from "./build.js";
 import { isCardUsableInRuleset, resolveCardEffect, validateCardTarget } from "./cards.js";
 import type { DebugCommand, GameCommand } from "./commands.js";
 import { createContext, type RulesContext } from "./context.js";
@@ -22,13 +23,12 @@ import {
   getRenown,
   holdingAt,
   isBoardFull,
+  isDowerHouseRebuild,
   isLegalMenaceDestination,
   isRuinedSite,
   levyClosedReason,
   passesSpacing,
-  totalBuildCost,
   validateBannerAssignment,
-  type BuildCheck,
 } from "./selectors.js";
 import { Tx } from "./tx.js";
 import { finishGame, rankPlayers } from "./victory.js";
@@ -37,7 +37,6 @@ import {
   type BannerId,
   type GameConfig,
   type GameState,
-  type HoldingId,
   type MenaceInstance,
   type PlayerId,
   type PlayerState,
@@ -335,23 +334,6 @@ function execute(tx: Tx, cmd: GameCommand): void {
 
 // ------------------------------------------------------------------ setup (§28)
 
-function createHolding(tx: Tx, playerId: PlayerId, siteId: SiteId): HoldingId {
-  const s = tx.s;
-  const id = `holding_${s.nextIds.holding++}`;
-  s.holdings[id] = { id, siteId, ownerId: playerId, type: "manor" };
-  tx.player(playerId).holdingIds.push(id);
-  createBanner(tx, playerId, id);
-  return id;
-}
-
-function createBanner(tx: Tx, playerId: PlayerId, holdingId: HoldingId): BannerId {
-  const s = tx.s;
-  const id = `banner_${s.nextIds.banner++}`;
-  s.banners[id] = { id, ownerId: playerId, holdingId, regionId: null, settled: false };
-  tx.emit({ type: "banner_created", playerId, bannerId: id, holdingId });
-  return id;
-}
-
 function placeInitialManor(tx: Tx, playerId: PlayerId, siteId: SiteId): void {
   const s = tx.s;
   const setup = s.setup;
@@ -594,22 +576,6 @@ function foretellEndgame(tx: Tx): void {
 
 // ------------------------------------------------------------------ building
 
-function payForBuild(tx: Tx, playerId: PlayerId, check_: BuildCheck, toll: unknown, surcharge: unknown, reason: "build_route" | "build_manor" | "upgrade_holding"): void {
-  if (!check_.legal) throw new RuleViolation(check_.reason);
-  if (check_.needsToll) check(isResourceType(toll), "INVALID_PAYMENT", "toll required (Highwayman)");
-  else check(toll === undefined, "INVALID_PAYMENT", "no toll is due");
-  if (check_.needsSurcharge) check(isResourceType(surcharge), "INVALID_PAYMENT", "Goblin Tinkers surcharge required");
-  else check(surcharge === undefined, "INVALID_PAYMENT", "no surcharge is due");
-  const t = check_.needsToll ? (toll as ResourceType) : undefined;
-  const g = check_.needsSurcharge ? (surcharge as ResourceType) : undefined;
-  const p = tx.player(playerId);
-  const total = totalBuildCost(check_, t, g);
-  for (const r of RESOURCE_TYPES) check(p.resources[r] >= (total[r] ?? 0), "INSUFFICIENT_RESOURCES", r);
-  tx.spend(playerId, check_.cost, reason);
-  if (t) tx.spend(playerId, { [t]: BALANCE.costs.toll }, "toll");
-  if (g) tx.spend(playerId, { [g]: BALANCE.costs.goblinSurcharge }, "goblin_tinkers");
-}
-
 function buildRoute(tx: Tx, playerId: PlayerId, routeId: string, toll: unknown): void {
   check(typeof routeId === "string", "INVALID_COMMAND");
   const c = checkBuildRoute(tx.ctx, tx.s, playerId, routeId);
@@ -625,9 +591,11 @@ function buildManor(tx: Tx, playerId: PlayerId, siteId: string, toll: unknown, s
   check(typeof siteId === "string", "INVALID_COMMAND");
   const c = checkBuildManor(tx.ctx, tx.s, playerId, siteId);
   payForBuild(tx, playerId, c, toll, surcharge, "build_manor");
+  // A razed Dower House rebuilt by its owner is one again (§19.28).
+  const dowerHouse = isDowerHouseRebuild(tx.s, playerId, siteId);
   // Rebuilding a razed Manor puts out its embers (Raiders, §19.24).
   tx.s.activeEffects = tx.s.activeEffects.filter((e) => !(e.kind === "razed" && e.siteId === siteId));
-  const holdingId = createHolding(tx, playerId, siteId);
+  const holdingId = createHolding(tx, playerId, siteId, { dowerHouse });
   tx.emit({ type: "holding_built", playerId, holdingId, siteId, free: false });
 }
 

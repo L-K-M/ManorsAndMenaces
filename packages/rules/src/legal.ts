@@ -12,6 +12,7 @@ import {
   type BuildCheck,
   checkBuildManor,
   checkBuildRoute,
+  checkDowerHouse,
   checkUpgrade,
   getLegalInitialManorSites,
   getLegalInitialRoutes,
@@ -318,6 +319,25 @@ function cardTargetCandidates(ctx: RulesContext, state: GameState, playerId: Pla
       const dragon = menaceOfType(state, "young_dragon");
       const hoardTypes = RESOURCE_TYPES.filter((r) => (dragon?.state.hoard?.[r] ?? 0) > 0);
       for (const take of hoardTypes) for (const d of regionDests) candidates.push({ effect: "treasure_hunter", take, destination: d });
+      break;
+    }
+    case "the_dowager": {
+      // The far ends of the player's Routes from their Strongholds, with a
+      // toll or surcharge of each kind only when one is due.
+      const sites = new Set<SiteId>();
+      for (const h of getPlayerHoldings(state, playerId)) {
+        if (h.type !== "stronghold") continue;
+        for (const r of ctx.board.routesAt(h.siteId)) if (state.routeOwners[r.id] === playerId) sites.add(ctx.board.otherEnd(r, h.siteId));
+      }
+      for (const siteId of sites) {
+        const c = checkDowerHouse(ctx, state, playerId, siteId);
+        if (!c.legal) continue;
+        const tolls = c.needsToll ? RESOURCE_TYPES : [undefined];
+        const surcharges = c.needsSurcharge ? RESOURCE_TYPES : [undefined];
+        for (const tollPayment of tolls)
+          for (const extraPayment of surcharges)
+            candidates.push({ effect: "the_dowager", siteId, ...(tollPayment ? { tollPayment } : {}), ...(extraPayment ? { extraPayment } : {}) });
+      }
       break;
     }
     case "counterspell":

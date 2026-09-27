@@ -257,7 +257,7 @@ Simultaneous wins should be rare.
 
 **Exception: Ragnarök.** The game can also end before anyone reaches the target. When Ragnarök resolves (§19.13), the game ends at once, in the middle of the turn, without the End Turn phase. The winner is decided by the same tie-break order, applied to all players, and may have less than the target Renown.
 
-**Exception: a full board.** The board can fill up before anyone reaches the target, most often with 3 or 4 players and the higher goals (§129.6). The board is full when no Site could take a new Manor, whoever builds, because each is built on, in ruins (§19.26) or too close to a Holding (§10.3), and every Holding is a Stronghold. A Site burned down by Raiders (§19.24) counts as open, since its owner may rebuild there. On a full board nobody can build for Renown any more; only Quests, cards and the Crown's Levy (§27.3) remain. So when the round ends on a full board (the End Turn phase of the last player in turn order, after the victory check above), the game ends. The winner is decided by the same tie-break order, applied to all players, and may have less than the target Renown. Until then, each End Turn on a full board announces that the game ends with the round if the board is still full then (`board_full`); a card that empties it again, such as Raiders or Siege Engines, lets the game go on. The game records how it ended (`endCause: "full_board"`). The rule is `RulesetConfig.endOnFullBoard`, on in every ruleset from 0.7.0; games created before it play on.
+**Exception: a full board.** The board can fill up before anyone reaches the target, most often with 3 or 4 players and the higher goals (§129.6). The board is full when no Site could take a new Manor, whoever builds, because each is built on, in ruins (§19.26) or too close to a Holding (§10.3), and every Holding is a Stronghold. A Site burned down by Raiders (§19.24) counts as open, since its owner may rebuild there. On a full board nobody can build for Renown any more; only Quests, cards and the Crown's Levy (§27.3) remain. So when the round ends on a full board (the End Turn phase of the last player in turn order, after the victory check above), the game ends. The winner is decided by the same tie-break order, applied to all players, and may have less than the target Renown. Until then, each End Turn on a full board announces that the game ends with the round if the board is still full then (`board_full`); a card that opens it again, such as Raiders or Siege Engines, or adds a Manor, such as The Dowager (§19.28), lets the game go on. A card that could add one but is still in a hand does not: hands are hidden, and the check also runs on the redacted views that clients and the AI plan with. The game records how it ended (`endCause: "full_board"`). The rule is `RulesetConfig.endOnFullBoard`, on in every ruleset from 0.7.0; games created before it play on.
 
 ## 7.1 Renown budget
 
@@ -399,6 +399,8 @@ canBuildHolding(siteId) =
 
 This prevents overly dense construction and preserves meaningful resource adjacency.
 
+**Exception: The Dowager (§19.28).** Her Manor may stand next to its builder's own Holdings, never next to a rival's. So may its owner's rebuild of one that Raiders burned, during the rebuild window (§19.24).
+
 ---
 
 # 11. Suggested v0.1 Fixed Map
@@ -510,6 +512,7 @@ interface Holding {
   siteId: SiteId;
   ownerId: PlayerId;
   type: "manor" | "stronghold";
+  dowerHouse?: true; // built by The Dowager (§19.28), closer than §10.3 allows
 }
 ```
 
@@ -909,7 +912,7 @@ This prevents card effects from overwhelming the board economy.
 
 # 19. Initial Card Set
 
-The deck has 51 cards: the 24-card prototype (§19.1–19.11), a second wave of 15 cards (§19.12–19.21), a third wave of 10 cards that attack Renown and Grain (§19.22–19.27), and a Counterspell more with each wave (§19.2).
+The deck has 53 cards: the 24-card prototype (§19.1–19.11), a second wave of 15 cards (§19.12–19.21), a third wave of 10 cards that attack Renown and Grain (§19.22–19.27), a Counterspell more with each wave (§19.2), and The Dowager (§19.28).
 
 Recommended copies are shown.
 
@@ -1104,7 +1107,7 @@ The third wave (§19.22–19.27) answers a playtest request for more offensive c
 **Timing:** Main Action  
 **Requirement:** An opponent's Manor stands at an end of one of your Routes, and that opponent has at least 3 Holdings (`BALANCE.raid.minHoldings`).  
 **Effect:** Choose such a Manor. It burns down with its Banner, costing its owner 1 Renown. Until the end of the owner's next turn the Site is razed: only they may build on it or on a Site next to it.  
-**Note:** This is Fire Bolt's rebuild window (§19.14) for a Manor. Rebuilding on the Site ends it, as does the end of the owner's next turn. The neighbours are protected too, or the raider could take the spot, or block the rebuild by the spacing rule (§10.3), with a Manor of their own on the far end of the very Route that made the raid possible. Building on a razed Site, or next to it, that is not yours is refused with `SITE_RAZED`. Only a Manor burns; Strongholds are Siege Engines' business.  
+**Note:** This is Fire Bolt's rebuild window (§19.14) for a Manor. Rebuilding on the Site ends it, as does the end of the owner's next turn. The neighbours are protected too, or the raider could take the spot, or block the rebuild by the spacing rule (§10.3), with a Manor of their own on the far end of the very Route that made the raid possible. Building on a razed Site, or next to it, that is not yours is refused with `SITE_RAZED`. Only a Manor burns; Strongholds are Siege Engines' business. A burned Dower House (§19.28) passes its mark to the razed Site, so its owner may rebuild it with an ordinary build during the window although it stands next to their own Holdings.  
 **Rationale:** The 3-Holding minimum is Dragon's Landing's (§19.15): nobody drops below the two Holdings everyone starts with, so no player is eliminated (§3). The rebuild window keeps the loss reversible (§2.3).
 
 ## 19.25 Stolen Glory ×1
@@ -1134,16 +1137,26 @@ The third wave (§19.22–19.27) answers a playtest request for more offensive c
 **Note:** The design is a player's own ("burn down a grain silo, target loses two grain resources"). The Royal Insurance Policy does not cover it (§19.19). The Grain goes to the supply, not to the caster. The `resources_lost` event carries `cause: "sabotage"`.  
 **Rationale:** A cheap, reversible nuisance aimed at a rival's next Manor or Stronghold, both of which need Grain.
 
-Total: 51 cards: 35 Spells, 9 Heroes, 3 Stories, 2 Tricks and 2 Charters.
+## 19.28 The Dowager ×2
+
+**Type:** Hero
+**Timing:** Main Action
+**Requirement:** One of your Routes joins one of your Strongholds to an empty Site, no rival's Holding stands next to that Site, and you can pay for a Manor there.
+**Effect:** Build a Manor on that Site, her Dower House, and pay its full cost as for any Manor there: the Manor's price plus the Highwaywoman's toll (§22) and the Goblin Tinkers' surcharge (§25) when due. The spacing rule (§10.3) is waived only toward your own Holdings.
+**Card text:** "Build a Manor, at full cost, at the far end of your Route from one of your Strongholds. It may stand next to your own Holdings, never next to a rival's."
+**Note:** The Route must be usable, as for any build (§13): a fogged Route does not count. A ruined Site (§19.26) is refused, as is a Site razed for someone else or next to one (§19.24); a ruin next door does not stop her, since a ruin is not a Holding. Afterwards the Dower House is an ordinary Manor, worth 1 Renown with 1 Banner, and can be upgraded. It is marked `dowerHouse` (§12.3): when Raiders burn one, its owner may rebuild it during the rebuild window (§19.24). Dragon's Landing gives no window, so a Dower House it burns is gone. As a Hero she opens no reaction window and cannot be countered (§109), and she harms nobody, so no Royal Insurance Policy pays out. She does not keep a full board open while held (§7). The target names the Site and, when due, the toll and surcharge resources (`tollPayment`, `extraPayment`), as `build_manor` does.
+**Rationale:** Late in a game almost every Holding is a Stronghold and no Site is far enough from the others for an ordinary Manor, so she brings Renown where building has stopped, without crowding a rival's Regions. At full price she costs the card and the Manor, about the Renown per resource of ordinary building. Requiring a Stronghold keeps her out of the opening, where an early Banner would snowball.
+
+Total: 53 cards: 35 Spells, 11 Heroes, 3 Stories, 2 Tricks and 2 Charters.
 
 Setup leaves out cards that cannot be played with the active Menaces (§19.5, §118) and sets Ragnarök aside (§19.13):
 
 | Players | Cards | Draw pile at setup | Set aside | Left out |
 |---|---:|---:|---|---|
-| 2 | 46 | 45 | Ragnarök | Dragon Whisperer ×2, Teleportation Mishap ×2, Treasure Hunter |
-| 3–4 | 51 | 50 | Ragnarök | none |
+| 2 | 48 | 47 | Ragnarök | Dragon Whisperer ×2, Teleportation Mishap ×2, Treasure Hunter |
+| 3–4 | 53 | 52 | Ragnarök | none |
 
-With 2 players the deck holds 33 Spells and 6 Heroes. The async ruleset (§109) also leaves out the 4 Counterspells.
+With 2 players the deck holds 33 Spells and 8 Heroes. The async ruleset (§109) also leaves out the 4 Counterspells.
 
 ---
 
@@ -4040,6 +4053,10 @@ The third wave (§19.22–19.27) was asked for as offensive cards, so each is he
 **Sabotage (§19.27)** takes at most 2 Grain and never more than the target has, so it cannot create negative resources.
 
 None of the six can loop or skip a turn, all are public, and all are Spells, so Counterspell answers every one of them.
+
+## 111.3 The Dowager against the checklist
+
+**The Dowager (§19.28)** only builds, so most of the checklist does not apply: she erases nothing, cannot loop, and pays in full from what her player holds. She never crowds a rival, since no rival's Holding may stand next to her Manor, and the spacing rule still protects everyone else's Regions. Her Manor raises a Banner like any other; with no free Region it waits at home (§112). She cannot be countered, as building never could, and nothing about her is hidden once played. Held, she cannot keep a full board open (§7).
 
 ---
 

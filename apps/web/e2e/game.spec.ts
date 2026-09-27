@@ -205,7 +205,8 @@ test("a game that ends on a full board says so on the results", async ({ page })
   await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false })));
   await page.reload();
   await page.getByRole("button", { name: "Load game" }).click();
-  const save = finishedSave(undefined, undefined, standardRuleset(3, { targetRenown: 30 }));
+  // A seed whose board fills before the round's last turn, so the Chronicle also announces it.
+  const save = finishedSave("e2e-full-2", undefined, standardRuleset(3, { targetRenown: 30 }));
   await page.getByLabel(/Import a save file/).setInputFiles({ name: "full-board.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(save)) });
 
   const victory = page.getByRole("dialog", { name: "Victory!" });

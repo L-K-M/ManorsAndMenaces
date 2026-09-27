@@ -206,6 +206,12 @@ export function passesSpacing(ctx: RulesContext, state: GameState, siteId: SiteI
  * each is built on, in ruins or too close to a Holding (§10.3), and every
  * Holding is a Stronghold, so no build can gain Renown. A razed Site (§19.24)
  * counts as open, since its owner may rebuild there.
+ *
+ * A Site The Dowager (§19.28) could still take does not count as open. Hands
+ * are hidden, and this runs on redacted views too (clients, AI planning), so
+ * a test that looked into hands would disagree with the server's; and a card
+ * held back would keep the game open for good. Once played, her Manor makes
+ * the board not full until it is raised to a Stronghold.
  */
 export function isBoardFull(ctx: RulesContext, state: GameState): boolean {
   const occupied = new Set<SiteId>();
@@ -236,17 +242,44 @@ export function checkBuildRoute(ctx: RulesContext, state: GameState, playerId: P
   return { legal: false, reason: "NOT_CONNECTED" };
 }
 
+/** How the spacing rule (§10.3) applies to a new Manor. */
+export enum Spacing {
+  /** No Holding may stand next to the Site. */
+  Ordinary = "ordinary",
+  /** Only a rival's Holding may not: The Dowager's Manor, and its owner's rebuild of one razed (§19.28). */
+  BesideOwnHoldings = "beside_own_holdings",
+}
+
 /**
  * Why the player may not put a Manor on the Site whatever their network: it
  * is built on, in ruins (Siege Fireball), razed for someone else or next to
  * such a Site (Raiders), or too close to a Holding (§10.3). Null if open.
  */
-function siteClosedReason(ctx: RulesContext, state: GameState, playerId: PlayerId, siteId: SiteId): "SITE_OCCUPIED" | "SITE_RUINED" | "SITE_RAZED" | "SITE_TOO_CLOSE" | null {
+function siteClosedReason(
+  ctx: RulesContext,
+  state: GameState,
+  playerId: PlayerId,
+  siteId: SiteId,
+  spacing = Spacing.Ordinary,
+): "SITE_OCCUPIED" | "SITE_RUINED" | "SITE_RAZED" | "SITE_TOO_CLOSE" | null {
   if (holdingAt(state, siteId)) return "SITE_OCCUPIED";
   if (isRuinedSite(state, siteId)) return "SITE_RUINED";
   if ([siteId, ...ctx.board.neighbours(siteId)].some((id) => isRazedFor(state, id, playerId))) return "SITE_RAZED";
-  if (!passesSpacing(ctx, state, siteId)) return "SITE_TOO_CLOSE";
+  const tooClose = (n: SiteId): boolean => {
+    const h = holdingAt(state, n);
+    return !!h && (spacing === Spacing.Ordinary || h.ownerId !== playerId);
+  };
+  if (ctx.board.neighbours(siteId).some(tooClose)) return "SITE_TOO_CLOSE";
   return null;
+}
+
+/**
+ * Whether the player may rebuild on the Site with the spacing rule waived
+ * toward their own Holdings: a Dower House of theirs burned there by Raiders,
+ * and its rebuild window is still open (§19.24, §19.28).
+ */
+export function isDowerHouseRebuild(state: GameState, playerId: PlayerId, siteId: SiteId): boolean {
+  return state.activeEffects.some((e) => e.kind === "razed" && e.siteId === siteId && e.ownerId === playerId && e.dowerHouse);
 }
 
 /** Whether the player could build a Manor on the Site once their network reaches it (for planning ahead). */
@@ -256,13 +289,39 @@ export function isSiteOpenFor(ctx: RulesContext, state: GameState, playerId: Pla
 
 export function checkBuildManor(ctx: RulesContext, state: GameState, playerId: PlayerId, siteId: SiteId): BuildCheck {
   if (!ctx.board.hasSite(siteId)) return { legal: false, reason: "UNKNOWN_ENTITY" };
-  const closed = siteClosedReason(ctx, state, playerId, siteId);
+  const spacing = isDowerHouseRebuild(state, playerId, siteId) ? Spacing.BesideOwnHoldings : Spacing.Ordinary;
+  const closed = siteClosedReason(ctx, state, playerId, siteId, spacing);
   if (closed) return { legal: false, reason: closed };
   const needsSurcharge = menaceAt(state, { kind: "site", siteId })?.type === "goblin_tinkers";
   const base = { cost: { ...BALANCE.costs.manor }, needsSurcharge };
   if (isRouteEndpointSite(ctx, state, playerId, siteId)) return { legal: true, ...base, needsToll: false };
   if (isRouteEndpointSite(ctx, state, playerId, siteId, { allowHighwayman: true })) return { legal: true, ...base, needsToll: true };
   return { legal: false, reason: "NOT_CONNECTED" };
+}
+
+/**
+ * The Dowager (§19.28): whether the player may build her Manor on the Site,
+ * ignoring resources, and what payment it needs. One of their usable Routes
+ * must join one of their Strongholds to the empty Site, and no rival's
+ * Holding may stand next to it; their own may. The toll and surcharge are
+ * those of any Manor there.
+ */
+export function checkDowerHouse(ctx: RulesContext, state: GameState, playerId: PlayerId, siteId: SiteId): BuildCheck {
+  if (!ctx.board.hasSite(siteId)) return { legal: false, reason: "UNKNOWN_ENTITY" };
+  const closed = siteClosedReason(ctx, state, playerId, siteId, Spacing.BesideOwnHoldings);
+  if (closed && closed !== "SITE_TOO_CLOSE") return { legal: false, reason: closed };
+  const fromStronghold = (opts: NetworkOptions): boolean =>
+    ctx.board.routesAt(siteId).some((r) => {
+      if (state.routeOwners[r.id] !== playerId || !isRouteUsable(state, r.id, opts)) return false;
+      const h = holdingAt(state, ctx.board.otherEnd(r, siteId));
+      return h?.ownerId === playerId && h.type === "stronghold";
+    });
+  const needsToll = !fromStronghold({});
+  if (needsToll && !fromStronghold({ allowHighwayman: true })) return { legal: false, reason: "NOT_CONNECTED" };
+  // A rival's Holding next door: checked after the Route, which the card names first.
+  if (closed) return { legal: false, reason: closed };
+  const needsSurcharge = menaceAt(state, { kind: "site", siteId })?.type === "goblin_tinkers";
+  return { legal: true, cost: { ...BALANCE.costs.manor }, needsToll, needsSurcharge };
 }
 
 export function checkUpgrade(state: GameState, playerId: PlayerId, siteId: SiteId): BuildCheck {

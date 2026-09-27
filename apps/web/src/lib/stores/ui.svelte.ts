@@ -135,6 +135,12 @@ export const CARD_STEPS: Record<CardTarget["effect"], TargetField[]> = {
   stolen_glory: [{ field: "opponentId", pick: "player" }],
   siege_fireball: [{ field: "siteId", pick: "site" }],
   sabotage: [{ field: "opponentId", pick: "player" }],
+  // The Site, then what pays a toll or surcharge, each asked only when one is due.
+  the_dowager: [
+    { field: "siteId", pick: "site" },
+    { field: "tollPayment", pick: "resource" },
+    { field: "extraPayment", pick: "resource" },
+  ],
 };
 
 /**

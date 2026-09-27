@@ -336,10 +336,14 @@
   </Modal>
 {/if}
 
-<!-- Festival at the Inn and Robin of the Glade: name a resource. -->
+<!-- Festival at the Inn and Robin of the Glade: name a resource. The Dowager: pay her Manor's toll or surcharge. -->
 {#if ui.dialog === "resource" && cardStep && legal}
   <Modal title={cardTitle} onclose={resetTool}>
-    <p class="help">{cardRules}</p>
+    {#if cardEffect === "the_dowager"}
+      <p class="help">{t(cardStep.field === "tollPayment" ? "target.dowager_toll" : "target.dowager_surcharge")}</p>
+    {:else}
+      <p class="help">{cardRules}</p>
+    {/if}
     <div class="grid">
       {#each resourceOptions as r (r)}
         {@const payers = cardEffect === "robin_of_the_glade" ? robinPayers(session.ctx, gs, legal.playerId, r) : []}

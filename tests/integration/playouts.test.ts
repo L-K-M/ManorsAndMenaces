@@ -67,6 +67,16 @@ function checkInvariants(s: GameState, cards: number): void {
   }
   // Nobody ever builds on a ruin, and no card takes Renown below 0.
   for (const ruin of s.ruinedSiteIds ?? []) expect(sites, `ruined ${ruin}`).not.toContain(ruin);
+  // Spacing (§10.3): Holdings side by side belong to one player, and one of
+  // them is The Dowager's Manor (§19.28).
+  for (const h of Object.values(s.holdings)) {
+    for (const n of ctx.board.neighbours(h.siteId)) {
+      const next = Object.values(s.holdings).find((x) => x.siteId === n);
+      if (!next) continue;
+      expect(next.ownerId, `${h.siteId} beside ${n}`).toBe(h.ownerId);
+      expect(!!(h.dowerHouse || next.dowerHouse), `${h.siteId} beside ${n}`).toBe(true);
+    }
+  }
   for (const p of Object.values(s.players)) {
     expect(getRenown(ctx, s, p.id), `${p.id}'s Renown`).toBeGreaterThanOrEqual(0);
     expect(p.lostRenown ?? 0).toBeGreaterThanOrEqual(0);
