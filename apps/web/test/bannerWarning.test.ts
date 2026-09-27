@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { computeBannerHarvest, getHarvestPreview, getPlayerBanners, standardRuleset, type Banner, type GameState } from "@manors-menaces/rules";
+import { computeBannerHarvest, getHarvestPreview, getPlayerBanners, getRenown, standardRuleset, type Banner, type GameState } from "@manors-menaces/rules";
 import { mapFor } from "../src/lib/game/engine.js";
 import type { GameSession } from "../src/lib/game/session.svelte.js";
 import { engine, playGame } from "./helpers.js";
@@ -70,6 +70,39 @@ describe("bannerWarningFor", () => {
     ix.applyBannerAdvice(advice);
     expect(store.ui.selectedBannerId).toBeNull();
     expect(getHarvestPreview(ctx, base, actor, store.ui.bannerDraft).total).toBe(advice.best);
+    expect(ix.bannerWarningFor(s, ix.legalFor(s))).toBeNull();
+  });
+
+  it("returns null in the last round, when the player never harvests again", () => {
+    store.ui.bannerDraft = { [producing.id]: null };
+    expect(ix.bannerWarningFor(session(base), ix.legalFor(session(base)))).not.toBeNull();
+    const last = { ...base, ruleset: { ...base.ruleset, lastRound: base.round } };
+    expect(ix.legalFor(session(last))?.mode).toBe("banner_assignment");
+    expect(ix.bannerWarningFor(session(last), ix.legalFor(session(last)))).toBeNull();
+  });
+
+  it("returns null on the winning turn, which ends the game", () => {
+    store.ui.bannerDraft = { [producing.id]: null };
+    const me = base.players[actor];
+    if (!me) throw new Error("no actor");
+    const winning = { ...base, players: { ...base.players, [actor]: { ...me, bonusRenown: me.bonusRenown + base.ruleset.targetRenown } } };
+    expect(getRenown(ctx, winning, actor)).toBeGreaterThanOrEqual(base.ruleset.targetRenown);
+    expect(ix.bannerWarningFor(session(winning), ix.legalFor(session(winning)))).toBeNull();
+  });
+
+  // The End Turn click and the dialog it opens both ask; the search runs once.
+  it("computes the advice once until the state or the draft changes", () => {
+    store.ui.bannerDraft = { [producing.id]: null };
+    const s = session(base);
+    const first = ix.bannerWarningFor(s, ix.legalFor(s));
+    expect(first).not.toBeNull();
+    expect(ix.bannerWarningFor(s, ix.legalFor(s))).toBe(first);
+    // A new state (a command landed) asks again.
+    const next = ix.bannerWarningFor(session({ ...base }), ix.legalFor(s));
+    expect(next).not.toBe(first);
+    expect(next).toEqual(first);
+    // So does a new draft.
+    store.ui.bannerDraft = {};
     expect(ix.bannerWarningFor(s, ix.legalFor(s))).toBeNull();
   });
 
