@@ -253,7 +253,7 @@
     <CrownsVoiceChip {session} />
     <div class="score"><ScoreStrip {session} /></div>
     <span class="spacer"></span>
-    {#if session.transport.kind === "local" && !tutorial}<button class="ghost" onclick={save}>{savedNote ?? t("ui.save")}</button>{/if}
+    {#if session.transport.kind === "local" && !tutorial}<button class="ghost save" onclick={save}>{savedNote ?? t("ui.save")}</button>{/if}
     <button class="ghost icon" onclick={() => (ui.dialog = "settings")} aria-label={t("ui.settings")}><ToolIcon name="gear" /></button>
     {#if import.meta.env.DEV}<button class="ghost" onclick={() => (ui.showDebug = true)}>{t("ui.debug")}</button>{/if}
     {#if slideOver}
@@ -779,6 +779,14 @@
   /* On a phone the Levy chip keeps only its resource, so the bar stays one row. */
   @container topbar (max-width: 30rem) {
     .levy-chip-text {
+      display: none;
+    }
+  }
+  /* On a phone the buttons keep to one row beside the Levy and Voice chips:
+     Save, which the game menu also offers, leaves the bar, and so does its
+     longer "Saved." note. */
+  @container topbar (max-width: 28rem) {
+    .topbar .save {
       display: none;
     }
   }

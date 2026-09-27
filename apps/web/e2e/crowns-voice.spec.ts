@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { pick } from "./pick";
+import { topBarRowOffsets } from "./topbar";
 
 // The Crown's Voice (experimental, spec §129.10): offered under New Game >
 // Advanced for local games, shown as a chip in the top bar and told in the
@@ -32,18 +33,6 @@ async function start(page: Page, voice: boolean, rules: "Standard" | "Core" = "S
   await expect(page.getByRole("button", { name: /Assign Banners →/ })).toBeVisible();
 }
 
-/** How far each top-bar item's middle lies from the menu button's; `score` includes the scoreboard. */
-async function rowOffsets(page: Page, score: boolean): Promise<number[]> {
-  return page.locator(".topbar").evaluate((bar, withScore) => {
-    const middle = (el: Element) => {
-      const r = el.getBoundingClientRect();
-      return (r.top + r.bottom) / 2;
-    };
-    const items = Array.from(bar.children).filter((el) => (withScore || !el.classList.contains("score")) && el.getBoundingClientRect().width > 0);
-    return items.map((el) => Math.abs(middle(el) - middle(bar.children[0] as Element)));
-  }, score);
-}
-
 /** The development-only Debug button is not in a player's top bar. */
 async function hideDebug(page: Page) {
   await page.getByRole("button", { name: "Debug" }).evaluateAll((els) => els.forEach((el) => ((el as HTMLElement).style.display = "none")));
@@ -73,7 +62,7 @@ test.describe("the Crown's Voice on a small laptop", () => {
     await hideDebug(page);
     const chip = page.getByRole("button", { name: WAITING });
     await expect(chip).toBeVisible();
-    expect(Math.max(...(await rowOffsets(page, true)))).toBeLessThan(4);
+    expect(Math.max(...(await topBarRowOffsets(page, true)))).toBeLessThan(4);
     expect((await chip.boundingBox())?.width).toBeLessThan(160);
     await expect(chip).toHaveAttribute("title", WAITING);
     await expect(chip.locator(".short")).toHaveText(/^(Might|Roads|Plenty) › (Might|Roads|Plenty)$/);
@@ -116,7 +105,7 @@ test.describe("the Crown's Voice on a phone", () => {
     await expect(chip.locator(".tiny")).toBeVisible();
     await expect(chip.locator(".tiny")).toHaveText(/^(Might|Roads|Plenty)$/);
     // Everything but the scoreboard shares the first row.
-    expect(Math.max(...(await rowOffsets(page, false)))).toBeLessThan(4);
+    expect(Math.max(...(await topBarRowOffsets(page, false)))).toBeLessThan(4);
     await chip.tap();
     await expect(page.getByRole("dialog", { name: "The Crown's Voice" })).toContainText(/Crown's purse: 15 Favour/);
   });
