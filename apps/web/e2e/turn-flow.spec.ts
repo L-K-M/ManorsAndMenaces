@@ -358,3 +358,22 @@ test("Don't warn me again switches the warning off for later turns", async ({ pa
   await expect(page.getByRole("button", { name: "Tap to begin turn" })).toBeVisible();
   await expect(warningDialog(page)).toHaveCount(0);
 });
+
+// The warning can open under the pointer of a double click on End Turn: its
+// follow-up click (detail 2) must neither tick the box nor close the dialog.
+test("the follow-up click of a double click changes nothing in the warning", async ({ page }) => {
+  await startHotseat(page, "e2e-seed", true);
+  await completeSetup(page);
+  await endTurnWithBannersHome(page);
+
+  const warning = warningDialog(page);
+  const dontWarn = warning.getByRole("checkbox", { name: "Don't warn me again" });
+  await warning.locator("label.dont").dispatchEvent("click", { detail: 2 });
+  await dontWarn.dispatchEvent("click", { detail: 2 });
+  await expect(dontWarn).not.toBeChecked();
+  await warning.getByRole("button", { name: "Close" }).dispatchEvent("click", { detail: 2 });
+  await expect(warning).toBeVisible();
+  // A double click on the box ticks it once.
+  await dontWarn.dblclick();
+  await expect(dontWarn).toBeChecked();
+});

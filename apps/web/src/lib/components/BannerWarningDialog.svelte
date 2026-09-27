@@ -49,6 +49,10 @@
     settings.bannerWarning = !(e.currentTarget as HTMLInputElement).checked;
     saveSettings();
   }
+  /** The checkbox ignores follow-up clicks too, whether on the box or its text. */
+  function ignoreRepeat(e: MouseEvent) {
+    if (e.detail > 1) e.preventDefault();
+  }
 
   const where = (regionId: string | null): string => (regionId ? regionName(session.map, regionId) : t("banner_warning.home"));
   function moveText(m: BannerMove): string {
@@ -79,7 +83,10 @@
       <button onclick={once(placeForMe)}>{t("banner_warning.place_for_me")}</button>
       <button onclick={once(endAnyway)}>{t("banner_warning.end_anyway")}</button>
     </div>
-    <label class="dont">
+    <!-- The click handler only cancels the follow-up clicks of a double
+         click; the keyboard reaches the checkbox itself. -->
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+    <label class="dont" onclick={ignoreRepeat}>
       <input type="checkbox" checked={!settings.bannerWarning} onchange={dontWarn} />
       {t("banner_warning.dont_warn")}
     </label>
