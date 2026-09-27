@@ -1491,7 +1491,7 @@ The first round that begins with the Quest deck empty, or round 15 (`proclaimByR
 - Events: `levy_proclaimed` (public: the Levy now in force, null for the first, and the next one) and `levy_answered`.
 - The Quest panel shows the Levy above the Quests: its resource, the price and Renown, the next Levy, who has answered, and a button that says why it is unavailable (the shortfall, with the Market trades that cover it). A chip beside the round number names this round's Levy.
 
-**Rationale.** With 3 or 4 players the board usually fills before anyone reaches a goal of 20 or more (§129.6). The Levy is a Renown source that needs no Site and spends the late surplus. It starts when the Quest deck runs out, around round 15 in simulations, when building has slowed. 5 resources for 1 Renown is about the price of a Manor with its Routes; the Renown doubles at 25 and 30, which building alone rarely reaches. The AI saves for this round's Levy and the next, trades toward it, and never answers while an affordable upgrade waits.
+**Rationale.** With 3 or 4 players the board usually fills before anyone reaches a goal of 20 or more (§129.6). The Levy is a Renown source that needs no Site and spends the late surplus. It starts when the Quest deck runs out, around round 15 in simulations (§129.8), when building has slowed. 5 resources for 1 Renown is about the price of a Manor with its Routes; the Renown doubles at 25 and 30, which building alone rarely reaches. The AI saves for this round's Levy and the next, trades toward it, and never answers while an affordable upgrade waits.
 
 ---
 
@@ -4709,6 +4709,41 @@ The hint under "Renown to win" on New Game and in the online lobby follows these
 | 4 | 5 of 40 at 13, 16 of 30 at 15 | 19 of 20; 11 of 12 | 30 of 30 | 6 of 6 |
 
 The Core rules were not simulated, so their hint gives only the last round.
+
+## 129.8 The Crown's Levy and The Dowager (ruleset 0.9.0)
+
+The Crown's Levy (§27.3) and The Dowager (§19.28) answer the same finding: with 3 or 4 players the board fills before anyone reaches a goal of 20 or more (§129.6). The runs below were measured on their own branch, before the last round (§129.7), Sealed Charges and the Crown's Voice, and before the Levy stopped repeating a resource across cycles, which changes later Levies only.
+
+`pnpm simulate --games 30 --players N --target T --map drawn` (normal AI; every game finished). "Levy" is the Levy alone, "both" adds The Dowager. Levy Renown is per player, with the share of the chances to answer that were taken.
+
+| Players, goal | Rules | Ended on a full board | Rounds (avg, range) | Winner Renown | Levy Renown per player (answered) | Seat win rates |
+|---|---|---:|---|---:|---|---|
+| 3, 15 | before | 1 | 14.4 (12–20) | 14.9 | | 40 / 33 / 27 % |
+| 3, 15 | Levy | 1 | 14.3 (12–17) | 14.9 | 0.01 (2 %) | 40 / 30 / 30 % |
+| 3, 15 | both | 0 | 13.7 (11–17) | 15.5 | 0.00 (0 %) | 53 / 10 / 37 % |
+| 3, 20 | before | 20 | 18.8 (14–28) | 18.0 | | 33 / 43 / 23 % |
+| 3, 20 | Levy | 16 | 19.6 (14–24) | 18.5 | 0.64 (13 %) | 37 / 33 / 30 % |
+| 3, 20 | both | 15 | 19.0 (14–27) | 18.9 | 0.29 (7 %) | 50 / 20 / 30 % |
+| 3, 25 | before | 29 | 20.2 (14–37) | 18.5 | | 40 / 37 / 23 % |
+| 3, 25 | Levy | 26 | 20.5 (15–26) | 20.3 | 1.82 (15 %) | 37 / 30 / 33 % |
+| 3, 25 | both | 23 | 20.4 (15–29) | 21.3 | 1.38 (12 %) | 50 / 13 / 37 % |
+| 3, 30 | before | 30 | 20.1 (14–28) | 18.4 | | 50 / 37 / 13 % |
+| 3, 30 | Levy | 27 | 21.2 (14–31) | 21.2 | 2.07 (15 %) | 43 / 30 / 27 % |
+| 3, 30 | both | 27 | 20.8 (15–27) | 21.5 | 1.44 (11 %) | 50 / 17 / 33 % |
+| 4, 13 | before | 4 | 16.5 (13–35) | 13.3 | | 17 / 23 / 43 / 17 % |
+| 4, 13 | Levy | 3 | 16.6 (13–26) | 13.1 | 0.16 (7 %) | 27 / 20 / 33 / 20 % |
+| 4, 13 | both | 0 | 14.6 (8–23) | 13.4 | 0.06 (6 %) | 30 / 20 / 20 / 30 % |
+| 4, 25 | before | 30 | 23.0 (15–36) | 14.7 | | 30 / 27 / 27 / 17 % |
+| 4, 25 | Levy | 28 | 21.0 (15–32) | 15.8 | 1.22 (10 %) | 33 / 23 / 30 / 13 % |
+| 4, 25 | both | 24 | 22.8 (15–40) | 18.1 | 1.72 (10 %) | 47 / 13 / 33 / 7 % |
+
+Findings and open questions:
+
+1. **The Levy starts late**, as intended: it was proclaimed in 12 to 30 of the 30 games per row, the first Levy for round 15.2 to 15.7 on average.
+2. **At goals 25 and 30 the winner gets closer to the goal**: with 3 players at goal 25 from 18.5 to 21.3 Renown with both, and with 4 players from 14.7 to 18.1, while full-board endings fall from 29 to 23 and from 30 to 24 of 30.
+3. **The AI answers only 6 to 15 % of its chances**, since it never answers while an upgrade waits. Its saving weights are worth tuning.
+4. **The Dowager is played 0.5 to 1.33 times a game**, and nearly every Dower House still stands at the end. The 8-round game at 4 players and goal 13 was won with 6 Quest Renown after a round-3 Dowager; no rule was at fault.
+5. **The first seat wins more often with The Dowager.** Over 180 three-player games at goal 25 the seats won 33 / 41 / 26 % before and 47 / 30 / 23 % with both; the Levy alone showed no shift (32 / 33 / 34 % over 90 games at goal 20). That is about 2.7 standard errors, and the two decks deal differently, so the games are not paired. Dowager plays and Levy answers are even across seats. It needs 500 or more games per arm before a release, and a comparison of when each seat first plays her.
 
 ## 129.9 Sealed Charges (ruleset 0.9.0)
 
