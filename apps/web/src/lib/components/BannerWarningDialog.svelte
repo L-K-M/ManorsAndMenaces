@@ -66,7 +66,8 @@
   <Modal title={t("banner_warning.title")} onclose={close}>
     <p class="help">{t("banner_warning.summary", { current: advice.current, best: advice.best })}</p>
     <ul class="moves">
-      {#each advice.moves as m (m.bannerId)}
+      <!-- A Banner that goes home to break a swap appears twice. -->
+      {#each advice.moves as m, i (`${i} ${m.bannerId}`)}
         <li>
           <b>{moveText(m)}</b>
           <small>{reasonText(m)}</small>

@@ -3,6 +3,7 @@ import {
   clone,
   getBannerAdvice,
   getHarvestPreview,
+  getLegalBannerRegions,
   menaceOfType,
   validateBannerAssignment,
   type BannerAdvice,
@@ -184,6 +185,36 @@ describe("getBannerAdvice", () => {
       { bannerId: g.s1, from: "R1", to: "R6", reason: "make_room" },
       { bannerId: a, from: "R2", to: "R1", reason: "blocked_by_troll" },
     ]);
+    expectSound(s, g.p1, advice);
+  });
+
+  it("breaks a swap of full Regions by sending a Banner home first", () => {
+    // s1 becomes a Stronghold: its Banner holds R1 (grain) and a second one,
+    // blessed, holds R5 (essence), where the blessing adds nothing. Swapping
+    // them harvests one more, but each Region is full until the other
+    // leaves, and R6 is taken.
+    const g = game();
+    const s = fill(place(g.state, g.bannerOf(g.p2, "s3"), null), "R6", g.p2);
+    const holdingId = s.banners[g.s1]?.holdingId as string;
+    (s.holdings[holdingId] as { type: string }).type = "stronghold";
+    s.banners.extra = { id: "extra", ownerId: g.p1, holdingId, regionId: "R5", settled: true };
+    s.activeEffects.push({ kind: "druids_blessing", bannerId: "extra", sourcePlayerId: g.p1 });
+
+    const advice = getBannerAdvice(ctx, s, g.p1);
+    expect(advice).toMatchObject({ current: 3, best: 4 });
+    expect(advice.moves).toEqual([
+      { bannerId: g.s1, from: "R1", to: null, reason: "make_room" },
+      { bannerId: "extra", from: "R5", to: "R1", reason: "blessing_lost" },
+      { bannerId: g.s1, from: null, to: "R5", reason: "make_room" },
+    ]);
+    // Each move can be made when its turn comes, starting with the first.
+    let draft: Record<BannerId, RegionId | null> = {};
+    for (const m of advice.moves) {
+      expect(m.from).toBe(m.bannerId in draft ? draft[m.bannerId] : s.banners[m.bannerId]?.regionId);
+      if (m.to) expect(getLegalBannerRegions(ctx, s, m.bannerId, draft)).toContain(m.to);
+      draft = { ...draft, [m.bannerId]: m.to };
+    }
+    expect(getHarvestPreview(ctx, s, g.p1, draft).total).toBe(advice.best);
     expectSound(s, g.p1, advice);
   });
 

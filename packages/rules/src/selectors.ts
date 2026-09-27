@@ -525,7 +525,10 @@ export interface BannerAdvice {
   best: number;
   /** A placement of every one of the player's Banners that yields `best`. */
   assignment: Record<BannerId, RegionId | null>;
-  /** The changes from the draft to `assignment`, ordered so each can be made in turn where possible. */
+  /**
+   * The changes from the draft to `assignment`, ordered so each can be made
+   * in turn. A Banner that goes home first to break a swap has two.
+   */
   moves: BannerMove[];
 }
 
@@ -582,6 +585,27 @@ export function getBannerAdvice(
   // Banners not yet decided wait at home, where they block nothing.
   const work: Record<BannerId, RegionId | null> = {};
   for (const b of banners) work[b.id] = null;
+  // getLegalBannerRegions against `work`, without scanning every Banner at
+  // every step: rival Banners stay put, so the Banners in each Region are
+  // counted once and kept up to date as the search places the player's own.
+  const mine = new Set(banners.map((b) => b.id));
+  const inRegion = new Map<RegionId, number>();
+  for (const b of Object.values(state.banners)) if (!mine.has(b.id) && b.regionId) inRegion.set(b.regionId, (inRegion.get(b.regionId) ?? 0) + 1);
+  const siblings = new Map(banners.map((b) => [b.id, Object.values(state.banners).filter((o) => o.holdingId === b.holdingId && o.id !== b.id)]));
+  const positionOf = (b: Banner): RegionId | null => (mine.has(b.id) ? (work[b.id] ?? null) : b.regionId);
+  const hasRoom = (b: Banner, r: RegionId): boolean =>
+    (inRegion.get(r) ?? 0) < ctx.board.region(r).capacity && !siblings.get(b.id)?.some((o) => positionOf(o) === r);
+  // Each Banner's places, best first (home last among equals); the search
+  // skips those without room.
+  const choices = new Map(
+    banners.map((b) => [b.id, [...adjacent(b), null].map((regionId) => ({ regionId, score: scoreOf(b, regionId) })).sort((x, y) => y.score - x.score)]),
+  );
+  const moveTo = (b: Banner, regionId: RegionId | null): void => {
+    const from = work[b.id];
+    if (from) inRegion.set(from, (inRegion.get(from) ?? 0) - 1);
+    if (regionId) inRegion.set(regionId, (inRegion.get(regionId) ?? 0) + 1);
+    work[b.id] = regionId;
+  };
   let best = validateBannerAssignment(ctx, state, playerId, placed).ok
     ? { score: banners.reduce((n, b) => n + scoreOf(b, placed[b.id] ?? null), 0), assignment: { ...placed } }
     : { score: -1, assignment: { ...work } };
@@ -594,14 +618,12 @@ export function getBannerAdvice(
       return;
     }
     if (score + (bound[i] ?? 0) <= best.score) return;
-    const options = [...getLegalBannerRegions(ctx, state, b.id, work), null]
-      .map((regionId) => ({ regionId, score: scoreOf(b, regionId) }))
-      .sort((x, y) => y.score - x.score);
+    const options = (choices.get(b.id) ?? []).filter((o) => o.regionId === null || hasRoom(b, o.regionId));
     for (const o of options) {
-      work[b.id] = o.regionId;
+      moveTo(b, o.regionId);
       visit(i + 1, score + o.score);
     }
-    work[b.id] = null;
+    moveTo(b, null);
   };
   visit(0, 0);
 
@@ -635,19 +657,28 @@ function moveReason(ctx: RulesContext, state: GameState, banner: Banner, from: R
 }
 
 /**
- * Puts a move whose destination is free first, so a player can make the
- * moves one at a time. A cycle (two Banners swapping full Regions) keeps
- * its order: one of them has to go home first.
+ * Orders the moves so a player can make them one at a time, each legal when
+ * its turn comes: a move whose destination has room goes first. A cycle
+ * (two Banners swapping full Regions) has none; its first Banner goes home
+ * as a step of its own, and moves on once the others have made room.
+ *
+ * This ends: the whole placement is legal, so once every Banner still to
+ * move is at home, each of their destinations has room.
  */
 function inPlayableOrder(ctx: RulesContext, state: GameState, placed: Readonly<Record<BannerId, RegionId | null>>, moves: BannerMove[]): BannerMove[] {
   const at = { ...placed };
   const left = [...moves];
   const out: BannerMove[] = [];
   while (left.length > 0) {
-    const next = Math.max(
-      0,
-      left.findIndex((m) => m.to === null || getLegalBannerRegions(ctx, state, m.bannerId, at).includes(m.to)),
-    );
+    const next = left.findIndex((m) => m.to === null || getLegalBannerRegions(ctx, state, m.bannerId, at).includes(m.to));
+    if (next < 0) {
+      const i = left.findIndex((m) => at[m.bannerId] != null);
+      const m = left[i] as BannerMove;
+      out.push({ bannerId: m.bannerId, from: m.from, to: null, reason: "make_room" });
+      at[m.bannerId] = null;
+      left[i] = { ...m, from: null };
+      continue;
+    }
     const [m] = left.splice(next, 1) as [BannerMove];
     at[m.bannerId] = m.to;
     out.push(m);
