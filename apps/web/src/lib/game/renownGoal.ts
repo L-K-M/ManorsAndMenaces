@@ -32,7 +32,7 @@ export function renownGoal(rules: RulesetName, playerCount: number, picked: numb
  * which the most Renown wins (§7): from simulations of the Standard rules
  * (§129.7). The Core rules were not simulated, so they get no such hint.
  */
-const BOARD_FILLS_FIRST_FROM: Readonly<Partial<Record<number, number>>> = { 2: 30, 3: 25, 4: 20 };
+const BOARD_FILLS_FIRST_FROM: Readonly<Partial<Record<number, number>>> = { 2: 30, 3: 20, 4: 20 };
 
 /** What a goal means, shown under the choice: whether the board usually fills first, and the last round. */
 export function renownGoalHint(rules: RulesetName, playerCount: number, goal: number): string {

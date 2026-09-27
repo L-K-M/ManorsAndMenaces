@@ -41,19 +41,19 @@ describe("renownGoalHint", () => {
     expect(renownGoalHint("standard", 2, 15)).toBe(LAST);
     expect(renownGoalHint("standard", 3, 15)).toBe(LAST);
     expect(renownGoalHint("async", 4, 13)).toBe(LAST);
+    // Four players at 15 fill the board first in about half of games (§129.7).
     expect(renownGoalHint("standard", 4, 15)).toBe(LAST);
-    expect(renownGoalHint("standard", 3, 20)).toBe(LAST);
     // Two players reach 25 first in most games (§129.7).
     expect(renownGoalHint("standard", 2, 20)).toBe(LAST);
     expect(renownGoalHint("standard", 2, 25)).toBe(LAST);
     expect(renownGoalHint("async", 2, 25)).toBe(LAST);
   });
 
-  it("says the board usually fills first at 30 with two players, from 25 with three and from 20 with four", () => {
+  it("says the board usually fills first at 30 with two players and from 20 with three or four", () => {
     const fills = (rules: "standard" | "async", players: number, goal: number) => expect(renownGoalHint(rules, players, goal)).toBe(`${FILLS} ${LAST}`);
     fills("standard", 2, 30);
     fills("async", 2, 30);
-    for (const goal of [25, 30]) fills("standard", 3, goal);
+    for (const goal of [20, 25, 30]) fills("standard", 3, goal);
     for (const goal of [20, 25, 30]) fills("async", 4, goal);
   });
 

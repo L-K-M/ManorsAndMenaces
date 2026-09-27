@@ -4581,7 +4581,7 @@ Normal AI with the full-board rule, on drawn islands unless marked G (The Greenv
 
 Games past round 30 were mostly waiting. The 16 in the table were checked, and one more: a four-player game at goal 18 on a drawn island (Mistholm), which ended in round 34. In 16 of these 17, no Site was left by rounds 10 to 23, and a Manor nobody had upgraded kept the board from counting as full for another 9 to 24 rounds. The leader after round 30 went on to win 16 of the 17; the other is a four-player game at goal 13 that never counted as full and ended in round 35. A later limit for four players (32) would have spared 4 of 70 four-player games at the higher goals, none with a different winner.
 
-The hint under "Renown to win" on New Game and in the online lobby follows these runs: the board usually fills first, and then the most Renown wins, at goal 30 with 2 players, from 25 with 3 and from 20 with 4. Games that ended on a full board, on drawn islands with the normal AI; where a cell has two figures, the second is a later check on ruleset 0.8.0 (`pnpm simulate --map drawn --rules standard`):
+The hint under "Renown to win" on New Game and in the online lobby follows these runs: the board usually fills first, and then the most Renown wins, at goal 30 with 2 players and from 20 with 3 or 4. Four players at goal 15 fill it first in about half of games, so that goal gets no such hint. Games that ended on a full board, on drawn islands with the normal AI; where a cell has two figures, the second is a later check on ruleset 0.8.0 (`pnpm simulate --map drawn --rules standard`):
 
 | Players | Goal 15 (13 with 4) | Goal 20 | Goal 25 | Goal 30 |
 |---:|---|---|---|---|
