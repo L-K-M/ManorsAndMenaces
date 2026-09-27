@@ -9,7 +9,7 @@
   import { historyLog } from "../game/log.js";
   import { missedPlays } from "../game/plays.js";
   import { rememberName, rememberedName } from "../game/playerName.js";
-  import { rememberRenownGoal, rememberedRenownGoal, renownGoal } from "../game/renownGoal.js";
+  import { rememberRenownGoal, rememberedRenownGoal, renownGoal, renownGoalHint } from "../game/renownGoal.js";
   import { ui } from "../stores/ui.svelte.js";
   import { GameSession } from "../game/session.svelte.js";
   import { ApiError, OnlineClient, inviteCodeFrom, onlineTransport } from "./client.js";
@@ -329,10 +329,11 @@
           </select>
         </label>
         <label>{t("ui.renown_to_win")}
-          <select bind:value={() => goal.value, (target) => (pickedGoal = target)}>
+          <select bind:value={() => goal.value, (target) => (pickedGoal = target)} aria-describedby="lobby-goal-hint">
             {#each goal.choices as n (n)}<option value={n}>{n === goal.usual ? t("ui.renown_goal_usual", { target: n }) : n}</option>{/each}
           </select>
         </label>
+        <p class="hint" id="lobby-goal-hint">{renownGoalHint(rules, seatCount, goal.value)}</p>
         <button class="primary" disabled={busy}>{t("ui.create_get_invite_link")}</button>
       </form>
       <form onsubmit={(e) => (e.preventDefault(), join())}>
@@ -441,6 +442,10 @@
   }
   .muted {
     opacity: 0.7;
+  }
+  .hint {
+    margin: 0;
+    font-size: 0.85rem;
   }
   .push {
     display: grid;

@@ -32,6 +32,8 @@ export const BALANCE = {
   revealedQuestCount: 3,
   /** Rounds an unclaimed Quest stays on offer in the Standard rules (§27.2). */
   questExpiryRounds: 4,
+  /** Every game ends after this round at the latest, and the most Renown wins (§7, §129.7). */
+  lastRound: 30,
   initialManors: 2,
   prophecyCards: 3,
   /** Ragnarök is foretold once a player is this close to the target Renown (§19.13). */
@@ -54,7 +56,7 @@ export const BALANCE = {
   sabotage: { grain: 2 },
 } as const;
 
-export const RULESET_VERSION = "0.7.0";
+export const RULESET_VERSION = "0.8.0";
 
 /** Fixed Menace sets by player count (spec §118). */
 export function standardMenaces(playerCount: number): MenaceType[] {
@@ -77,6 +79,7 @@ const common = {
   maxNonReactionCardsPerTurn: BALANCE.maxNonReactionCardsPerTurn,
   revealedQuestCount: BALANCE.revealedQuestCount,
   endOnFullBoard: true,
+  lastRound: BALANCE.lastRound,
 };
 
 /** The rules a new game can be created with, by `RulesetConfig.name`. */

@@ -379,6 +379,7 @@ function buildRecap(state: GameState, standings: readonly PlayerResult[], events
     const params = { name: winner.name, renown: winner.renown.total, round: state.round, runner: runnerUp?.name ?? "", margin };
     if (ragnarok) recap.push(t(margin > 0 ? "recap.crowned_ragnarok" : "recap.crowned_ragnarok_tie", params));
     else if (endCause === "full_board") recap.push(t(margin > 0 ? "recap.crowned_full_board" : "recap.crowned_full_board_tie", params));
+    else if (endCause === "last_round") recap.push(t(margin > 0 ? "recap.crowned_last_round" : "recap.crowned_last_round_tie", params));
     else recap.push(t(margin > 0 ? "recap.crowned" : "recap.crowned_tie", params));
   }
   return recap;

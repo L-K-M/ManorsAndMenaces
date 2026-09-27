@@ -194,7 +194,7 @@ test("a finished saved game opens on the full results", async ({ page }) => {
   await page.getByRole("button", { name: /Game over/ }).click();
   await victory.getByRole("button", { name: "Play again" }).click();
   await passCurtain(page);
-  await expect(page.locator(".round")).toHaveText("Round 1");
+  await expect(page.locator(".round")).toHaveText("Round 1 of 30");
   await page.getByRole("tab", { name: "Players" }).click();
   for (const name of ["Ysolde", "Wat", "Maud"]) await expect(page.locator(".players")).toContainText(name);
   expect(errors).toEqual([]);
@@ -215,6 +215,60 @@ test("a game that ends on a full board says so on the results", async ({ page })
   await victory.getByRole("button", { name: "View board" }).click();
   await page.getByRole("tab", { name: /Chronicle/ }).click();
   await expect(page.getByText("If it is still full when this round ends, the game ends.").first()).toBeVisible();
+});
+
+/**
+ * A three-player game in play in `round`, for the round chip: a fresh game
+ * moved on to that round, saved without a history (as quest-art.spec.ts does).
+ */
+function saveInRound(round: number): SaveFile {
+  const engine = createRulesEngine(rulesContentFor("greenvale"));
+  const seats = ["Ysolde", "Wat", "Maud"].map((displayName, i) => ({ playerId: `P${i + 1}`, displayName, kind: "human" as const, color: i }));
+  const state = engine.createGame({
+    matchId: "local-e2e-reign",
+    seed: "e2e-reign",
+    rulesetVersion: RULESET_VERSION,
+    ruleset: standardRuleset(3),
+    players: seats.map((s) => ({ id: s.playerId, displayName: s.displayName })),
+  });
+  state.status = "playing";
+  state.phase = "main";
+  state.round = round;
+  state.activePlayerId = "P1";
+  delete state.setup;
+  return { schemaVersion: SAVE_SCHEMA_VERSION, rulesetVersion: RULESET_VERSION, savedAt: new Date(0).toISOString(), mapId: "greenvale", seats, initialState: structuredClone(state), state, commandHistory: [] };
+}
+
+test("a game that ends on the last round says so, and the round chip counts toward it", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: false })));
+  await page.reload();
+
+  // Nobody gets near 30 Renown in 8 rounds, so the last round ends the game.
+  await page.getByRole("button", { name: "Load game" }).click();
+  const save = finishedSave(undefined, undefined, { ...standardRuleset(3, { targetRenown: 30 }), lastRound: 8 });
+  await page.getByLabel(/Import a save file/).setInputFiles({ name: "last-round.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(save)) });
+  const victory = page.getByRole("dialog", { name: "Victory!" });
+  await expect(victory).toContainText("had the most Renown when the reign ended");
+  await expect(victory).toContainText("The reign ended with round 8, the last round");
+  await expect(victory.locator(".recap li").last()).toContainText("the last of the reign");
+  await victory.getByRole("button", { name: "View board" }).click();
+  await expect(page.locator(".round")).toHaveText("Last round");
+  await page.getByRole("tab", { name: /Chronicle/ }).click();
+  await expect(page.getByText("The reign ends after round 8. The next round is the last.").first()).toBeVisible();
+  await expect(page.getByText("Round 8 is the last. When it ends, the most Renown wins.").first()).toBeVisible();
+
+  // In the Standard rules the chip counts to round 30, says how the game can
+  // end, and from round 29 stands out and stays on a phone's top bar.
+  await page.goto("/");
+  await page.getByRole("button", { name: "Load game", exact: true }).click();
+  await page.getByLabel(/Import a save file/).setInputFiles({ name: "round-29.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(saveInRound(29))) });
+  const chip = page.locator(".round");
+  await expect(chip).toHaveText("Round 29 of 30");
+  await expect(chip).toHaveClass(/ending/);
+  await expect(chip).toHaveAttribute("title", /reaches 15 Renown, when a round ends with the board full, or when round 30 ends/);
+  await page.setViewportSize({ width: 360, height: 740 });
+  await expect(chip).toBeVisible();
 });
 
 // Review question: does "Play again" after a tutorial continued from a save

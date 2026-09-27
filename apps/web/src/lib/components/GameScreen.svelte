@@ -55,6 +55,12 @@
   const previewFor = $derived(session.localActor ?? viewer);
   const preview = $derived(previewFor ? getHarvestPreview(session.ctx, gs, previewFor, ui.bannerDraft) : null);
   const me = $derived(viewer ? gs.players[viewer] : undefined);
+  // The round chip counts toward the last round (§7) and takes the omen's
+  // look from the round before it. Games created without one just count.
+  const lastRound = $derived(gs.ruleset.lastRound ?? 0);
+  const round = $derived(Math.max(1, gs.round));
+  const reignEnding = $derived(lastRound > 0 && round >= lastRound - 1);
+  const roundLabel = $derived(lastRound <= 0 ? t("ui.round_n", { n: round }) : round >= lastRound ? t("ui.last_round") : t("ui.round_n_of", { n: round, last: lastRound }));
   let panelOpen = $state(false);
   let savedNote: string | null = $state(null);
   /** Settings opened from the game menu return to it when closed. */
@@ -205,7 +211,7 @@
     <button class="ghost icon" onclick={() => (ui.dialog = "menu")} aria-label={t("ui.main_menu")} aria-haspopup="dialog"><ToolIcon name="menu" /></button>
     <img class="brand-mark" src={`${import.meta.env.BASE_URL}art/manor-troll.png`} alt="" width="40" height="40" />
     <h1>{t("app.title")}</h1>
-    <span class="round">{t("ui.round_n", { n: Math.max(1, gs.round) })}</span>
+    <span class="round" class:ending={reignEnding} title={lastRound > 0 ? t("ui.round_endings", { target: gs.ruleset.targetRenown, last: lastRound }) : undefined}>{roundLabel}</span>
     <div class="score"><ScoreStrip {session} /></div>
     <span class="spacer"></span>
     {#if session.transport.kind === "local" && !tutorial}<button class="ghost" onclick={save}>{savedNote ?? t("ui.save")}</button>{/if}
@@ -377,6 +383,16 @@
     opacity: 0.85;
     font-size: 0.9rem;
     white-space: nowrap;
+  }
+  /* The last two rounds: embers on ash, like the endgame omen. */
+  .round.ending {
+    opacity: 1;
+    padding: 0.15rem 0.55rem;
+    border: 1px solid #d9541e;
+    border-radius: 999px;
+    background: linear-gradient(100deg, #2a1d17, #52271a);
+    color: #ffe9cf;
+    font-weight: 700;
   }
   /* The scoreboard takes the free space in the bar and shrinks (names
      first) rather than wrapping the bar onto a second row. */
@@ -686,7 +702,7 @@
     display: none;
   }
   @container topbar (max-width: 24rem) {
-    .round {
+    .round:not(.ending) {
       display: none;
     }
   }

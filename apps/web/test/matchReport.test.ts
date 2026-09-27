@@ -199,6 +199,39 @@ describe("buildMatchReport after a full board", () => {
   });
 });
 
+/**
+ * Three normal AIs to 30 Renown with the reign cut to 8 rounds, so the last
+ * round ends the game before anyone gets near the goal or fills the board.
+ */
+function lastRoundGame(): { initial: GameState; final: GameState; commands: GameCommand[] } {
+  const initial = engine.createGame({
+    matchId: "m-reign",
+    seed: "e2e-finished",
+    rulesetVersion: RULESET_VERSION,
+    ruleset: { ...standardRuleset(3, { targetRenown: 30 }), lastRound: 8 },
+    players: ["P1", "P2", "P3"].map((id, i) => ({ id, displayName: `Player ${i + 1}` })),
+  });
+  const rng = createRng(seedRng("e2e-finished-ai"));
+  const { state, commands } = runAiUntilHuman(engine, initial, () => true, () => ({ level: "normal", rng }), 20_000);
+  if (state.status !== "finished") throw new Error(`lastRoundGame() stalled: unfinished after ${commands.length} commands`);
+  return { initial, final: state, commands };
+}
+
+describe("buildMatchReport after the last round", () => {
+  const game = lastRoundGame();
+
+  it("says the reign ended and crowns the most renowned player", () => {
+    const report = buildMatchReport(engine, game.final, { initial: game.initial, commands: game.commands });
+    const winner = game.final.players[game.final.winnerId ?? ""]?.displayName ?? "?";
+
+    expect(report.endCause).toBe("last_round");
+    expect(report.round).toBe(8);
+    expect(getRenown(engine.ctx, game.final, game.final.winnerId ?? "")).toBeLessThan(game.final.ruleset.targetRenown);
+    expect(report.recap.at(-1)).toMatch(new RegExp(`^In round 8, the last of the reign, ${winner} was crowned`));
+    expect(buildMatchReport(engine, game.final, null).endCause).toBe("last_round");
+  });
+});
+
 describe("buildMatchReport after Ragnarök", () => {
   const game = ragnarokGame();
 

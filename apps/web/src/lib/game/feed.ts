@@ -29,7 +29,7 @@ export interface FeedItem {
   againstViewer: boolean;
   /** The viewer's own harvest: shown as it lands, never in a digest. */
   self: boolean;
-  /** The endgame foretold (Ragnarök): drawn to stand out from ordinary moves. */
+  /** The endgame foretold (Ragnarök, a full board, the last rounds): drawn to stand out from ordinary moves. */
   omen?: true;
 }
 
@@ -281,6 +281,11 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
       case "board_full":
         out.push({ actorId: null, text: t("feed.board_full"), at: null, gains: null, againstViewer: false, self: false, omen: true });
         break;
+      case "reign_ending": {
+        const text = t(e.round < e.lastRound ? "feed.reign_ending_next" : "feed.reign_ending_last", { last: e.lastRound });
+        out.push({ actorId: null, text, at: null, gains: null, againstViewer: false, self: false, omen: true });
+        break;
+      }
       case "harvest_completed": {
         if (e.playerId === viewerId) {
           const harvested = events.some((x) => x.type === "banner_harvested" && x.playerId === e.playerId);
