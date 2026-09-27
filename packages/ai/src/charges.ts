@@ -39,8 +39,10 @@ const BANNER_BONUS = 5;
 
 /**
  * How readily the AI meets each kind of Charge, to choose between two it
- * has made no progress on (at setup nothing is built yet). From `pnpm
- * simulate` runs with the option on: the share of each kind met.
+ * has made no progress on (at setup nothing is built yet). Ordered by the
+ * share of each kind it met in `pnpm simulate` (3 players, goal 15, 30
+ * games on drawn islands: Menace 91%, deed 62%, landmark 58%, Banners
+ * 38%), and small enough that any progress outweighs them.
  */
 const EASE: Record<ChargeGoal["kind"], number> = { landmark: 0.1, banners: 0.05, deed: 0.1, menace: 0.15 };
 

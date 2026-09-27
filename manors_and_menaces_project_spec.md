@@ -284,6 +284,9 @@ Default Renown values:
 | Major Royal Quest | 2 |
 | Rare card/story reward (base game: The Unreliable Bard, §19.20) | 1 |
 | Major landmark objective | 1–2 |
+| Sealed Charge, a lobby option (§27A), revealed when met | 2 |
+
+The major landmark objectives are the five landmark Charges of Sealed Charges (§27A), worth 2 each; without the option there are none. A revealed Charge is its own Renown source, beside Holdings, Quests and bonus Renown, and stays scored like a claimed Quest.
 
 A Manor upgraded to a Stronghold increases the player's Renown by **+1**, because the site moves from 1 total Renown to 2 total Renown.
 
@@ -778,8 +781,10 @@ Resolve, in order:
 3. reveal replacement Quests for any claimed this turn (§27);
 4. expiration of temporary effects;
 5. reset per-turn counters (Market trades, cards played, Writs, Warden hires);
-6. victory check (§7);
-7. if the game did not end, the endgame omen (§19.13).
+6. with Sealed Charges, reveal the player's Charge if it is met (§27A);
+7. victory check (§7);
+8. if the game did not end, the endgame omen (§19.13);
+9. with Sealed Charges at goals 25 and 30, after a reveal, the player keeps one of two new Charges (§27A.4).
 
 All Quest claims in the base game are manual (§116). None resolve automatically here.
 
@@ -1428,6 +1433,53 @@ With the rule set to N rounds:
 - the Quest panel shows how many rounds each Quest has left.
 
 No randomness is involved beyond the setup shuffle of the Quest deck (§30), so replays stay deterministic.
+
+---
+
+# 27A. Sealed Charges
+
+A lobby option, off unless chosen on New Game (under Advanced) or in the online lobby: `RulesetConfig.sealedCharges`, from ruleset 0.8.0. Each player keeps a secret personal goal, a **Sealed Charge**, and scores it when it is met. The goal is hidden; the Renown it scores is public like all Renown (§83), because a Charge scores only when it is revealed. Games created without the option hold no Charge and replay unchanged.
+
+## 27A.1 The Charge deck
+
+Each Charge is worth 2 Renown when revealed (`BALANCE.sealedCharges.renown`), as much as a major Quest.
+
+| Kind | Charges | Goal |
+|---|---|---|
+| Landmark | Seat at Court (Royal Castle), Patron of the Tower (Wizard Tower), Friend of the Inn (Adventurers' Inn), Guest of the Hall (Dwarven Hall), Keeper of the Grove (Sacred Grove) | Your network reaches the landmark (§27), and one of your Banners is in a Region touching its Site. |
+| Banners | Granary of the Realm (3 Grain), Quarry Lord (3 Stone), Lord of the Mines (2 Iron), Wellspring Keeper (2 Essence) | Banners in that many different Regions of the resource at the same time. There is no Timber Charge: Friend of the Forest (§27.1) asks for Timber already. |
+| Deeds | The King's Clerk (3 Royal Writs), Merchant Venturer (5 trades at the Market or a Trading Post), Collector of Tales (3 cards bought) | Counted from when the Charge was drawn: the player's counts then (`stats.writsIssued`, `marketTrades`, `cardsBought`) are its baseline (`SealedCharge.since`). |
+| Menaces | Troll Herder, Friend of Outlaws, Dragon Tamer, The Witch's Errand, Patron of Tinkers | Move the named Menace 2 times after the draw, with a Warden or a card. Only games with the option count moves per Menace (`stats.menaceMoves`). |
+
+The deck of a new game holds every Charge the game can meet, shuffled with the match RNG (§30) after the card and Quest decks, so games without the option draw exactly as before. Charges naming a Menace not in play are removed first, and so are Charges whose landmark is not on the board, whose rule is off (Royal Writs, cards) or whose board has too few Regions of their resource. Every island has all five landmarks and enough Regions, so a Standard deck holds 12 Charges and one per active Menace: 14 with 2 or 3 players, 15 with 4.
+
+## 27A.2 Drawing and keeping
+
+- Before the first placement (§28), each player in turn order draws 2 Charges and keeps 1 (`choose_charge`). The choice is a pending decision (§109) that only its player sees, like a Prophecy (§19.9), and placement waits until everyone has chosen.
+- A Charge not kept goes to the bottom of the deck, face down. The deck is drawn without replacement, so every player's Charge is their own.
+- With fewer than 2 Charges left to draw, the player keeps one of those there are; with none, they draw nothing.
+- A player holds at most one sealed Charge at a time.
+
+## 27A.3 Revealing
+
+At each player's End Turn (§16.4), before the victory check (§7), their Charge is revealed and scored if it is met (`charge_revealed`). The 2 Renown stay, like a claimed Quest, whatever later happens to the Banners or the network. Only the player ending their turn reveals: a Charge met during another player's turn waits for its holder's End Turn. A reveal can win the game at that End Turn. On a full board (§7), Banner, deed and Menace Charges can still be met in the last round, so a player behind has one public last chance.
+
+## 27A.4 Further Charges at goals 25 and 30
+
+At the Renown goals 25 and 30, a reveal is followed by a new draw of 2, keep 1, until the player has revealed 2 Charges (goal 25) or 3 (goal 30) (`BALANCE.sealedCharges.perGame`); below 25 every player has one Charge in the game. The new draw comes after the victory check and the full-board check of that End Turn, and the turn passes to the next player once the player has kept one. These later draws, and Recommission's, skip landmark Charges, which a full board can put out of reach, and take Banner, deed and Menace Charges only.
+
+## 27A.5 Recommission
+
+Once per game, in their Main phase, a player may pay 1 Essence (`BALANCE.sealedCharges.recommission`) to discard their sealed Charge face down, unrevealed, and draw 2 and keep 1 again (`recommission_charge`). The discarded Charge leaves the game. Recommission needs the deck to hold a Charge a later draw can take (`CHARGE_DECK_EMPTY` otherwise). It is the remedy for a landmark Charge that rivals' Holdings and Routes have closed off.
+
+## 27A.6 What players see
+
+- Everyone sees that a player holds a sealed Charge (a seal on the scoreboard and in the Players panel), how many Charges are left in the deck, every revealed Charge and all Renown.
+- Only the holder sees their Charge, with its progress, in the Quests tab, and only the player choosing sees the Charges they drew. Online, the server replaces rivals' Charges, a rival's draw and the deck with `hidden` (§105); `charges_drawn` and `charge_kept` reach other players without the Charge. In hot-seat play the choice waits behind the privacy curtain (§56.1), and the Chronicle says only that a Charge was drawn or kept.
+
+## 27A.7 The AI
+
+The AI keeps the Charge it is further along. It counts Banners where its next Banner Assignment could put them, and a landmark it has not reached yet by its distance, so each Route toward it pays; between Charges it has made no progress on, it prefers the kinds it meets most often in simulation. It values progress toward its own Charge (`WEIGHTS.chargeProgress`), saves for the Writ, card or Warden a deed or Menace Charge needs, places its Banners to meet a Banner or landmark Charge when an assignment can, and Recommissions a Charge it can no longer meet. It plans on its redacted view (§105) and counts each rival's sealed Charge as 1 expected Renown.
 
 ---
 
@@ -3200,16 +3252,20 @@ Public:
 - number of cards in hand;
 - Charters in front of each player (§18.1);
 - set-aside cards, and when the omen shuffles them into the draw pile (§19.13);
-- Renown lost for good (§8), ruined Sites and razed Sites (§19.24, §19.26).
+- Renown lost for good (§8), ruined Sites and razed Sites (§19.24, §19.26);
+- with Sealed Charges (§27A): whether each player holds a sealed Charge, how many Charges the deck holds, every revealed Charge, and Recommissions.
 
 Private:
 
 - card identities in hand;
-- unrevealed deck order.
+- unrevealed deck order, the Charge deck's included;
+- each player's sealed Charge, and the Charges a player is choosing from (§27A).
 
 After a Changeling swap (§19.12) the two players involved know the cards they received. Everyone else sees only the new hand sizes.
 
 This keeps strategy readable while preserving card surprise.
+
+Sealed Charges hide a goal, never Renown. A Charge scores only when it is revealed, at its holder's End Turn before the victory check (§27A.3), so every point of Renown is public when the game can end, and nobody wins on points the others could not see. What is unknown is bounded and marked: at most one sealed Charge per player at a time, worth 2 Renown, shown by a seal on the scoreboard, so a player can see that "Bertram wins this turn if his Charge is met".
 
 ---
 
@@ -3846,6 +3902,8 @@ Client receives:
 
 For local hot-seat, full state may exist locally but must be hidden in the UI between turns.
 
+Sealed Charges (§27A) are hidden the same way: each client receives rivals' sealed Charges, the Charges a rival is choosing from and the Charge deck as `hidden`, which keeps their counts.
+
 ---
 
 # 106. Serialization
@@ -3951,6 +4009,7 @@ interface RulesetConfig {
     maxPerTurn: number;
   };
   warden: { enabled: boolean; maxPerTurn: number };
+  sealedCharges?: boolean;         // §27A: a lobby option, absent (off) unless chosen
 }
 ```
 
@@ -4019,6 +4078,18 @@ The third wave (§19.22–19.27) was asked for as offensive cards, so each is he
 **Sabotage (§19.27)** takes at most 2 Grain and never more than the target has, so it cannot create negative resources.
 
 None of the six can loop or skip a turn, all are public, and all are Spells, so Counterspell answers every one of them.
+
+## 111.3 Sealed Charges against the checklist
+
+Sealed Charges (§27A) are the one rule that adds hidden information beyond cards in hand, so they are held to the checklist here.
+
+- *Excessive hidden information?* One Charge per player at a time, like one card in hand, and the scoreboard marks who holds one. A Charge is worth 2 Renown and scores only when revealed, before the victory check, so Renown stays public (§83) and no game is won on hidden points. The option is off unless chosen.
+- *Permanently erase major progress?* No. A revealed Charge stays scored, and nothing takes a sealed Charge away.
+- *A goal made impossible?* A landmark Charge can be closed off by rivals' Holdings and Routes, or by full Regions. Recommission (§27A.5) trades it in once per game, and every later draw skips landmark Charges. Banner, deed and Menace Charges stay possible on a full board.
+- *Skip a turn?* No. Keeping a Charge after a reveal happens inside the End Turn, before the next player's turn begins.
+- *Loops?* No. Each reveal draws at most once, and at most 2 or 3 Charges per player per game (§27A.4); Recommission is once per game.
+- *Negative resources?* No. Recommission's Essence is checked like any payment.
+- *Punish one seat?* Seats choose in turn order, each from 2 Charges of their own, drawn without replacement. §129.7 measures the seat win rates with the option.
 
 ---
 
@@ -4232,7 +4303,8 @@ export const BALANCE = {
   underdogGap: 2,                     // The Unreliable Bard, §19.20
   renownSwing: 1,                     // Disgrace, Stolen Glory, §19.22, §19.25
   raid: { minHoldings: 3 },           // Raiders, Siege Fireball, §19.24, §19.26
-  sabotage: { grain: 2 }              // §19.27
+  sabotage: { grain: 2 },             // §19.27
+  sealedCharges: { renown: 2, drawn: 2, recommission: { essence: 1 }, perGame: [{ fromGoal: 25, charges: 2 }, { fromGoal: 30, charges: 3 }] } // §27A
 } as const;
 ```
 
@@ -4534,3 +4606,28 @@ The same runs with the full-board end rule and the third-wave cards (§129.5), r
 Every game finishes. At the default goals games still run past the §68 target of 12–16 turns per player, most with 4 players, and nearly half of the three-player games and most four-player games end on a full board rather than at the goal. The third seat won 53 % of three-player games, above the 45 % target; with about ±8 points of noise in 40 games, that needs a larger run before any tuning.
 
 **The default returns to 15 (September 2026).** Players found 20 out of reach. With 3 or 4 players the board usually fills first, and the leader then has about 19 Renown with 3 players and about 15 with 4, as the tables above show. The Standard and async default is 15 again, or 13 with 4 players. 20, 25 and 30 stay on offer; 18 is no longer offered with 4 players. Saved games and running matches keep the goal they were created with.
+
+## 129.7 Sealed Charges (ruleset 0.8.0)
+
+Sealed Charges (§27A) came from a study of hidden personal goals in other games: Ticket to Ride, Lords of Waterdeep, Twilight Imperium 4, Clash of Cultures, Risk's Secret Missions, Wingspan and Catan. Twilight Imperium's secret objectives, revealed and scored the moment they are met, keep the goal hidden but the score public, which §83 and the End Turn victory check (§7) need. Goals kept secret until the end (Lords of Waterdeep) were rejected: Renown would become hidden and the game would need a "reveal to win" rule. Risk removes missions that name a colour not in play, and the Charge deck removes Charges naming a Menace not in play. Wingspan's keep 1 of 2 gives a choice without slowing setup.
+
+`pnpm simulate --games 30 --players N --target T --map drawn`, without and with `--override '{"sealedCharges":true}'` (normal AI, stopped at round 60; every game finished). Winner Renown lists the part from Charges in brackets. Charges met per player is out of 1 below goal 25 and out of 2 at 25.
+
+| Players | Goal | Charges | Ended on a full board | Rounds (avg, range) | Winner Renown | Charges met per player | Seat win rates |
+|---:|---:|---|---:|---|---|---:|---|
+| 3 | 15 | off | 1 | 14.4 (12–20) | 14.9 | | 40 / 33 / 27 % |
+| 3 | 15 | on | 0 | 13.9 (10–18) | 15.8 (1.6) | 0.74 | 27 / 33 / 40 % |
+| 3 | 25 | off | 29 | 20.2 (14–37) | 18.5 | | 40 / 37 / 23 % |
+| 3 | 25 | on | 20 | 20.8 (15–27) | 22.2 (3.3) | 1.51 | 40 / 37 / 23 % |
+| 4 | 13 | off | 4 | 16.5 (13–35) | 13.3 | | 17 / 23 / 43 / 17 % |
+| 4 | 13 | on | 1 | 14.2 (11–21) | 13.4 (1.3) | 0.64 | 17 / 40 / 23 / 20 % |
+
+Charges met of those kept, by kind (Recommission's new draws count as kept): landmark 18/31, Banners 5/13, deeds 15/24, Menaces 29/32 with 3 players at goal 15; 17/31, 48/92, 27/35 and 44/47 at goal 25; 21/45, 5/22, 12/26 and 39/51 with 4 players. The AI Recommissioned 0.33, 1.30 and 0.80 times per game.
+
+Findings and open questions:
+
+1. **Players meet 64 to 76 % of the Charges they can hold**, within the 60 to 80 % the design aimed for.
+2. **At goal 25 the Charges let games reach the goal.** Without them, 29 of 30 three-player games ended on a full board, the winner at 18.5 Renown; with them, 10 of 30 reached 25, and the winner averaged 22.2. Charges are not enough on their own: 20 games still ended on a full board. Goal 30 was not simulated.
+3. **At the default goals, games get shorter**: 14.4 to 13.9 rounds with 3 players and 16.5 to 14.2 with 4, since each met Charge is worth about one and a half rounds of building.
+4. **Menace Charges are the easiest for the AI** (76 to 94 % met) and Banner Charges the hardest (23 to 52 %). Three moves of the named Menace, or 2 Grain Regions instead of 3, would even them out; both need a human playtest first, since the AI's play is not a person's.
+5. **Seat win rates move within the noise** of 30 games (about ±9 points). The second seat's 40 % with 4 players is above the 30 % target, as the third seat's 43 % is without Charges; a larger run should come before any seat tuning (§129.4).
