@@ -9,8 +9,8 @@ import { BALANCE } from "./balance.js";
 import { keepRenownFloor } from "./cards.js";
 import type { RulesContext } from "./context.js";
 import type { FavourSource } from "./events.js";
+import { compareIds } from "./ids.js";
 import type { GameRng } from "./rng.js";
-import { compareIds } from "./selectors.js";
 import type { Tx } from "./tx.js";
 import {
   CROWNS_VIRTUES,
