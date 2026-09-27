@@ -68,6 +68,17 @@ describe("the AI and the Crown's Levy (§27.3)", () => {
     expect(resourceNeeds(engine.ctx, answered, p1).grain).toBe(without.grain);
   });
 
+  // Regression: in the last round the AI still saved for the next round's
+  // Levy, which the game never reaches.
+  it("saves for no next Levy in the last round", () => {
+    const { state, p1 } = position({});
+    const last = { ...state, ruleset: { ...state.ruleset, lastRound: state.round } };
+    const without = resourceNeeds(engine.ctx, position({}, { levy: false }).state, p1);
+    const need = resourceNeeds(engine.ctx, last, p1);
+    expect(need.grain).toBeGreaterThan(without.grain);
+    expect(need.stone).toBe(without.stone);
+  });
+
   it("trades at the Market, then answers", () => {
     const { state, p1 } = position({ grain: 4, timber: 3 });
     expect(mainPhase(state, p1).slice(0, 2)).toEqual([

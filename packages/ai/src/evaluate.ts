@@ -15,6 +15,7 @@ import {
   HIDDEN_CARD,
   insurancePolicyOf,
   isCardUsableInRuleset,
+  isLastRound,
   menaceInRegion,
   type CardEffectId,
   type CardId,
@@ -111,11 +112,11 @@ export function resourceNeeds(ctx: RulesContext, state: GameState, playerId: Pla
   }
   // The Crown's Levy (§27.3): this round's until answered, as much as a
   // build, and the next round's a little less, so the AI starts saving a
-  // round ahead, as the next Levy is public.
+  // round ahead, as the next Levy is public. The last round has no next.
   const levy = state.crownLevy;
   const price = state.ruleset.crownLevy?.price ?? 0;
   if (levy?.current && !levy.answeredBy.includes(playerId)) goals.push({ cost: { [levy.current]: price }, weight: LEVY_GOAL_WEIGHT });
-  if (levy) goals.push({ cost: { [levy.next]: price }, weight: NEXT_LEVY_GOAL_WEIGHT });
+  if (levy && !isLastRound(state)) goals.push({ cost: { [levy.next]: price }, weight: NEXT_LEVY_GOAL_WEIGHT });
   // A deed Charge (§27A) is a side goal like a card: the Writ, card or Warden it needs next.
   const deed = chargeSavings(ctx, state, playerId);
   if (deed) goals.push({ cost: deed, weight: CARD_GOAL_WEIGHT });

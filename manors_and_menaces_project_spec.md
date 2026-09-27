@@ -1493,7 +1493,7 @@ The first round that begins with the Quest deck empty, or round 15 (`proclaimByR
 - Events: `levy_proclaimed` (public: the Levy now in force, null for the first, and the next one) and `levy_answered`.
 - The Quest panel shows the Levy above the Quests: its resource, the price and Renown, the next Levy, who has answered, and a button that says why it is unavailable (the shortfall, with the Market trades that cover it). A chip beside the round number names this round's Levy.
 
-**Rationale.** With 3 or 4 players the board usually fills before anyone reaches a goal of 20 or more (§129.6). The Levy is a Renown source that needs no Site and spends the late surplus. It starts when the Quest deck runs out, around round 15 in simulations (§129.8), when building has slowed. 5 resources for 1 Renown is about the price of a Manor with its Routes; the Renown doubles at 25 and 30, which building alone rarely reaches. The AI saves for this round's Levy and the next, trades toward it, and never answers while an affordable upgrade waits.
+**Rationale.** With 3 or 4 players the board usually fills before anyone reaches a goal of 20 or more (§129.6). The Levy is a Renown source that needs no Site and spends the late surplus. It starts when the Quest deck runs out, around round 15 in simulations (§129.8), when building has slowed. 5 resources for 1 Renown is about the price of a Manor with its Routes; the Renown doubles at 25 and 30, which building alone rarely reaches. The AI saves for this round's Levy and, before the last round, the next, trades toward it, and never answers while an affordable upgrade waits.
 
 ---
 
