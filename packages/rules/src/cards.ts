@@ -2,7 +2,7 @@
 // data never contains executable code.
 
 import { BALANCE } from "./balance.js";
-import { checkBuildPayment, createHolding, payForBuild } from "./build.js";
+import { checkBuildPayment, createHolding, payForBuild, putOutEmbers } from "./build.js";
 import { own } from "./clone.js";
 import type { RulesContext } from "./context.js";
 import { check, RuleViolation, unreachable } from "./errors.js";
@@ -408,9 +408,19 @@ export function resolveCardEffect(tx: Tx, playerId: PlayerId, target: CardTarget
       const h = holdingAt(s, target.siteId);
       check(h, "INVALID_CARD_TARGET");
       if (claimInsurance(tx, h.ownerId, "raiders")) return;
+      // Only The Dowager puts Holdings side by side (§19.28). Their owner may
+      // rebuild a burned one despite the spacing rule, or the loss would be
+      // permanent.
+      const besideOwn = h.dowerHouse || tx.ctx.board.neighbours(h.siteId).some((n) => holdingAt(s, n)?.ownerId === h.ownerId);
       burnManor(tx, playerId, h, "raiders");
-      // A Dower House's owner may rebuild it despite the spacing rule (§19.28).
-      s.activeEffects.push({ kind: "razed", siteId: h.siteId, ownerId: h.ownerId, sourcePlayerId: playerId, ...(h.dowerHouse ? { dowerHouse: true as const } : {}) });
+      s.activeEffects.push({
+        kind: "razed",
+        siteId: h.siteId,
+        ownerId: h.ownerId,
+        sourcePlayerId: playerId,
+        ...(h.dowerHouse ? { dowerHouse: true as const } : {}),
+        ...(besideOwn ? { besideOwnHoldings: true as const } : {}),
+      });
       return;
     }
     case "siege_fireball": {
@@ -433,6 +443,7 @@ export function resolveCardEffect(tx: Tx, playerId: PlayerId, target: CardTarget
     case "the_dowager": {
       // Her Dower House, paid for as any Manor there (§19.28).
       payForBuild(tx, playerId, checkDowerHouse(tx.ctx, s, playerId, target.siteId), target.tollPayment, target.extraPayment, "build_manor");
+      putOutEmbers(tx, target.siteId);
       const holdingId = createHolding(tx, playerId, target.siteId, { dowerHouse: true });
       tx.emit({ type: "holding_built", playerId, holdingId, siteId: target.siteId, free: false });
       return;

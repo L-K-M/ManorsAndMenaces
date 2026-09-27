@@ -4,7 +4,7 @@
 
 import { clone, own } from "./clone.js";
 import { BALANCE } from "./balance.js";
-import { createBanner, createHolding, payForBuild } from "./build.js";
+import { createBanner, createHolding, payForBuild, putOutEmbers } from "./build.js";
 import { isCardUsableInRuleset, resolveCardEffect, validateCardTarget } from "./cards.js";
 import type { DebugCommand, GameCommand } from "./commands.js";
 import { createContext, type RulesContext } from "./context.js";
@@ -23,10 +23,10 @@ import {
   getRenown,
   holdingAt,
   isBoardFull,
-  isDowerHouseRebuild,
   isLegalMenaceDestination,
   isRuinedSite,
   levyClosedReason,
+  ownRazedMark,
   passesSpacing,
   validateBannerAssignment,
 } from "./selectors.js";
@@ -592,9 +592,8 @@ function buildManor(tx: Tx, playerId: PlayerId, siteId: string, toll: unknown, s
   const c = checkBuildManor(tx.ctx, tx.s, playerId, siteId);
   payForBuild(tx, playerId, c, toll, surcharge, "build_manor");
   // A razed Dower House rebuilt by its owner is one again (§19.28).
-  const dowerHouse = isDowerHouseRebuild(tx.s, playerId, siteId);
-  // Rebuilding a razed Manor puts out its embers (Raiders, §19.24).
-  tx.s.activeEffects = tx.s.activeEffects.filter((e) => !(e.kind === "razed" && e.siteId === siteId));
+  const dowerHouse = ownRazedMark(tx.s, playerId, siteId)?.dowerHouse === true;
+  putOutEmbers(tx, siteId);
   const holdingId = createHolding(tx, playerId, siteId, { dowerHouse });
   tx.emit({ type: "holding_built", playerId, holdingId, siteId, free: false });
 }

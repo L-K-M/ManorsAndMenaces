@@ -44,6 +44,11 @@ export function payForBuild(tx: Tx, playerId: PlayerId, build: BuildCheck, toll:
   if (payment.surcharge) tx.spend(playerId, { [payment.surcharge]: BALANCE.costs.goblinSurcharge }, "goblin_tinkers");
 }
 
+/** Building on a razed Site ends its rebuild window (Raiders, §19.24). */
+export function putOutEmbers(tx: Tx, siteId: SiteId): void {
+  tx.s.activeEffects = tx.s.activeEffects.filter((e) => !(e.kind === "razed" && e.siteId === siteId));
+}
+
 /** A new Manor on the Site with its Banner at home. `dowerHouse` marks The Dowager's (§19.28). */
 export function createHolding(tx: Tx, playerId: PlayerId, siteId: SiteId, opts: { dowerHouse?: boolean } = {}): HoldingId {
   const s = tx.s;

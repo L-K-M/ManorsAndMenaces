@@ -9,6 +9,7 @@ import { own } from "./clone.js";
 import { addCost, canAfford } from "./resources.js";
 import {
   RESOURCE_TYPES,
+  type ActiveEffect,
   type Banner,
   type BannerId,
   type CardId,
@@ -205,7 +206,9 @@ export function passesSpacing(ctx: RulesContext, state: GameState, siteId: SiteI
  * A full board (§7): no Site could take a new Manor, whoever builds, because
  * each is built on, in ruins or too close to a Holding (§10.3), and every
  * Holding is a Stronghold, so no build can gain Renown. A razed Site (§19.24)
- * counts as open, since its owner may rebuild there.
+ * counts as open, since its owner may rebuild there, even beside their own
+ * Holdings (§19.28): its mark ends with the owner's next turn, so they always
+ * have that turn to rebuild.
  *
  * A Site The Dowager (§19.28) could still take does not count as open. Hands
  * are hidden, and this runs on redacted views too (clients, AI planning), so
@@ -214,6 +217,7 @@ export function passesSpacing(ctx: RulesContext, state: GameState, siteId: SiteI
  * the board not full until it is raised to a Stronghold.
  */
 export function isBoardFull(ctx: RulesContext, state: GameState): boolean {
+  if (state.activeEffects.some((e) => e.kind === "razed")) return false;
   const occupied = new Set<SiteId>();
   for (const h of Object.values(state.holdings)) {
     if (h.type === "manor") return false;
@@ -243,10 +247,10 @@ export function checkBuildRoute(ctx: RulesContext, state: GameState, playerId: P
 }
 
 /** How the spacing rule (§10.3) applies to a new Manor. */
-export enum Spacing {
+enum Spacing {
   /** No Holding may stand next to the Site. */
   Ordinary = "ordinary",
-  /** Only a rival's Holding may not: The Dowager's Manor, and its owner's rebuild of one razed (§19.28). */
+  /** Only a rival's Holding may not: The Dowager's Manor, and its owner's rebuild of a Manor burned beside their own Holdings (§19.28). */
   BesideOwnHoldings = "beside_own_holdings",
 }
 
@@ -274,12 +278,11 @@ function siteClosedReason(
 }
 
 /**
- * Whether the player may rebuild on the Site with the spacing rule waived
- * toward their own Holdings: a Dower House of theirs burned there by Raiders,
- * and its rebuild window is still open (§19.24, §19.28).
+ * The player's own razed mark on the Site: Raiders burned their Manor there
+ * and their rebuild window is still open (§19.24).
  */
-export function isDowerHouseRebuild(state: GameState, playerId: PlayerId, siteId: SiteId): boolean {
-  return state.activeEffects.some((e) => e.kind === "razed" && e.siteId === siteId && e.ownerId === playerId && e.dowerHouse);
+export function ownRazedMark(state: GameState, playerId: PlayerId, siteId: SiteId): Extract<ActiveEffect, { kind: "razed" }> | undefined {
+  return state.activeEffects.find((e): e is Extract<ActiveEffect, { kind: "razed" }> => e.kind === "razed" && e.siteId === siteId && e.ownerId === playerId);
 }
 
 /** Whether the player could build a Manor on the Site once their network reaches it (for planning ahead). */
@@ -289,7 +292,7 @@ export function isSiteOpenFor(ctx: RulesContext, state: GameState, playerId: Pla
 
 export function checkBuildManor(ctx: RulesContext, state: GameState, playerId: PlayerId, siteId: SiteId): BuildCheck {
   if (!ctx.board.hasSite(siteId)) return { legal: false, reason: "UNKNOWN_ENTITY" };
-  const spacing = isDowerHouseRebuild(state, playerId, siteId) ? Spacing.BesideOwnHoldings : Spacing.Ordinary;
+  const spacing = ownRazedMark(state, playerId, siteId)?.besideOwnHoldings ? Spacing.BesideOwnHoldings : Spacing.Ordinary;
   const closed = siteClosedReason(ctx, state, playerId, siteId, spacing);
   if (closed) return { legal: false, reason: closed };
   const needsSurcharge = menaceAt(state, { kind: "site", siteId })?.type === "goblin_tinkers";

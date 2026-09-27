@@ -341,8 +341,14 @@ export type ActiveEffect =
       siteId: SiteId;
       ownerId: PlayerId;
       sourcePlayerId: PlayerId;
-      /** The burned Manor was a Dower House (§19.28): its owner's rebuild there waives the spacing rule toward their own Holdings. */
+      /** The burned Manor was a Dower House (§19.28): its owner's rebuild there is one again. */
       dowerHouse?: true;
+      /**
+       * The burned Manor was a Dower House or stood beside one of its
+       * owner's Holdings (§19.28): the owner's rebuild there waives the
+       * spacing rule toward their own Holdings.
+       */
+      besideOwnHoldings?: true;
     };
 
 /** A decision the game is waiting on before normal play resumes (§109). */

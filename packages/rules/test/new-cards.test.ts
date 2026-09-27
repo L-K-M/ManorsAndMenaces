@@ -1577,6 +1577,23 @@ describe("The Dowager (§19.28)", () => {
       expect(ended.status).toBe("finished");
       expect(ended.endCause).toBe("full_board");
     });
+
+    it("counts a razed Dower House as open while its owner may rebuild it", () => {
+      const { s, card, p1, p2 } = filling();
+      let next = p2Fills(passTurn(play(s, p1, card, at("s2")).state), p2);
+      next = act(next, p2, { type: "build_route", routeId: routeId(2, 3) }).state;
+      const raid = dealt(next, p2, "raiders");
+      next = play(raid.s, p2, raid.card, { effect: "raiders", siteId: "s2" }).state;
+      // Its owner may rebuild it beside their Strongholds on s1 and s5 (§19.24).
+      expect(isBoardFull(ctx, next)).toBe(false);
+      next = passTurn(next);
+      expect(next.status).toBe("playing");
+      expect(checkBuildManor(ctx, grant(next, p1, MANOR_COST), p1, "s2")).toMatchObject({ legal: true });
+      // Once the window closes unused, the board is full again.
+      const ended = passTurn(passTurn(next));
+      expect(ended.status).toBe("finished");
+      expect(ended.endCause).toBe("full_board");
+    });
   });
 
   describe("and Raiders (§19.24)", () => {
@@ -1593,7 +1610,7 @@ describe("The Dowager (§19.28)", () => {
     it("marks the razed Site as a Dower House's", () => {
       const { s, p1, p2 } = raided();
       expect(holdingAt(s, "s2")).toBeUndefined();
-      expect(razedEffects(s)).toEqual([{ kind: "razed", siteId: "s2", ownerId: p1, sourcePlayerId: p2, dowerHouse: true }]);
+      expect(razedEffects(s)).toEqual([{ kind: "razed", siteId: "s2", ownerId: p1, sourcePlayerId: p2, dowerHouse: true, besideOwnHoldings: true }]);
     });
 
     it("lets its owner rebuild it with an ordinary build while the ashes are warm, and not after", () => {
@@ -1609,6 +1626,34 @@ describe("The Dowager (§19.28)", () => {
       const cooled = grant(passTurn(passTurn(theirTurn)), p1, MANOR_COST);
       expect(razedEffects(cooled)).toEqual([]);
       expect(checkBuildManor(ctx, cooled, p1, "s2")).toEqual({ legal: false, reason: "SITE_TOO_CLOSE" });
+    });
+
+    it("puts out the embers when she builds on a razed Dower House of yours", () => {
+      const { s, p1 } = raided();
+      const again = dealt(grant(passTurn(s), p1, MANOR_COST), p1, "the_dowager");
+      const rebuilt = play(again.s, p1, again.card, at("s2")).state;
+      expect(holdingAt(rebuilt, "s2")).toMatchObject({ ownerId: p1, dowerHouse: true });
+      expect(razedEffects(rebuilt)).toEqual([]);
+    });
+
+    it("lets the owner rebuild a burned Manor beside their Dower House", () => {
+      // p2 reduces p1's Stronghold on s1, beside the Dower House on s2, then burns it.
+      const { s: base, card, p1, p2 } = dowager();
+      let s = grant(passTurn(play(base, p1, card, at("s2")).state), p2, PLENTY);
+      s = act(s, p2, { type: "build_route", routeId: routeId(4, 7) }).state;
+      s = act(s, p2, { type: "build_route", routeId: routeId(1, 4) }).state;
+      const siege = dealt(s, p2, "siege_engines");
+      s = play(siege.s, p2, siege.card, { effect: "siege_engines", siteId: "s1" }).state;
+      expect(holdingAt(s, "s1")?.type).toBe("manor");
+      const raid = dealt(passTurn(passTurn(s)), p2, "raiders");
+      s = play(raid.s, p2, raid.card, { effect: "raiders", siteId: "s1" }).state;
+      expect(razedEffects(s)).toEqual([{ kind: "razed", siteId: "s1", ownerId: p1, sourcePlayerId: p2, besideOwnHoldings: true }]);
+
+      const theirTurn = grant(passTurn(s), p1, MANOR_COST);
+      expect(checkBuildManor(ctx, theirTurn, p1, "s1")).toMatchObject({ legal: true });
+      const rebuilt = act(theirTurn, p1, { type: "build_manor", siteId: "s1" }).state;
+      expect(holdingAt(rebuilt, "s1")).toEqual({ id: expect.any(String), siteId: "s1", ownerId: p1, type: "manor" });
+      expect(razedEffects(rebuilt)).toEqual([]);
     });
   });
 });
