@@ -264,9 +264,11 @@ test("a returning player reads the cards played while they were away, one by one
   await back.route("**/api/matches/*/history", async (route) => {
     const response = await route.fetch();
     const history = (await response.json()) as MatchHistoryResponse;
-    const bobId = history.match.seats.find((s) => s.displayName === "Bob")?.playerId ?? "";
+    const bobId = history.match.seats.find((s) => s.displayName === "Bob")?.playerId;
+    const newest = history.entries.at(-1);
+    if (!bobId || !newest) throw new Error("the history has no seat for Bob or no entries to add his cards to");
     const played = (cardId: string) => ({ type: "card_played" as const, playerId: bobId, cardId });
-    history.entries.at(-1)?.events.unshift(played("festival_at_the_inn#1"), played("knight_errant#1"));
+    newest.events.unshift(played("festival_at_the_inn#1"), played("knight_errant#1"));
     await route.fulfill({ response, json: history });
   });
   await back.goto(link);

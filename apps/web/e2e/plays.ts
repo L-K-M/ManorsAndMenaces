@@ -11,9 +11,14 @@ export const playDialog = (page: Page): Locator => page.getByRole("dialog").filt
 export async function acknowledgePlays(page: Page): Promise<number> {
   const ok = playDialog(page).getByRole("button", { name: "OK", exact: true });
   let read = 0;
+  let missed = 0;
   while (await ok.count()) {
-    // The next card may replace the dialog between the count and the click.
-    if (await ok.click({ timeout: 2000 }).then(() => true, () => false)) read += 1;
+    // The next card may replace the dialog between the count and the click,
+    // but a dialog that keeps refusing the tap is a failure, not a wait.
+    if (await ok.click({ timeout: 2000 }).then(() => true, () => false)) {
+      read += 1;
+      missed = 0;
+    } else if (++missed >= 3) throw new Error("a played card's OK did not respond to 3 taps");
   }
   return read;
 }

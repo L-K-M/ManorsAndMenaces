@@ -212,13 +212,13 @@ describe("PlayQueue", () => {
     expect(queue.current).toBeNull();
     expect(session.aiHeld).toBe(false);
 
-    // Behind the curtain nothing shows either.
+    // Behind the curtain nothing shows either, though Bertram's cards wait.
+    session.viewerId = "P2";
     session.curtainFor = "P2";
     expect(queue.current).toBeNull();
 
     // Bertram reveals: both cards, one at a time.
     session.curtainFor = null;
-    session.viewerId = "P2";
     expect(queue.current).toEqual(notice("P1", "druids_blessing#1"));
     expect([queue.position, queue.total]).toEqual([1, 2]);
     queue.acknowledge();
