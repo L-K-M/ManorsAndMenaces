@@ -24,7 +24,7 @@ export function isCardDialog(pick: string | null): pick is CardDialog {
 }
 
 /** `card_confirm` spells out a card's effect before it is played (see CONFIRMED_CARDS). */
-export type Dialog = null | "market" | "settings" | "writ" | CardDialog | "card_confirm" | "rules" | "save" | "menu";
+export type Dialog = null | "market" | "settings" | "writ" | CardDialog | "card_confirm" | "rules" | "save" | "menu" | "crowns_voice";
 
 export interface UiState {
   tool: Tool;

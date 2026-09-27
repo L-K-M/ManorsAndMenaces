@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { clone, mvpRuleset, type GameEvent } from "@manors-menaces/rules";
 import { mapFor } from "../src/lib/game/engine.js";
-import { endCauseOf, formatEvents, rebuildLog, routeName, siteName } from "../src/lib/game/log.js";
+import { crownsVoiceText, endCauseOf, formatEvents, rebuildLog, routeName, siteName } from "../src/lib/game/log.js";
 import { engine, playGame } from "./helpers.js";
 
 // Regression: after Continue or Load the Chronicle was empty, although the
@@ -140,6 +140,16 @@ describe("formatEvents: second-wave cards", () => {
       ["important", `The Crown favours Might: Player 1 beat Player 2 across ${region.name}, 2 to 1, and won 1 Favour from the Crown's purse.`, "P1"],
       ["info", "The Crown now favours Roads, and Plenty after that.", null],
     ]);
+  });
+
+  it("says what the Crown's Voice favours and when it speaks", () => {
+    const voice = { current: "might", next: "roads", deck: { might: 7, roads: 7, plenty: 8 }, purse: 15, harvested: [], speaking: false } as const;
+    const withVoice = (speaking: boolean, questDeck: string[]) => ({ ...clone(state), questDeck, crownsVoice: { ...voice, harvested: [], speaking } });
+    expect(crownsVoiceText(withVoice(true, []))).toBe("The Crown favours Might (next: Roads)");
+    // The Quest deck ran out this round: the Voice speaks from the next.
+    expect(crownsVoiceText(withVoice(false, []))).toBe("From next round, the Crown favours Might (next: Roads)");
+    expect(crownsVoiceText(withVoice(false, ["q"]))).toBe("Once the Quest deck is empty, the Crown favours Might (next: Roads)");
+    expect(crownsVoiceText(state)).toBe("");
   });
 
   it("says when the board is full and who it crowns, and reads the ending back", () => {

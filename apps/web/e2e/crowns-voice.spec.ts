@@ -48,7 +48,13 @@ test("the Crown's Voice shows this round's virtue and the next, and turns as a r
   const chip = page.locator(".topbar .voice .text");
   await expect(chip).toHaveText(VOICE);
   const next = VOICE.exec((await chip.textContent()) ?? "")?.[2];
-  await expect(page.locator(".topbar .voice")).toHaveAttribute("title", /Crown's purse: \d+ Favour/);
+  // A tap opens the purse and how each virtue scores.
+  await page.locator(".topbar .voice").click();
+  const dialog = page.getByRole("dialog", { name: "The Crown's Voice" });
+  await expect(dialog).toContainText(/Crown's purse: 15 Favour/);
+  await expect(dialog.locator("dt")).toHaveText(["Might", "Roads", "Plenty"]);
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).toHaveCount(0);
 
   // Both players end their turns: round 2 begins with the virtue shown as next.
   await endTurn(page);
@@ -56,6 +62,34 @@ test("the Crown's Voice shows this round's virtue and the next, and turns as a r
   await expect(chip).toHaveText(new RegExp(`^The Crown favours ${next} \\(next: `));
   await page.getByRole("tab", { name: "Chronicle", exact: true }).click();
   await expect(page.locator(".log ol li", { hasText: `The Crown now favours ${next}, and ` })).toHaveCount(1);
+});
+
+// Phones: the chip shows only this round's virtue, so the top bar keeps its
+// two rows (buttons, then the scoreboard), and a tap opens the details.
+test.describe("the Crown's Voice on a phone", () => {
+  test.use({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
+
+  test("the chip fits a phone's top bar and opens on a tap", async ({ page }) => {
+    await start(page, true, "Core");
+    // The development-only Debug button is not in a player's top bar.
+    await page.getByRole("button", { name: "Debug" }).evaluateAll((els) => els.forEach((el) => ((el as HTMLElement).style.display = "none")));
+    const chip = page.locator(".topbar .voice");
+    await expect(chip.locator(".tiny")).toBeVisible();
+    await expect(chip.locator(".tiny")).toHaveText(/^(Might|Roads|Plenty)$/);
+    // Everything but the scoreboard shares the first row: how far each item's
+    // middle lies from the menu button's.
+    const offsets = await page.locator(".topbar").evaluate((bar) => {
+      const middle = (el: Element) => {
+        const r = el.getBoundingClientRect();
+        return (r.top + r.bottom) / 2;
+      };
+      const items = Array.from(bar.children).filter((el) => !el.classList.contains("score") && el.getBoundingClientRect().width > 0);
+      return items.map((el) => Math.abs(middle(el) - middle(bar.children[0] as Element)));
+    });
+    expect(Math.max(...offsets)).toBeLessThan(4);
+    await chip.tap();
+    await expect(page.getByRole("dialog", { name: "The Crown's Voice" })).toContainText(/Crown's purse: 15 Favour/);
+  });
 });
 
 test("games without the Crown's Voice show no chip", async ({ page }) => {

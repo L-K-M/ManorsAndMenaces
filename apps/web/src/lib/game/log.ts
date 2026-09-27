@@ -4,6 +4,7 @@ import type { MapDefinition } from "@manors-menaces/content";
 import type { HistoryEntry } from "@manors-menaces/protocol";
 import {
   cardDefIdOf,
+  getVoiceStatus,
   type CrownsVirtue,
   type GameCommand,
   type GameEvent,
@@ -14,6 +15,7 @@ import {
   type MenaceLocation,
   type RouteId,
   type RulesEngine,
+  type VoiceStatus,
 } from "@manors-menaces/rules";
 import { t } from "../i18n.js";
 import { replayHistory } from "./replay.js";
@@ -66,6 +68,20 @@ export function sharedRegionId(map: MapDefinition, siteA: string, siteB: string)
 /** A virtue the Crown can favour, by name. */
 export function virtueName(virtue: CrownsVirtue): string {
   return t(`voice.virtue.${virtue}.name`);
+}
+
+const VOICE_STATUS_KEYS: Record<VoiceStatus, string> = {
+  speaking: "voice.chip",
+  from_next_round: "voice.chip_next_round",
+  waiting: "voice.chip_waiting",
+};
+
+/** What the Crown's Voice favours and when it speaks (§129.7); empty in a game without it. */
+export function crownsVoiceText(state: GameState): string {
+  const voice = state.crownsVoice;
+  const status = getVoiceStatus(state);
+  if (!voice || !status) return "";
+  return t(VOICE_STATUS_KEYS[status], { virtue: virtueName(voice.current), next: virtueName(voice.next) });
 }
 
 /** A Route's two end Sites, or null for an unknown Route. */

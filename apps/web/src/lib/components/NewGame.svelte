@@ -31,12 +31,15 @@
   let cardIncome = $state(true);
   // The Crown's Voice (§129.7): an experimental rule, offered in local games only.
   let crownsVoice = $state(false);
-  const voiceHint = t("ui.crowns_voice_hint", {
-    start: t(`ui.crowns_voice_from.${BALANCE.crownsVoice.from}`),
-    virtues: listText(CROWNS_VIRTUES.map(virtueName)),
-    purse: BALANCE.crownsVoice.purse,
-    max: BALANCE.crownsVoice.maxGainPerRound,
-  });
+  // Core games have no Quests, so there the Voice speaks from the first round.
+  const voiceHint = $derived.by(() =>
+    t("ui.crowns_voice_hint", {
+      start: t(`ui.crowns_voice_from.${mode === "mvp" ? "first_round" : BALANCE.crownsVoice.from}`),
+      virtues: listText(CROWNS_VIRTUES.map(virtueName)),
+      purse: BALANCE.crownsVoice.purse,
+      max: BALANCE.crownsVoice.maxGainPerRound,
+    }),
+  );
   // The Renown to win (§7) follows the rules and player count until you pick
   // one; the goal you last picked comes back.
   let pickedGoal: number | null = $state(rememberedRenownGoal());
