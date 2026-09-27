@@ -572,8 +572,10 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   if (endsRound && isLastRound(s)) return finishGame(tx, checkVictory(tx, true) as PlayerId, "last_round");
   foretellEndgame(tx);
   // At the higher goals a reveal is followed by a new draw; the turn passes
-  // once the player has kept one (chooseCharge).
-  if (revealed && drawsAnotherCharge(s, playerId) && drawCharges(tx, playerId, "later")) return;
+  // once the player has kept one (chooseCharge). Not when the game ends with
+  // this round: no End Turn of theirs is left to reveal it.
+  const turnsLeft = !isLastRound(s) && !s.endTriggered;
+  if (revealed && turnsLeft && drawsAnotherCharge(s, playerId) && drawCharges(tx, playerId, "later")) return;
   handOver(tx, playerId);
 }
 

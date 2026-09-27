@@ -819,7 +819,7 @@ Resolve, in order:
 8. victory check (§7);
 9. at the round's last seat, a full board or the last round ends the game (§7);
 10. if the game did not end, the endgame omen (§19.13);
-11. with Sealed Charges at goals 25 and 30, after a reveal, the player keeps one of two new Charges (§27A.4).
+11. with Sealed Charges at goals 25 and 30, after a reveal, the player keeps one of two new Charges, unless the game ends with this round (§27A.4).
 
 All Quest claims in the base game are manual (§116). None resolve automatically here.
 
@@ -1528,7 +1528,7 @@ At each player's End Turn (§16.4), before the victory check (§7), their Charge
 
 ## 27A.4 Further Charges at goals 25 and 30
 
-At the Renown goals 25 and 30, a reveal is followed by a new draw of 2, keep 1, until the player has revealed 2 Charges (goal 25) or 3 (goal 30) (`BALANCE.sealedCharges.perGame`); below 25 every player has one Charge in the game. The new draw comes after the victory check and the full-board check of that End Turn, and the turn passes to the next player once the player has kept one. These later draws, and Recommission's, skip landmark Charges, which a full board can put out of reach, and take Banner, deed and Menace Charges only.
+At the Renown goals 25 and 30, a reveal is followed by a new draw of 2, keep 1, until the player has revealed 2 Charges (goal 25) or 3 (goal 30) (`BALANCE.sealedCharges.perGame`); below 25 every player has one Charge in the game. The new draw comes after the victory check and the full-board check of that End Turn, and the turn passes to the next player once the player has kept one. There is no draw when the game ends with the round, in the last round (§7) or once equal turns have been triggered, since no End Turn is left to reveal it. These later draws, and Recommission's, skip landmark Charges, which a full board can put out of reach, and take Banner, deed and Menace Charges only.
 
 ## 27A.5 Recommission
 
