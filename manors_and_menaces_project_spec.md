@@ -1536,7 +1536,7 @@ Once per game, in their Main phase, a player may pay 1 Essence (`BALANCE.sealedC
 
 ## 27A.6 What players see
 
-- Everyone sees that a player holds a sealed Charge (a seal on the scoreboard and in the Players panel), how many Charges are left in the deck (in the Quests tab), every revealed Charge and all Renown.
+- Everyone sees that a player holds a sealed Charge (a seal on the scoreboard and in the Players panel), how many Charges are left in the deck (in the Quests tab), every revealed Charge (with what it asked, in the Quests tab) and all Renown.
 - Only the holder sees their Charge, with its progress, in the Quests tab, and only the player choosing sees the Charges they drew. Online, the server replaces rivals' Charges, a rival's draw and the deck with `hidden` (§105); `charges_drawn` and `charge_kept` reach other players without the Charge. In hot-seat play the choice waits behind the privacy curtain (§56.1), and the Chronicle says only that a Charge was drawn or kept.
 - The first seat draws when the game is created, which reports no events, so a local game's Chronicle tells that draw from the initial state. An online match's Chronicle comes from the server's history of commands (§62) and does not tell it.
 

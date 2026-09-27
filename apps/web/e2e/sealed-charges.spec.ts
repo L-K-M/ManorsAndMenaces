@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { rulesContentFor } from "@manors-menaces/content";
+import { SAVE_SCHEMA_VERSION, type SaveFile } from "@manors-menaces/protocol";
+import { RULESET_VERSION, createRulesEngine, standardRuleset } from "@manors-menaces/rules";
 
 // Sealed Charges (spec §27A) in a hot-seat game: the option on New Game,
 // each player keeping one of two Charges behind the privacy curtain, the
@@ -50,4 +53,42 @@ test("Sealed Charges are chosen behind the curtain and shown only to their holde
   // Every seat's draw is in the Chronicle, the first seat's too, which the new game drew.
   await page.getByRole("tab", { name: "Chronicle", exact: true }).click();
   await expect(page.locator(".side").getByText(/drew 2 Sealed Charges to choose from/)).toHaveCount(2);
+});
+
+/** A two-player game in round 5 in which Wat has revealed Seat at Court, saved without a history. */
+function revealedSave(): SaveFile {
+  const engine = createRulesEngine(rulesContentFor("greenvale"));
+  const seats = ["Ysolde", "Wat"].map((displayName, i) => ({ playerId: `P${i + 1}`, displayName, kind: "human" as const, color: i }));
+  const state = engine.createGame({
+    matchId: "local-e2e-revealed",
+    seed: "e2e-revealed",
+    rulesetVersion: RULESET_VERSION,
+    ruleset: standardRuleset(2, { sealedCharges: true }),
+    players: seats.map((s) => ({ id: s.playerId, displayName: s.displayName })),
+  });
+  state.status = "playing";
+  state.phase = "main";
+  state.round = 5;
+  state.activePlayerId = "P1";
+  delete state.setup;
+  delete state.pending;
+  const wat = state.players.P2;
+  if (!wat) throw new Error("no second player");
+  wat.revealedChargeIds = ["seat_at_court"];
+  if (state.chargeDeck) state.chargeDeck = state.chargeDeck.filter((id) => id !== "seat_at_court");
+  return { schemaVersion: SAVE_SCHEMA_VERSION, rulesetVersion: RULESET_VERSION, savedAt: new Date(0).toISOString(), mapId: "greenvale", seats, initialState: structuredClone(state), state, commandHistory: [] };
+}
+
+// A tooltip alone kept what a revealed Charge asked from touch screens.
+test("a revealed Charge says what it asked in the Quests tab", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: false })));
+  await page.reload();
+  await page.getByRole("button", { name: "Load game", exact: true }).click();
+  await page.getByLabel(/Import a save file/).setInputFiles({ name: "revealed.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(revealedSave())) });
+  await page.getByRole("tab", { name: /Quests/ }).click();
+  const revealed = page.locator(".charges .done li");
+  await expect(revealed).toHaveCount(1);
+  await expect(revealed).toContainText("Seat at Court (Wat)");
+  await expect(revealed.getByText("Your network reaches the Royal Castle, and one of your Banners is in a Region touching it.")).toBeVisible();
 });
