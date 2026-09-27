@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { BALANCE } from "@manors-menaces/rules";
 import { pick } from "./pick";
 
@@ -95,6 +95,33 @@ async function clippedRules(page: Page) {
   );
 }
 
+/** Names of the hand's cards whose title text runs past the card's edge. */
+async function clippedTitles(page: Page) {
+  return page.locator(".hand .card:not(.peek) .title").evaluateAll((els) =>
+    els
+      .filter((el) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const text = range.getBoundingClientRect();
+        const face = el.closest(".face")!.getBoundingClientRect();
+        return text.left < face.left - 1 || text.right > face.right + 1 || text.top < face.top - 1 || text.bottom > face.bottom + 1;
+      })
+      .map((el) => el.textContent ?? ""),
+  );
+}
+
+/** Presses a card with a finger and keeps it down; Playwright's touchscreen API only taps. */
+async function holdCard(page: Page, card: Locator) {
+  await card.scrollIntoViewIfNeeded();
+  const box = await card.boundingBox();
+  if (!box) throw new Error("the card is not on screen");
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] });
+  return { lift: () => cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }) };
+}
+
+const HOLD_HINT = "Touch and hold a card to read it.";
+
 async function boardBox(page: Page) {
   return page.locator(".board-wrap").evaluate((el) => {
     const r = el.getBoundingClientRect();
@@ -144,11 +171,47 @@ test.describe("laptop 1280x720", () => {
     expect(setup.height).toBeGreaterThanOrEqual(0.55 * 720);
     expect(await pageFits(page)).toEqual({ scrollsX: false, scrollsY: false });
 
+    // Docked cards show title and painting at a readable size, never a cut-off
+    // fragment of their rules; a mouse needs no touch hint.
+    await expect(page.locator(".hand .card:not(.peek) .rules")).toHaveCount(0);
+    expect(await clippedTitles(page)).toEqual([]);
+    const titlePx = await page.locator(".hand .card:not(.peek) .title").evaluateAll((els) => els.map((el) => parseFloat(getComputedStyle(el).fontSize)));
+    for (const px of titlePx) expect(px).toBeGreaterThanOrEqual(15);
+    await expect(page.getByText(HOLD_HINT)).toBeHidden();
+
     // The Text size setting scales the dock, but never starves the board.
     await page.evaluate(() => document.documentElement.style.setProperty("--text-scale", "1.5"));
     expect((await boardBox(page)).height).toBeGreaterThanOrEqual(0.4 * 720);
     expect(await pageFits(page)).toEqual({ scrollsX: false, scrollsY: false });
     await expectInViewport(page, /End Turn/);
+    expect(await clippedTitles(page)).toEqual([]);
+  });
+
+  test("cards on the table open in the card viewer", async ({ page }) => {
+    await startVsAi(page);
+    await completeSetup(page);
+    // Royal Insurance Policy is a Charter: played, it lies in front of Alice.
+    await page.getByRole("button", { name: "Debug" }).click();
+    const debug = page.getByRole("dialog", { name: "Debug tools" });
+    await debug.getByLabel("Card").selectOption("royal_insurance_policy");
+    await debug.getByRole("button", { name: "Draw specific card" }).click();
+    await debug.getByRole("button", { name: "Close" }).click();
+    await page.locator(".hand button.card", { hasText: "Royal Insurance Policy" }).click();
+    const charter = page.getByRole("button", { name: /^Alice's Charter, Royal Insurance Policy/ });
+    await expect(charter).toBeVisible();
+
+    const aside = page.getByRole("button", { name: /^Set aside until the omen: Ragnarök/ });
+    for (const [button, name] of [[charter, "Royal Insurance Policy"], [aside, "Ragnarök"]] as const) {
+      await button.click();
+      const viewer = page.getByRole("dialog", { name });
+      await expect(viewer).toBeVisible();
+      const rules = viewer.locator(".rules");
+      await expect(rules).toBeVisible();
+      expect(await rules.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+      await page.keyboard.press("Escape");
+      await expect(viewer).toBeHidden();
+      await expect(button).toBeFocused();
+    }
   });
 
   test("your resources stay in view whichever panel tab is open", async ({ page }) => {
@@ -269,8 +332,11 @@ test.describe("phone landscape", () => {
     await startVsAi(page);
     await completeSetup(page);
     await fillHand(page, 10);
-    // The rail's tray scrolls, so its cards have room for all their rules.
+    // The rail's tray scrolls, so its cards have room for all their rules,
+    // at 14 px or more.
     expect(await clippedRules(page)).toEqual([]);
+    const rulesPx = await page.locator(".hand .card:not(.peek) .rules").evaluateAll((els) => els.map((el) => parseFloat(getComputedStyle(el).fontSize)));
+    for (const px of rulesPx) expect(px).toBeGreaterThanOrEqual(14);
     // End Turn confirms the Banners and stops in the End phase: the hand is over the limit.
     await page.getByRole("button", { name: /Assign Banners →/ }).click();
     await page.getByRole("button", { name: /End Turn/ }).click();
@@ -291,27 +357,32 @@ test.describe("phone landscape", () => {
 test.describe("touch tablet 1180x820", () => {
   test.use({ viewport: { width: 1180, height: 820 }, isMobile: true, hasTouch: true });
 
-  test("press and hold shows the whole card without playing it", async ({ page }) => {
+  test("press and hold opens the whole card, which stays until closed, without playing it", async ({ page }) => {
     await startVsAi(page);
     await completeSetup(page);
     await fillHand(page, 6);
-    const clipped = (await clippedRules(page))[0] ?? "";
-    expect(clipped).not.toBe("");
-    const card = page.locator(".hand .card:not(.peek)", { hasText: clipped }).first();
-    const box = await card.boundingBox();
-    expect(box).toBeTruthy();
-    if (!box) return;
+    // The dock leaves the rules out rather than cutting them short, and says
+    // how to read them on a touch screen.
+    await expect(page.locator(".hand .card:not(.peek) .rules")).toHaveCount(0);
+    await expect(page.getByText(HOLD_HINT)).toBeVisible();
 
-    // A real touch press, held; Playwright's touchscreen API only taps.
-    const cdp = await page.context().newCDPSession(page);
-    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
-    const peek = page.locator(".hand .peek");
-    await expect(peek).toBeVisible();
-    await expect(peek).toContainText(clipped);
-    expect(await peek.locator(".rules").evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await expect(peek).toBeHidden();
+    // Festival at the Inn is playable: a tap would start it.
+    const card = page.locator(".hand .card:not(.peek)", { hasText: "Festival at the Inn" }).first();
+    const held = await holdCard(page, card);
+    const viewer = page.getByRole("dialog", { name: "Festival at the Inn" });
+    await expect(viewer.locator(".face")).toBeVisible();
+    await held.lift();
+    await page.waitForTimeout(600);
+    await expect(viewer.locator(".face")).toBeVisible();
+    const rules = viewer.locator(".rules");
+    expect(await rules.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+    expect(await rules.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+    await expect(card).toHaveAttribute("aria-pressed", "false");
+    await expect(viewer.getByRole("button", { name: "Timber" })).toHaveCount(0);
+
+    await viewer.getByRole("button", { name: "Close" }).tap();
+    await expect(viewer).toBeHidden();
+    await expect(card).toBeFocused();
     await expect(card).toHaveAttribute("aria-pressed", "false");
   });
 
@@ -331,6 +402,7 @@ test.describe("touch tablet 1180x820", () => {
     await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x + box.width / 2, y: box.y - 120, ...pen });
     await page.waitForTimeout(700);
     await expect(page.locator(".hand .peek")).toBeHidden();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: box.x + box.width / 2, y: box.y - 120, ...pen, buttons: 0 });
   });
 });
@@ -400,6 +472,52 @@ test.describe("phone portrait 412x915", () => {
     await expect(side).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(side).toBeHidden();
+  });
+
+  test("the tray's wide cards read at 14 px, and a held card opens until closed", async ({ page }) => {
+    await startVsAi(page);
+    await completeSetup(page);
+    // The first five dealt include Festival at the Inn, playable now.
+    await fillHand(page, 5);
+    const peekHeight = (await boardBox(page)).height;
+    const tray = page.getByRole("button", { name: /^Hand \d/ });
+    await tray.click();
+    const hand = page.getByRole("region", { name: "Your hand" });
+    await expect(hand.getByText(HOLD_HINT)).toBeVisible();
+    const cards = page.locator(".hand .card:not(.peek)");
+    for (const card of await cards.all()) {
+      await card.scrollIntoViewIfNeeded();
+      const facts = await card.evaluate((el) => {
+        const px = (sel: string) => parseFloat(getComputedStyle(el.querySelector(sel)!).fontSize);
+        const rules = el.querySelector(".rules")!;
+        return { width: el.getBoundingClientRect().width, rules: px(".rules"), title: px(".title"), clipped: rules.scrollHeight > rules.clientHeight + 1 };
+      });
+      expect(facts.width).toBeGreaterThanOrEqual(0.6 * 412);
+      expect(facts.rules).toBeGreaterThanOrEqual(14);
+      expect(facts.title).toBeGreaterThanOrEqual(15);
+      expect(facts.clipped).toBe(false);
+    }
+    expect((await boardBox(page)).height).toBe(peekHeight);
+
+    // Held, a card opens in the viewer and stays after the finger lifts.
+    // The backdrop and Escape close it too, and a plain tap still plays.
+    const card = cards.filter({ hasText: "Festival at the Inn" }).first();
+    await card.scrollIntoViewIfNeeded();
+    const viewer = page.getByRole("dialog", { name: "Festival at the Inn" });
+    for (const close of ["backdrop", "Escape"] as const) {
+      const held = await holdCard(page, card);
+      await expect(viewer.locator(".face")).toBeVisible();
+      await held.lift();
+      await page.waitForTimeout(600);
+      await expect(viewer.locator(".face")).toBeVisible();
+      await expect(card).toHaveAttribute("aria-pressed", "false");
+      if (close === "backdrop") await page.locator(".backdrop").tap({ position: { x: 10, y: 10 } });
+      else await page.keyboard.press("Escape");
+      await expect(viewer).toBeHidden();
+      await expect(tray).toHaveAttribute("aria-expanded", "true");
+    }
+    await card.tap();
+    await expect(page.getByRole("dialog", { name: "Festival at the Inn" }).getByRole("button", { name: "Timber" })).toBeVisible();
   });
 
   test("tapping a player on the scoreboard shows where their Renown comes from", async ({ page }) => {

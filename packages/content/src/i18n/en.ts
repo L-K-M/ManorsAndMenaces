@@ -310,6 +310,7 @@ export const EN: Record<string, string> = {
   "ui.card_income_option": "Starting cards and regular draws",
   "ui.card_income_hint": "Standard games give everyone {count} cards after setup and 1 free card every {rounds} rounds. You can still buy more cards.",
   "hand.next_free_card": "Next free card: round {round}",
+  "hand.hold_hint": "Touch and hold a card to read it.",
   "log.card_bought": "{name} bought a card.",
   "log.card_played": "{name} played {card}.",
   "log.card_cancelled": "{by} countered {name}'s {card}!",

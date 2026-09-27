@@ -290,7 +290,7 @@
           {#if previewFor && preview}
             <div class="preview"><HarvestPreview {session} playerId={previewFor} {preview} /></div>
           {/if}
-          {#if cardsEnabled}<div class="hand"><HandPanel {session} {legal} {feedback} /></div>{/if}
+          {#if cardsEnabled}<div class="hand"><HandPanel {session} {legal} {feedback} {layout} /></div>{/if}
         </div>
       {/if}
     </div>
@@ -505,9 +505,6 @@
   [data-layout="wide"] .dock {
     --toast-inset: auto auto calc(100% + 4.1rem) 50%;
   }
-  [data-layout="wide"] .hand {
-    --cards-container: size;
-  }
   /* Large text on a small phone moves the tray toggle onto its own row
      rather than pushing it off screen. */
   .dock-head {
@@ -647,12 +644,9 @@
     gap: 0.6rem;
     overflow-y: auto;
     overscroll-behavior: contain;
-    /* The tray scrolls, so there is room to read whole cards. */
-    --rules-lines: none;
-    --hand-card-height: auto;
-    --hand-art-min: 8rem;
-    --card-rows: auto 8rem auto 1fr;
-    --flavor-display: block;
+    /* The tray scrolls, so there is room to read whole cards: as wide as
+       the rail allows, less its padding and a scrollbar. */
+    --hand-card-width: min(16rem, 40vw - 2.6rem);
   }
   [data-layout="rail"] .tray .preview {
     flex: none;
@@ -748,12 +742,8 @@
     overscroll-behavior: contain;
     border-top: 1px solid #8a765066;
     padding-top: 0.5rem;
-    /* Room to read whole cards here. */
-    --rules-lines: none;
-    --hand-card-height: auto;
-    --hand-art-min: 8rem;
-    --card-rows: auto 8rem auto 1fr;
-    --flavor-display: block;
+    /* Room to read whole cards here, most of the screen's width. */
+    --hand-card-width: clamp(12rem, 68vw, 16rem);
   }
   [data-layout="sheet"] .tray .preview {
     flex: none;

@@ -52,7 +52,7 @@
       {#each Array.from({ length: 12 }, (_, i) => i) as i}
         <span class="spark" style="--angle: {i * 30}deg; --reach: {i % 2 ? 8 : 11}rem"><ToolIcon name="sparkle" size={20} /></span>
       {/each}
-      <div class="cast-card"><CardFace def={played.def} /></div>
+      <div class="cast-card"><CardFace def={played.def} view="glance" /></div>
     </div>
   {/key}
 {/if}
