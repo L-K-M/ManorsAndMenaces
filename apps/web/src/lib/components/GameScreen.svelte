@@ -459,15 +459,39 @@
     color: #ffe9cf;
     font-weight: 700;
   }
+  /* A full-height touch target around a smaller pill, like the Voice and
+     score chips. */
   .topbar .levy-chip {
+    position: relative;
+    isolation: isolate;
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    min-height: 32px;
-    padding: 0.1rem 0.55rem;
+    min-height: 44px;
+    padding: 0 0.55rem;
+    border: none;
     border-radius: 999px;
+    background: none;
+    box-shadow: none;
     font-size: 0.8rem;
     white-space: nowrap;
+  }
+  .topbar .levy-chip:hover:not(:disabled) {
+    background: none;
+  }
+  .topbar .levy-chip::before {
+    content: "";
+    position: absolute;
+    inset: 50% 0 auto;
+    z-index: -1;
+    height: 32px;
+    translate: 0 -50%;
+    border: 1px solid #fff5;
+    border-radius: 999px;
+    transition: background 0.2s;
+  }
+  .topbar .levy-chip:hover::before {
+    background: #fff2;
   }
   /* The scoreboard takes the free space in the bar and shrinks (names
      first) rather than wrapping the bar onto a second row. */
