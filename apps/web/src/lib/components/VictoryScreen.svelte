@@ -5,7 +5,7 @@
   import { RESOURCE_TYPES, type PlayerId } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { endCauseOf } from "../game/log.js";
-  import { buildMatchReport, renownChart, type AwardId, type MatchStats } from "../game/matchReport.js";
+  import { buildMatchReport, renownBar, renownChart, type AwardId, type MatchStats, type RenownBreakdown } from "../game/matchReport.js";
   import { planRematch } from "../game/rematch.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { animationScale } from "../stores/settings.svelte.js";
@@ -106,6 +106,13 @@
     { key: "marketTrades", label: "stat.market" },
     { key: "lostToMenaces", label: "stat.lost" },
   ];
+
+  /** "2 from Manors · 1 lost": the sources, less any Renown lost for good. */
+  function renownParts(b: RenownBreakdown): string {
+    const parts = BREAKDOWN.filter((s) => b[s.key] > 0).map((s) => t("stat.renown_from", { renown: b[s.key], source: t(s.label) }));
+    if (b.lost > 0) parts.push(t("stat.renown_lost", { renown: b.lost }));
+    return parts.join(" · ");
+  }
 
   function nameOf(playerId: PlayerId): string {
     return report.standings.find((r) => r.playerId === playerId)?.name ?? "?";
@@ -211,6 +218,7 @@
                 {@const th = themeOf(r.playerId)}
                 {@const seat = session.seat(r.playerId)}
                 {@const rival = seatRival(seat)}
+                {@const bar = renownBar(r.renown)}
                 <li style="--pc: {th.color}; --pd: {th.dark}" class:first={i === 0}>
                   <span class="rank">{i + 1}</span>
                   {#if rival}<RivalPortrait portrait={rival.portrait} theme={th} size={36} />
@@ -225,15 +233,11 @@
                     </div>
                     <div class="bar" aria-hidden="true">
                       {#each BREAKDOWN as b}
-                        {#if r.renown[b.key] > 0}<span class="seg {b.key}" style="width: {(r.renown[b.key] / barMax) * 100}%"></span>{/if}
+                        {#if bar[b.key] > 0}<span class="seg {b.key}" style="width: {(bar[b.key] / barMax) * 100}%"></span>{/if}
                       {/each}
                       <span class="goal" style="left: {(report.targetRenown / barMax) * 100}%"></span>
                     </div>
-                    <p class="parts">
-                      {BREAKDOWN.filter((b) => r.renown[b.key] > 0)
-                        .map((b) => t("stat.renown_from", { renown: r.renown[b.key], source: t(b.label) }))
-                        .join(" · ")}
-                    </p>
+                    <p class="parts">{renownParts(r.renown)}</p>
                   </div>
                 </li>
               {/each}

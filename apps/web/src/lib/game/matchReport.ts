@@ -28,7 +28,11 @@ export interface RenownBreakdown {
   quests: number;
   /** Anything else (bonus Renown). */
   other: number;
+  /** Renown lost for good (Disgrace, Stolen Glory): the parts above less this make the total. */
+  lost: number;
 }
+
+export type RenownPart = Exclude<keyof RenownBreakdown, "total" | "lost">;
 
 /**
  * Statistics per player. `null` means the history needed for it is
@@ -132,8 +136,25 @@ export function buildMatchReport(engine: RulesEngine, final: GameState, history:
 export function renownBreakdown(engine: RulesEngine, state: GameState, playerId: PlayerId): RenownBreakdown {
   const s = getRenownSources(engine.ctx, state, playerId);
   const quests = s.quests.reduce((sum, q) => sum + q.renown, 0);
-  // Renown lost for good (Disgrace, Stolen Glory) comes off the other sources, so the parts sum to the total.
-  return { total: s.total, manors: s.manors.renown, strongholds: s.strongholds.renown, quests, other: s.bonus - s.lost };
+  return { total: s.total, manors: s.manors.renown, strongholds: s.strongholds.renown, quests, other: s.bonus, lost: s.lost };
+}
+
+/**
+ * Each part's share of a Renown bar. Renown lost for good comes off the
+ * last parts first, so the shares sum to the total and the bar reaches
+ * the goal only when the total does.
+ */
+export function renownBar(b: RenownBreakdown): Record<RenownPart, number> {
+  let lost = b.lost;
+  const keep = (renown: number) => {
+    const cut = Math.min(renown, lost);
+    lost -= cut;
+    return renown - cut;
+  };
+  const other = keep(b.other);
+  const quests = keep(b.quests);
+  const strongholds = keep(b.strongholds);
+  return { manors: keep(b.manors), strongholds, quests, other };
 }
 
 function rankPlayers(state: GameState, result: (id: PlayerId) => PlayerResult): PlayerResult[] {

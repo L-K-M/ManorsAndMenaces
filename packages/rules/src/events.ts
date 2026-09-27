@@ -138,7 +138,7 @@ export type GameEvent =
   | { type: "game_started"; firstPlayerId: PlayerId; turnOrder: PlayerId[] }
   /** `cause` is absent for the normal §7 win (reaching the target). */
   | { type: "game_won"; playerId: PlayerId; renown: number; cause?: GameEndCause }
-  /** A turn ended on a full board before the round's last seat: this round is the last (§7). */
+  /** A turn ended on a full board before the round's last seat: the game ends with the round if the board is still full then (§7). */
   | { type: "board_full" };
 
 export type ResourceReason =

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clone, createContext, getRenown, isBoardFull, mvpRuleset, type GameEvent, type GameState, type PlayerId, type RulesetConfig } from "../src/index.js";
-import { act, engine, grant, passTurn, routeId, setupGame, testContent } from "./helpers.js";
+import { act, cardTestRuleset, engine, give, grant, passTurn, routeId, setupGame, testContent } from "./helpers.js";
 
 // A round that ends on a full board ends the game (§7). After setupGame the
 // test board's corners are built and only s5, in the middle, is open.
@@ -82,7 +82,7 @@ describe("a full board (§7)", () => {
     expect(s.status).toBe("playing");
     expect(s.round).toBe(2);
     // Round 2: the first player fills the board, and the second still plays,
-    // told that this round is the last.
+    // told that the game ends with the round if the board stays full.
     const told = endTurn(buildMiddle(s, p1));
     s = told.state;
     expect(isBoardFull(ctx, s)).toBe(true);
@@ -91,6 +91,22 @@ describe("a full board (§7)", () => {
     s = passTurn(s);
     expect(s.status).toBe("finished");
     expect(s.endCause).toBe("full_board");
+  });
+
+  it("plays on when a card empties the board again before the round ends", () => {
+    const { state, p1, p2 } = setupGame(cardTestRuleset(2));
+    let s = passTurn(upgradeAll(passTurn(upgradeAll(state))));
+    const told = endTurn(buildMiddle(s, p1));
+    expect(told.events).toContainEqual({ type: "board_full" });
+    // The second player besieges the first's Stronghold on s9: a Manor again.
+    s = grant(told.state, p2, PLENTY);
+    s = give(act(s, p2, { type: "build_route", routeId: routeId(8, 9) }).state, p2, "siege_engines");
+    const card = s.players[p2]?.hand.at(-1) ?? "";
+    s = act(s, p2, { type: "play_card", cardId: card, target: { effect: "siege_engines", siteId: "s9" } }).state;
+    expect(isBoardFull(ctx, s)).toBe(false);
+    s = endTurn(s).state;
+    expect(s.status).toBe("playing");
+    expect(s.round).toBe(3);
   });
 
   it("breaks a tie in Renown as §7 does", () => {

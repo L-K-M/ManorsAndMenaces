@@ -139,7 +139,7 @@ describe("formatEvents: second-wave cards", () => {
       map,
     );
     expect(entries.map((e) => [e.kind, e.text])).toEqual([
-      ["omen", "The board is full: no Site is left to build on and every Holding is a Stronghold. This round is the last."],
+      ["omen", "The board is full: no Site is left to build on and every Holding is a Stronghold. If it is still full when this round ends, the game ends."],
       ["important", "The board is full. Player 2 wins with the most Renown: 17."],
     ]);
     expect(endCauseOf(entries)).toBe("full_board");

@@ -214,7 +214,7 @@ test("a game that ends on a full board says so on the results", async ({ page })
   await expect(victory.locator(".recap li").last()).toContainText("with the board full");
   await victory.getByRole("button", { name: "View board" }).click();
   await page.getByRole("tab", { name: /Chronicle/ }).click();
-  await expect(page.getByText("This round is the last.").first()).toBeVisible();
+  await expect(page.getByText("If it is still full when this round ends, the game ends.").first()).toBeVisible();
 });
 
 // Review question: does "Play again" after a tutorial continued from a save

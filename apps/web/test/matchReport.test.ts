@@ -12,7 +12,7 @@ import {
   type GameCommand,
   type GameState,
 } from "@manors-menaces/rules";
-import { buildMatchReport, pickAwards, renownChart, type MatchStats, type PlayerResult } from "../src/lib/game/matchReport.js";
+import { buildMatchReport, pickAwards, renownBar, renownBreakdown, renownChart, type MatchStats, type PlayerResult } from "../src/lib/game/matchReport.js";
 import { replayHistory } from "../src/lib/game/replay.js";
 import { engine, playGame } from "./helpers.js";
 
@@ -31,9 +31,10 @@ describe("buildMatchReport", () => {
     for (const r of report.standings) {
       const b = r.renown;
       expect(b.total).toBe(getRenown(engine.ctx, game.final, r.playerId));
-      expect(b.manors + b.strongholds + b.quests + b.other).toBe(b.total);
+      expect(b.manors + b.strongholds + b.quests + b.other - b.lost).toBe(b.total);
       const p = game.final.players[r.playerId];
-      expect(b.other).toBe((p?.bonusRenown ?? 0) - (p?.lostRenown ?? 0));
+      expect(b.other).toBe(p?.bonusRenown ?? 0);
+      expect(b.lost).toBe(p?.lostRenown ?? 0);
     }
   });
 
@@ -250,7 +251,7 @@ describe("pickAwards", () => {
   const player = (playerId: string, renown: number, s: Partial<MatchStats>): PlayerResult => ({
     playerId,
     name: playerId,
-    renown: { total: renown, manors: renown, strongholds: 0, quests: 0, other: 0 },
+    renown: { total: renown, manors: renown, strongholds: 0, quests: 0, other: 0, lost: 0 },
     stats: stats(s),
   });
 
@@ -278,6 +279,24 @@ describe("pickAwards", () => {
     const awards = pickAwards(standings, ["A", "B"]);
     expect(awards.filter((a) => a.playerId === "A")).toHaveLength(2);
     expect(awards.every((a) => a.playerId === "A")).toBe(true);
+  });
+});
+
+describe("renownBar", () => {
+  it("takes Renown lost for good off the last sources, so the bar ends at the total", () => {
+    expect(renownBar({ total: 7, manors: 2, strongholds: 4, quests: 3, other: 1, lost: 3 })).toEqual({ manors: 2, strongholds: 4, quests: 1, other: 0 });
+    expect(renownBar({ total: 0, manors: 1, strongholds: 0, quests: 0, other: 0, lost: 1 })).toEqual({ manors: 0, strongholds: 0, quests: 0, other: 0 });
+  });
+
+  it("stops at a disgraced player's total, short of the goal", () => {
+    const s = clone(game.final);
+    const id = s.turnOrder.find((p) => p !== s.winnerId) ?? "";
+    s.players[id]!.lostRenown = 2;
+    const b = renownBreakdown(engine, s, id);
+    expect(b.lost).toBe(2);
+    const bar = renownBar(b);
+    expect(bar.manors + bar.strongholds + bar.quests + bar.other).toBe(b.total);
+    expect(b.total).toBeLessThan(s.ruleset.targetRenown);
   });
 });
 

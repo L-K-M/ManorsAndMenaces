@@ -542,7 +542,8 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   if (winner) return finishGame(tx, winner);
   // A round that ends on a full board ends the game: nobody can build for
   // Renown any more, so the best Renown wins, target reached or not (§7).
-  // Until the round's last seat, each turn says the round is the last.
+  // Until the round's last seat, each turn on a full board says so; a card
+  // that empties the board again (Raiders, Siege Engines) lets the game go on.
   if (s.ruleset.endOnFullBoard && isBoardFull(tx.ctx, s)) {
     if (endsRound) return finishGame(tx, checkVictory(tx, true) as PlayerId, "full_board");
     tx.emit({ type: "board_full" });

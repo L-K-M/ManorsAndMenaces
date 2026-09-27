@@ -174,10 +174,10 @@ describe("feedItemsFor: second-wave cards", () => {
     expect(feedItemsFor([taken], state, map, "P2")).toEqual([]);
   });
 
-  it("tells every viewer that a full board makes this round the last", () => {
+  it("tells every viewer that the game ends with the round if the board stays full", () => {
     for (const viewer of ["P1", "P2", null]) {
       expect(feedItemsFor([{ type: "board_full" }], state, map, viewer)).toEqual([
-        { actorId: null, text: "The board is full: this round is the last", at: null, gains: null, againstViewer: false, self: false, omen: true },
+        { actorId: null, text: "The board is full: the game ends with this round if it stays full", at: null, gains: null, againstViewer: false, self: false, omen: true },
       ]);
     }
   });
