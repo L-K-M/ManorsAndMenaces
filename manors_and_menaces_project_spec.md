@@ -4875,3 +4875,39 @@ Findings:
 4. **Four players at goal 13** end 1.3 rounds sooner on average: the Voice finishes the longest games (35 rounds without it, 24 with it), and the margin does not rise.
 5. **Seats.** No seat stands out beyond the noise of 30 games (about ±9 points). The last seat's 40 % with 4 players at goal 25 (37 % with the first timing), and its larger Favour there (4.2 against 2.1 to 2.3), are worth rechecking: the Voice speaks at the end of the last seat's turn, although every seat's builds of the round count alike.
 6. **To watch with people.** Players who build for the virtue, as the AI does not, will move more Favour. As the rule rewards the leader, a cap of 1 Favour a round, or Favour taken only from players ahead, are the next levers if margins grow. With 3 players a trailing player can choose which rival to contest, and so which of them gains (kingmaking). A board overlay of the pairs and their projected winners, like the §54 Harvest preview, is not built.
+
+## 129.11 The late-game rules together (ruleset 0.9.0)
+
+§129.8 to §129.10 measure each rule on its own. These runs combine them on one build, with the last round (§129.7) and The Dowager in the deck throughout: `pnpm simulate --map drawn --rules standard --level normal --games 30`, with `--override` turning the Levy off (`{"crownLevy":null}`), the Voice on (`{"crownsVoice":true}`) or Sealed Charges on (`{"sealedCharges":true}`). Every cell uses the same 30 seeds, and every game finished.
+
+Games out of 30 that reached the goal:
+
+| Rules | 3p, goal 20 | 3p, goal 25 | 3p, goal 30 | 4p, goal 25 |
+|---|---:|---:|---:|---:|
+| none of the three | 11 | 2 | 0 | 0 |
+| Levy (the Standard default) | 13 | 7 | 2 | 3 |
+| Levy and Voice | 27 | 15 | 7 | 13 |
+| Levy and Charges | 22 | 16 | 8 | 6 |
+| Levy, Voice and Charges | 30 | 25 | 18 | 19 |
+
+Rounds, winner's Renown and margin (the winner's Renown less the runner-up's):
+
+| Players, goal | Rules | Rounds (range) | Full-board endings | Winner Renown | Margin |
+|---|---|---|---:|---:|---:|
+| 3, 15 | Levy | 13.7 (11–17) | 0 | 15.5 | 4.4 |
+| 3, 15 | Levy, Voice, Charges | 12.8 (10–16) | 0 | 15.4 | 4.5 |
+| 3, 25 | none | 20.1 (16–30) | 26 | 19.3 | 3.5 |
+| 3, 25 | Levy | 20.4 (15–30) | 22 | 21.1 | 4.4 |
+| 3, 25 | Levy, Voice, Charges | 18.5 (14–25) | 5 | 25.3 | 5.8 |
+| 4, 13 | Levy | 14.6 (8–23) | 0 | 13.4 | 3.3 |
+| 4, 13 | Levy, Voice, Charges | 13.6 (10–17) | 0 | 13.6 | 2.8 |
+| 4, 25 | none | 23.7 (15–30) | 26 | 15.4 | 2.9 |
+| 4, 25 | Levy | 22.5 (15–30) | 24 | 17.4 | 3.5 |
+| 4, 25 | Levy, Voice, Charges | 19.1 (15–24) | 11 | 23.6 | 6.1 |
+
+**Findings.**
+
+1. Only the three together bring goals 25 and 30 within reach at both player counts. The Levy alone barely moves reach: the AI answers it on 4 to 13 % of its chances (§129.8).
+2. At the default goals the Levy and the Voice change nothing measurable: the Levy seldom comes into force before the game ends, and the Voice waits for the Quest deck. Sealed Charges shorten 3-player goal-15 games by about half a round (13.98 to 13.48 rounds on 180 further seeds) and 4-player goal-13 games by about 0.8 round, still inside the 12 to 16 target.
+3. Margins widen, mostly because more games end at the goal: games that end at the goal have margins of 5 to 10, full-board endings 1 to 5. Close games (a margin of 1 or less) fall from 8 to 13 of 30 to 2 to 7. The Voice widens the margin most with 4 players: at goal 25 the winner holds about 5.7 Favour against the runner-up's 3.
+4. **The first seat with 3 players at goal 15.** Under the default rules (the Levy and The Dowager), 360 further seeds gave seat win rates of 48.1 / 28.6 / 23.3 %, above the 45 % target (§68). Without The Dowager the same seeds gave 41.7 / 31.9 / 26.4 %, so The Dowager adds about 6 ± 4 points to the first seat; the rest is the cards-and-tempo edge of §129.4. Sealed Charges do not change it. At goal 25 the edge is smaller (39 / 37 / 24 %), and 4-player games show none (20 / 28 / 23 / 29 % at goal 13 on 120 seeds). A fix, such as a single copy of The Dowager or a later first play, is open.
