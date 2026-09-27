@@ -96,7 +96,8 @@ describe("hasNextHarvest", () => {
     expect(passTurn(s).status).toBe("finished");
   });
 
-  it("is false for the round's last seat on a full board, which ends the game", () => {
+  /** The first player's Banner Assignment on a board they have just filled. */
+  function fillTheBoard() {
     const { state, p1, p2 } = setupGame();
     // The second player upgrades both Manors; next round the first takes s5,
     // the last open Site, and upgrades everything.
@@ -105,7 +106,12 @@ describe("hasNextHarvest", () => {
     s = grant(s, p1, PLENTY);
     s = act(s, p1, { type: "build_route", routeId: routeId(2, 5) }).state;
     s = act(s, p1, { type: "build_manor", siteId: "s5" }).state;
-    s = toBanners(upgradeAll(s));
+    return { state: toBanners(upgradeAll(s)), p1, p2 };
+  }
+
+  it("is false for the round's last seat on a full board, which ends the game", () => {
+    const { state, p1, p2 } = fillTheBoard();
+    let s = state;
     expect(isBoardFull(ctx, s)).toBe(true);
     // Before the round's last seat a card could still empty the board.
     expect(hasNextHarvest(ctx, s, p1)).toBe(true);
@@ -118,6 +124,26 @@ describe("hasNextHarvest", () => {
     const on = { ...s, ruleset: { ...s.ruleset, endOnFullBoard: false } };
     expect(hasNextHarvest(ctx, on, p2)).toBe(true);
     expect(passTurn(on).status).toBe("playing");
+  });
+
+  // Regression: a razed mark keeps the board open, but the player's End
+  // Turn ends their own marks before it checks the board (§19.24).
+  it("is false for the round's last seat whose own razed mark alone keeps the board open", () => {
+    const { state, p1, p2 } = fillTheBoard();
+    let s = toBanners(passTurn(state));
+    expect(s.activePlayerId).toBe(p2);
+    // p2's Manor on s2, beside their s3, was burned: only p2 may rebuild there, this turn.
+    s = clone(s);
+    s.activeEffects.push({ kind: "razed", siteId: "s2", ownerId: p2, sourcePlayerId: p1, besideOwnHoldings: true });
+    expect(isBoardFull(ctx, s)).toBe(false);
+    expect(hasNextHarvest(ctx, s, p2)).toBe(false);
+    expect(passTurn(s)).toMatchObject({ status: "finished", endCause: "full_board" });
+
+    // A rival's mark lasts into the next round, and so does the game.
+    const rivals = clone(s);
+    for (const e of rivals.activeEffects) if (e.kind === "razed") e.ownerId = p1;
+    expect(hasNextHarvest(ctx, rivals, p2)).toBe(true);
+    expect(passTurn(rivals).status).toBe("playing");
   });
 
   // Regression: the Banner warning came up on an End Turn that reveals a

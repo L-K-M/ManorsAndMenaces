@@ -15,7 +15,7 @@ import { getFavourAwards } from "./voice.js";
  * target Renown once this End Turn has scored (the game ends at this End
  * Turn, or with the round under equal turns), when equal turns already end
  * the game with this round, in the last round, and when the player ends the
- * round on a full board.
+ * round on a full board, which their own razed marks no longer keep open.
  *
  * This End Turn scores the player's own Sealed Charge if the Banners, as
  * `draft` places them, meet it (§27A), and at the round's last seat the
@@ -31,7 +31,12 @@ export function hasNextHarvest(ctx: RulesContext, state: GameState, playerId: Pl
   if (state.status === "finished" || state.endTriggered || isLastRound(state)) return false;
   const renown = renownAfterEndTurn(ctx, state, playerId, draft);
   if (state.turnOrder.some((id) => (renown.get(id) ?? 0) >= state.ruleset.targetRenown)) return false;
-  return !(isLastSeat(state, playerId) && endsOnFullBoard(ctx, state));
+  return !(isLastSeat(state, playerId) && endsOnFullBoard(ctx, withoutOwnRazedMarks(state, playerId)));
+}
+
+/** The board as the player's End Turn checks it: their own razed marks have ended by then (engine.ts endTurn, §19.24). */
+function withoutOwnRazedMarks(state: GameState, playerId: PlayerId): GameState {
+  return { ...state, activeEffects: state.activeEffects.filter((e) => !(e.kind === "razed" && e.ownerId === playerId)) };
 }
 
 /**
