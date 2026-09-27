@@ -165,6 +165,9 @@ describe("event cue priority", () => {
     // The Crown's Levy (§27.3): an answer is Renown, a proclamation royal paperwork.
     expect(cueForEvents(events("resource_spent", "levy_answered"))).toBe("quest");
     expect(cueForEvents(events("turn_ended", "levy_proclaimed", "turn_started", "resource_gained"))).toBe("writ");
+    // Renown won at an End Turn: a Sealed Charge revealed (§27A) and Favour (§129.10).
+    expect(cueForEvents(events("charge_revealed", "turn_ended", "turn_started", "resource_gained"))).toBe("quest");
+    expect(cueForEvents(events("turn_ended", "favour_won", "turn_started", "resource_gained"))).toBe("quest");
     expect(cueForEvents([])).toBeNull();
   });
 });
