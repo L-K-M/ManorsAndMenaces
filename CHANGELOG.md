@@ -17,6 +17,16 @@
   then lets a leader end the game at once. A third Counterspell keeps pace
   with the new Spells. The balance simulator reports per-card plays and
   the new cards' effects.
+- Six offensive Spells bring the deck to 51 (ruleset 0.7.0): Disgrace
+  (the leader loses 1 Renown for good), Siege Engines (a Stronghold at
+  the end of your Route drops to a Manor), Raiders (a Manor at the end of
+  your Route burns, and only its owner may rebuild there for a turn),
+  Stolen Glory (take 1 Renown from a rival ahead of you), Siege Fireball
+  (burn a leading rival's Manor and leave its Site in ruins for good) and
+  Sabotage (an opponent loses 2 Grain). A fourth Counterspell keeps pace,
+  and the Royal Insurance Policy now covers every card that costs Renown.
+  The AI plays them against the leader, the board marks ruined and razed
+  Sites, and the cards show their type emblem until they are painted.
 - The AI no longer reads hidden information: it plans on what its player
   can see and weighs each Spell by the chance a rival holds a Counterspell.
   It values each card by what it tends to be worth, so it buys and plays

@@ -285,7 +285,9 @@ Default Renown values:
 
 A Manor upgraded to a Stronghold increases the player's Renown by **+1**, because the site moves from 1 total Renown to 2 total Renown.
 
-Renown can also fall. Dragon's Landing (§19.15) burns a Manor or reduces a Stronghold to a Manor, which costs its owner 1 Renown either way. Claimed Quests and card rewards are never lost.
+Renown can also fall. Dragon's Landing (§19.15), Siege Engines (§19.23), Raiders (§19.24) and Siege Fireball (§19.26) burn a Manor or reduce a Stronghold to a Manor, which costs its owner 1 Renown either way. Disgrace (§19.22) and Stolen Glory (§19.25) take Renown for the rest of the game; it is recorded as `lostRenown` (§33.1) and subtracted from the total. Claimed Quests stay claimed.
+
+A player's Renown never drops below 0. A card may take Renown only from a player who has some, and when a lost Holding would take a player below 0, their `lostRenown` is reduced by the difference, so no hidden debt eats into what they build next.
 
 ---
 
@@ -903,7 +905,7 @@ This prevents card effects from overwhelming the board economy.
 
 # 19. Initial Card Set
 
-The deck has 40 cards: the 24-card prototype (§19.1–19.11) with a third Counterspell, and a second wave of 15 cards (§19.12–19.21).
+The deck has 51 cards: the 24-card prototype (§19.1–19.11), a second wave of 15 cards (§19.12–19.21), a third wave of 10 cards that attack Renown and Grain (§19.22–19.27), and a Counterspell more with each wave (§19.2).
 
 Recommended copies are shown.
 
@@ -914,12 +916,12 @@ Recommended copies are shown.
 **Effect:** Move one opponent Banner to another Region that is adjacent to its origin Holding and has free capacity. The moved Banner becomes unsettled.  
 **Restrictions:** Must respect Region capacity and the Stronghold restriction (§14.4). Ignores Settled protection.
 
-## 19.2 Counterspell ×3
+## 19.2 Counterspell ×4
 
 **Type:** Spell / Reaction  
 **Timing:** When another Spell is played  
 **Effect:** Cancel that Spell before its effect resolves.  
-**Note:** The prototype had 2 copies. The second wave adds five Spells, most of them hostile (Changeling, Ragnarök, Fire Bolt, The Plague), so a third copy keeps Counterspell's share of the deck, and the chance that someone holds an answer, about where it was: 2 of 24 cards before, 3 of 40 now. Heroes, Tricks, Stories and Charters open no reaction window and cannot be countered.
+**Note:** The prototype had 2 copies. The second wave adds five Spells, most of them hostile (Changeling, Ragnarök, Fire Bolt, The Plague), and the third wave ten hostile Spells (§19.22–19.27), so each wave adds a copy to keep Counterspell's share of the deck, and the chance that someone holds an answer, about where it was: 2 of 24 cards in the prototype, 3 of 40 after the second wave, 4 of 51 now. Heroes, Tricks, Stories and Charters open no reaction window and cannot be countered.
 
 ## 19.3 Knight Errant ×3
 
@@ -1050,9 +1052,9 @@ Recommended copies are shown.
 **Type:** Charter  
 **Timing:** Main Action  
 **Requirement:** You have no Royal Insurance Policy in front of you.  
-**Effect:** Keep this card face up in front of you (§18.1). The next Fire Bolt, Dragon's Landing, Plague or Changeling that would affect you does not. Discard the policy instead.  
-**Note:** The policy is used on the first of these cards that would affect you, whoever played it, including your own Plague or Dragon's Landing; you cannot choose to save it. Against The Plague one policy spares all of your Banners around that Site. Against Dragon's Landing it is used only if the dragon picks one of your Holdings. It does not cover anything else, Ragnarök included. As a Charter it cannot be countered. It is public, so opponents can see who is insured before they aim.  
-**Rationale:** The first Charter, and the counterplay (§82) to the second wave's harshest cards. It stops one hit, not every hit, and it has to be in play before the hit comes.
+**Effect:** Keep this card face up in front of you (§18.1). The next Fire Bolt, Plague, Changeling or card costing you Renown that would affect you does not. Discard the policy instead.  
+**Note:** The cards costing Renown are Dragon's Landing and the third wave's Disgrace, Siege Engines, Raiders, Stolen Glory and Siege Fireball (§19.22–19.26). The policy is used on the first of these cards that would affect you, whoever played it, including your own Plague or Dragon's Landing; you cannot choose to save it. Against The Plague one policy spares all of your Banners around that Site. Against Dragon's Landing it is used only if the dragon picks one of your Holdings. It does not cover anything else: not Ragnarök, and not Sabotage (§19.27), which takes only Grain, as Robin of the Glade takes only resources. As a Charter it cannot be countered. It is public, so opponents can see who is insured before they aim.  
+**Rationale:** The first Charter, and the counterplay (§82) to the harshest cards of the second and third waves. It stops one hit, not every hit, and it has to be in play before the hit comes.
 
 ## 19.20 The Unreliable Bard ×1
 
@@ -1072,16 +1074,72 @@ Recommended copies are shown.
 **Note:** Setup leaves it out when the Young Dragon is not in play, as in 2-player games (§118). The move counts as moving a Menace for Quests such as Monster Problems (§27.1).  
 **Rationale:** Dragon Whisperer (§19.11) takes 1 resource and sends the Dragon anywhere. Treasure Hunter takes up to 3, but the Dragon follows you home: it will divert your Banner's next Harvest into its Hoard (§23.3) unless you move it on first. A big Hoard is a prize with a price.
 
-Total: 40 cards: 24 Spells, 9 Heroes, 3 Stories, 2 Tricks and 2 Charters.
+The third wave (§19.22–19.27) answers a playtest request for more offensive cards, "like a card that destroys another player's win point". All six are Spells, so Counterspell stops them, and every one but Sabotage is covered by the Royal Insurance Policy (§19.19). All their effects are public.
+
+## 19.22 Disgrace ×2
+
+**Type:** Spell  
+**Timing:** Main Action  
+**Requirement:** A rival has more Renown than you, and nobody has more than them.  
+**Effect:** Choose a rival with the most Renown. They lose 1 Renown (`BALANCE.renownSwing`) for the rest of the game.  
+**Note:** Not playable while you hold or share the lead. With rivals tied for the lead, you choose which of them. The loss is kept in `lostRenown` (§33.1), the Unreliable Bard's +1 in reverse, and survives any later building. The `renown_lost` event carries `cause: "disgrace"`.  
+**Rationale:** A brake on the leader that anyone behind can apply. Unlike Stolen Glory it gives the caster nothing, so it narrows every player's gap to the leader at once.
+
+## 19.23 Siege Engines ×2
+
+**Type:** Spell  
+**Timing:** Main Action  
+**Requirement:** An opponent's Stronghold stands at an end of one of your Routes.  
+**Effect:** Choose such a Stronghold. It is reduced to a Manor and loses one of its two Banners (§114), costing its owner 1 Renown.  
+**Note:** The owner may upgrade it again at the normal cost (§12.2). "At an end of one of your Routes" means one of your Routes touches its Site, which you can arrange by building a Route toward it (§13.2), so the attack is spatial and can be seen coming.  
+**Rationale:** Dragon's Landing's Stronghold result, aimed. It destroys nothing (§81): the Site, the Manor and one Banner stay.
+
+## 19.24 Raiders ×2
+
+**Type:** Spell  
+**Timing:** Main Action  
+**Requirement:** An opponent's Manor stands at an end of one of your Routes, and that opponent has at least 3 Holdings (`BALANCE.raid.minHoldings`).  
+**Effect:** Choose such a Manor. It burns down with its Banner, costing its owner 1 Renown. Until the end of the owner's next turn the Site is razed: only they may build on it or on a Site next to it.  
+**Note:** This is Fire Bolt's rebuild window (§19.14) for a Manor. Rebuilding on the Site ends it, as does the end of the owner's next turn. The neighbours are protected too, or the raider could take the spot, or block the rebuild by the spacing rule (§10.3), with a Manor of their own on the far end of the very Route that made the raid possible. Building on a razed Site, or next to it, that is not yours is refused with `SITE_RAZED`. Only a Manor burns; Strongholds are Siege Engines' business.  
+**Rationale:** The 3-Holding minimum is Dragon's Landing's (§19.15): nobody drops below the two Holdings everyone starts with, so no player is eliminated (§3). The rebuild window keeps the loss reversible (§2.3).
+
+## 19.25 Stolen Glory ×1
+
+**Type:** Spell  
+**Timing:** Main Action  
+**Requirement:** A rival has more Renown than you.  
+**Effect:** Choose such a rival. For the rest of the game they lose 1 Renown and you gain 1 (`BALANCE.renownSwing`).  
+**Note:** Their loss is kept in `lostRenown` and your gain in `bonusRenown` (§33.1). The `renown_stolen` event names both players.  
+**Rationale:** The strongest card of the wave, a two-point swing, so there is one copy, and only a player behind may play it. It never puts you more than 1 Renown ahead of the rival you rob.
+
+## 19.26 Siege Fireball ×1
+
+**Type:** Spell  
+**Timing:** Main Action  
+**Requirement:** A rival with more Renown than you, and at least 3 Holdings (`BALANCE.raid.minHoldings`), owns a Manor.  
+**Effect:** Choose such a Manor, anywhere on the board. It burns down with its Banner, costing its owner 1 Renown, and its Site lies in ruins for the rest of the game: nobody, its owner and you included, may build a Holding there again.  
+**Note:** The design is a player's own: "remove one manor and make the location unavailable to build again. Can only be used against players with more renown than the card holder." The ruins are kept in `ruinedSiteIds` (§33) and shown on the board. Every build check refuses them with `SITE_RUINED`, initial placement included. A ruin is not a Holding: it does not count for the spacing rule (§10.3), Routes may still end at it and networks pass through it, and a Trading Post there (§17.3) is lost to everyone. The `site_ruined` event follows the `holding_destroyed` one.  
+**Rationale:** The one card that permanently changes the board, and the deliberate exception to §81 (§111.2). One copy, only against a rival ahead of you, and never against a player with fewer than 3 Holdings.
+
+## 19.27 Sabotage ×2
+
+**Type:** Spell  
+**Timing:** Main Action  
+**Requirement:** An opponent has at least 1 Grain.  
+**Effect:** Choose such an opponent. Their grain silo burns down: they lose 2 Grain (`BALANCE.sabotage.grain`), or all they have if less.  
+**Note:** The design is a player's own ("burn down a grain silo, target loses two grain resources"). The Royal Insurance Policy does not cover it (§19.19). The Grain goes to the supply, not to the caster. The `resources_lost` event carries `cause: "sabotage"`.  
+**Rationale:** A cheap, reversible nuisance aimed at a rival's next Manor or Stronghold, both of which need Grain.
+
+Total: 51 cards: 35 Spells, 9 Heroes, 3 Stories, 2 Tricks and 2 Charters.
 
 Setup leaves out cards that cannot be played with the active Menaces (§19.5, §118) and sets Ragnarök aside (§19.13):
 
 | Players | Cards | Draw pile at setup | Set aside | Left out |
 |---|---:|---:|---|---|
-| 2 | 35 | 34 | Ragnarök | Dragon Whisperer ×2, Teleportation Mishap ×2, Treasure Hunter |
-| 3–4 | 40 | 39 | Ragnarök | none |
+| 2 | 46 | 45 | Ragnarök | Dragon Whisperer ×2, Teleportation Mishap ×2, Treasure Hunter |
+| 3–4 | 51 | 50 | Ragnarök | none |
 
-With 2 players the deck holds 22 Spells and 6 Heroes. The async ruleset (§109) also leaves out the 3 Counterspells.
+With 2 players the deck holds 33 Spells and 6 Heroes. The async ruleset (§109) also leaves out the 4 Counterspells.
 
 ---
 
@@ -1572,6 +1630,7 @@ export interface GameState {
   publicQuests: PublicQuestState[];
 
   delayedEffects: DelayedEffect[];
+  ruinedSiteIds?: SiteId[]; // Siege Fireball (§19.26): nobody may build there again
   historyMeta: HistoryMeta;
   winnerId?: PlayerId;
 }
@@ -1589,9 +1648,12 @@ export interface PlayerState {
   hand: CardId[];
 
   // Renown from explicit rewards (rare cards, story rewards). Total Renown is
-  // derived by getRenown() from Holdings + claimed Quests + bonusRenown; it is
-  // never stored.
+  // derived by getRenown() from Holdings + claimed Quests + bonusRenown -
+  // lostRenown; it is never stored.
   bonusRenown: number;
+  // Renown lost for the rest of the game (Disgrace, Stolen Glory, §8). Never
+  // more than keeps the total at 0 or above; absent in older saves.
+  lostRenown?: number;
 
   holdingIds: HoldingId[]; // Manors and Strongholds
   routeIds: RouteId[];
@@ -3100,6 +3162,8 @@ Avoid:
 
 The second wave's harshest cards stay inside these limits. Dragon's Landing only ever reduces a Stronghold, and Fire Bolt lets the owner rebuild the burned Route first; §111.1 has the details.
 
+The third wave (§19.22–19.27) keeps to them too, with one deliberate exception. Siege Engines only reduces a Stronghold, Raiders gives the owner a rebuild window like Fire Bolt's, and Disgrace and Stolen Glory take at most 1 Renown each. Siege Fireball permanently removes a Site from play, at the request of the player who designed it; §111.2 records how it is contained.
+
 ---
 
 # 82. Card Counterplay
@@ -3112,7 +3176,7 @@ Interference should generally have one or more answers:
 - Market or Trading Post exchange;
 - Counterspell;
 - Knight Errant;
-- Royal Insurance Policy (against Fire Bolt, Dragon's Landing, The Plague and Changeling, §19.19);
+- Royal Insurance Policy (against Fire Bolt, The Plague, Changeling and every card that costs Renown, §19.19);
 - alternative expansion path.
 
 No card should permanently disable a player's economy.
@@ -3132,7 +3196,8 @@ Public:
 - claimed Quests;
 - number of cards in hand;
 - Charters in front of each player (§18.1);
-- set-aside cards, and when the omen shuffles them into the draw pile (§19.13).
+- set-aside cards, and when the omen shuffles them into the draw pile (§19.13);
+- Renown lost for good (§8), ruined Sites and razed Sites (§19.24, §19.26).
 
 Private:
 
@@ -3933,6 +3998,25 @@ Five second-wave cards can hurt a rival badly or end the game early. These are t
 
 None of the ten cards can create negative resources: every payment is checked against what the payer has, Robin of the Glade takes only from rivals who have the resource, and Treasure Hunter takes at most what the Hoard holds. None can loop: each resolves once and moves at most one Menace.
 
+## 111.2 The third wave against the checklist
+
+The third wave (§19.22–19.27) was asked for as offensive cards, so each is held to the checklist here.
+
+**Siege Fireball (§19.26)** is the only card in the game that permanently erases something: a Site. It is contained on every other count.
+
+- *Permanently erase major progress?* It costs its victim one Manor, 1 Renown and one Banner, and one buildable Site for everyone, the caster included. The victim keeps their Routes and may build elsewhere. Only a rival with more Renown than the caster, and with 3 or more Holdings, can be hit, so no player drops below two Holdings or is eliminated (§3), and the leader, not a struggling player, pays. There is one copy.
+- *Counterplay:* Counterspell, the Royal Insurance Policy, and keeping your Renown no higher than the caster's. The confirmation dialog tells the caster the ruin is for good.
+- *Quest impossible?* No. No Quest needs a particular Site (§27.1), and ruins do not block Routes or networks.
+- *No legal Banner placement?* No. The Banner goes with its Manor.
+
+**Raiders (§19.24)** and **Siege Engines (§19.23)** are aimed versions of Dragon's Landing's two results, and keep its limits: Raiders only burns a Manor of a player with 3 or more Holdings, with a rebuild window like Fire Bolt's, and Siege Engines only reduces a Stronghold. Both need one of the caster's Routes to reach the Holding, so the threat is on the board before it lands.
+
+**Disgrace (§19.22)** and **Stolen Glory (§19.25)** cannot target a player who is behind: Disgrace strikes only the leader, and Stolen Glory only a rival ahead of the caster. Each takes 1 Renown; Renown never falls below 0 (§8).
+
+**Sabotage (§19.27)** takes at most 2 Grain and never more than the target has, so it cannot create negative resources.
+
+None of the six can loop or skip a turn, all are public, and all are Spells, so Counterspell answers every one of them.
+
 ---
 
 # 112. No-Legal-Banner Case
@@ -3971,7 +4055,7 @@ When upgrading a Manor:
 
 When loading old saves, Banner IDs must remain stable.
 
-An effect that downgrades a Stronghold must specify which Banner is removed. In the base game only Dragon's Landing (§19.15) does. The reduced Manor keeps one Banner: it loses a Banner that is at home (unassigned) over one in a Region, and the newer Banner, the one the upgrade created, when both are at home or both are in Regions. The kept Banner stays where it is, with its `settled` value.
+An effect that downgrades a Stronghold must specify which Banner is removed. In the base game Dragon's Landing (§19.15) and Siege Engines (§19.23) do, by the same rule. The reduced Manor keeps one Banner: it loses a Banner that is at home (unassigned) over one in a Region, and the newer Banner, the one the upgrade created, when both are at home or both are in Regions. The kept Banner stays where it is, with its `settled` value.
 
 ---
 
@@ -4141,7 +4225,10 @@ export const BALANCE = {
   ragnarok: { omenGap: 3 },           // §19.13
   dragonsLanding: { minHoldings: 3 }, // §19.15
   treasureHunter: { take: 3 },        // §19.21
-  underdogGap: 2                      // The Unreliable Bard, §19.20
+  underdogGap: 2,                     // The Unreliable Bard, §19.20
+  renownSwing: 1,                     // Disgrace, Stolen Glory, §19.22, §19.25
+  raid: { minHoldings: 3 },           // Raiders, Siege Fireball, §19.24, §19.26
+  sabotage: { grain: 2 }              // §19.27
 } as const;
 ```
 
@@ -4369,3 +4456,43 @@ Findings and open questions for human playtests:
 2. **First-seat advantage with cards, 3 players.** Seat 1 wins ~60–65% of AI games when the card deck is in play, versus ~41–50% without cards. No single card causes it: excluding any one card leaves 57–63%. Neither aiming interference at the leader nor a starting bonus for later seats (`seatBonus`, up to 4 resources) closes the gap (best: 59%). `equalTurns` has no effect. Suspected cause: cards reward tempo, and the first seat reaches spare resources first. Test with people before changing rules. Candidate levers: card cost +1 Essence, one card per player per round (not per turn), or deal each later seat one starting card.
 3. **Harvest per turn** is ~2.4 early and ~4.5 later, still slightly below the §68 targets (3–5 mid-game, 4–7 late).
 4. **Hereditary Regions** remain common in AI play. The AI uses the Royal Writ cautiously (3–5 per game in 3-player games). If humans also leave Regions uncontested, try Writ variant B (§129.2).
+
+## 129.5 The third wave: offensive cards (ruleset 0.7.0)
+
+Playtesters asked for more offensive cards, "like a card that destroys another player's win point". Six Spells answer it (§19.22–19.27); two are players' own designs (Siege Fireball and Sabotage).
+
+| Change | Why |
+|---|---|
+| Disgrace ×2, Siege Engines ×2, Raiders ×2, Stolen Glory ×1, Siege Fireball ×1, Sabotage ×2 | Ways to take a rival's Renown or Grain, aimed and visible, unlike Dragon's Landing's random strike |
+| A fourth Counterspell (4 of 51 cards) | Keeps Counterspell's share of the deck as ten hostile Spells arrive (§19.2) |
+| The Royal Insurance Policy covers every card that costs Renown | One consistent rule instead of a growing list; Sabotage, like Robin of the Glade, stays uncovered (§19.19) |
+| `lostRenown` beside `bonusRenown`; Renown never below 0 (§8) | A lasting loss must survive later building, and never become a hidden debt |
+| Raiders and Siege Fireball need a victim with 3+ Holdings | Dragon's Landing's floor: no player is eliminated (§3, §111.2) |
+| Raiders protects the razed Site's neighbours for its owner | Otherwise the raider can build at the far end of the Route that made the raid possible and block the rebuild for good |
+| Siege Fireball's ruin is permanent | The designer's request; the only permanent board change, contained in §111.2 |
+
+`pnpm simulate --games 40` (normal AI, The Greenvale), before and after. Turns are turns per player; seats are win rates in turn order.
+
+| Players, target | Turns before → after | Seats before | Seats after | Card plays per game before → after |
+|---|---:|---|---|---:|
+| 2, 15 | 12.8 → 13.7 | 60 / 40 % | 53 / 48 % | 9.6 → 9.6 |
+| 3, 15 | 14.4 → 14.6 | 38 / 20 / 43 % | 38 / 18 / 45 % | 16.1 → 15.5 |
+| 4, 13 | 14.4 → 15.8 (39 → 40 of 40 finished) | 30 / 28 / 28 / 13 % | 38 / 23 / 25 / 15 % | 24.4 → 22.8 |
+| 2, 20 | 16.3 → 17.4 | 63 / 38 % | 58 / 43 % | 12.3 → 12.2 |
+| 3, 20 | 20.9 → 22.6 (28 → 26 of 40 finished) | 25 / 13 / 33 % | 15 / 8 / 43 % | 45.5 → 44.9 |
+| 4, 20 | 20.8 → 24.8 (5 → 6 of 40 finished) | 3 / 8 / 3 / 0 % | 8 / 5 / 3 / 0 % | 99.9 → 85.8 |
+
+The third wave's plays in the 40 games at the default target, and what they did per game:
+
+| Players | Disgrace | Siege Engines | Raiders | Stolen Glory | Siege Fireball | Sabotage | Per game |
+|---|---:|---:|---:|---:|---:|---:|---|
+| 2 | 21 (1 countered) | 0 | 2 | 8 (4) | 5 (3) | 21 (2) | Renown lost 0.50, stolen 0.10, Manors raided 0.05, Sites ruined 0.03, Grain burned 0.70 |
+| 3 | 25 (5) | 2 | 5 (2) | 11 (3) | 3 (1) | 29 (7) | Renown lost 0.47, stolen 0.20, Strongholds besieged 0.05, Manors raided 0.07, Sites ruined 0.05, Grain burned 0.93 |
+| 4 | 32 (2) | 7 (4) | 7 (1) | 20 (1) | 16 (1) | 48 (7) | Renown lost 0.70, stolen 0.47, Strongholds besieged 0.07, Manors raided 0.15, Sites ruined 0.38, Grain burned 1.82 |
+
+Findings:
+
+1. **Length** stays inside the §68 target of 12–16 turns at the default targets, 4-player games at its top (15.8). The cards add about a turn in 2- and 4-player games.
+2. **Seat balance** moves within the noise of 40 games (about ±8 points per seat): the 2-player first seat falls from 60 to 53 %, the 4-player first seat rises from 30 to 38 %, above the 30 % target. Worth rechecking with more games before tuning.
+3. **The siege cards are rare in AI play.** Siege Engines and Raiders need one of the caster's Routes to reach a rival's Holding, and AI networks seldom do; Siege Fireball needs a leader with 3 or more Holdings. Disgrace, Stolen Glory and Sabotage are played most. Human players can build toward a rival on purpose, so playtests should show whether the siege cards come up more often in their hands.
+4. **A 20 Renown target** (being evaluated separately) is too long for the AI on The Greenvale with or without these cards: 12 to 14 of 40 three-player games and 34 to 35 of 40 four-player games stall at the 60-round cap, and those that finish run 20 to 25 turns.

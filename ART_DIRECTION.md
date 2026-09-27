@@ -1120,3 +1120,25 @@ Measured after (same game and cards):
 | 844x390 | 252x373 | 15.2 px | 14 px, whole | viewer 352 px wide, 16 px |
 
 Board heights are unchanged at every size (400 px at 1280x720).
+
+## Third-wave cards: paintings still to make
+
+The third wave adds six cards that attack Renown and Grain (spec
+§19.22–19.27): Disgrace, Siege Engines, Raiders, Stolen Glory, Siege Fireball
+and Sabotage. **None of them has a painting yet.** Their prompts are recorded
+in `media-sources/storybook/cards/prompts.json` in the second wave's style
+(`knight_errant.png` as the style reference, 1536x1024 originals, varied
+casting, comic and bloodless). Until the PNG originals exist, the cards show
+their type emblem (`CardGlyph.svelte`). `apps/web/src/lib/cardPaintings.ts`
+lists them so that no image is requested and no failed load is logged; when a
+painting lands, save the PNG beside the others, run
+`node tools/generate-card-art.mjs` (it now skips prompts without a PNG and
+names them), remove the card from that list and add it to the table in
+`media-sources/storybook/cards/README.md`. A unit test keeps the list and the
+runtime WebPs in step.
+
+The board also gained two small marks in `Board.svelte`: a ruined Site
+(Siege Fireball) is drawn as two broken grey wall stubs on rubble in place of
+the empty-site ring, and a razed Site (Raiders) shows the burned-Route flame
+above its ring until the owner's rebuild window closes. Both are vector marks
+in the board's existing ink and stone colours; they need no painted assets.
