@@ -27,6 +27,7 @@
   import HandPanel from "./HandPanel.svelte";
   import HarvestPreview from "./HarvestPreview.svelte";
   import LogPanel from "./LogPanel.svelte";
+  import Modal from "./Modal.svelte";
   import Overlays from "./Overlays.svelte";
   import PlayedCardDialog from "./PlayedCardDialog.svelte";
   import PlayersPanel from "./PlayersPanel.svelte";
@@ -62,6 +63,9 @@
   const round = $derived(Math.max(1, gs.round));
   const reignEnding = $derived(lastRound > 0 && round >= lastRound - 1);
   const roundLabel = $derived(lastRound <= 0 ? t("ui.round_n", { n: round }) : round >= lastRound ? t("ui.last_round") : t("ui.round_n_of", { n: round, last: lastRound }));
+  // "29/30", where a narrow top bar has no room for the whole label.
+  const roundShort = $derived(t("ui.round_short", { n: round, last: lastRound }));
+  const roundEndings = $derived(lastRound > 0 ? t("ui.round_endings", { target: gs.ruleset.targetRenown, last: lastRound }) : null);
   let panelOpen = $state(false);
   let savedNote: string | null = $state(null);
   /** Settings opened from the game menu return to it when closed. */
@@ -212,7 +216,16 @@
     <button class="ghost icon" onclick={() => (ui.dialog = "menu")} aria-label={t("ui.main_menu")} aria-haspopup="dialog"><ToolIcon name="menu" /></button>
     <img class="brand-mark" src={`${import.meta.env.BASE_URL}art/manor-troll.png`} alt="" width="40" height="40" />
     <h1>{t("app.title")}</h1>
-    <span class="round" class:ending={reignEnding} title={lastRound > 0 ? t("ui.round_endings", { target: gs.ruleset.targetRenown, last: lastRound }) : undefined}>{roundLabel}</span>
+    {#if roundEndings}
+      <!-- Tells how the game ends: a tooltip alone would keep it from touch
+           and keyboard. The aria-label keeps the whole label where only the
+           short one shows. -->
+      <button class="round" class:ending={reignEnding} aria-label={roundLabel} aria-haspopup="dialog" title={roundEndings} onclick={() => (ui.dialog = "round_endings")}>
+        <span class="pill" data-short={roundShort}><span class="full">{roundLabel}</span></span>
+      </button>
+    {:else}
+      <span class="round">{roundLabel}</span>
+    {/if}
     <div class="score"><ScoreStrip {session} /></div>
     <span class="spacer"></span>
     {#if session.transport.kind === "local" && !tutorial}<button class="ghost" onclick={save}>{savedNote ?? t("ui.save")}</button>{/if}
@@ -312,6 +325,9 @@
 {/if}
 {#if ui.dialog === "menu"}<GameMenu {session} {tutorial} {onexit} onsettings={() => ((settingsFromMenu = true), (ui.dialog = "settings"))} onclose={() => (ui.dialog = null)} />{/if}
 {#if ui.dialog === "banner_warning"}<BannerWarningDialog {session} {legal} />{/if}
+{#if ui.dialog === "round_endings" && roundEndings}
+  <Modal title={t("ui.round_endings_title")} onclose={() => (ui.dialog = null)}><p class="endings">{roundEndings}</p></Modal>
+{/if}
 {#if ui.dialog === "settings"}<SettingsDialog onclose={() => ((ui.dialog = settingsFromMenu ? "menu" : null), (settingsFromMenu = false))} />{/if}
 {#if ui.renownOf}<RenownDialog {session} playerId={ui.renownOf} onclose={() => (ui.renownOf = null)} />{/if}
 {#if ui.showDebug}<DebugPanel {session} onclose={() => (ui.showDebug = false)} />{/if}
@@ -386,9 +402,29 @@
     font-size: 0.9rem;
     white-space: nowrap;
   }
+  /* It opens how the game ends: flat in the bar, and as tall as the bar's
+     other buttons for touch. */
+  button.round {
+    padding: 0 0.3rem;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    font-weight: inherit;
+  }
+  button.round:hover:not(:disabled) {
+    background: #fff2;
+  }
+  .round .pill {
+    display: inline-block;
+  }
+  .endings {
+    margin: 0;
+  }
   /* The last two rounds: embers on ash, like the endgame omen. */
   .round.ending {
     opacity: 1;
+  }
+  .round.ending .pill {
     padding: 0.15rem 0.55rem;
     border: 1px solid #d9541e;
     border-radius: 999px;
@@ -706,6 +742,18 @@
   @container topbar (max-width: 24rem) {
     .round:not(.ending) {
       display: none;
+    }
+    button.round {
+      padding-inline: 0;
+    }
+    .round.ending .pill {
+      padding-inline: 0.4rem;
+    }
+    .round .full {
+      display: none;
+    }
+    .round .pill::after {
+      content: attr(data-short);
     }
   }
   [data-layout="sheet"] .spacer {

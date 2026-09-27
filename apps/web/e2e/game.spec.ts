@@ -259,17 +259,51 @@ test("a game that ends on the last round says so, and the round chip counts towa
   await expect(page.getByText("Round 8 is the last. When it ends, the most Renown wins.").first()).toBeVisible();
 
   // In the Standard rules the chip counts to round 30, says how the game can
-  // end, and from round 29 stands out and stays on a phone's top bar.
-  await page.goto("/");
-  await page.getByRole("button", { name: "Load game", exact: true }).click();
-  await page.getByLabel(/Import a save file/).setInputFiles({ name: "round-29.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(saveInRound(29))) });
-  const chip = page.locator(".round");
+  // end, and from round 29 stands out.
+  await loadSave(page, saveInRound(29));
+  const chip = page.getByRole("button", { name: "Round 29 of 30" });
   await expect(chip).toHaveText("Round 29 of 30");
   await expect(chip).toHaveClass(/ending/);
   await expect(chip).toHaveAttribute("title", /reaches 15 Renown, when a round ends with the board full, or when round 30 ends/);
-  await page.setViewportSize({ width: 360, height: 740 });
-  await expect(chip).toBeVisible();
+  // Touch and the keyboard reach the same text as the tooltip.
+  await chip.focus();
+  await page.keyboard.press("Enter");
+  const endings = page.getByRole("dialog", { name: "How the game ends" });
+  await expect(endings).toContainText("reaches 15 Renown, when a round ends with the board full, or when round 30 ends");
+  await endings.getByRole("button", { name: "Close" }).click();
+  await expect(endings).toBeHidden();
 });
+
+for (const width of [320, 360]) {
+  test(`on a ${width}px phone the round chip shortens rather than wrap the top bar`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 740 });
+    await page.goto("/");
+    await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: false })));
+    const barHeight = () => page.locator(".topbar").evaluate((el) => el.getBoundingClientRect().height);
+    const shortLabel = () => page.locator(".round .pill").evaluate((el) => getComputedStyle(el, "::after").content);
+
+    // Round 28: no chip on a narrow bar.
+    await loadSave(page, saveInRound(28));
+    await expect(page.locator(".round")).toBeHidden();
+    const plain = await barHeight();
+    // Rounds 29 and 30 show it, short, in the same height.
+    for (const [round, label] of [[29, "Round 29 of 30"], [30, "Last round"]] as const) {
+      await loadSave(page, saveInRound(round));
+      const chip = page.getByRole("button", { name: label });
+      await expect(chip).toBeVisible();
+      expect(await shortLabel()).toBe(`"${round}/30"`);
+      expect(await barHeight()).toBe(plain);
+    }
+  });
+}
+
+/** Loads a save from the title screen, as players see it: without the development build's Debug button. */
+async function loadSave(page: Page, save: SaveFile) {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Load game", exact: true }).click();
+  await page.getByLabel(/Import a save file/).setInputFiles({ name: `round-${save.state.round}.json`, mimeType: "application/json", buffer: Buffer.from(JSON.stringify(save)) });
+  await page.locator(".topbar").getByRole("button", { name: "Debug" }).evaluate((el) => (el.style.display = "none"));
+}
 
 // Review question: does "Play again" after a tutorial continued from a save
 // drop into an unguided game? It opens the New Game setup instead.
