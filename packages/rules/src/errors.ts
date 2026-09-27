@@ -9,6 +9,8 @@ export type RuleErrorCode =
   | "ROUTE_OCCUPIED"
   | "ROUTE_SMOULDERING"
   | "SITE_OCCUPIED"
+  | "SITE_RUINED"
+  | "SITE_RAZED"
   | "ALREADY_STRONGHOLD"
   | "SITE_TOO_CLOSE"
   | "NOT_CONNECTED"

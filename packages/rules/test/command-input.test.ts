@@ -250,7 +250,8 @@ describe("hostile command fields", () => {
         }
       }
     }
-  });
+    // One state per card that can be played in the Main phase, so it grows with the deck.
+  }, 30_000);
 });
 
 describe("command payloads are copied into the state", () => {

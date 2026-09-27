@@ -31,8 +31,12 @@ async function beginHotseat(page: Page, rules: "standard" | "mvp" = "standard") 
   await page.getByRole("button", { name: "Begin" }).click();
 }
 
-/** A finished hot-seat game with its full history, played by the AI (three players by default). */
-function finishedSave(seed = "e2e-finished", names = ["Ysolde", "Wat", "Maud"], ruleset: RulesetConfig = standardRuleset(3)): SaveFile {
+/**
+ * A finished hot-seat game with its full history, played by the AI (three
+ * players by default, to 15 Renown, which someone reaches: at the Standard
+ * default of 20 this seed's board fills up first, and that ends the game).
+ */
+function finishedSave(seed = "e2e-finished", names = ["Ysolde", "Wat", "Maud"], ruleset: RulesetConfig = standardRuleset(3, { targetRenown: 15 })): SaveFile {
   const engine = createRulesEngine(rulesContentFor("greenvale"));
   const seats = names.map((displayName, i) => ({ playerId: `P${i + 1}`, displayName, kind: "human" as const, color: i }));
   const initialState = engine.createGame({
@@ -196,6 +200,23 @@ test("a finished saved game opens on the full results", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("a game that ends on a full board says so on the results", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false })));
+  await page.reload();
+  await page.getByRole("button", { name: "Load game" }).click();
+  const save = finishedSave(undefined, undefined, standardRuleset(3));
+  await page.getByLabel(/Import a save file/).setInputFiles({ name: "full-board.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(save)) });
+
+  const victory = page.getByRole("dialog", { name: "Victory!" });
+  await expect(victory).toContainText("had the most Renown when the board filled");
+  await expect(victory).toContainText("The board was full: no Site was left to build on and every Holding was a Stronghold");
+  await expect(victory.locator(".recap li").last()).toContainText("with the board full");
+  await victory.getByRole("button", { name: "View board" }).click();
+  await page.getByRole("tab", { name: /Chronicle/ }).click();
+  await expect(page.getByText("If it is still full when this round ends, the game ends.").first()).toBeVisible();
+});
+
 // Review question: does "Play again" after a tutorial continued from a save
 // drop into an unguided game? It opens the New Game setup instead.
 test("a finished tutorial loaded from a save leads to a real game setup", async ({ page }) => {
@@ -274,13 +295,78 @@ test("New Game deals the chosen island's land anew for each seed", async ({ page
 test("New Game shows the Renown target for each player count", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "New game" }).click();
-  for (const [players, target] of [[2, 15], [3, 15], [4, 13]]) {
+  const goal = page.getByLabel("Renown to win");
+  for (const [players, target] of [[2, 20], [3, 20], [4, 18]]) {
     await page.getByRole("radio", { name: String(players), exact: true }).check({ force: true });
     await expect(page.getByRole("radio", { name: new RegExp(`Standard.*${target} Renown`) })).toBeChecked();
     await expect(page.getByRole("radio", { name: /Core.*10 Renown/ })).toBeVisible();
+    await expect(goal).toHaveValue(String(target));
   }
+  await page.getByRole("radio", { name: /Core/ }).check();
+  await expect(goal).toHaveValue("10");
+  await page.getByRole("radio", { name: /Standard/ }).check();
   await page.getByRole("button", { name: "Begin" }).click();
-  await expect(page.locator(".scoreboard .renown small")).toHaveText(["/13", "/13", "/13", "/13"]);
+  await expect(page.locator(".scoreboard .renown small")).toHaveText(["/18", "/18", "/18", "/18"]);
+});
+
+test("New Game plays to the Renown you pick, shows it in the game and remembers it", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: true })));
+  await page.reload();
+  await page.getByRole("button", { name: "New game" }).click();
+  const goal = page.getByLabel("Renown to win");
+  await expect(goal).toHaveValue("20");
+  await goal.selectOption("25");
+  // A goal you picked stays when the player count or rules change.
+  for (const players of [4, 2]) {
+    await page.getByRole("radio", { name: String(players), exact: true }).check({ force: true });
+    await expect(goal).toHaveValue("25");
+    await expect(page.getByRole("radio", { name: /Standard.*25 Renown/ })).toBeChecked();
+    await expect(page.getByRole("radio", { name: /Core.*25 Renown/ })).toBeVisible();
+  }
+  await page.getByLabel("Player 2 type").selectOption("human");
+  await page.getByText("Advanced").click();
+  await page.getByLabel(/Seed/).fill("e2e-seed");
+  await page.getByRole("button", { name: "Begin" }).click();
+  await completeSetup(page);
+
+  // The scoreboard, the Renown breakdown and the Players panel.
+  const scoreboard = page.getByRole("list", { name: "Scoreboard" });
+  await expect(scoreboard.locator(".renown small")).toHaveText(["/25", "/25"]);
+  await expect(scoreboard.getByTitle(/^Alice: 2 of 25 Renown\./)).toBeVisible();
+  await scoreboard.getByTitle(/^Alice:/).click();
+  await expect(page.getByRole("dialog", { name: /Renown of Alice/ })).toContainText("2 of 25 Renown");
+  await page.keyboard.press("Escape");
+  await page.getByRole("tab", { name: "Players" }).click();
+  await expect(page.locator(".players").getByTitle(/^Alice: 2 of 25 Renown\./)).toBeVisible();
+
+  // 22 Renown, enough under the default goal, does not end this game; 25 does.
+  const setBonusRenown = async (value: number) => {
+    await page.getByRole("button", { name: "Debug" }).click();
+    const debug = page.getByRole("dialog", { name: "Debug tools" });
+    await debug.getByLabel("Bonus Renown").fill(String(value));
+    await debug.getByRole("button", { name: "Set bonus Renown" }).click();
+    await debug.getByRole("button", { name: "Close" }).click();
+  };
+  const victory = page.getByRole("dialog", { name: "Victory!" });
+  await setBonusRenown(20);
+  await endTurn(page);
+  await passCurtain(page);
+  await endTurn(page);
+  await passCurtain(page);
+  await expect(victory).toHaveCount(0);
+  await setBonusRenown(23);
+  await endTurn(page);
+  await expect(victory).toBeVisible();
+  await expect(victory.getByText("Target 25").first()).toBeVisible();
+
+  // The next New Game offers the goal you picked.
+  await page.goto("/");
+  await page.getByRole("button", { name: "New game" }).click();
+  await expect(goal).toHaveValue("25");
+  expect(errors).toEqual([]);
 });
 
 test("Standard games retire unclaimed Quests unless New Game turns that off", async ({ page }) => {

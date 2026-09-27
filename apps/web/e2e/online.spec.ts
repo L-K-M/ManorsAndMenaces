@@ -87,6 +87,27 @@ test("two players create, join and complete setup online", async ({ browser }) =
   await expect(bob.locator(".site .holding")).toHaveCount(4);
 });
 
+test("an online match plays to the Renown its creator picked, for the player who joins too", async ({ browser }) => {
+  const alice = await player(browser, "Alice");
+  const goal = alice.getByLabel("Renown to win");
+  await expect(goal).toHaveValue("20");
+  await alice.getByLabel("Rules").selectOption("mvp");
+  await expect(goal).toHaveValue("10");
+  await alice.getByLabel("Rules").selectOption("async");
+  await goal.selectOption("25");
+  await alice.getByRole("button", { name: /Create/ }).click();
+  const code = ((await alice.locator(".code").textContent()) ?? "").trim();
+  const bob = await player(browser, "Bob");
+  await bob.getByLabel("Invite code").fill(code);
+  await bob.getByRole("button", { name: "Join" }).click();
+  for (const p of [alice, bob]) {
+    await expect(p.locator(".board")).toBeVisible();
+    await expect(p.getByRole("list", { name: "Scoreboard" }).locator(".renown small")).toHaveText(["/25", "/25"]);
+  }
+  // Alice's next match offers the goal she picked.
+  expect(await alice.evaluate(() => localStorage.getItem("mm.renownGoal.v1"))).toBe("25");
+});
+
 test("the lobby offers the name you last played under and remembers the one you sign in with", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() => localStorage.setItem("mm.playerName.v1", "Lukas"));

@@ -31,6 +31,10 @@ fallback was used.
 | The Unreliable Bard | [View](unreliable_bard.png) |
 | Treasure Hunter | [View](treasure_hunter.png) |
 
+The six third-wave cards (Disgrace, Siege Engines, Raiders, Stolen Glory,
+Siege Fireball and Sabotage) have prompts in `prompts.json` but no paintings
+yet; until they do, the game shows their type emblem (see `ART_DIRECTION.md`).
+
 The knight is Dame Alda, matching her revised flavor text. The cast also
 includes a woman wizard, goblin woman druid, goblin alchemist, male dragon
 whisperer and a woman bard. All gameplay identities and rules stay unchanged.

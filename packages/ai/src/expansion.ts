@@ -8,9 +8,9 @@
 import {
   getNetworkSites,
   isRouteUsable,
+  isSiteOpenFor,
   isSmoulderingFor,
   menaceInRegion,
-  passesSpacing,
   type GameState,
   type Holding,
   type PlayerId,
@@ -136,7 +136,8 @@ export function planExpansion(ctx: RulesContext, state: GameState, playerId: Pla
       settled.add(x);
 
       const holding = holdingAtSite.get(x);
-      if (!holding && passesSpacing(ctx, state, x)) {
+      // Ruins and razed Sites (§19.24, §19.26) are no goal, whatever the spacing.
+      if (!holding && isSiteOpenFor(ctx, state, playerId, x)) {
         const value = siteValue(ctx, state, x, BASE_NEED, occupied);
         const score = planScore(d, value);
         if (!best || score > best.score) best = { siteId: x, routes: d, value, score };

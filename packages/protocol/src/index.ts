@@ -77,6 +77,11 @@ export interface CreateMatchRequest {
   /** Total seats including the creator (2–4). */
   seatCount: number;
   rulesetName: "mvp" | "standard" | "async";
+  /**
+   * Renown needed to win: one of the rules' `targetRenownChoices(rulesetName,
+   * seatCount)`. Absent: the rules' default (spec §7).
+   */
+  targetRenown?: number;
   /** Seats filled by server-side AI. */
   aiSeats?: { displayName: string; level: AiLevel }[];
 }

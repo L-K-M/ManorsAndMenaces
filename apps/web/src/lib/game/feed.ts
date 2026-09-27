@@ -33,6 +33,16 @@ export interface FeedItem {
   omen?: true;
 }
 
+/**
+ * Feed lines for the Holdings the third wave's cards burn or reduce
+ * (§19.23–19.26); a `_you` variant speaks to the owner.
+ */
+const ATTACK_FEED = {
+  raiders: "feed.raided",
+  siege_fireball: "feed.fireballed",
+  siege_engines: "feed.besieged",
+} as const;
+
 /** Fewer than this many unseen actions are left to the live toasts alone. */
 export const DIGEST_MIN_ITEMS = 4;
 
@@ -217,9 +227,33 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
       case "holding_destroyed":
       case "holding_reduced": {
         const mine = e.ownerId === viewerId;
+        const params = { name: name(e.byPlayerId), owner: name(e.ownerId), place: siteName(map, e.siteId) };
+        // The third wave's attacks are told like any other move: not to their caster.
+        if (e.cause !== "dragons_landing") {
+          add(e.byPlayerId, t(`${ATTACK_FEED[e.cause]}${mine ? "_you" : ""}`, params), sitePoint(map, e.siteId), mine);
+          break;
+        }
         const burned = e.type === "holding_destroyed";
         const key = burned ? (mine ? "feed.dragon_burned_you" : "feed.dragon_burned") : mine ? "feed.dragon_reduced_you" : "feed.dragon_reduced";
-        tell(null, t(key, { owner: name(e.ownerId), place: siteName(map, e.siteId) }), sitePoint(map, e.siteId), mine);
+        tell(null, t(key, params), sitePoint(map, e.siteId), mine);
+        break;
+      }
+      case "renown_lost": {
+        const mine = e.playerId === viewerId;
+        const params = { name: name(e.byPlayerId), owner: name(e.playerId), amount: e.amount };
+        add(e.byPlayerId, t(mine ? "feed.disgraced_you" : "feed.disgraced", params), null, mine);
+        break;
+      }
+      case "renown_stolen": {
+        const mine = e.fromPlayerId === viewerId;
+        const params = { name: name(e.byPlayerId), owner: name(e.fromPlayerId), amount: e.amount };
+        add(e.byPlayerId, t(mine ? "feed.glory_stolen_you" : "feed.glory_stolen", params), null, mine);
+        break;
+      }
+      case "resources_lost": {
+        const mine = e.playerId === viewerId;
+        const params = { name: name(e.byPlayerId), owner: name(e.playerId), amount: e.amount, resource: t(`resource.${e.resource}`) };
+        add(e.byPlayerId, t(mine ? "feed.sabotaged_you" : "feed.sabotaged", params), null, mine);
         break;
       }
       case "insurance_claimed": {
@@ -244,6 +278,9 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
         out.push({ actorId: null, text, at: null, gains: null, againstViewer: false, self: false, omen: true });
         break;
       }
+      case "board_full":
+        out.push({ actorId: null, text: t("feed.board_full"), at: null, gains: null, againstViewer: false, self: false, omen: true });
+        break;
       case "harvest_completed": {
         if (e.playerId === viewerId) {
           const harvested = events.some((x) => x.type === "banner_harvested" && x.playerId === e.playerId);

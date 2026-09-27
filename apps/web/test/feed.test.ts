@@ -130,7 +130,7 @@ describe("feedItemsFor: second-wave cards", () => {
   it("tells everyone, the caster too, where the random dragon struck", () => {
     const events: GameEvent[] = [
       { type: "dragon_landed", byPlayerId: "P2", ownerId: "P1", holdingId: "h1", siteId: site.id },
-      { type: "holding_destroyed", byPlayerId: "P2", ownerId: "P1", holdingId: "h1", siteId: site.id, bannerIds: ["b1"] },
+      { type: "holding_destroyed", byPlayerId: "P2", ownerId: "P1", holdingId: "h1", siteId: site.id, bannerIds: ["b1"], cause: "dragons_landing" },
     ];
 
     expect(feedItemsFor(events, state, map, "P2")).toEqual([
@@ -174,6 +174,14 @@ describe("feedItemsFor: second-wave cards", () => {
     expect(feedItemsFor([taken], state, map, "P2")).toEqual([]);
   });
 
+  it("tells every viewer that the game ends with the round if the board stays full", () => {
+    for (const viewer of ["P1", "P2", null]) {
+      expect(feedItemsFor([{ type: "board_full" }], state, map, viewer)).toEqual([
+        { actorId: null, text: "The board is full: the game ends with this round if it stays full", at: null, gains: null, againstViewer: false, self: false, omen: true },
+      ]);
+    }
+  });
+
   it("marks the omen for every viewer", () => {
     const omen: GameEvent = { type: "card_foretold", cardId: "ragnarok#1" };
 
@@ -190,6 +198,65 @@ describe("feedItemsFor: second-wave cards", () => {
         },
       ]);
     }
+  });
+});
+
+describe("feedItemsFor: third-wave cards", () => {
+  const place = siteName(map, site.id);
+  const at = { x: site.x, y: site.y };
+  const hit = { byPlayerId: "P2", ownerId: "P1", holdingId: "h1", siteId: site.id } as const;
+
+  it("tells a raid to the Manor's owner as aimed at them, and leaves it out for its caster", () => {
+    const raid: GameEvent = { type: "holding_destroyed", ...hit, bannerIds: ["b1"], cause: "raiders" };
+
+    expect(feedItemsFor([raid], state, map, "P1")).toEqual([
+      {
+        actorId: "P2",
+        text: `Bertram's raiders burned down your Manor at ${place}. Only you may rebuild there until your next turn ends`,
+        at,
+        gains: null,
+        againstViewer: true,
+        self: false,
+      },
+    ]);
+    expect(feedItemsFor([raid], state, map, "P3")).toMatchObject([{ text: `Bertram's raiders burned down Alice's Manor at ${place}`, againstViewer: false }]);
+    expect(feedItemsFor([raid], state, map, "P2")).toEqual([]);
+  });
+
+  it("says a Siege Fireball's ruin is for good, and that a besieged Stronghold may rise again", () => {
+    const events: GameEvent[] = [
+      { type: "holding_destroyed", ...hit, bannerIds: ["b1"], cause: "siege_fireball" },
+      { type: "site_ruined", byPlayerId: "P2", siteId: site.id },
+      { type: "holding_reduced", ...hit, bannerId: "b1", cause: "siege_engines" },
+    ];
+
+    expect(feedItemsFor(events, state, map, "P1").map((i) => [i.text, i.at, i.againstViewer])).toEqual([
+      [`Bertram's Siege Fireball left your Manor at ${place} in ruins. Nobody may build there again`, at, true],
+      [`Bertram's siege engines knocked your Stronghold at ${place} back to a Manor. You may raise it again`, at, true],
+    ]);
+    expect(feedItemsFor(events, state, map, "P3").map((i) => i.text)).toEqual([
+      `Bertram's Siege Fireball left Alice's Manor at ${place} in ruins`,
+      `Bertram's siege engines knocked Alice's Stronghold at ${place} back to a Manor`,
+    ]);
+  });
+
+  it("tells Renown and Grain taken to the player who lost them", () => {
+    const events: GameEvent[] = [
+      { type: "renown_lost", byPlayerId: "P2", playerId: "P1", amount: 1, cause: "disgrace" },
+      { type: "renown_stolen", byPlayerId: "P3", fromPlayerId: "P1", amount: 1 },
+      { type: "resources_lost", byPlayerId: "P2", playerId: "P1", resource: "grain", amount: 2, cause: "sabotage" },
+    ];
+
+    expect(feedItemsFor(events, state, map, "P1")).toMatchObject([
+      { actorId: "P2", text: "Bertram disgraced you: you lose 1 Renown for the rest of the game", againstViewer: true },
+      { actorId: "P3", text: "Cordelia stole 1 Renown from you, for the rest of the game", againstViewer: true },
+      { actorId: "P2", text: "Bertram burned down your grain silo: you lose 2 Grain", againstViewer: true },
+    ]);
+    // Cordelia's own steal is left out of her feed.
+    expect(feedItemsFor(events, state, map, "P3").map((i) => [i.text, i.againstViewer])).toEqual([
+      ["Bertram disgraced Alice: 1 Renown lost for good", false],
+      ["Bertram burned down Alice's grain silo: 2 Grain lost", false],
+    ]);
   });
 });
 

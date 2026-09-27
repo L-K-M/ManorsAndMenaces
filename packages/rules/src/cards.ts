@@ -5,17 +5,22 @@ import { BALANCE } from "./balance.js";
 import { own } from "./clone.js";
 import type { RulesContext } from "./context.js";
 import { check, RuleViolation, unreachable } from "./errors.js";
+import type { GameEvent } from "./events.js";
 import { isResourceType } from "./resources.js";
 import {
+  canLoseManor,
+  disgraceTargets,
   dragonsLandingTargets,
   getPlayerBanners,
   getRenown,
+  holdingAt,
   insurancePolicyOf,
   isLegalMenaceDestination,
   menaceLocationKind,
   menaceOfType,
   plagueBanners,
   sameLocation,
+  touchesOwnRoute,
   wizardDestinations,
 } from "./selectors.js";
 import type { Tx } from "./tx.js";
@@ -43,6 +48,14 @@ function isResourcePair(x: unknown): x is [ResourceType, ResourceType] {
 function rivalsAhead(ctx: RulesContext, state: GameState, playerId: PlayerId, margin: number): PlayerId[] {
   const mine = getRenown(ctx, state, playerId);
   return state.turnOrder.filter((id) => id !== playerId && getRenown(ctx, state, id) >= mine + margin);
+}
+
+/** An opponent's Holding of `type` on the Site a target names (Siege Engines, Raiders, Siege Fireball). */
+function opponentHoldingAt(ctx: RulesContext, state: GameState, playerId: PlayerId, siteId: unknown, type: Holding["type"]): Holding {
+  check(typeof siteId === "string" && ctx.board.hasSite(siteId), "INVALID_CARD_TARGET", "unknown Site");
+  const h = holdingAt(state, siteId);
+  check(h && h.ownerId !== playerId && h.type === type, "INVALID_CARD_TARGET", `needs an opponent's ${type}`);
+  return h;
 }
 
 /** Throws a RuleViolation if the target is not valid for the card right now. */
@@ -175,6 +188,34 @@ export function validateCardTarget(ctx: RulesContext, state: GameState, playerId
       );
       return;
     }
+    case "disgrace":
+      check(disgraceTargets(ctx, state, playerId).includes(target.opponentId), "INVALID_CARD_TARGET", "needs a rival with the most Renown, ahead of you");
+      return;
+    case "siege_engines":
+      opponentHoldingAt(ctx, state, playerId, target.siteId, "stronghold");
+      check(touchesOwnRoute(ctx, state, playerId, target.siteId), "INVALID_CARD_TARGET", "no Route of yours reaches it");
+      return;
+    case "raiders": {
+      const h = opponentHoldingAt(ctx, state, playerId, target.siteId, "manor");
+      check(touchesOwnRoute(ctx, state, playerId, target.siteId), "INVALID_CARD_TARGET", "no Route of yours reaches it");
+      check(canLoseManor(state, h.ownerId), "INVALID_CARD_TARGET", "they have too few Holdings");
+      return;
+    }
+    case "stolen_glory":
+      check(rivalsAhead(ctx, state, playerId, 1).includes(target.opponentId), "INVALID_CARD_TARGET", "needs a rival with more Renown");
+      return;
+    case "siege_fireball": {
+      const h = opponentHoldingAt(ctx, state, playerId, target.siteId, "manor");
+      check(getRenown(ctx, state, h.ownerId) > getRenown(ctx, state, playerId), "INVALID_CARD_TARGET", "its owner has no more Renown than you");
+      check(canLoseManor(state, h.ownerId), "INVALID_CARD_TARGET", "they have too few Holdings");
+      return;
+    }
+    case "sabotage": {
+      const them = own(state.players, target.opponentId);
+      check(them && target.opponentId !== playerId, "INVALID_CARD_TARGET", "needs an opponent");
+      check(them.resources.grain > 0, "INVALID_CARD_TARGET", "they have no Grain");
+      return;
+    }
     default:
       return unreachable(target);
   }
@@ -288,12 +329,8 @@ export function resolveCardEffect(tx: Tx, playerId: PlayerId, target: CardTarget
       const h = tx.rng.pick(dragonsLandingTargets(s));
       tx.emit({ type: "dragon_landed", byPlayerId: playerId, ownerId: h.ownerId, holdingId: h.id, siteId: h.siteId });
       if (claimInsurance(tx, h.ownerId, "dragons_landing")) return;
-      if (h.type === "manor") {
-        const bannerIds = tx.removeHolding(h.id);
-        tx.emit({ type: "holding_destroyed", byPlayerId: playerId, ownerId: h.ownerId, holdingId: h.id, siteId: h.siteId, bannerIds });
-      } else {
-        reduceStronghold(tx, playerId, h);
-      }
+      if (h.type === "manor") burnManor(tx, playerId, h, "dragons_landing");
+      else reduceStronghold(tx, playerId, h, "dragons_landing");
       return;
     }
     case "transmutation_magic": {
@@ -338,9 +375,84 @@ export function resolveCardEffect(tx: Tx, playerId: PlayerId, target: CardTarget
       tx.moveMenace(playerId, dragon, target.destination);
       return;
     }
+    case "disgrace": {
+      if (claimInsurance(tx, target.opponentId, "disgrace")) return;
+      const amount = loseRenown(tx, target.opponentId, BALANCE.renownSwing);
+      tx.emit({ type: "renown_lost", byPlayerId: playerId, playerId: target.opponentId, amount, cause: "disgrace" });
+      return;
+    }
+    case "stolen_glory": {
+      if (claimInsurance(tx, target.opponentId, "stolen_glory")) return;
+      const amount = loseRenown(tx, target.opponentId, BALANCE.renownSwing);
+      tx.player(playerId).bonusRenown += amount;
+      tx.emit({ type: "renown_stolen", byPlayerId: playerId, fromPlayerId: target.opponentId, amount });
+      return;
+    }
+    case "siege_engines": {
+      const h = holdingAt(s, target.siteId);
+      check(h, "INVALID_CARD_TARGET");
+      if (claimInsurance(tx, h.ownerId, "siege_engines")) return;
+      reduceStronghold(tx, playerId, h, "siege_engines");
+      return;
+    }
+    case "raiders": {
+      const h = holdingAt(s, target.siteId);
+      check(h, "INVALID_CARD_TARGET");
+      if (claimInsurance(tx, h.ownerId, "raiders")) return;
+      burnManor(tx, playerId, h, "raiders");
+      s.activeEffects.push({ kind: "razed", siteId: h.siteId, ownerId: h.ownerId, sourcePlayerId: playerId });
+      return;
+    }
+    case "siege_fireball": {
+      const h = holdingAt(s, target.siteId);
+      check(h, "INVALID_CARD_TARGET");
+      if (claimInsurance(tx, h.ownerId, "siege_fireball")) return;
+      burnManor(tx, playerId, h, "siege_fireball");
+      s.ruinedSiteIds = [...(s.ruinedSiteIds ?? []), h.siteId];
+      tx.emit({ type: "site_ruined", byPlayerId: playerId, siteId: h.siteId });
+      return;
+    }
+    case "sabotage": {
+      // Not covered by a Royal Insurance Policy: it takes resources only, like Robin of the Glade.
+      const them = tx.player(target.opponentId);
+      const amount = Math.min(BALANCE.sabotage.grain, them.resources.grain);
+      them.resources.grain -= amount;
+      tx.emit({ type: "resources_lost", byPlayerId: playerId, playerId: them.id, resource: "grain", amount, cause: "sabotage" });
+      return;
+    }
     default:
       return unreachable(target);
   }
+}
+
+/**
+ * Takes up to `amount` Renown from the player for the rest of the game,
+ * never below 0 (§8). Returns how much was taken.
+ */
+function loseRenown(tx: Tx, playerId: PlayerId, amount: number): number {
+  const taken = Math.min(amount, Math.max(0, getRenown(tx.ctx, tx.s, playerId)));
+  const p = tx.player(playerId);
+  p.lostRenown = (p.lostRenown ?? 0) + taken;
+  return taken;
+}
+
+/**
+ * Renown never drops below 0 (§8). When a lost Holding would take the owner
+ * below it, Renown they lost for good is forgiven by the difference, so no
+ * hidden debt eats into what they build next.
+ */
+function keepRenownFloor(tx: Tx, playerId: PlayerId): void {
+  const deficit = -getRenown(tx.ctx, tx.s, playerId);
+  if (deficit <= 0) return;
+  const p = tx.player(playerId);
+  p.lostRenown = Math.max(0, (p.lostRenown ?? 0) - deficit);
+}
+
+/** Burns a Manor down with its Banner (Dragon's Landing, Raiders, Siege Fireball). The Site becomes empty. */
+function burnManor(tx: Tx, byPlayerId: PlayerId, h: Holding, cause: Extract<GameEvent, { type: "holding_destroyed" }>["cause"]): void {
+  const bannerIds = tx.removeHolding(h.id);
+  tx.emit({ type: "holding_destroyed", byPlayerId, ownerId: h.ownerId, holdingId: h.id, siteId: h.siteId, bannerIds, cause });
+  keepRenownFloor(tx, h.ownerId);
 }
 
 /**
@@ -358,21 +470,23 @@ function claimInsurance(tx: Tx, playerId: PlayerId, against: CardEffectId): bool
 }
 
 /**
- * Dragon's Landing on a Stronghold knocks it back to a Manor, which supports
- * one Banner (§114). It loses a Banner at home over an assigned one, and the
- * newer (the one the upgrade created) when both are at home or both assigned.
+ * Dragon's Landing or Siege Engines on a Stronghold knocks it back to a
+ * Manor, which supports one Banner (§114). It loses a Banner at home over an
+ * assigned one, and the newer (the one the upgrade created) when both are at
+ * home or both assigned.
  */
-function reduceStronghold(tx: Tx, byPlayerId: PlayerId, h: Holding): void {
+function reduceStronghold(tx: Tx, byPlayerId: PlayerId, h: Holding, cause: Extract<GameEvent, { type: "holding_reduced" }>["cause"]): void {
   const holding = tx.s.holdings[h.id];
   check(holding, "INVALID_CARD_TARGET");
   holding.type = "manor";
+  keepRenownFloor(tx, h.ownerId);
   // Sorted by id, which is creation order, so the last is the newer.
   const banners = getPlayerBanners(tx.s, h.ownerId).filter((b) => b.holdingId === h.id);
   const home = banners.filter((b) => b.regionId === null);
   const lost = home.at(-1) ?? banners.at(-1);
   if (!lost) return;
   tx.removeBanner(lost.id);
-  tx.emit({ type: "holding_reduced", byPlayerId, ownerId: h.ownerId, holdingId: h.id, siteId: h.siteId, bannerId: lost.id });
+  tx.emit({ type: "holding_reduced", byPlayerId, ownerId: h.ownerId, holdingId: h.id, siteId: h.siteId, bannerId: lost.id, cause });
 }
 
 export function isReactionOnly(effectId: CardEffectId): boolean {

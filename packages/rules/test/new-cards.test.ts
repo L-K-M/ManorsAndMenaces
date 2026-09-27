@@ -1,9 +1,10 @@
-// The second wave of cards (spec §19.12–19.21): legality, target enumeration,
-// resolution, events and the edge cases the rules text calls out.
+// The second and third waves of cards (spec §19.12–19.27): legality, target
+// enumeration, resolution, events and the edge cases the rules text calls out.
 
 import { describe, expect, it } from "vitest";
 import {
   BALANCE,
+  checkBuildManor,
   checkBuildRoute,
   clone,
   createRng,
@@ -11,8 +12,11 @@ import {
   enumerateCardTargets,
   getHarvestPreview,
   getLegalActions,
+  getLegalInitialManorSites,
   getRenown,
+  getRenownSources,
   hashState,
+  holdingAt,
   insurancePolicyOf,
   isSmoulderingFor,
   plagueBanners,
@@ -478,7 +482,7 @@ describe("Dragon's Landing (§19.15)", () => {
     expect(h?.siteId).toBe(landed?.siteId);
     const lost = bannersAt(s, h?.siteId as string).map((b) => b.id);
     expect(ofType(events, "holding_destroyed")).toEqual([
-      { type: "holding_destroyed", byPlayerId: g.p2, ownerId: g.p1, holdingId: h?.id, siteId: h?.siteId, bannerIds: lost },
+      { type: "holding_destroyed", byPlayerId: g.p2, ownerId: g.p1, holdingId: h?.id, siteId: h?.siteId, bannerIds: lost, cause: "dragons_landing" },
     ]);
     expect(state.holdings[h?.id as string]).toBeUndefined();
     expect(player(state, g.p1).holdingIds).not.toContain(h?.id);
@@ -523,7 +527,7 @@ describe("Dragon's Landing (§19.15)", () => {
     const site = landed?.siteId as string;
     const [lost, kept] = where.lost === "newer" ? [newer[site], older[site]] : [older[site], newer[site]];
     expect(ofType(events, "holding_reduced")).toEqual([
-      { type: "holding_reduced", byPlayerId: g.p1, ownerId: g.p1, holdingId: landed?.holdingId, siteId: site, bannerId: lost },
+      { type: "holding_reduced", byPlayerId: g.p1, ownerId: g.p1, holdingId: landed?.holdingId, siteId: site, bannerId: lost, cause: "dragons_landing" },
     ]);
     expect(state.holdings[landed?.holdingId as string]?.type).toBe("manor");
     expect(bannersAt(state, site).map((b) => b.id)).toEqual([kept]);
@@ -991,5 +995,416 @@ describe("Treasure Hunter (§19.21)", () => {
     refuse(s, p1, card, hunt("grain", "R1"), "INVALID_CARD_TARGET");
     const some = ready({ stone: 1 });
     refuse(some.s, some.p1, some.card, hunt("grain", "R1"), "INVALID_CARD_TARGET");
+  });
+});
+
+// ---------------------------------------------------------------- The third wave (§19.22–19.27)
+
+const MANOR_COST = { grain: 1, timber: 1, stone: 1 };
+
+/**
+ * p2's first turn against p1, who leads with 4 Renown: Manors on s1 and s5,
+ * a Stronghold on s9 and 5 Grain. p2 (2 Renown) has built Routes to s5 (s5–s8)
+ * and s9 (the s8–s9 bridge).
+ */
+function siegeFixture() {
+  const g = setupGame(standardRuleset(2));
+  let s = grant(thirdManor(g.state, g.p1), g.p1, { grain: 2, iron: 2 });
+  s = act(s, g.p1, { type: "upgrade_holding", siteId: "s9" }).state;
+  s = passTurn(s);
+  s = grant(s, g.p2, { timber: 2, stone: 2 });
+  s = act(s, g.p2, { type: "build_route", routeId: routeId(5, 8) }).state;
+  s = act(s, g.p2, { type: "build_route", routeId: routeId(8, 9) }).state;
+  s = withResources(s, g.p1, { grain: 5 });
+  expect(s.activePlayerId).toBe(g.p2);
+  expect([getRenown(ctx, s, g.p1), getRenown(ctx, s, g.p2)]).toEqual([4, 2]);
+  return { ...g, s };
+}
+
+/** Removes the Holding on `siteId` with its Banners (test-only state surgery). */
+const withoutHolding = (s: GameState, siteId: string): GameState =>
+  edit(s, (c) => {
+    const h = Object.values(c.holdings).find((x) => x.siteId === siteId);
+    if (!h) return;
+    for (const b of Object.values(c.banners)) if (b.holdingId === h.id) delete c.banners[b.id];
+    delete c.holdings[h.id];
+    player(c, h.ownerId).holdingIds = player(c, h.ownerId).holdingIds.filter((id) => id !== h.id);
+  });
+
+const razedEffects = (s: GameState) => s.activeEffects.filter((e) => e.kind === "razed");
+
+describe("Disgrace (§19.22)", () => {
+  const shame = (opponentId: PlayerId): CardTarget => ({ effect: "disgrace", opponentId });
+
+  it("costs the Renown leader 1 Renown for the rest of the game", () => {
+    const { s: base, p1, p2 } = siegeFixture();
+    const { s, card } = dealt(base, p2, "disgrace");
+    expect(player(s, p1).lostRenown).toBeUndefined();
+    expect(offered(s, p2, card)).toEqual([shame(p1)]);
+
+    const { state, events } = play(s, p2, card, shame(p1));
+    expect(getRenown(ctx, state, p1)).toBe(3);
+    expect(player(state, p1).lostRenown).toBe(1);
+    expect(getRenownSources(ctx, state, p1)).toMatchObject({ total: 3, bonus: 0, lost: 1 });
+    expect(ofType(events, "renown_lost")).toEqual([{ type: "renown_lost", byPlayerId: p2, playerId: p1, amount: 1, cause: "disgrace" }]);
+    expect(state.discardPile).toContain(card);
+    // For good: a new Stronghold adds to the lower total.
+    const raised = act(grant(passTurn(state), p1, { grain: 2, iron: 2 }), p1, { type: "upgrade_holding", siteId: "s5" }).state;
+    expect(getRenown(ctx, raised, p1)).toBe(4);
+  });
+
+  it("cannot be played by a leader or co-leader", () => {
+    const g = setupGame(standardRuleset(2));
+    const { s: tied, card } = dealt(g.state, g.p1, "disgrace");
+    expect(offered(tied, g.p1, card)).toEqual([]);
+    refuse(tied, g.p1, card, shame(g.p2), "INVALID_CARD_TARGET");
+    const ahead = withRenown(tied, g.p1, 5);
+    expect(offered(ahead, g.p1, card)).toEqual([]);
+    refuse(ahead, g.p1, card, shame(g.p2), "INVALID_CARD_TARGET");
+    refuse(ahead, g.p1, card, shame(g.p1), "INVALID_CARD_TARGET");
+    // Sharing the lead with a third player is no better.
+    const shared = seatedGame([3, 3, 1]);
+    const [q1] = shared.turnOrder as [PlayerId];
+    const { s: withCard, card: third } = dealt(shared, q1, "disgrace");
+    expect(offered(withCard, q1, third)).toEqual([]);
+  });
+
+  it("strikes only a rival with the most Renown; the caster picks among tied leaders", () => {
+    const s = seatedGame([1, 3, 3, 2]);
+    const [p1, p2, p3, p4] = s.turnOrder as [PlayerId, PlayerId, PlayerId, PlayerId];
+    const { s: withCard, card } = dealt(s, p1, "disgrace");
+    expect(offered(withCard, p1, card)).toEqual([shame(p2), shame(p3)]);
+    refuse(withCard, p1, card, shame(p4), "INVALID_CARD_TARGET");
+    refuse(withCard, p1, card, shame("nobody"), "INVALID_CARD_TARGET");
+    const { state } = play(withCard, p1, card, shame(p3));
+    expect(state.turnOrder.map((id) => getRenown(ctx, state, id))).toEqual([1, 3, 2, 2]);
+  });
+});
+
+describe("Siege Engines (§19.23)", () => {
+  const siege = (siteId: string): CardTarget => ({ effect: "siege_engines", siteId });
+
+  it("targets an opponent's Stronghold at an end of one of your Routes", () => {
+    const { s: base, p2 } = siegeFixture();
+    const { s, card } = dealt(base, p2, "siege_engines");
+    expect(offered(s, p2, card)).toEqual([siege("s9")]);
+    refuse(s, p2, card, siege("s5"), "INVALID_CARD_TARGET"); // a Manor
+    refuse(s, p2, card, siege("s2"), "INVALID_CARD_TARGET"); // empty
+    refuse(s, p2, card, siege("s99"), "INVALID_CARD_TARGET"); // unknown
+    // A Stronghold that no Route of yours reaches is safe.
+    const far = edit(s, (c) => {
+      delete c.routeOwners["r89"];
+      player(c, p2).routeIds = player(c, p2).routeIds.filter((r) => r !== "r89");
+    });
+    expect(offered(far, p2, card)).toEqual([]);
+    refuse(far, p2, card, siege("s9"), "INVALID_CARD_TARGET");
+    // Nor may you besiege your own.
+    const own = edit(s, (c) => ((c.holdings[holdingAt(c, "s7")?.id as string] as GameState["holdings"][string]).type = "stronghold"));
+    refuse(own, p2, card, siege("s7"), "INVALID_CARD_TARGET");
+  });
+
+  it("knocks it back to a Manor that loses a Banner, 1 Renown, and may be raised again", () => {
+    const { s: base, p1, p2 } = siegeFixture();
+    const { s, card } = dealt(base, p2, "siege_engines");
+    const holding = holdingAt(s, "s9");
+    // Both of the Stronghold's Banners: the newer one, at home, goes (§114).
+    const [older, newer] = bannersAt(s, "s9").map((b) => b.id);
+    const { state, events } = play(s, p2, card, siege("s9"));
+    expect(ofType(events, "holding_reduced")).toEqual([
+      { type: "holding_reduced", byPlayerId: p2, ownerId: p1, holdingId: holding?.id, siteId: "s9", bannerId: newer, cause: "siege_engines" },
+    ]);
+    expect(holdingAt(state, "s9")?.type).toBe("manor");
+    expect(bannersAt(state, "s9").map((b) => b.id)).toEqual([older]);
+    expect(getRenown(ctx, state, p1)).toBe(3);
+    expectNoDanglingEffects(state);
+    const theirTurn = grant(passTurn(state), p1, { grain: 2, iron: 2 });
+    expect(getLegalActions(ctx, theirTurn, p1).upgradeSites).toContain("s9");
+  });
+});
+
+describe("Raiders (§19.24)", () => {
+  const raid = (siteId: string): CardTarget => ({ effect: "raiders", siteId });
+
+  it("targets an opponent's Manor at an end of one of your Routes", () => {
+    const { s: base, p2 } = siegeFixture();
+    const { s, card } = dealt(base, p2, "raiders");
+    expect(offered(s, p2, card)).toEqual([raid("s5")]);
+    refuse(s, p2, card, raid("s9"), "INVALID_CARD_TARGET"); // a Stronghold
+    refuse(s, p2, card, raid("s1"), "INVALID_CARD_TARGET"); // no Route of p2's reaches it
+    refuse(s, p2, card, raid("s7"), "INVALID_CARD_TARGET"); // p2's own
+    refuse(s, p2, card, raid("s2"), "INVALID_CARD_TARGET"); // empty
+  });
+
+  it(`strikes only players with at least ${BALANCE.raid.minHoldings} Holdings`, () => {
+    // p1 has only the two starting Manors; s9 is at the end of p2's bridge.
+    const g = setupGame(standardRuleset(2));
+    let s = grant(passTurn(g.state), g.p2, { timber: 1, stone: 1 });
+    s = act(s, g.p2, { type: "build_route", routeId: routeId(8, 9) }).state;
+    const { s: withCard, card } = dealt(s, g.p2, "raiders");
+    expect(offered(withCard, g.p2, card)).toEqual([]);
+    refuse(withCard, g.p2, card, raid("s9"), "INVALID_CARD_TARGET");
+  });
+
+  it("burns the Manor down with its Banner and every effect on it", () => {
+    const { s: base, p1, p2 } = siegeFixture();
+    const { s: withCard, card } = dealt(base, p2, "raiders");
+    const holding = holdingAt(withCard, "s5");
+    const lost = bannersAt(withCard, "s5").map((b) => b.id);
+    const s = edit(withCard, (c) => {
+      for (const b of lost) c.activeEffects.push({ kind: "sick", bannerId: b, sourcePlayerId: p2 });
+    });
+    const { state, events } = play(s, p2, card, raid("s5"));
+    expect(ofType(events, "holding_destroyed")).toEqual([
+      { type: "holding_destroyed", byPlayerId: p2, ownerId: p1, holdingId: holding?.id, siteId: "s5", bannerIds: lost, cause: "raiders" },
+    ]);
+    expect(holdingAt(state, "s5")).toBeUndefined();
+    expect(player(state, p1).holdingIds).not.toContain(holding?.id);
+    for (const b of lost) expect(state.banners[b]).toBeUndefined();
+    expectNoDanglingEffects(state);
+    expect(getRenown(ctx, state, p1)).toBe(3);
+    expect(razedEffects(state)).toEqual([{ kind: "razed", siteId: "s5", ownerId: p1, sourcePlayerId: p2 }]);
+  });
+
+  it("lets only the owner rebuild there, which puts the embers out", () => {
+    const { s: base, p1, p2 } = siegeFixture();
+    const { s, card } = dealt(base, p2, "raiders");
+    // p2's s5–s8 Route reaches the empty Site: only the embers stop them.
+    const burned = grant(play(s, p2, card, raid("s5")).state, p2, MANOR_COST);
+    expect(checkBuildManor(ctx, burned, p2, "s5")).toEqual({ legal: false, reason: "SITE_RAZED" });
+    expect(getLegalActions(ctx, burned, p2).manorSites).not.toContain("s5");
+    reject(burned, p2, { type: "build_manor", siteId: "s5" }, "SITE_RAZED");
+
+    const theirTurn = grant(passTurn(burned), p1, MANOR_COST);
+    expect(getLegalActions(ctx, theirTurn, p1).manorSites).toContain("s5");
+    const rebuilt = act(theirTurn, p1, { type: "build_manor", siteId: "s5" }).state;
+    expect(holdingAt(rebuilt, "s5")?.ownerId).toBe(p1);
+    expect(razedEffects(rebuilt)).toEqual([]);
+    expect(getRenown(ctx, rebuilt, p1)).toBe(4);
+  });
+
+  it("cools at the end of the owner's next turn, and then anyone may build there", () => {
+    const { s: base, p1, p2 } = siegeFixture();
+    const { s, card } = dealt(base, p2, "raiders");
+    const burned = play(s, p2, card, raid("s5")).state;
+    // The caster's turn ending does not count.
+    const theirTurn = passTurn(burned);
+    expect(razedEffects(theirTurn)).toHaveLength(1);
+    const r = endTurn(theirTurn);
+    expect(ofType(r.events, "effect_expired")).toEqual([{ type: "effect_expired", effect: "razed", playerId: p1 }]);
+    expect(razedEffects(r.state)).toEqual([]);
+    expect(checkBuildManor(ctx, grant(r.state, p2, MANOR_COST), p2, "s5")).toMatchObject({ legal: true });
+  });
+
+  it("keeps rivals from building next to the razed Site while it smoulders", () => {
+    const g = setupGame(standardRuleset(2));
+    // Clear s7 and s9, so p2's s7–s8 Route leaves s8 free to build on.
+    const open = grant(passTurn(withoutHolding(withoutHolding(g.state, "s7"), "s9")), g.p2, MANOR_COST);
+    expect(checkBuildManor(ctx, open, g.p2, "s8")).toMatchObject({ legal: true });
+    const razed = edit(open, (c) => c.activeEffects.push({ kind: "razed", siteId: "s9", ownerId: g.p1, sourcePlayerId: g.p2 }));
+    expect(checkBuildManor(ctx, razed, g.p2, "s8")).toEqual({ legal: false, reason: "SITE_RAZED" });
+    reject(razed, g.p2, { type: "build_manor", siteId: "s8" }, "SITE_RAZED");
+  });
+});
+
+describe("Stolen Glory (§19.25)", () => {
+  const steal = (opponentId: PlayerId): CardTarget => ({ effect: "stolen_glory", opponentId });
+
+  it("moves 1 Renown for good from a rival with more to the caster", () => {
+    const s = seatedGame([1, 3, 2, 1]);
+    const [p1, p2, p3, p4] = s.turnOrder as [PlayerId, PlayerId, PlayerId, PlayerId];
+    const { s: withCard, card } = dealt(s, p1, "stolen_glory");
+    expect(offered(withCard, p1, card)).toEqual([steal(p2), steal(p3)]);
+    refuse(withCard, p1, card, steal(p4), "INVALID_CARD_TARGET"); // tied
+    refuse(withCard, p1, card, steal(p1), "INVALID_CARD_TARGET");
+
+    const { state, events } = play(withCard, p1, card, steal(p3));
+    expect(state.turnOrder.map((id) => getRenown(ctx, state, id))).toEqual([2, 3, 1, 1]);
+    expect(player(state, p1).bonusRenown).toBe(2);
+    expect(player(state, p3).lostRenown).toBe(1);
+    expect(ofType(events, "renown_stolen")).toEqual([{ type: "renown_stolen", byPlayerId: p1, fromPlayerId: p3, amount: 1 }]);
+    expect(state.discardPile).toContain(card);
+  });
+
+  it("cannot be played by a leader or co-leader", () => {
+    const g = setupGame(standardRuleset(2));
+    const { s, card } = dealt(g.state, g.p1, "stolen_glory");
+    expect(offered(s, g.p1, card)).toEqual([]);
+    refuse(s, g.p1, card, steal(g.p2), "INVALID_CARD_TARGET");
+    expect(offered(withRenown(s, g.p2, 3), g.p1, card)).toEqual([steal(g.p2)]);
+  });
+});
+
+describe("Siege Fireball (§19.26)", () => {
+  const fireball = (siteId: string): CardTarget => ({ effect: "siege_fireball", siteId });
+
+  it("burns any Manor of a rival with more Renown, and leaves a ruin nobody may ever build on", () => {
+    const { s: base, p1, p2 } = siegeFixture();
+    const { s, card } = dealt(base, p2, "siege_fireball");
+    // Anywhere on the board, but only Manors: s9 is a Stronghold.
+    expect(offered(s, p2, card)).toEqual([fireball("s1"), fireball("s5")]);
+    refuse(s, p2, card, fireball("s9"), "INVALID_CARD_TARGET");
+    refuse(s, p2, card, fireball("s3"), "INVALID_CARD_TARGET"); // p2's own
+
+    const holding = holdingAt(s, "s5");
+    const lost = bannersAt(s, "s5").map((b) => b.id);
+    const { state, events } = play(s, p2, card, fireball("s5"));
+    expect(ofType(events, "holding_destroyed")).toEqual([
+      { type: "holding_destroyed", byPlayerId: p2, ownerId: p1, holdingId: holding?.id, siteId: "s5", bannerIds: lost, cause: "siege_fireball" },
+    ]);
+    expect(ofType(events, "site_ruined")).toEqual([{ type: "site_ruined", byPlayerId: p2, siteId: "s5" }]);
+    expect(state.ruinedSiteIds).toEqual(["s5"]);
+    expect(getRenown(ctx, state, p1)).toBe(3);
+    expect(razedEffects(state)).toEqual([]);
+
+    // Not the caster, whose Route reaches it…
+    const caster = grant(state, p2, MANOR_COST);
+    expect(checkBuildManor(ctx, caster, p2, "s5")).toEqual({ legal: false, reason: "SITE_RUINED" });
+    reject(caster, p2, { type: "build_manor", siteId: "s5" }, "SITE_RUINED");
+    // …nor its owner, now or ever.
+    let later = passTurn(state);
+    for (let i = 0; i < 4; i++) {
+      const owner = grant(later, p1, MANOR_COST);
+      expect(owner.activePlayerId).toBe(p1);
+      expect(checkBuildManor(ctx, owner, p1, "s5")).toEqual({ legal: false, reason: "SITE_RUINED" });
+      expect(getLegalActions(ctx, owner, p1).manorSites).not.toContain("s5");
+      reject(owner, p1, { type: "build_manor", siteId: "s5" }, "SITE_RUINED");
+      later = passTurn(passTurn(owner));
+    }
+  });
+
+  it(`needs a rival with more Renown and at least ${BALANCE.raid.minHoldings} Holdings`, () => {
+    const g = setupGame(standardRuleset(2));
+    const { s: tied, card } = dealt(g.state, g.p1, "siege_fireball");
+    expect(offered(tied, g.p1, card)).toEqual([]);
+    refuse(tied, g.p1, card, fireball("s3"), "INVALID_CARD_TARGET");
+    // Ahead on Renown, but with only the two starting Manors.
+    const ahead = withRenown(tied, g.p2, 5);
+    expect(offered(ahead, g.p1, card)).toEqual([]);
+    refuse(ahead, g.p1, card, fireball("s3"), "INVALID_CARD_TARGET");
+  });
+
+  it("needs the rival strictly ahead on Renown even when they have enough Holdings", () => {
+    const { s: base, p1, p2 } = siegeFixture();
+    const { s: withCard, card } = dealt(base, p2, "siege_fireball");
+    // p1 keeps 3 Holdings and 4 Renown; p2 draws level, then passes them.
+    for (const renown of [4, 5]) {
+      const s = withRenown(withCard, p2, renown);
+      expect(player(s, p1).holdingIds.length).toBeGreaterThanOrEqual(BALANCE.raid.minHoldings);
+      expect(getRenown(ctx, s, p1)).toBe(4);
+      expect(offered(s, p2, card)).toEqual([]);
+      refuse(s, p2, card, fireball("s5"), "INVALID_CARD_TARGET");
+    }
+  });
+
+  it("keeps initial placement off a ruin too", () => {
+    const s = edit(newGame(standardRuleset(2)), (c) => (c.ruinedSiteIds = ["s5"]));
+    expect(getLegalInitialManorSites(ctx, s)).not.toContain("s5");
+    reject(s, s.activePlayerId, { type: "place_initial_manor", siteId: "s5" }, "SITE_RUINED");
+  });
+});
+
+describe("Sabotage (§19.27)", () => {
+  const sabotage = (opponentId: PlayerId): CardTarget => ({ effect: "sabotage", opponentId });
+
+  it(`burns ${BALANCE.sabotage.grain} of an opponent's Grain, or all they have`, () => {
+    const g = setupGame(standardRuleset(2));
+    const { s: base, card } = dealt(g.state, g.p1, "sabotage");
+    const s = withResources(base, g.p2, { grain: 3, iron: 1 });
+    expect(offered(s, g.p1, card)).toEqual([sabotage(g.p2)]);
+    const { state, events } = play(s, g.p1, card, sabotage(g.p2));
+    expect(player(state, g.p2).resources).toMatchObject({ grain: 1, iron: 1 });
+    expect(ofType(events, "resources_lost")).toEqual([
+      { type: "resources_lost", byPlayerId: g.p1, playerId: g.p2, resource: "grain", amount: 2, cause: "sabotage" },
+    ]);
+    const poor = play(withResources(base, g.p2, { grain: 1 }), g.p1, card, sabotage(g.p2));
+    expect(player(poor.state, g.p2).resources.grain).toBe(0);
+    expect(ofType(poor.events, "resources_lost")[0]?.amount).toBe(1);
+  });
+
+  it("needs an opponent who has Grain", () => {
+    const g = setupGame(standardRuleset(2));
+    const { s: base, card } = dealt(withResources(g.state, g.p1, { grain: 4 }), g.p1, "sabotage");
+    const s = withResources(base, g.p2, { iron: 3 });
+    expect(offered(s, g.p1, card)).toEqual([]);
+    refuse(s, g.p1, card, sabotage(g.p2), "INVALID_CARD_TARGET");
+    refuse(s, g.p1, card, sabotage(g.p1), "INVALID_CARD_TARGET");
+  });
+});
+
+describe("the third wave: Counterspell, insurance and the Renown floor", () => {
+  const THIRD_WAVE: { card: string; target: (p1: PlayerId) => CardTarget; insured: boolean }[] = [
+    { card: "disgrace", target: (p1) => ({ effect: "disgrace", opponentId: p1 }), insured: true },
+    { card: "siege_engines", target: () => ({ effect: "siege_engines", siteId: "s9" }), insured: true },
+    { card: "raiders", target: () => ({ effect: "raiders", siteId: "s5" }), insured: true },
+    { card: "stolen_glory", target: (p1) => ({ effect: "stolen_glory", opponentId: p1 }), insured: true },
+    { card: "siege_fireball", target: () => ({ effect: "siege_fireball", siteId: "s5" }), insured: true },
+    { card: "sabotage", target: (p1) => ({ effect: "sabotage", opponentId: p1 }), insured: false },
+  ];
+  /** What any of these cards could change. */
+  const outcome = (s: GameState, p1: PlayerId, p2: PlayerId) => ({
+    renown: [getRenown(ctx, s, p1), getRenown(ctx, s, p2)],
+    holdings: s.holdings,
+    banners: s.banners,
+    grain: player(s, p1).resources.grain,
+    ruins: s.ruinedSiteIds ?? [],
+    effects: s.activeEffects,
+  });
+
+  it.each(THIRD_WAVE)("$card is a Spell: a Counterspell cancels it", ({ card: def, target }) => {
+    const { s: base, p1, p2 } = siegeFixture();
+    const { s, card } = dealt(give(base, p1, "counterspell"), p2, def);
+    const pending = play(s, p2, card, target(p1)).state;
+    expect(pending.pending?.kind).toBe("reaction");
+    const r = act(pending, p1, { type: "react", cardId: lastCard(pending, p1) });
+    expect(ofType(r.events, "card_cancelled")).toHaveLength(1);
+    expect(outcome(r.state, p1, p2)).toEqual(outcome(s, p1, p2));
+    expect(r.state.discardPile).toContain(card);
+  });
+
+  it.each(THIRD_WAVE)("$card and the Royal Insurance Policy", ({ card: def, target, insured }) => {
+    const { s: base, p1, p2 } = siegeFixture();
+    const { s: covered, policy } = insure(base, p1);
+    const { s, card } = dealt(covered, p2, def);
+    const { state, events } = play(s, p2, card, target(p1));
+    const claims = ofType(events, "insurance_claimed");
+    if (insured) {
+      expect(claims).toEqual([{ type: "insurance_claimed", playerId: p1, cardId: policy, against: def }]);
+      expect(outcome(state, p1, p2)).toEqual(outcome(s, p1, p2));
+      expect(insurancePolicyOf(ctx, state, p1)).toBeUndefined();
+    } else {
+      expect(claims).toEqual([]);
+      expect(outcome(state, p1, p2)).not.toEqual(outcome(s, p1, p2));
+      expect(insurancePolicyOf(ctx, state, p1)).toBe(policy);
+    }
+  });
+
+  it.each(THIRD_WAVE)("$card's events are public", ({ card: def, target }) => {
+    const { s: base, p1, p2 } = siegeFixture();
+    const { s, card } = dealt(base, p2, def);
+    const { events } = play(s, p2, card, target(p1));
+    for (const viewer of [p1, p2, null]) for (const e of events) expect(redactEvent(e, viewer)).toEqual(e);
+  });
+
+  it("never takes Renown below 0: a later loss forgives Renown lost for good", () => {
+    const { s: base, p1, p2 } = siegeFixture();
+    // p1 has lost all 4 of their Renown for good, to Disgraces and Stolen Glory.
+    const s = edit(base, (c) => (player(c, p1).lostRenown = 4));
+    expect(getRenown(ctx, s, p1)).toBe(0);
+    const { s: withCard, card } = dealt(s, p2, "raiders");
+    const burned = play(withCard, p2, card, { effect: "raiders", siteId: "s5" }).state;
+    expect(getRenown(ctx, burned, p1)).toBe(0);
+    expect(player(burned, p1).lostRenown).toBe(3);
+    // Rebuilding then counts in full: no debt is left over.
+    const rebuilt = act(grant(passTurn(burned), p1, MANOR_COST), p1, { type: "build_manor", siteId: "s5" }).state;
+    expect(getRenown(ctx, rebuilt, p1)).toBe(1);
+  });
+
+  it("forgives Renown lost for good when a Stronghold is reduced too", () => {
+    const { s: base, p1, p2 } = siegeFixture();
+    const s = edit(base, (c) => (player(c, p1).lostRenown = 4));
+    const { s: withCard, card } = dealt(s, p2, "siege_engines");
+    const reduced = play(withCard, p2, card, { effect: "siege_engines", siteId: "s9" }).state;
+    expect(getRenown(ctx, reduced, p1)).toBe(0);
+    expect(player(reduced, p1).lostRenown).toBe(3);
   });
 });

@@ -5,13 +5,17 @@ import { createRng, createRulesEngine, hashState, seedRng, standardRuleset, RULE
 
 const engine = createRulesEngine(rulesContentFor());
 
-/** Three Easy AIs on Greenvale, stopping at the end of `maxRounds`. */
+/**
+ * Three Easy AIs on Greenvale, stopping at the end of `maxRounds`. The goal
+ * stays at 15 Renown, which the 40-round limit below was set for: at the
+ * Standard default of 20 a three-player board can fill up first (§129.6).
+ */
 function playEasy(seed: string, maxRounds: number): { final: GameState; commands: GameCommand[] } {
   let s = engine.createGame({
     matchId: `m-${seed}`,
     seed,
     rulesetVersion: RULESET_VERSION,
-    ruleset: standardRuleset(3),
+    ruleset: standardRuleset(3, { targetRenown: 15 }),
     players: [1, 2, 3].map((n) => ({ id: `P${n}`, displayName: `P${n}` })),
   });
   const rng = createRng(seedRng(`ai-${seed}`));

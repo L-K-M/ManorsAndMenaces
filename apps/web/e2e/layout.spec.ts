@@ -52,6 +52,8 @@ async function completeSetup(page: Page) {
  * rules texts come early, so the bigger hands test them.
  */
 const ALWAYS_DEALT = [
+  "raiders",
+  "siege_fireball",
   "wizard_interference",
   "knight_errant",
   "druids_blessing",

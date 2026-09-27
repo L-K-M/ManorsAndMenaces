@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { CardEffectId, CardType } from "@manors-menaces/rules";
+  import { hasCardPainting } from "../cardPaintings.js";
   import { settings } from "../stores/settings.svelte.js";
   import CardGlyph from "./CardGlyph.svelte";
 
@@ -10,7 +11,7 @@
 </script>
 
 <span class="card-art" data-card-art={id} aria-hidden="true">
-  {#if !settings.highContrast && failedId !== id}
+  {#if !settings.highContrast && failedId !== id && hasCardPainting(id)}
     <img src={`${import.meta.env.BASE_URL}art/cards/${id}.webp`} alt="" loading="lazy" decoding="async" onerror={() => (failedId = id)} />
   {:else}
     <CardGlyph {type} />

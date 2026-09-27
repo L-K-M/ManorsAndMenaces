@@ -104,7 +104,7 @@ export function bannersSupported(holding: Holding): number {
 export function getRenown(ctx: RulesContext, state: GameState, playerId: PlayerId): number {
   const p = state.players[playerId];
   if (!p) return 0;
-  let renown = p.bonusRenown;
+  let renown = p.bonusRenown - (p.lostRenown ?? 0);
   for (const h of getPlayerHoldings(state, playerId)) renown += h.type === "manor" ? BALANCE.renown.manor : BALANCE.renown.stronghold;
   for (const q of p.claimedQuestIds) renown += ctx.quest(q).renown;
   return renown;
@@ -119,6 +119,8 @@ export interface RenownSources {
   quests: { questId: QuestId; renown: number }[];
   /** Renown granted outright, such as by the Unreliable Bard. */
   bonus: number;
+  /** Renown lost for the rest of the game (Disgrace, Stolen Glory), subtracted from the total. */
+  lost: number;
 }
 
 // Kept apart from getRenown, which the AI calls in its inner loops.
@@ -134,6 +136,7 @@ export function getRenownSources(ctx: RulesContext, state: GameState, playerId: 
     strongholds: { count: strongholds, renown: strongholds * BALANCE.renown.stronghold },
     quests,
     bonus: p?.bonusRenown ?? 0,
+    lost: p?.lostRenown ?? 0,
   };
 }
 
@@ -175,6 +178,22 @@ export function passesSpacing(ctx: RulesContext, state: GameState, siteId: SiteI
   return ctx.board.neighbours(siteId).every((n) => !holdingAt(state, n));
 }
 
+/**
+ * A full board (§7): no Site could take a new Manor, whoever builds, because
+ * each is built on, in ruins or too close to a Holding (§10.3), and every
+ * Holding is a Stronghold, so no build can gain Renown. A razed Site (§19.24)
+ * counts as open, since its owner may rebuild there.
+ */
+export function isBoardFull(ctx: RulesContext, state: GameState): boolean {
+  const occupied = new Set<SiteId>();
+  for (const h of Object.values(state.holdings)) {
+    if (h.type === "manor") return false;
+    occupied.add(h.siteId);
+  }
+  // passesSpacing, for every Site at once.
+  return ctx.board.topology.sites.every(({ id }) => occupied.has(id) || isRuinedSite(state, id) || ctx.board.neighbours(id).some((n) => occupied.has(n)));
+}
+
 // ------------------------------------------------------------------ build requirements
 
 export type BuildCheck =
@@ -194,10 +213,28 @@ export function checkBuildRoute(ctx: RulesContext, state: GameState, playerId: P
   return { legal: false, reason: "NOT_CONNECTED" };
 }
 
+/**
+ * Why the player may not put a Manor on the Site whatever their network: it
+ * is built on, in ruins (Siege Fireball), razed for someone else or next to
+ * such a Site (Raiders), or too close to a Holding (§10.3). Null if open.
+ */
+function siteClosedReason(ctx: RulesContext, state: GameState, playerId: PlayerId, siteId: SiteId): "SITE_OCCUPIED" | "SITE_RUINED" | "SITE_RAZED" | "SITE_TOO_CLOSE" | null {
+  if (holdingAt(state, siteId)) return "SITE_OCCUPIED";
+  if (isRuinedSite(state, siteId)) return "SITE_RUINED";
+  if ([siteId, ...ctx.board.neighbours(siteId)].some((id) => isRazedFor(state, id, playerId))) return "SITE_RAZED";
+  if (!passesSpacing(ctx, state, siteId)) return "SITE_TOO_CLOSE";
+  return null;
+}
+
+/** Whether the player could build a Manor on the Site once their network reaches it (for planning ahead). */
+export function isSiteOpenFor(ctx: RulesContext, state: GameState, playerId: PlayerId, siteId: SiteId): boolean {
+  return siteClosedReason(ctx, state, playerId, siteId) === null;
+}
+
 export function checkBuildManor(ctx: RulesContext, state: GameState, playerId: PlayerId, siteId: SiteId): BuildCheck {
   if (!ctx.board.hasSite(siteId)) return { legal: false, reason: "UNKNOWN_ENTITY" };
-  if (holdingAt(state, siteId)) return { legal: false, reason: "SITE_OCCUPIED" };
-  if (!passesSpacing(ctx, state, siteId)) return { legal: false, reason: "SITE_TOO_CLOSE" };
+  const closed = siteClosedReason(ctx, state, playerId, siteId);
+  if (closed) return { legal: false, reason: closed };
   const needsSurcharge = menaceAt(state, { kind: "site", siteId })?.type === "goblin_tinkers";
   const base = { cost: { ...BALANCE.costs.manor }, needsSurcharge };
   if (isRouteEndpointSite(ctx, state, playerId, siteId)) return { legal: true, ...base, needsToll: false };
@@ -242,7 +279,7 @@ export function getLegalRoutes(ctx: RulesContext, state: GameState, playerId: Pl
 // ------------------------------------------------------------------ setup legality
 
 export function getLegalInitialManorSites(ctx: RulesContext, state: GameState): SiteId[] {
-  return ctx.board.topology.sites.map((s) => s.id).filter((id) => passesSpacing(ctx, state, id));
+  return ctx.board.topology.sites.map((s) => s.id).filter((id) => passesSpacing(ctx, state, id) && !isRuinedSite(state, id));
 }
 
 export function getLegalInitialRoutes(ctx: RulesContext, state: GameState): RouteId[] {
@@ -536,6 +573,41 @@ export function wizardDestinations(ctx: RulesContext, state: GameState, bannerId
  */
 export function isSmoulderingFor(state: GameState, routeId: RouteId, playerId: PlayerId): boolean {
   return state.activeEffects.some((e) => e.kind === "smouldering" && e.routeId === routeId && e.ownerId !== playerId);
+}
+
+/** Siege Fireball (§19.26): nobody may ever build on a ruined Site. */
+export function isRuinedSite(state: GameState, siteId: SiteId): boolean {
+  return (state.ruinedSiteIds ?? []).includes(siteId);
+}
+
+/**
+ * Raiders (§19.24): until the end of the burned Manor's owner's next turn,
+ * only they may build on its Site or next to it, so a rival cannot take the
+ * spot, or block the rebuild, with a Manor of their own.
+ */
+export function isRazedFor(state: GameState, siteId: SiteId, playerId: PlayerId): boolean {
+  return state.activeEffects.some((e) => e.kind === "razed" && e.siteId === siteId && e.ownerId !== playerId);
+}
+
+/**
+ * The rivals Disgrace may strike (§19.22): those with the most Renown, when
+ * the player is behind them. Empty when the player holds or shares the lead.
+ */
+export function disgraceTargets(ctx: RulesContext, state: GameState, playerId: PlayerId): PlayerId[] {
+  const renown = new Map(state.turnOrder.map((id) => [id, getRenown(ctx, state, id)]));
+  const top = Math.max(...renown.values());
+  if ((renown.get(playerId) ?? 0) >= top) return [];
+  return state.turnOrder.filter((id) => id !== playerId && renown.get(id) === top);
+}
+
+/** Whether a Route of the player's ends at the Site (Siege Engines and Raiders, §19.23–19.24). */
+export function touchesOwnRoute(ctx: RulesContext, state: GameState, playerId: PlayerId, siteId: SiteId): boolean {
+  return ctx.board.routesAt(siteId).some((r) => state.routeOwners[r.id] === playerId);
+}
+
+/** Whether Raiders or Siege Fireball may burn a Manor of this player (§19.24, §19.26). */
+export function canLoseManor(state: GameState, ownerId: PlayerId): boolean {
+  return (state.players[ownerId]?.holdingIds.length ?? 0) >= BALANCE.raid.minHoldings;
 }
 
 /** Holdings Dragon's Landing may strike (§19.15), in a deterministic order for the RNG pick. */

@@ -28,6 +28,12 @@ function smoulderingOwner(s: GameState, routeId: string): string | null {
   return null;
 }
 
+/** The burned Manor's owner, while only they may build on its Site (Raiders). */
+function razedOwner(s: GameState, siteId: string): string | null {
+  for (const e of s.activeEffects) if (e.kind === "razed" && e.siteId === siteId) return e.ownerId;
+  return null;
+}
+
 export function describePick(map: MapDefinition, s: GameState, p: Pick, bannerRegion: BannerRegionOf = committedRegion): Description | null {
   const playerName = (id: string) => s.players[id]?.displayName ?? "";
   const occupant = (b: Banner) => {
@@ -59,10 +65,13 @@ export function describePick(map: MapDefinition, s: GameState, p: Pick, bannerRe
       const site = map.sites.find((x) => x.id === p.id);
       if (!site) return null;
       const h = Object.values(s.holdings).find((x) => x.siteId === site.id);
+      const razedFor = razedOwner(s, site.id);
       return {
         title: site.landmarkId ? t(`landmark.${site.landmarkId}`) : h ? t(`holding.${h.type}`) : t("inspect.site"),
         lines: [
           h ? t("inspect.holding_of", { holding: t(`holding.${h.type}`), name: playerName(h.ownerId) }) : t("inspect.empty_site"),
+          ...((s.ruinedSiteIds ?? []).includes(site.id) ? [t("inspect.ruined")] : []),
+          ...(razedFor ? [t(s.activePlayerId === razedFor ? "inspect.razed_now" : "inspect.razed", { name: playerName(razedFor) })] : []),
           t("inspect.touches", { list: site.adjacentRegionIds.map((r) => regionName(map, r)).join(", ") }),
           ...(site.tradePost ? [t("inspect.trade_post", { resource: t(`resource.${site.tradePost.resource}`) })] : []),
         ],

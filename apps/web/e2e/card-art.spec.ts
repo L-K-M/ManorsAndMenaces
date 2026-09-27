@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 import { CARDS } from "@manors-menaces/content";
 import { BALANCE } from "@manors-menaces/rules";
+import { hasCardPainting } from "../src/lib/cardPaintings";
+
+const PAINTED = CARDS.filter((c) => hasCardPainting(c.effectId));
+const UNPAINTED = CARDS.filter((c) => !hasCardPainting(c.effectId));
 
 async function dealPaintedCards(page: Page, ids = CARDS.map((c) => c.id), highContrast = false, textScale = 1) {
   await page.goto("/");
@@ -26,13 +30,13 @@ async function dealPaintedCards(page: Page, ids = CARDS.map((c) => c.id), highCo
   await expect(page.locator(".hand button.card")).toHaveCount(ids.length);
 }
 
-test("every distinct card has its own painting and a larger readable preview", async ({ page }) => {
-  await dealPaintedCards(page);
+test("every painted card has its own painting and a larger readable preview", async ({ page }) => {
+  await dealPaintedCards(page, PAINTED.map((c) => c.id));
   // Enter keyboard modality: script-only focus does not match :focus-visible
   // after the mouse clicks used to deal the review hand.
   await page.keyboard.press("Tab");
   const sources = new Set<string>();
-  for (const def of CARDS) {
+  for (const def of PAINTED) {
     const card = page.locator(".hand button.card").filter({ has: page.locator(`[data-card-art="${def.id}"]`) });
     await card.scrollIntoViewIfNeeded();
     const art = card.locator(".card-art img");
@@ -50,7 +54,30 @@ test("every distinct card has its own painting and a larger readable preview", a
     expect(box.y).toBeGreaterThanOrEqual(0);
     expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height);
   }
-  expect(sources.size).toBe(CARDS.length);
+  expect(sources.size).toBe(PAINTED.length);
+});
+
+test("cards still waiting for a painting show their emblem, without a request or an error", async ({ page }) => {
+  const errors: string[] = [];
+  const requested: string[] = [];
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  page.on("pageerror", (e) => errors.push(String(e)));
+  page.on("request", (r) => /\/art\/cards\//.test(r.url()) && requested.push(r.url()));
+  expect(UNPAINTED.map((c) => c.id)).toEqual(["disgrace", "siege_engines", "raiders", "stolen_glory", "siege_fireball", "sabotage"]);
+  await dealPaintedCards(page, UNPAINTED.map((c) => c.id));
+  await page.keyboard.press("Tab");
+  for (const def of UNPAINTED) {
+    const card = page.locator(".hand button.card").filter({ has: page.locator(`[data-card-art="${def.id}"]`) });
+    await card.scrollIntoViewIfNeeded();
+    await expect(card.locator(".card-art svg")).toBeVisible();
+    await expect(card.locator(".card-art img")).toHaveCount(0);
+    await expect(card).toHaveAttribute("aria-label", /.+ \(.+\): .+/);
+    await card.focus();
+    await expect(page.locator(".peek .card-art svg")).toBeVisible();
+    expect(await page.locator(".hand .peek .rules").evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+  }
+  expect(requested).toEqual([]);
+  expect(errors).toEqual([]);
 });
 
 test("card art keeps vector alternatives for high contrast and failed loads", async ({ page }) => {

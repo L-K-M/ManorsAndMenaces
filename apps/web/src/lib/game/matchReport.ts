@@ -28,7 +28,11 @@ export interface RenownBreakdown {
   quests: number;
   /** Anything else (bonus Renown). */
   other: number;
+  /** Renown lost for good (Disgrace, Stolen Glory): the parts above less this make the total. */
+  lost: number;
 }
+
+export type RenownPart = Exclude<keyof RenownBreakdown, "total" | "lost">;
 
 /**
  * Statistics per player. `null` means the history needed for it is
@@ -132,7 +136,25 @@ export function buildMatchReport(engine: RulesEngine, final: GameState, history:
 export function renownBreakdown(engine: RulesEngine, state: GameState, playerId: PlayerId): RenownBreakdown {
   const s = getRenownSources(engine.ctx, state, playerId);
   const quests = s.quests.reduce((sum, q) => sum + q.renown, 0);
-  return { total: s.total, manors: s.manors.renown, strongholds: s.strongholds.renown, quests, other: s.bonus };
+  return { total: s.total, manors: s.manors.renown, strongholds: s.strongholds.renown, quests, other: s.bonus, lost: s.lost };
+}
+
+/**
+ * Each part's share of a Renown bar. Renown lost for good comes off the
+ * last parts first, so the shares sum to the total and the bar reaches
+ * the goal only when the total does.
+ */
+export function renownBar(b: RenownBreakdown): Record<RenownPart, number> {
+  let lost = b.lost;
+  const keep = (renown: number) => {
+    const cut = Math.min(renown, lost);
+    lost -= cut;
+    return renown - cut;
+  };
+  const other = keep(b.other);
+  const quests = keep(b.quests);
+  const strongholds = keep(b.strongholds);
+  return { manors: keep(b.manors), strongholds, quests, other };
 }
 
 function rankPlayers(state: GameState, result: (id: PlayerId) => PlayerResult): PlayerResult[] {
@@ -356,6 +378,7 @@ function buildRecap(state: GameState, standings: readonly PlayerResult[], events
     const margin = winner.renown.total - (runnerUp?.renown.total ?? 0);
     const params = { name: winner.name, renown: winner.renown.total, round: state.round, runner: runnerUp?.name ?? "", margin };
     if (ragnarok) recap.push(t(margin > 0 ? "recap.crowned_ragnarok" : "recap.crowned_ragnarok_tie", params));
+    else if (endCause === "full_board") recap.push(t(margin > 0 ? "recap.crowned_full_board" : "recap.crowned_full_board_tie", params));
     else recap.push(t(margin > 0 ? "recap.crowned" : "recap.crowned_tie", params));
   }
   return recap;

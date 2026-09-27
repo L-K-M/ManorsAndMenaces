@@ -33,13 +33,14 @@ import { WEIGHTS, resourceNeeds, stockWorth, threat } from "./evaluate.js";
 /**
  * Most targets the planner simulates for one card whose target set can grow
  * large: Transmutation Magic has up to 110, The Plague one per Site, Treasure
- * Hunter one per Hoard resource and Region, Fire Bolt one per rival Route.
+ * Hunter one per Hoard resource and Region, Fire Bolt one per rival Route,
+ * Siege Fireball one per Manor of each richer rival.
  * Each simulated target costs a full evaluation (more on Hard), so these are
  * ranked by a cheap estimate and cut to the best few before the evaluator
  * judges them. Other cards keep every target.
  */
 export const MAX_CARD_TARGETS = 6;
-const PRUNED_EFFECTS: ReadonlySet<CardEffectId> = new Set(["transmutation_magic", "the_plague", "treasure_hunter", "fire_bolt"]);
+const PRUNED_EFFECTS: ReadonlySet<CardEffectId> = new Set(["transmutation_magic", "the_plague", "treasure_hunter", "fire_bolt", "siege_fireball"]);
 
 /** Cheapest-to-spare resource for tolls/surcharges/bribes. */
 export function spareResource(state: GameState, playerId: PlayerId, exclude: Partial<Record<ResourceType, number>> = {}): ResourceType | null {
@@ -189,6 +190,14 @@ function estimateTarget(ctx: RulesContext, state: GameState, playerId: PlayerId,
         (x) => holdingAt(state, x)?.ownerId !== owner && !ctx.board.routesAt(x).some((r) => r.id !== t.routeId && state.routeOwners[r.id] === owner),
       ).length;
       return threat(ctx, state, owner) * (1 + cut);
+    }
+    case "siege_fireball": {
+      const h = holdingAt(state, t.siteId);
+      // As for Fire Bolt, an insured owner's Manors rank below every other.
+      if (!h || insurancePolicyOf(ctx, state, h.ownerId)) return 0;
+      // The Manor's Renown, plus what its Banner harvests for them.
+      const banners = Object.values(state.banners).filter((b) => b.holdingId === h.id);
+      return threat(ctx, state, h.ownerId) * (1 + banners.reduce((v, b) => v + amountOf(b), 0));
     }
     default:
       return 0;

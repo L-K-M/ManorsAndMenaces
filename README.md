@@ -180,7 +180,7 @@ If the folder holds no `manors.sqlite`, say because its name is mistyped, the re
 3. Spend resources on Routes (1 Timber + 1 Stone), Manors (1 Grain + 1 Timber + 1 Stone) and Strongholds (2 Grain + 2 Iron).
 4. Most Regions hold one Banner. Send a rival's settled Banner home with a **Royal Writ** (1 Essence + a 1-resource bribe paid to them).
 5. **Hire a Warden** (1 Essence + 1 Grain) to move a Menace — ideally onto someone else's problem.
-6. First to 15 Renown wins (13 with 4 players, and 10 in the Core rules). Manors are worth 1, Strongholds 2, Royal Quests 1–2.
+6. First to 20 Renown wins (18 with 4 players, and 10 in the Core rules). You can instead pick 15, 20, 25 or 30 when you create a game. Manors are worth 1, Strongholds 2, Royal Quests 1–2. If the board fills up first (no Site left to build on and every Holding a Stronghold), the game ends with that round and the most Renown wins.
 
 The in-game tutorial teaches all of this interactively.
 

@@ -23,17 +23,21 @@ import {
   asyncRuleset,
   createRng,
   createRulesEngine,
+  defaultTargetRenown,
+  isTargetRenownChoice,
   mvpRuleset,
   redactEvent,
   redactState,
   seedRng,
   standardRuleset,
+  targetRenownChoices,
   type GameCommand,
   type GameEvent,
   type GameState,
   type PlayerId,
   type RulesContent,
   type RulesEngine,
+  type RulesetName,
 } from "@manors-menaces/rules";
 import { actorOf, noticeFor, noticesAfter } from "./notices.js";
 import type { MatchRow, SeatRow, Store, UserRow } from "./store.js";
@@ -144,7 +148,14 @@ export class MatchService {
     const seatCount = Number(req?.seatCount);
     if (!Number.isInteger(seatCount) || seatCount < 2 || seatCount > 4) throw new HttpError(400, "seatCount must be 2–4");
     const aiSeats = Array.isArray(req.aiSeats) ? req.aiSeats.slice(0, seatCount - 1) : [];
-    const ruleset = req.rulesetName === "mvp" ? mvpRuleset() : req.rulesetName === "async" ? asyncRuleset(seatCount) : standardRuleset(seatCount);
+    const rules: RulesetName = req.rulesetName === "mvp" || req.rulesetName === "async" ? req.rulesetName : "standard";
+    // The Renown goal is picked when the match is created (spec §7); older clients send none.
+    const targetRenown = req.targetRenown ?? defaultTargetRenown(rules, seatCount);
+    if (!isTargetRenownChoice(rules, seatCount, targetRenown)) {
+      throw new HttpError(400, `targetRenown must be one of ${targetRenownChoices(rules, seatCount).join(", ")} for these rules and seats`);
+    }
+    const options = { targetRenown };
+    const ruleset = rules === "mvp" ? mvpRuleset(options) : rules === "async" ? asyncRuleset(seatCount, options) : standardRuleset(seatCount, options);
     const matchId = `m_${randomUUID()}`;
     const inviteCode = randomBytes(5).toString("base64url").toUpperCase().replace(/[^A-Z0-9]/g, "X").slice(0, 6);
     // Each match is played on an island and a layout drawn from its seed.

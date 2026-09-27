@@ -102,6 +102,12 @@ export function testContent(): RulesContent {
       { id: "robin_of_the_glade", type: "hero", timing: ["main"], effectId: "robin_of_the_glade", copies: 2 },
       { id: "unreliable_bard", type: "hero", timing: ["main"], effectId: "unreliable_bard", copies: 1 },
       { id: "treasure_hunter", type: "hero", timing: ["main"], effectId: "treasure_hunter", copies: 1, requiresMenace: "young_dragon" },
+      { id: "disgrace", type: "spell", timing: ["main"], effectId: "disgrace", copies: 2 },
+      { id: "siege_engines", type: "spell", timing: ["main"], effectId: "siege_engines", copies: 2 },
+      { id: "raiders", type: "spell", timing: ["main"], effectId: "raiders", copies: 2 },
+      { id: "stolen_glory", type: "spell", timing: ["main"], effectId: "stolen_glory", copies: 1 },
+      { id: "siege_fireball", type: "spell", timing: ["main"], effectId: "siege_fireball", copies: 1 },
+      { id: "sabotage", type: "spell", timing: ["main"], effectId: "sabotage", copies: 2 },
     ],
     quests: [
       { id: "kings_highway", renown: 2, conditionId: "kings_highway", exclusive: true },

@@ -1,9 +1,10 @@
 import type { CardEffectId } from "@manors-menaces/rules";
 import type { CardDefinition } from "./types.js";
 
-// The 40-card deck (spec §19): the 24-card prototype, a third Counterspell and
-// the second wave (§19.12–19.21). Each card's id is its effect id, so a typo
-// fails the type check instead of producing a card with no effect.
+// The 51-card deck (spec §19): the 24-card prototype, the second wave
+// (§19.12–19.21), the third wave of attacks on Renown and Grain (§19.22–19.27)
+// and a Counterspell more with each wave. Each card's id is its effect id, so
+// a typo fails the type check instead of producing a card with no effect.
 const card = (
   id: CardEffectId,
   type: CardDefinition["type"],
@@ -24,9 +25,10 @@ const card = (
 
 export const CARDS: CardDefinition[] = [
   card("wizard_interference", "spell", 3, { tags: ["banner", "interference"] }),
-  // Three copies keep Counterspell's share of the deck as the second wave
-  // adds five Spells, most of them hostile (§19.2).
-  card("counterspell", "spell", 3, { timing: ["reaction"], tags: ["reaction"] }),
+  // Four copies keep Counterspell's share of the deck (3 of 40 before the
+  // third wave, 4 of 51 after) as the second and third waves add hostile
+  // Spells (§19.2).
+  card("counterspell", "spell", 4, { timing: ["reaction"], tags: ["reaction"] }),
   card("knight_errant", "hero", 3, { tags: ["menace"] }),
   card("druids_blessing", "spell", 2, { tags: ["harvest"] }),
   card("teleportation_mishap", "spell", 2, { tags: ["menace"], requiresMenacePair: true }),
@@ -46,4 +48,11 @@ export const CARDS: CardDefinition[] = [
   card("robin_of_the_glade", "hero", 2, { tags: ["economy", "catch_up"] }),
   card("unreliable_bard", "hero", 1, { tags: ["renown", "catch_up"] }),
   card("treasure_hunter", "hero", 1, { tags: ["menace"], requiresMenace: "young_dragon" }),
+  // The third wave (§19.22–19.27): Spells that take Renown or Grain.
+  card("disgrace", "spell", 2, { tags: ["renown", "interference"] }),
+  card("siege_engines", "spell", 2, { tags: ["holding", "interference"] }),
+  card("raiders", "spell", 2, { tags: ["holding", "interference"] }),
+  card("stolen_glory", "spell", 1, { tags: ["renown", "catch_up"] }),
+  card("siege_fireball", "spell", 1, { tags: ["holding", "catch_up"] }),
+  card("sabotage", "spell", 2, { tags: ["economy", "interference"] }),
 ];

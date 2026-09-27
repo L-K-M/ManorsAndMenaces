@@ -2,6 +2,7 @@ import type {
   BannerId,
   CardEffectId,
   CardId,
+  GameEndCause,
   HoldingId,
   MenaceId,
   MenaceLocation,
@@ -84,19 +85,43 @@ export type GameEvent =
   | { type: "effect_started"; effect: "plague"; siteId: SiteId; bannerIds: BannerId[]; playerId: PlayerId }
   /**
    * `playerId` is the effect's source for fog and Druid's Blessing, the cured
-   * owner for the Plague, and the burned Route's owner for smouldering.
+   * owner for the Plague, the burned Route's owner for smouldering and the
+   * razed Manor's owner for razed.
    */
-  | { type: "effect_expired"; effect: "fog" | "druids_blessing" | "plague" | "smouldering"; playerId: PlayerId }
+  | { type: "effect_expired"; effect: "fog" | "druids_blessing" | "plague" | "smouldering" | "razed"; playerId: PlayerId }
   // New-card events carry everything a log line needs: destroyed entities are
   // gone from the state the log is formatted against.
   | { type: "hands_swapped"; playerId: PlayerId; opponentId: PlayerId; handSize: number; opponentHandSize: number }
   | { type: "route_burned"; byPlayerId: PlayerId; ownerId: PlayerId; routeId: RouteId }
   | { type: "dragon_landed"; byPlayerId: PlayerId; ownerId: PlayerId; holdingId: HoldingId; siteId: SiteId }
-  | { type: "holding_destroyed"; byPlayerId: PlayerId; ownerId: PlayerId; holdingId: HoldingId; siteId: SiteId; bannerIds: BannerId[] }
+  | {
+      type: "holding_destroyed";
+      byPlayerId: PlayerId;
+      ownerId: PlayerId;
+      holdingId: HoldingId;
+      siteId: SiteId;
+      bannerIds: BannerId[];
+      cause: "dragons_landing" | "raiders" | "siege_fireball";
+    }
   /** A Stronghold knocked back to a Manor; `bannerId` is the Banner it lost. */
-  | { type: "holding_reduced"; byPlayerId: PlayerId; ownerId: PlayerId; holdingId: HoldingId; siteId: SiteId; bannerId: BannerId }
+  | {
+      type: "holding_reduced";
+      byPlayerId: PlayerId;
+      ownerId: PlayerId;
+      holdingId: HoldingId;
+      siteId: SiteId;
+      bannerId: BannerId;
+      cause: "dragons_landing" | "siege_engines";
+    }
+  /** Siege Fireball: nobody may build on the Site again. */
+  | { type: "site_ruined"; byPlayerId: PlayerId; siteId: SiteId }
   | { type: "insurance_claimed"; playerId: PlayerId; cardId: CardId; against: CardEffectId }
   | { type: "renown_gained"; playerId: PlayerId; amount: number; cause: "unreliable_bard" }
+  /** Renown `playerId` loses for the rest of the game. */
+  | { type: "renown_lost"; byPlayerId: PlayerId; playerId: PlayerId; amount: number; cause: "disgrace" }
+  /** Stolen Glory: `fromPlayerId` loses the Renown for good and `byPlayerId` gains it. */
+  | { type: "renown_stolen"; byPlayerId: PlayerId; fromPlayerId: PlayerId; amount: number }
+  | { type: "resources_lost"; byPlayerId: PlayerId; playerId: PlayerId; resource: ResourceType; amount: number; cause: "sabotage" }
   /** A set-aside card (Ragnarök) is shuffled into the draw pile. Public: the omen is announced. */
   | { type: "card_foretold"; cardId: CardId }
   | { type: "market_traded"; playerId: PlayerId; give: ResourceType; giveAmount: number; receive: ResourceType; tradePostSiteId: SiteId | null }
@@ -112,7 +137,9 @@ export type GameEvent =
   | { type: "turn_ended"; playerId: PlayerId }
   | { type: "game_started"; firstPlayerId: PlayerId; turnOrder: PlayerId[] }
   /** `cause` is absent for the normal §7 win (reaching the target). */
-  | { type: "game_won"; playerId: PlayerId; renown: number; cause?: "ragnarok" };
+  | { type: "game_won"; playerId: PlayerId; renown: number; cause?: GameEndCause }
+  /** A turn ended on a full board before the round's last seat: the game ends with the round if the board is still full then (§7). */
+  | { type: "board_full" };
 
 export type ResourceReason =
   | "harvest"

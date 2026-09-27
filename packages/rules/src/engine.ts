@@ -21,7 +21,9 @@ import {
   getPlayerBanners,
   getRenown,
   holdingAt,
+  isBoardFull,
   isLegalMenaceDestination,
+  isRuinedSite,
   passesSpacing,
   totalBuildCost,
   validateBannerAssignment,
@@ -353,6 +355,7 @@ function placeInitialManor(tx: Tx, playerId: PlayerId, siteId: SiteId): void {
   check(setup.placementOrder[setup.placementIndex] === playerId, "NOT_ACTIVE_PLAYER");
   check(typeof siteId === "string" && tx.ctx.board.hasSite(siteId), "UNKNOWN_ENTITY", "site");
   check(!holdingAt(s, siteId), "SITE_OCCUPIED");
+  check(!isRuinedSite(s, siteId), "SITE_RUINED");
   check(passesSpacing(tx.ctx, s, siteId), "SITE_TOO_CLOSE");
   const holdingId = createHolding(tx, playerId, siteId);
   tx.emit({ type: "holding_built", playerId, holdingId, siteId, free: true });
@@ -517,20 +520,34 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
     s.activeEffects = s.activeEffects.filter((e) => !(e.kind === "smouldering" && e.ownerId === playerId));
     tx.emit({ type: "effect_expired", effect: "smouldering", playerId });
   }
+  // Likewise a razed Manor's owner had their turn to rebuild it (Raiders, §19.24).
+  if (s.activeEffects.some((e) => e.kind === "razed" && e.ownerId === playerId)) {
+    s.activeEffects = s.activeEffects.filter((e) => !(e.kind === "razed" && e.ownerId === playerId));
+    tx.emit({ type: "effect_expired", effect: "razed", playerId });
+  }
   p.marketTradesThisTurn = 0;
   p.nonReactionCardsPlayedThisTurn = 0;
   p.writsIssuedThisTurn = 0;
   p.wardensHiredThisTurn = 0;
   tx.emit({ type: "turn_ended", playerId });
 
+  const endsRound = s.turnOrder.indexOf(playerId) === s.turnOrder.length - 1;
   let winner = checkVictory(tx);
   if (winner && s.ruleset.equalTurns) {
     s.endTriggered = true;
     winner = null;
   }
   // equalTurns: the game ends after the last seat of the round, best Renown wins.
-  if (s.endTriggered && s.turnOrder.indexOf(playerId) === s.turnOrder.length - 1) winner = checkVictory(tx, true);
+  if (s.endTriggered && endsRound) winner = checkVictory(tx, true);
   if (winner) return finishGame(tx, winner);
+  // A round that ends on a full board ends the game: nobody can build for
+  // Renown any more, so the best Renown wins, target reached or not (§7).
+  // Until the round's last seat, each turn on a full board says so; a card
+  // that empties the board again (Raiders, Siege Engines) lets the game go on.
+  if (s.ruleset.endOnFullBoard && isBoardFull(tx.ctx, s)) {
+    if (endsRound) return finishGame(tx, checkVictory(tx, true) as PlayerId, "full_board");
+    tx.emit({ type: "board_full" });
+  }
   foretellEndgame(tx);
   const idx = s.turnOrder.indexOf(playerId);
   const nextIdx = (idx + 1) % s.turnOrder.length;
@@ -602,6 +619,8 @@ function buildManor(tx: Tx, playerId: PlayerId, siteId: string, toll: unknown, s
   check(typeof siteId === "string", "INVALID_COMMAND");
   const c = checkBuildManor(tx.ctx, tx.s, playerId, siteId);
   payForBuild(tx, playerId, c, toll, surcharge, "build_manor");
+  // Rebuilding a razed Manor puts out its embers (Raiders, §19.24).
+  tx.s.activeEffects = tx.s.activeEffects.filter((e) => !(e.kind === "razed" && e.siteId === siteId));
   const holdingId = createHolding(tx, playerId, siteId);
   tx.emit({ type: "holding_built", playerId, holdingId, siteId, free: false });
 }
