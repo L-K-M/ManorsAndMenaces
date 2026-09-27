@@ -3,6 +3,7 @@
 
 import { spareResource } from "@manors-menaces/ai";
 import {
+  RESOURCE_TYPES,
   checkBuildManor,
   checkBuildRoute,
   checkUpgrade,
@@ -28,10 +29,12 @@ import {
   type MenaceLocation,
   type PlayerAction,
   type PlayerId,
+  type ResourceCost,
   type ResourceType,
   type RulesContext,
   type SiteId,
 } from "@manors-menaces/rules";
+import { hasKey, t } from "../i18n.js";
 import {
   CARD_STEPS,
   CONFIRMED_CARDS,
@@ -87,6 +90,7 @@ export const ACTION_LABEL: Record<PlayerAction, string> = {
   writ: "action.royal_writ",
   warden: "action.warden",
   card: "action.buy_card",
+  levy: "action.answer_levy",
 };
 
 /** Why each Main-phase action is (un)available, or null outside the Main phase. */
@@ -97,7 +101,7 @@ export function availabilityFor(session: GameSession, legal: LegalActionSummary 
 
 /**
  * Start an action from the action bar: board tools are armed for picking,
- * the Market opens and a card is bought straight away.
+ * the Market opens, and a card is bought or the Levy answered straight away.
  */
 export async function startAction(session: GameSession, action: PlayerAction): Promise<void> {
   if (action === "market") {
@@ -110,9 +114,34 @@ export async function startAction(session: GameSession, action: PlayerAction): P
     await session.perform({ type: "buy_card" });
     return;
   }
+  if (action === "levy") {
+    resetTool();
+    const resource = session.draft.crownLevy?.current;
+    if (resource) await session.perform({ type: "answer_levy", resource });
+    return;
+  }
   if (ui.tool === action) return resetTool();
   resetTool();
   ui.tool = action;
+}
+
+/** A price in words: "1 Timber, 1 Stone", plus resources of the payer's choice. */
+export function costText(cost: ResourceCost, any = 0): string {
+  return [
+    ...RESOURCE_TYPES.filter((r) => (cost[r] ?? 0) > 0).map((r) => `${cost[r]} ${t(`resource.${r}`)}`),
+    ...(any > 0 ? [t("why.any_resource", { count: any })] : []),
+  ].join(", ");
+}
+
+/**
+ * One line on why an action is unavailable, from the rules reason code.
+ * `marketGive` is what a Market trade takes of one resource.
+ */
+export function whyUnavailable(action: PlayerAction, a: ActionAvailability, marketGive: number): string {
+  if (!a.reason) return "";
+  if (a.reason === "NEED_RESOURCES") return t("why.NEED_RESOURCES", { list: costText(a.missing ?? {}, a.missingAny ?? 0) });
+  const specific = `why.${a.reason}.${action}`;
+  return t(hasKey(specific) ? specific : `why.${a.reason}`, { count: marketGive });
 }
 
 /** Open the Market set up for the trades that make `action` affordable. */

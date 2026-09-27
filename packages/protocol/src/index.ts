@@ -299,6 +299,7 @@ const COMMAND_TYPES = new Set([
   "issue_royal_writ",
   "hire_warden",
   "claim_quest",
+  "answer_levy",
   "end_main_phase",
   "assign_banners",
   "discard_cards",

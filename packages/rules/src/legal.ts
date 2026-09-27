@@ -18,6 +18,8 @@ import {
   getPlayerHoldings,
   getWritTargets,
   holdingAt,
+  levyClosedReason,
+  levyCost,
   menaceOfType,
 } from "./selectors.js";
 import {
@@ -69,6 +71,8 @@ export interface LegalActionSummary {
   /** Menaces a Warden may move (not guarded by another player's Warden). */
   wardenMenaces: string[];
   claimableQuests: QuestId[];
+  /** This round's Crown's Levy is in force, unanswered by the player, and they can pay it (§27.3). */
+  canAnswerLevy: boolean;
   mustDiscard: number;
   reactionCards: CardId[];
 }
@@ -97,6 +101,7 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
     canHireWarden: false,
     wardenMenaces: [],
     claimableQuests: [],
+    canAnswerLevy: false,
     mustDiscard: 0,
     reactionCards: [],
   };
@@ -166,6 +171,8 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
   const claimableQuests = r.enableQuests
     ? state.revealedQuestIds.filter((q) => !p.claimedQuestIds.includes(q) && getQuestProgress(ctx, state, playerId, q).complete)
     : [];
+  const levy = levyCost(state);
+  const canAnswerLevy = levy !== null && levyClosedReason(state, playerId) === null && canAfford(p.resources, levy);
   return {
     ...empty,
     mode: "main",
@@ -182,6 +189,7 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
     canHireWarden,
     wardenMenaces,
     claimableQuests,
+    canAnswerLevy,
   };
 }
 
@@ -329,10 +337,10 @@ function resourcePairs(): [ResourceType, ResourceType][] {
 
 // ------------------------------------------------------------------ availability
 
-/** The Main-phase actions a UI offers as tools. */
-export type PlayerAction = "route" | "manor" | "upgrade" | "market" | "writ" | "warden" | "card";
+/** The Main-phase actions a UI offers, as tools or (the Crown's Levy) beside the Quests. */
+export type PlayerAction = "route" | "manor" | "upgrade" | "market" | "writ" | "warden" | "card" | "levy";
 
-export const PLAYER_ACTIONS: readonly PlayerAction[] = ["route", "manor", "upgrade", "market", "writ", "warden", "card"];
+export const PLAYER_ACTIONS: readonly PlayerAction[] = ["route", "manor", "upgrade", "market", "writ", "warden", "card", "levy"];
 
 /** Why an action is unavailable right now, most fundamental first. */
 export type UnavailableReason =
@@ -475,6 +483,7 @@ export function getActionAvailability(ctx: RulesContext, state: GameState, playe
     writ: { cost: BALANCE.costs.royalWrit, any: BALANCE.costs.royalWritBribe },
     warden: { cost: BALANCE.costs.warden, any: 0 },
     card: { cost: BALANCE.costs.card, any: 0 },
+    levy: { cost: levyCost(state) ?? {}, any: 0 },
   };
   const tradesLeft = legal.mode === "main" ? legal.marketTradesLeft : 0;
   const out = Object.fromEntries(
@@ -514,6 +523,12 @@ export function getActionAvailability(ctx: RulesContext, state: GameState, playe
   if (!r.enableCards) blocked.card = "FEATURE_DISABLED";
   else if (state.cardDeck.length + state.discardPile.length === 0) blocked.card = "DECK_EMPTY";
   else prices.card = [fixed.card];
+
+  const levyClosed = levyClosedReason(state, playerId);
+  if (levyClosed === "FEATURE_DISABLED") blocked.levy = "FEATURE_DISABLED";
+  else if (levyClosed === "LEVY_NOT_ACTIVE") blocked.levy = "NO_TARGET";
+  else if (levyClosed === "LEVY_LIMIT_REACHED") blocked.levy = "LIMIT_REACHED";
+  else prices.levy = [fixed.levy];
 
   const posts = ownedTradePosts(ctx, state, playerId);
   for (const a of PLAYER_ACTIONS) {

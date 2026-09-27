@@ -144,6 +144,23 @@ describe("formatEvents: second-wave cards", () => {
     ]);
     expect(endCauseOf(entries)).toBe("full_board");
   });
+
+  it("proclaims the Crown's Levy, the first as an omen, and tells who answered it (§27.3)", () => {
+    const entries = formatEvents(
+      [
+        { type: "levy_proclaimed", resource: "timber", round: 16, current: null },
+        { type: "levy_proclaimed", resource: "stone", round: 17, current: "timber" },
+        { type: "levy_answered", playerId: "P2", resource: "timber", amount: 5, renown: 1 },
+      ],
+      state,
+      map,
+    );
+    expect(entries.map((e) => [e.kind, e.text, e.playerId])).toEqual([
+      ["omen", "The King's Marshal rides in: the Crown's Levy begins next round, with Timber for the King's new fleet.", null],
+      ["important", "The Crown's Levy this round: Timber. Next round the Marshal calls for Stone to mend the Royal Castle's walls.", null],
+      ["important", "Player 2 answered the Crown's Levy with 5 Timber: +1 Renown.", "P2"],
+    ]);
+  });
 });
 
 describe("formatEvents: third-wave cards", () => {

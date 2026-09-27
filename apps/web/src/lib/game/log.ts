@@ -297,6 +297,22 @@ export function formatEvents(events: GameEvent[], state: GameState, map: MapDefi
       case "board_full":
         push(t("log.board_full"), null, "omen", e);
         break;
+      // The Crown's Levy (§27.3): the Marshal's first arrival is an omen of
+      // the endgame; later rounds' Levies are news for everyone.
+      case "levy_proclaimed": {
+        const params = { resource: t(`resource.${e.resource}`), reason: t(`levy.reason.${e.resource}`) };
+        if (e.current) push(t("log.levy_proclaimed", { ...params, current: t(`resource.${e.current}`) }), null, "important", e);
+        else push(t("log.levy_first", params), null, "omen", e);
+        break;
+      }
+      case "levy_answered":
+        push(
+          t("log.levy_answered", { name: nameOf(state, e.playerId), amount: e.amount, resource: t(`resource.${e.resource}`), renown: e.renown }),
+          e.playerId,
+          "important",
+          e,
+        );
+        break;
       case "game_won":
         if (e.cause === "ragnarok") push(t("log.won_ragnarok", { name: nameOf(state, e.playerId), renown: e.renown }), e.playerId, "omen", e);
         else if (e.cause === "full_board") push(t("log.won_full_board", { name: nameOf(state, e.playerId), renown: e.renown }), e.playerId, "important", e);

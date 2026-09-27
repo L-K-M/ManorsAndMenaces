@@ -82,6 +82,12 @@ export interface ClaimQuestCommand extends CommandBase {
   type: "claim_quest";
   questId: QuestId;
 }
+/** The Crown's Levy (§27.3). */
+export interface AnswerLevyCommand extends CommandBase {
+  type: "answer_levy";
+  /** Must name this round's Levy, so a stale client never pays for the wrong one. */
+  resource: ResourceType;
+}
 export interface EndMainPhaseCommand extends CommandBase {
   type: "end_main_phase";
 }
@@ -129,6 +135,7 @@ export type GameCommand =
   | IssueRoyalWritCommand
   | HireWardenCommand
   | ClaimQuestCommand
+  | AnswerLevyCommand
   | EndMainPhaseCommand
   | AssignBannersCommand
   | DiscardCardsCommand

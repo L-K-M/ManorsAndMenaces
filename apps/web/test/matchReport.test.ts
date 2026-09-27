@@ -31,8 +31,9 @@ describe("buildMatchReport", () => {
     for (const r of report.standings) {
       const b = r.renown;
       expect(b.total).toBe(getRenown(engine.ctx, game.final, r.playerId));
-      expect(b.manors + b.strongholds + b.quests + b.other - b.lost).toBe(b.total);
+      expect(b.manors + b.strongholds + b.quests + b.levy + b.other - b.lost).toBe(b.total);
       const p = game.final.players[r.playerId];
+      expect(b.levy).toBe(p?.levyRenown ?? 0);
       expect(b.other).toBe(p?.bonusRenown ?? 0);
       expect(b.lost).toBe(p?.lostRenown ?? 0);
     }
@@ -168,16 +169,17 @@ function ragnarokGame(): { initial: GameState; final: GameState; commands: GameC
 }
 
 /**
- * Three normal AIs to 20 Renown on a seed whose board fills up first: the
+ * Three normal AIs to 30 Renown on a seed whose board fills up first: the
  * round that ends on the full board ends the game (§7). The goal is pinned
- * because the default of 15 is reached before the board fills.
+ * because the default of 15 is reached before the board fills, and with the
+ * Crown's Levy (§27.3) so is 20.
  */
 function fullBoardGame(): { initial: GameState; final: GameState; commands: GameCommand[] } {
   const initial = engine.createGame({
     matchId: "m-full",
     seed: "e2e-finished",
     rulesetVersion: RULESET_VERSION,
-    ruleset: standardRuleset(3, { targetRenown: 20 }),
+    ruleset: standardRuleset(3, { targetRenown: 30 }),
     players: ["P1", "P2", "P3"].map((id, i) => ({ id, displayName: `Player ${i + 1}` })),
   });
   const rng = createRng(seedRng("e2e-finished-ai"));
@@ -252,7 +254,7 @@ describe("pickAwards", () => {
   const player = (playerId: string, renown: number, s: Partial<MatchStats>): PlayerResult => ({
     playerId,
     name: playerId,
-    renown: { total: renown, manors: renown, strongholds: 0, quests: 0, other: 0, lost: 0 },
+    renown: { total: renown, manors: renown, strongholds: 0, quests: 0, levy: 0, other: 0, lost: 0 },
     stats: stats(s),
   });
 
@@ -285,8 +287,18 @@ describe("pickAwards", () => {
 
 describe("renownBar", () => {
   it("takes Renown lost for good off the last sources, so the bar ends at the total", () => {
-    expect(renownBar({ total: 7, manors: 2, strongholds: 4, quests: 3, other: 1, lost: 3 })).toEqual({ manors: 2, strongholds: 4, quests: 1, other: 0 });
-    expect(renownBar({ total: 0, manors: 1, strongholds: 0, quests: 0, other: 0, lost: 1 })).toEqual({ manors: 0, strongholds: 0, quests: 0, other: 0 });
+    expect(renownBar({ total: 7, manors: 2, strongholds: 4, quests: 3, levy: 0, other: 1, lost: 3 })).toEqual({ manors: 2, strongholds: 4, quests: 1, levy: 0, other: 0 });
+    expect(renownBar({ total: 0, manors: 1, strongholds: 0, quests: 0, levy: 0, other: 0, lost: 1 })).toEqual({ manors: 0, strongholds: 0, quests: 0, levy: 0, other: 0 });
+  });
+
+  it("shows the Crown's Levy as its own part, after the Quests (§27.3)", () => {
+    expect(renownBar({ total: 9, manors: 2, strongholds: 4, quests: 1, levy: 3, other: 0, lost: 1 })).toEqual({ manors: 2, strongholds: 4, quests: 1, levy: 2, other: 0 });
+    const s = clone(game.final);
+    const id = s.turnOrder.find((p) => p !== s.winnerId) ?? "";
+    s.players[id]!.levyRenown = 2;
+    const b = renownBreakdown(engine, s, id);
+    expect(b.levy).toBe(2);
+    expect(b.total).toBe(getRenown(engine.ctx, s, id));
   });
 
   it("stops at a disgraced player's total, short of the goal", () => {
@@ -296,7 +308,7 @@ describe("renownBar", () => {
     const b = renownBreakdown(engine, s, id);
     expect(b.lost).toBe(2);
     const bar = renownBar(b);
-    expect(bar.manors + bar.strongholds + bar.quests + bar.other).toBe(b.total);
+    expect(bar.manors + bar.strongholds + bar.quests + bar.levy + bar.other).toBe(b.total);
     expect(b.total).toBeLessThan(s.ruleset.targetRenown);
   });
 });

@@ -139,6 +139,7 @@ describe("hostile command fields", () => {
     issue_royal_writ: ["targetBannerId", "bribe"],
     hire_warden: ["menaceId", "destination"],
     claim_quest: ["questId"],
+    answer_levy: ["resource"],
     end_main_phase: [],
     assign_banners: ["assignments"],
     discard_cards: ["cardIds"],
@@ -191,6 +192,7 @@ describe("hostile command fields", () => {
       menaceId: "menace_toll_troll",
       destination,
       questId: s.revealedQuestIds[0],
+      resource: s.crownLevy?.current ?? "grain",
       cardIds: hand,
       order: s.pending?.kind === "prophecy" ? s.pending.cardIds : [],
     };

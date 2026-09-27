@@ -35,6 +35,7 @@
   import RivalQuips from "./RivalQuips.svelte";
   import ScoreStrip from "./ScoreStrip.svelte";
   import RenownDialog from "./RenownDialog.svelte";
+  import ResourceIcon from "./ResourceIcon.svelte";
   import ToolIcon from "./ToolIcon.svelte";
   import SettingsDialog from "./SettingsDialog.svelte";
   import TutorialCoach from "./TutorialCoach.svelte";
@@ -115,6 +116,11 @@
   function closePanel() {
     panelOpen = false;
     panelToggle?.focus();
+  }
+  /** The Levy chip shows the Quest panel, where the Levy is answered (§27.3). */
+  function showLevy() {
+    ui.panel = "quests";
+    if (slideOver && !panelOpen) void openPanel();
   }
   function closeTray() {
     const hadFocus = !!document.activeElement?.closest("#dock-tray");
@@ -206,6 +212,21 @@
     <img class="brand-mark" src={`${import.meta.env.BASE_URL}art/manor-troll.png`} alt="" width="40" height="40" />
     <h1>{t("app.title")}</h1>
     <span class="round">{t("ui.round_n", { n: Math.max(1, gs.round) })}</span>
+    {#if gs.crownLevy}
+      {@const levy = gs.crownLevy}
+      {@const shown = levy.current ?? levy.next}
+      <!-- The Crown's Levy (§27.3): opens the Quest panel, where it can be answered. -->
+      <button
+        class="ghost levy-chip"
+        onclick={showLevy}
+        aria-label={levy.current
+          ? t("levy.chip_label", { resource: t(`resource.${levy.current}`), next: t(`resource.${levy.next}`) })
+          : t("levy.chip_label_first", { resource: t(`resource.${levy.next}`) })}
+      >
+        <ResourceIcon resource={shown} size={16} label={false} />
+        <span class="levy-chip-text">{levy.current ? t("levy.chip", { resource: t(`resource.${shown}`) }) : t("levy.chip_next", { resource: t(`resource.${shown}`) })}</span>
+      </button>
+    {/if}
     <div class="score"><ScoreStrip {session} /></div>
     <span class="spacer"></span>
     {#if session.transport.kind === "local" && !tutorial}<button class="ghost" onclick={save}>{savedNote ?? t("ui.save")}</button>{/if}
@@ -376,6 +397,16 @@
   .round {
     opacity: 0.85;
     font-size: 0.9rem;
+    white-space: nowrap;
+  }
+  .topbar .levy-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 32px;
+    padding: 0.1rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
     white-space: nowrap;
   }
   /* The scoreboard takes the free space in the bar and shrinks (names
@@ -684,6 +715,12 @@
   }
   [data-layout="sheet"] .topbar h1 {
     display: none;
+  }
+  /* On a phone the Levy chip keeps only its resource, so the bar stays one row. */
+  @container topbar (max-width: 30rem) {
+    .levy-chip-text {
+      display: none;
+    }
   }
   @container topbar (max-width: 24rem) {
     .round {

@@ -29,7 +29,7 @@ export interface FeedItem {
   againstViewer: boolean;
   /** The viewer's own harvest: shown as it lands, never in a digest. */
   self: boolean;
-  /** The endgame foretold (Ragnarök): drawn to stand out from ordinary moves. */
+  /** The endgame foretold (Ragnarök), a full board or the Crown's Levy: drawn to stand out from ordinary moves. */
   omen?: true;
 }
 
@@ -280,6 +280,16 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
       }
       case "board_full":
         out.push({ actorId: null, text: t("feed.board_full"), at: null, gains: null, againstViewer: false, self: false, omen: true });
+        break;
+      // The King's Marshal proclaims each round's Levy to everyone, like an omen (§27.3).
+      case "levy_proclaimed": {
+        const params = { resource: t(`resource.${e.resource}`), reason: t(`levy.reason.${e.resource}`) };
+        const text = e.current ? t("feed.levy_proclaimed", { ...params, current: t(`resource.${e.current}`) }) : t("feed.levy_first", params);
+        out.push({ actorId: null, text, at: null, gains: null, againstViewer: false, self: false, omen: true });
+        break;
+      }
+      case "levy_answered":
+        add(e.playerId, t("feed.levy_answered", { name: name(e.playerId), renown: e.renown }));
         break;
       case "harvest_completed": {
         if (e.playerId === viewerId) {

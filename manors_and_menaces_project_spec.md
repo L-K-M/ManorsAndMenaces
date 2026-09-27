@@ -245,7 +245,7 @@ The target is `RulesetConfig.targetRenown`. It is chosen when a game is created:
 
 The winning condition is checked during the End Turn phase of the active player's turn, after all other end-of-turn effects.
 
-In the base game only the active player can gain Renown, because building and Quest claims happen only in their own Main Action phase. The check therefore looks at the active player first. If any player is at or above the target when the check runs, the game ends. If more than one player is at or above the target (possible only through future effects), use the following tie-break order:
+In the base game only the active player can gain Renown, because building, Quest claims and answers to the Crown's Levy (§27.3) happen only in their own Main Action phase. The check therefore looks at the active player first. If any player is at or above the target when the check runs, the game ends. If more than one player is at or above the target (possible only through future effects), use the following tie-break order:
 
 1. highest Renown;
 2. most completed Royal Quests;
@@ -257,7 +257,7 @@ Simultaneous wins should be rare.
 
 **Exception: Ragnarök.** The game can also end before anyone reaches the target. When Ragnarök resolves (§19.13), the game ends at once, in the middle of the turn, without the End Turn phase. The winner is decided by the same tie-break order, applied to all players, and may have less than the target Renown.
 
-**Exception: a full board.** The board can fill up before anyone reaches the target, most often with 3 or 4 players and the higher goals (§129.6). The board is full when no Site could take a new Manor, whoever builds, because each is built on, in ruins (§19.26) or too close to a Holding (§10.3), and every Holding is a Stronghold. A Site burned down by Raiders (§19.24) counts as open, since its owner may rebuild there. On a full board nobody can build for Renown any more; only Quests and cards remain. So when the round ends on a full board (the End Turn phase of the last player in turn order, after the victory check above), the game ends. The winner is decided by the same tie-break order, applied to all players, and may have less than the target Renown. Until then, each End Turn on a full board announces that the game ends with the round if the board is still full then (`board_full`); a card that empties it again, such as Raiders or Siege Engines, lets the game go on. The game records how it ended (`endCause: "full_board"`). The rule is `RulesetConfig.endOnFullBoard`, on in every ruleset from 0.7.0; games created before it play on.
+**Exception: a full board.** The board can fill up before anyone reaches the target, most often with 3 or 4 players and the higher goals (§129.6). The board is full when no Site could take a new Manor, whoever builds, because each is built on, in ruins (§19.26) or too close to a Holding (§10.3), and every Holding is a Stronghold. A Site burned down by Raiders (§19.24) counts as open, since its owner may rebuild there. On a full board nobody can build for Renown any more; only Quests, cards and the Crown's Levy (§27.3) remain. So when the round ends on a full board (the End Turn phase of the last player in turn order, after the victory check above), the game ends. The winner is decided by the same tie-break order, applied to all players, and may have less than the target Renown. Until then, each End Turn on a full board announces that the game ends with the round if the board is still full then (`board_full`); a card that empties it again, such as Raiders or Siege Engines, lets the game go on. The game records how it ended (`endCause: "full_board"`). The rule is `RulesetConfig.endOnFullBoard`, on in every ruleset from 0.7.0; games created before it play on.
 
 ## 7.1 Renown budget
 
@@ -283,6 +283,7 @@ Default Renown values:
 | Minor Royal Quest | 1 |
 | Major Royal Quest | 2 |
 | Rare card/story reward (base game: The Unreliable Bard, §19.20) | 1 |
+| Answering the Crown's Levy (§27.3), each time | 1 (2 at goals of 25 and more) |
 | Major landmark objective | 1–2 |
 
 A Manor upgraded to a Stronghold increases the player's Renown by **+1**, because the site moves from 1 total Renown to 2 total Renown.
@@ -754,6 +755,7 @@ Typical actions:
 - Issue a Royal Writ (§14.7);
 - Hire a Warden to move a Menace (§26.1);
 - Claim completed Quest;
+- Answer the Crown's Levy (§27.3);
 - Use landmark ability (not in base game; see §80);
 - Activate hero ability.
 
@@ -1429,6 +1431,22 @@ With the rule set to N rounds:
 
 No randomness is involved beyond the setup shuffle of the Quest deck (§30), so replays stay deterministic.
 
+## 27.3 The Crown's Levy
+
+On in the Standard and async rules at every goal (`RulesetConfig.crownLevy`, from ruleset 0.8.0). The Core rules have no Quests and no Levy. Games created before 0.8.0 have no `crownLevy` field and play on without it: the engine never draws a Levy for them, so they replay as before.
+
+The first round that begins with the Quest deck empty, or round 15 (`proclaimByRound`) at the latest, the King's Marshal rides in and proclaims a Levy for the next round. From then on, as each round begins, the proclaimed Levy takes effect and the Marshal proclaims the next. This round's Levy and the next round's are always public (`GameState.crownLevy`).
+
+- **The resource.** Each Levy names one resource. The Crown calls each of the five once, in an order drawn from the match RNG (§30), before it calls any of them again; `crownLevy.called` lists the current cycle, the next Levy last, so the rest of the cycle can be read from it. Each proclamation carries a line of fiction: Timber for the King's new fleet, Stone to mend the Royal Castle's walls, Grain to feed the army on the march, Iron for the royal armoury, Essence for the court wizards' wards.
+- **Answer the Levy** (Main Action, once per player per round, `answer_levy`): pay 5 (`price`) of this round's resource to the supply and gain 1 Renown, or 2 when the game's goal is 25 or more (`BALANCE.crownLevy`). It does not matter how the resources were got: Harvest, the Market, a Trading Post or a card.
+- The command names the resource, which must be this round's (`INVALID_PAYMENT` otherwise), so a stale client never pays for the wrong Levy. It is refused with `LEVY_NOT_ACTIVE` before the first Levy takes effect and with `LEVY_LIMIT_REACHED` for a second answer in a round.
+- **Levy Renown** is kept for the rest of the game, like a claimed Quest's, but it is not a Quest: it counts for neither the Quest tie-break (§7) nor any Quest condition. It is its own Renown source (`PlayerState.levyRenown`, the `levy` part of `getRenownSources`), shown as such in the Renown dialog and on the results.
+- The Levy runs until the game ends; the victory check, a full board (§7) and Ragnarök end the game as before.
+- Events: `levy_proclaimed` (public: the Levy now in force, null for the first, and the next one) and `levy_answered`.
+- The Quest panel shows the Levy above the Quests: its resource, the price and Renown, the next Levy, who has answered, and a button that says why it is unavailable (the shortfall, with the Market trades that cover it). A chip beside the round number names this round's Levy.
+
+**Rationale.** With 3 or 4 players the board usually fills before anyone reaches a goal of 20 or more (§129.6). The Levy is a Renown source that needs no Site and spends the late surplus. It starts when the Quest deck runs out, around round 15 in simulations, when building has slowed. 5 resources for 1 Renown is about the price of a Manor with its Routes; the Renown doubles at 25 and 30, which building alone rarely reaches. The AI saves for this round's Levy and the next, trades toward it, and never answers while an affordable upgrade waits.
+
 ---
 
 # 28. Setup
@@ -1633,6 +1651,7 @@ export interface GameState {
 
   delayedEffects: DelayedEffect[];
   ruinedSiteIds?: SiteId[]; // Siege Fireball (§19.26): nobody may build there again
+  crownLevy?: { current: ResourceType | null; next: ResourceType; called: ResourceType[]; answeredBy: PlayerId[] }; // §27.3, public
   historyMeta: HistoryMeta;
   winnerId?: PlayerId;
   endCause?: "ragnarok" | "full_board"; // §19.13, §7; absent when the target was reached
@@ -1651,9 +1670,11 @@ export interface PlayerState {
   hand: CardId[];
 
   // Renown from explicit rewards (rare cards, story rewards). Total Renown is
-  // derived by getRenown() from Holdings + claimed Quests + bonusRenown -
-  // lostRenown; it is never stored.
+  // derived by getRenown() from Holdings + claimed Quests + levyRenown +
+  // bonusRenown - lostRenown; it is never stored.
   bonusRenown: number;
+  // Renown from answering the Crown's Levy (§27.3); absent until the first answer.
+  levyRenown?: number;
   // Renown lost for the rest of the game (Disgrace, Stolen Glory, §8). Never
   // more than keeps the total at 0 or above; absent in older saves.
   lostRenown?: number;

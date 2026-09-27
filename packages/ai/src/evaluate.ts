@@ -79,6 +79,9 @@ export const CARD_GOAL_HAND = 3;
 const CARD_GOAL_HOLDINGS = 3;
 /** Weight of that goal against building (0.45 each). */
 const CARD_GOAL_WEIGHT = 0.3;
+/** Weights of this round's and the next round's Crown's Levy as goals (§27.3). */
+const LEVY_GOAL_WEIGHT = 0.45;
+const NEXT_LEVY_GOAL_WEIGHT = 0.3;
 
 /**
  * How much the player currently wants each resource, based on what their next
@@ -103,6 +106,13 @@ export function resourceNeeds(ctx: RulesContext, state: GameState, playerId: Pla
   if (state.ruleset.enableCards && state.cardDeck.length + state.discardPile.length > 0 && p.hand.length < CARD_GOAL_HAND && holdings.length >= CARD_GOAL_HOLDINGS) {
     goals.push({ cost: BALANCE.costs.card, weight: CARD_GOAL_WEIGHT });
   }
+  // The Crown's Levy (§27.3): this round's until answered, as much as a
+  // build, and the next round's a little less, so the AI starts saving a
+  // round ahead, as the next Levy is public.
+  const levy = state.crownLevy;
+  const price = state.ruleset.crownLevy?.price ?? 0;
+  if (levy?.current && !levy.answeredBy.includes(playerId)) goals.push({ cost: { [levy.current]: price }, weight: LEVY_GOAL_WEIGHT });
+  if (levy) goals.push({ cost: { [levy.next]: price }, weight: NEXT_LEVY_GOAL_WEIGHT });
   for (const goal of goals) {
     for (const r of RESOURCE_TYPES) {
       const missing = Math.max(0, (goal.cost[r] ?? 0) - p.resources[r]);

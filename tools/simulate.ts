@@ -77,7 +77,7 @@ interface GameStats {
   rounds: number;
   winnerSeat: number | null;
   winnerRenown: number;
-  renownSources: { holdings: number; quests: number; bonus: number };
+  renownSources: { holdings: number; quests: number; levy: number; bonus: number };
   writs: number;
   wardens: number;
   trades: number;
@@ -97,6 +97,13 @@ interface GameStats {
   ragnarokRound: number | null;
   /** Round the game ended on a full board, if it did (§7). */
   fullBoardRound: number | null;
+  /** The Crown's Levy (§27.3): the round the first Levy was proclaimed for, if one was. */
+  firstLevyRound: number | null;
+  /** Levy Renown gained, over all players. */
+  levyRenown: number;
+  /** Answers, and player turns that began with a Levy in force (each a chance to answer). */
+  levyAnswers: number;
+  levyChances: number;
   targetRenown: number;
   // Second-wave card outcomes (§19.12–19.21).
   holdingsDestroyed: number;
@@ -139,7 +146,7 @@ function playOne(i: number): GameStats {
     rounds: 0,
     winnerSeat: null,
     winnerRenown: 0,
-    renownSources: { holdings: 0, quests: 0, bonus: 0 },
+    renownSources: { holdings: 0, quests: 0, levy: 0, bonus: 0 },
     writs: 0,
     wardens: 0,
     trades: 0,
@@ -155,6 +162,10 @@ function playOne(i: number): GameStats {
     omenRound: null,
     ragnarokRound: null,
     fullBoardRound: null,
+    firstLevyRound: null,
+    levyRenown: 0,
+    levyAnswers: 0,
+    levyChances: 0,
     targetRenown: s.ruleset.targetRenown,
     holdingsDestroyed: 0,
     holdingsReduced: 0,
@@ -215,6 +226,12 @@ function playOne(i: number): GameStats {
       if (e.type === "holding_destroyed" && e.cause === "raiders") stats.raided++;
       if (e.type === "site_ruined") stats.ruined++;
       if (e.type === "resources_lost") stats.grainBurned += e.amount;
+      if (e.type === "levy_proclaimed" && e.current === null) stats.firstLevyRound = e.round;
+      if (e.type === "turn_started" && s.crownLevy?.current) stats.levyChances++;
+      if (e.type === "levy_answered") {
+        stats.levyAnswers++;
+        stats.levyRenown += e.renown;
+      }
     }
     if (s.round !== lastRound && s.status === "playing") {
       lastRound = s.round;
@@ -239,6 +256,7 @@ function playOne(i: number): GameStats {
     stats.winnerRenown = getRenown(ctx, s, s.winnerId);
     stats.renownSources.holdings = getPlayerHoldings(s, s.winnerId).reduce((n, h) => n + (h.type === "manor" ? 1 : 2), 0);
     stats.renownSources.quests = (s.players[s.winnerId]?.claimedQuestIds ?? []).reduce((n, q) => n + ctx.quest(q).renown, 0);
+    stats.renownSources.levy = s.players[s.winnerId]?.levyRenown ?? 0;
     stats.renownSources.bonus = (s.players[s.winnerId]?.bonusRenown ?? 0) - (s.players[s.winnerId]?.lostRenown ?? 0);
   }
   stats.maxHoldShare = Math.max(0, ...[...longest.values()]) / Math.max(1, s.round);
@@ -267,7 +285,17 @@ if (fullBoards.length) {
   console.log(`full board:          ended ${fullBoards.length}/${GAMES} (avg round ${avg(fullBoards.map((r) => Number(r.fullBoardRound))).toFixed(1)}, winner below target in ${short})`);
 }
 console.log(`rounds (turns/player): avg ${avg(finished.map((r) => r.rounds)).toFixed(1)}  min ${Math.min(...finished.map((r) => r.rounds))}  max ${Math.max(...finished.map((r) => r.rounds))}   target 12–16`);
-console.log(`winner renown:       avg ${avg(finished.map((r) => r.winnerRenown)).toFixed(1)} (holdings ${avg(finished.map((r) => r.renownSources.holdings)).toFixed(1)}, quests ${avg(finished.map((r) => r.renownSources.quests)).toFixed(1)}, bonus less lost ${avg(finished.map((r) => r.renownSources.bonus)).toFixed(1)})`);
+console.log(
+  `winner renown:       avg ${avg(finished.map((r) => r.winnerRenown)).toFixed(1)} (holdings ${avg(finished.map((r) => r.renownSources.holdings)).toFixed(1)}, quests ${avg(finished.map((r) => r.renownSources.quests)).toFixed(1)}, levy ${avg(finished.map((r) => r.renownSources.levy)).toFixed(1)}, bonus less lost ${avg(finished.map((r) => r.renownSources.bonus)).toFixed(1)})`,
+);
+if (RULESET.crownLevy) {
+  const levied = results.filter((r) => r.firstLevyRound !== null);
+  const answers = results.reduce((n, r) => n + r.levyAnswers, 0);
+  const chances = results.reduce((n, r) => n + r.levyChances, 0);
+  console.log(
+    `crown's levy:        proclaimed in ${levied.length}/${GAMES} games (first Levy in round ${avg(levied.map((r) => Number(r.firstLevyRound))).toFixed(1)} on average); Levy Renown per player ${(avg(results.map((r) => r.levyRenown)) / PLAYERS).toFixed(2)}; answered ${answers} of ${chances} chances (${Math.round((100 * answers) / Math.max(1, chances))}%)`,
+  );
+}
 console.log(`seat win rates:      ${seatWins.map((w, k) => `seat${k + 1} ${pct(w)}`).join("  ")}   target: none > ${PLAYERS === 4 ? "30" : "45"}%`);
 console.log(`harvest per turn:    early ${avg(results.flatMap((r) => r.harvestMid)).toFixed(2)}  later ${avg(results.flatMap((r) => r.harvestLate)).toFixed(2)}   target mid 3–5, late 4–7`);
 console.log(`per game:            writs ${avg(results.map((r) => r.writs)).toFixed(1)}  wardens ${avg(results.map((r) => r.wardens)).toFixed(1)}  trades ${avg(results.map((r) => r.trades)).toFixed(1)}  cards bought ${avg(results.map((r) => r.bought)).toFixed(1)} played ${avg(results.map((r) => r.cards)).toFixed(1)}  quests ${avg(results.map((r) => r.quests)).toFixed(1)}`);

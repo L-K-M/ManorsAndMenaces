@@ -198,6 +198,25 @@ export interface RulesetConfig {
    * play on.
    */
   endOnFullBoard?: boolean;
+  /**
+   * The Crown's Levy (§27.3): once the Quest deck runs out, each round names
+   * a resource that anyone may pay for Renown. Absent in games created before
+   * ruleset 0.8.0 and in the Core rules, which never hear of it.
+   */
+  crownLevy?: CrownLevyRules;
+}
+
+/** How the Crown's Levy runs in a game (§27.3). */
+export interface CrownLevyRules {
+  /** Resources of the named kind an answer pays to the supply. */
+  price: number;
+  /** Renown an answer gains. */
+  renown: number;
+  /**
+   * The first Levy is proclaimed as this round begins, for the round after,
+   * if the Quest deck has not run out before.
+   */
+  proclaimByRound: number;
 }
 
 export interface PlayerConfig {
@@ -275,6 +294,8 @@ export interface PlayerState {
    * saves and until the first loss.
    */
   lostRenown?: number;
+  /** Renown from answering the Crown's Levy (§27.3), kept for the game. Absent until the first answer. */
+  levyRenown?: number;
   holdingIds: HoldingId[];
   routeIds: RouteId[];
   claimedQuestIds: QuestId[];
@@ -394,6 +415,8 @@ export interface GameState {
   activeEffects: ActiveEffect[];
   /** Sites a Siege Fireball left in ruins: nobody may build on them again. Absent in older saves. */
   ruinedSiteIds?: SiteId[];
+  /** The Crown's Levy (§27.3), public; absent until the first Levy is proclaimed. */
+  crownLevy?: CrownLevyState;
   pending?: PendingDecision;
   nextIds: { holding: number; banner: number };
   winnerId?: PlayerId;
@@ -401,6 +424,21 @@ export interface GameState {
   endCause?: GameEndCause;
   /** equalTurns: the target has been reached; the game ends with this round. */
   endTriggered?: boolean;
+}
+
+/** The Levies proclaimed so far (§27.3). Both this round's and the next round's are public. */
+export interface CrownLevyState {
+  /** The resource this round's Levy names; null in the round the first Levy is proclaimed. */
+  current: ResourceType | null;
+  /** The resource the next round's Levy names. */
+  next: ResourceType;
+  /**
+   * The resources called in the current cycle, oldest first, `next` last. The
+   * Crown calls each of the five once before it calls any of them again.
+   */
+  called: ResourceType[];
+  /** Players who have answered this round's Levy, in the order they did. */
+  answeredBy: PlayerId[];
 }
 
 /** How a game can end before anyone reaches the target (§7): Ragnarök, or a round that ends on a full board. */

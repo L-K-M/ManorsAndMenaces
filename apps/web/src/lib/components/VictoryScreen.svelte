@@ -90,6 +90,7 @@
     { key: "manors", label: "stat.renown_manors" },
     { key: "strongholds", label: "stat.renown_strongholds" },
     { key: "quests", label: "stat.renown_quests" },
+    { key: "levy", label: "stat.renown_levy" },
     { key: "other", label: "stat.renown_other" },
   ] as const;
 
@@ -676,6 +677,9 @@
   }
   .seg.quests {
     background: #d9a520;
+  }
+  .seg.levy {
+    background: #b8612b;
   }
   .seg.other {
     background: #9a9489;

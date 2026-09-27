@@ -24,6 +24,7 @@ import {
   isBoardFull,
   isLegalMenaceDestination,
   isRuinedSite,
+  levyClosedReason,
   passesSpacing,
   totalBuildCost,
   validateBannerAssignment,
@@ -301,6 +302,9 @@ function execute(tx: Tx, cmd: GameCommand): void {
     case "claim_quest":
       inPhase("main");
       return claimQuest(tx, cmd.playerId, cmd.questId);
+    case "answer_levy":
+      inPhase("main");
+      return answerLevy(tx, cmd.playerId, cmd.resource);
     case "end_main_phase":
       inPhase("main");
       s.phase = "banner_assignment";
@@ -417,6 +421,7 @@ function assignInitialBanners(tx: Tx, playerId: PlayerId, assignments: Record<Ba
     for (const [r, n] of Object.entries(s.ruleset.seatBonus?.[i] ?? {})) if (isResourceType(r) && n) tx.gain(id, r, n, "starting_resources");
   });
   dealCardsToAll(tx, s.ruleset.initialCards ?? 0, "setup");
+  proclaimLevy(tx);
   startTurn(tx, s.activePlayerId);
 }
 
@@ -554,6 +559,7 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   if (nextIdx === 0) {
     s.round += 1;
     expireQuests(tx);
+    proclaimLevy(tx);
     const interval = s.ruleset.cardDrawEveryRounds ?? 0;
     if (interval > 0 && s.round % interval === 0) dealCardsToAll(tx, 1, "round");
   }
@@ -909,6 +915,45 @@ function expireQuests(tx: Tx): void {
     revealTopQuest(tx, slot);
     s.questDeck.push(q);
   });
+}
+
+// ------------------------------------------------------------------ the Crown's Levy (§27.3)
+
+/**
+ * Run as each round begins. The first Levy is proclaimed once a round begins
+ * with the Quest deck empty, or as `proclaimByRound` begins, for the round
+ * after; from then on the proclaimed Levy takes effect and the next is
+ * proclaimed. Each Levy names a resource drawn from the match RNG among
+ * those not yet called in this cycle of five. Games without the rule never
+ * draw, so they replay as before.
+ */
+function proclaimLevy(tx: Tx): void {
+  const s = tx.s;
+  const rules = s.ruleset.crownLevy;
+  if (!rules) return;
+  const levy = s.crownLevy;
+  if (!levy && s.questDeck.length > 0 && s.round < rules.proclaimByRound) return;
+  const cycle = levy && levy.called.length < RESOURCE_TYPES.length ? levy.called : [];
+  const open = RESOURCE_TYPES.filter((r) => !cycle.includes(r));
+  const next = open[tx.rng.nextInt(open.length)] as ResourceType;
+  const current = levy?.next ?? null;
+  s.crownLevy = { current, next, called: [...cycle, next], answeredBy: [] };
+  tx.emit({ type: "levy_proclaimed", resource: next, round: s.round + 1, current });
+}
+
+function answerLevy(tx: Tx, playerId: PlayerId, resource: unknown): void {
+  const s = tx.s;
+  const closed = levyClosedReason(s, playerId);
+  if (closed) throw new RuleViolation(closed);
+  const rules = s.ruleset.crownLevy;
+  const levy = s.crownLevy;
+  check(rules && levy?.current, "LEVY_NOT_ACTIVE");
+  check(resource === levy.current, "INVALID_PAYMENT", `this round's Levy is ${levy.current}`);
+  tx.spend(playerId, { [levy.current]: rules.price }, "crown_levy");
+  levy.answeredBy.push(playerId);
+  const p = tx.player(playerId);
+  p.levyRenown = (p.levyRenown ?? 0) + rules.renown;
+  tx.emit({ type: "levy_answered", playerId, resource: levy.current, amount: rules.price, renown: rules.renown });
 }
 
 // ------------------------------------------------------------------ debug (§100)

@@ -75,9 +75,9 @@
     give = null;
     via = null;
     if (target && availabilityFor(session, legalFor(session))?.[target].ok) {
-      // The goal is affordable now: close and get on with it (a card is not bought unasked).
+      // The goal is affordable now: close and get on with it (a card is not bought, nor the Levy paid, unasked).
       close();
-      if (target !== "card" && target !== "market") await startAction(session, target);
+      if (target !== "card" && target !== "market" && target !== "levy") await startAction(session, target);
       return;
     }
     if (leftBefore <= 1) close();

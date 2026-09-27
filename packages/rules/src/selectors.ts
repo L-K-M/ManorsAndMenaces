@@ -104,7 +104,7 @@ export function bannersSupported(holding: Holding): number {
 export function getRenown(ctx: RulesContext, state: GameState, playerId: PlayerId): number {
   const p = state.players[playerId];
   if (!p) return 0;
-  let renown = p.bonusRenown - (p.lostRenown ?? 0);
+  let renown = p.bonusRenown + (p.levyRenown ?? 0) - (p.lostRenown ?? 0);
   for (const h of getPlayerHoldings(state, playerId)) renown += h.type === "manor" ? BALANCE.renown.manor : BALANCE.renown.stronghold;
   for (const q of p.claimedQuestIds) renown += ctx.quest(q).renown;
   return renown;
@@ -117,6 +117,8 @@ export interface RenownSources {
   strongholds: { count: number; renown: number };
   /** Claimed Royal Quests, in the order they were claimed. */
   quests: { questId: QuestId; renown: number }[];
+  /** Renown from answering the Crown's Levy (§27.3). */
+  levy: number;
   /** Renown granted outright, such as by the Unreliable Bard. */
   bonus: number;
   /** Renown lost for the rest of the game (Disgrace, Stolen Glory), subtracted from the total. */
@@ -135,9 +137,30 @@ export function getRenownSources(ctx: RulesContext, state: GameState, playerId: 
     manors: { count: manors, renown: manors * BALANCE.renown.manor },
     strongholds: { count: strongholds, renown: strongholds * BALANCE.renown.stronghold },
     quests,
+    levy: p?.levyRenown ?? 0,
     bonus: p?.bonusRenown ?? 0,
     lost: p?.lostRenown ?? 0,
   };
+}
+
+// ------------------------------------------------------------------ the Crown's Levy (§27.3)
+
+/**
+ * Why the player may not answer this round's Levy now, resources aside; null
+ * if they may. The phase and whose turn it is are the caller's to check.
+ */
+export function levyClosedReason(state: GameState, playerId: PlayerId): "FEATURE_DISABLED" | "LEVY_NOT_ACTIVE" | "LEVY_LIMIT_REACHED" | null {
+  if (!state.ruleset.crownLevy) return "FEATURE_DISABLED";
+  if (!state.crownLevy?.current) return "LEVY_NOT_ACTIVE";
+  if (state.crownLevy.answeredBy.includes(playerId)) return "LEVY_LIMIT_REACHED";
+  return null;
+}
+
+/** What answering this round's Levy costs, or null when there is none to answer (§27.3). */
+export function levyCost(state: GameState): ResourceCost | null {
+  const current = state.crownLevy?.current;
+  const rules = state.ruleset.crownLevy;
+  return current && rules ? { [current]: rules.price } : null;
 }
 
 // ------------------------------------------------------------------ network (§13)

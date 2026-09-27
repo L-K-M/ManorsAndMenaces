@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  RESOURCE_TYPES,
   clone,
   getActionAvailability,
   getLegalActions,
@@ -7,6 +8,7 @@ import {
   type GameState,
   type PlayerAction,
   type PlayerId,
+  type ResourceType,
   type Resources,
 } from "../src/index.js";
 import { act, engine, mvpRuleset, passTurn, setupGame } from "./helpers.js";
@@ -141,6 +143,26 @@ describe("getActionAvailability", () => {
     expect(getActionAvailability(ctx, empty, p1).card.reason).toBe("DECK_EMPTY");
   });
 
+  it("explains the Crown's Levy: not in force, the shortfall and its Market fix, answered (§27.3)", () => {
+    const { state, p1 } = setupGame(standardRuleset(2));
+    expect(getActionAvailability(ctx, state, p1).levy).toMatchObject({ ok: false, reason: "NO_TARGET", cost: {} });
+    expect(getActionAvailability(ctx, setupGame().state, p1).levy.reason).toBe("FEATURE_DISABLED");
+
+    let s = clone(state);
+    s.questDeck = [];
+    for (let turn = 0; turn < 4; turn++) s = passTurn(s);
+    const levy = s.crownLevy?.current as ResourceType;
+    const other = RESOURCE_TYPES.find((r) => r !== levy) as ResourceType;
+    const short = getActionAvailability(ctx, withResources(s, p1, { [levy]: 4, [other]: 3 }), p1).levy;
+    expect(short).toMatchObject({ ok: false, reason: "NEED_RESOURCES", cost: { [levy]: 5 }, missing: { [levy]: 1 } });
+    expect(short.fixByTrade).toEqual([{ give: other, receive: levy }]);
+
+    const ready = withResources(s, p1, { [levy]: 5 });
+    expect(getActionAvailability(ctx, ready, p1).levy).toMatchObject({ ok: true, cost: { [levy]: 5 } });
+    const answered = act(ready, p1, { type: "answer_levy", resource: levy }).state;
+    expect(getActionAvailability(ctx, answered, p1).levy).toMatchObject({ ok: false, reason: "LIMIT_REACHED" });
+  });
+
   it("reports WRONG_PHASE outside the player's Main phase", () => {
     const { state, p1, p2 } = setupGame();
     expect(getActionAvailability(ctx, state, p2).route.reason).toBe("WRONG_PHASE");
@@ -157,6 +179,7 @@ describe("getActionAvailability", () => {
       writ: (l) => l.canIssueWrit,
       warden: (l) => l.canHireWarden,
       card: (l) => l.canBuyCard,
+      levy: (l) => l.canAnswerLevy,
     };
     for (const rs of [mvpRuleset(), standardRuleset(2)]) {
       const { state, p1 } = setupGame(rs);

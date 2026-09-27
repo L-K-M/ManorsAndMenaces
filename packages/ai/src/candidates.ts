@@ -79,6 +79,11 @@ export function mainPhaseCandidates(ctx: RulesContext, state: GameState, playerI
     out.push({ type: "upgrade_holding", siteId, ...(extra ? { extraPayment: extra } : {}) });
   }
   for (const q of legal.claimableQuests) out.push({ type: "claim_quest", questId: q });
+  // An affordable upgrade outranks the Crown's Levy (§27.3): it adds a Banner
+  // as well as Renown. At goals of 25 and more a Levy pays 2 Renown and would
+  // outscore the upgrade it can starve, so it waits for what the upgrade leaves.
+  const levy = state.crownLevy?.current;
+  if (levy && legal.canAnswerLevy && !out.some((c) => c.type === "upgrade_holding")) out.push({ type: "answer_levy", resource: levy });
   for (const give of legal.marketGive)
     for (const receive of RESOURCE_TYPES) if (receive !== give) out.push({ type: "trade", give, receive });
   for (const post of legal.tradePosts)

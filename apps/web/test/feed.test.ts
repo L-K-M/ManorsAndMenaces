@@ -182,6 +182,20 @@ describe("feedItemsFor: second-wave cards", () => {
     }
   });
 
+  it("proclaims the Crown's Levy to every viewer and tells others who answered it (§27.3)", () => {
+    for (const viewer of ["P1", "P2", null]) {
+      expect(feedItemsFor([{ type: "levy_proclaimed", resource: "essence", round: 16, current: null }], state, map, viewer)).toEqual([
+        { actorId: null, text: "The King's Marshal proclaims the Crown's Levy: Essence for the court wizards' wards, from next round", at: null, gains: null, againstViewer: false, self: false, omen: true },
+      ]);
+      expect(feedItemsFor([{ type: "levy_proclaimed", resource: "grain", round: 17, current: "essence" }], state, map, viewer).map((i) => i.text)).toEqual([
+        "The Crown levies Essence this round, and Grain next round",
+      ]);
+    }
+    const answered: GameEvent = { type: "levy_answered", playerId: "P2", resource: "essence", amount: 5, renown: 2 };
+    expect(feedItemsFor([answered], state, map, "P1").map((i) => [i.actorId, i.text])).toEqual([["P2", "Bertram answered the Crown's Levy: +2 Renown"]]);
+    expect(feedItemsFor([answered], state, map, "P2")).toEqual([]);
+  });
+
   it("marks the omen for every viewer", () => {
     const omen: GameEvent = { type: "card_foretold", cardId: "ragnarok#1" };
 
