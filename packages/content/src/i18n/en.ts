@@ -497,8 +497,8 @@ export const EN: Record<string, string> = {
   // Card targeting: dialogs, confirmations and Counterspell prompts for the second wave (§19.12–19.21).
   "hint.card_site": "Choose a Site.",
   "hint.card_site.the_dowager": "Choose a Site at the far end of your Route from one of your Strongholds.",
-  "target.dowager_toll": "The Highwaywoman holds the Route to her Manor: choose the resource that pays her toll of 1.",
-  "target.dowager_surcharge": "Goblin Tinkers are at work on that Site: choose the resource that pays their surcharge of 1.",
+  "target.dowager_toll": "The Highwaywoman holds the Route to her Manor: choose the resource that pays her toll of {amount}.",
+  "target.dowager_surcharge": "Goblin Tinkers are at work on that Site: choose the resource that pays their surcharge of {amount}.",
   "target.you": "You",
   "target.insured": "insured",
   "target.insured_help": "An insured player's {card} stops this card and is then discarded.",
@@ -1161,6 +1161,6 @@ export const EN: Record<string, string> = {
   "feed.levy_answered": "{name} answered the Crown's Levy: +{renown} Renown",
   "stat.renown_levy": "Levy",
   "ui.levy_renown": "The Crown's Levy",
-  "ui.levy_rules": "The Crown's Levy (Standard rules): once the Royal Quests run out, by round {round} at the latest, each round names a resource. Pay {price} of it, once a round, for {renown} Renown, or {more} at goals of {goal} and more. The next round's Levy is always known.",
-  "ui.levy_hint": "Once the Royal Quests run out, by round {round} at the latest, the Crown's Levy offers {renown} Renown a round for {price} of the resource it names.",
+  "ui.levy_rules": "The Crown's Levy (Standard rules): once the Quest deck runs out, by round {round} at the latest, each round names a resource. Pay {price} of it, once a round, for {renown} Renown, or {more} at goals of {goal} and more. The next round's Levy is always known.",
+  "ui.levy_hint": "Once the Quest deck runs out, by round {round} at the latest, the Crown's Levy offers {renown} Renown a round for {price} of the resource it names.",
 };

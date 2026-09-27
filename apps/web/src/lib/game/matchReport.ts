@@ -160,6 +160,15 @@ export function renownBar(b: RenownBreakdown): Record<RenownPart, number> {
   return { manors: keep(b.manors), strongholds, quests, levy, other };
 }
 
+/**
+ * The Renown parts the results legend keys: Manors, Strongholds and Quests
+ * always, and the Crown's Levy once someone's bar shows it (§27.3).
+ */
+export function legendParts(standings: readonly PlayerResult[]): RenownPart[] {
+  const levy = standings.some((r) => renownBar(r.renown).levy > 0);
+  return ["manors", "strongholds", "quests", ...(levy ? (["levy"] as const) : [])];
+}
+
 function rankPlayers(state: GameState, result: (id: PlayerId) => PlayerResult): PlayerResult[] {
   const results = state.turnOrder.map(result);
   const order = (id: PlayerId) => state.turnOrder.indexOf(id);

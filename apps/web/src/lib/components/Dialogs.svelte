@@ -340,7 +340,11 @@
 {#if ui.dialog === "resource" && cardStep && legal}
   <Modal title={cardTitle} onclose={resetTool}>
     {#if cardEffect === "the_dowager"}
-      <p class="help">{t(cardStep.field === "tollPayment" ? "target.dowager_toll" : "target.dowager_surcharge")}</p>
+      <p class="help">
+        {cardStep.field === "tollPayment"
+          ? t("target.dowager_toll", { amount: BALANCE.costs.toll })
+          : t("target.dowager_surcharge", { amount: BALANCE.costs.goblinSurcharge })}
+      </p>
     {:else}
       <p class="help">{cardRules}</p>
     {/if}

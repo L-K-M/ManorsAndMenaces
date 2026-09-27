@@ -5,7 +5,7 @@
   import { RESOURCE_TYPES, type PlayerId } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { endCauseOf } from "../game/log.js";
-  import { buildMatchReport, renownBar, renownChart, type AwardId, type MatchStats, type RenownBreakdown } from "../game/matchReport.js";
+  import { buildMatchReport, legendParts, renownBar, renownChart, type AwardId, type MatchStats, type RenownBreakdown } from "../game/matchReport.js";
   import { planRematch } from "../game/rematch.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { animationScale } from "../stores/settings.svelte.js";
@@ -27,6 +27,7 @@
     ),
   );
   const winner = $derived(report.standings[0]);
+  const legend = $derived(legendParts(report.standings));
   // Ragnarök ended the world: the winner may be short of the target.
   const ragnarok = $derived(report.endCause === "ragnarok");
   const fullBoard = $derived(report.endCause === "full_board");
@@ -244,7 +245,7 @@
               {/each}
             </ol>
             <p class="legend" aria-hidden="true">
-              {#each BREAKDOWN.slice(0, 3) as b}<span><i class="seg {b.key}"></i>{t(b.label)}</span>{/each}
+              {#each BREAKDOWN.filter((b) => legend.includes(b.key)) as b}<span><i class="seg {b.key}"></i>{t(b.label)}</span>{/each}
               <span><i class="goal-key"></i>{t("ui.target")} {report.targetRenown}</span>
             </p>
           </section>

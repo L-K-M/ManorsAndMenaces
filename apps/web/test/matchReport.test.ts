@@ -12,7 +12,7 @@ import {
   type GameCommand,
   type GameState,
 } from "@manors-menaces/rules";
-import { buildMatchReport, pickAwards, renownBar, renownBreakdown, renownChart, type MatchStats, type PlayerResult } from "../src/lib/game/matchReport.js";
+import { buildMatchReport, legendParts, pickAwards, renownBar, renownBreakdown, renownChart, type MatchStats, type PlayerResult } from "../src/lib/game/matchReport.js";
 import { replayHistory } from "../src/lib/game/replay.js";
 import { engine, playGame } from "./helpers.js";
 
@@ -299,6 +299,19 @@ describe("renownBar", () => {
     const b = renownBreakdown(engine, s, id);
     expect(b.levy).toBe(2);
     expect(b.total).toBe(getRenown(engine.ctx, s, id));
+  });
+
+  it("keys the Crown's Levy in the legend once a bar shows it", () => {
+    const result = (levy: number, lost = 0): PlayerResult => ({
+      playerId: "A",
+      name: "A",
+      renown: { total: 3 + levy - lost, manors: 3, strongholds: 0, quests: 0, levy, other: 0, lost },
+      stats: { harvested: 0, harvestedByType: null, bestHarvest: 0, routes: 0, manors: 3, strongholds: 0, writsIssued: 0, wardensHired: null, cardsPlayed: 0, menacesMoved: 0, marketTrades: 0, lostToMenaces: null },
+    });
+    expect(legendParts([result(0)])).toEqual(["manors", "strongholds", "quests"]);
+    expect(legendParts([result(0), result(2)])).toEqual(["manors", "strongholds", "quests", "levy"]);
+    // Renown lost for good took it off the bar.
+    expect(legendParts([result(1, 1)])).toEqual(["manors", "strongholds", "quests"]);
   });
 
   it("stops at a disgraced player's total, short of the goal", () => {
