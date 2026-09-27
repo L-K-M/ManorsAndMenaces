@@ -125,9 +125,18 @@ describe("Sealed Charges online", () => {
     for (const e of kept) if (e.type === "charge_kept" && e.playerId !== bobId) expect(e.chargeId).toBeNull();
   });
 
-  it("lets an AI seat keep its Charge", async () => {
+  // Regression: this failed whenever the random seed seated Alice first, as
+  // seats keep their Charges in turn order and hers was never kept.
+  it("lets an AI seat keep its Charge, whichever seat keeps first", async () => {
     const { matchId } = create({ sealedCharges: true, aiSeats: [{ displayName: "Robo", level: "normal" }] });
-    const aiId = service.view(matchId, alice).youAre === "P1" ? "P2" : "P1";
+    const aliceId = service.view(matchId, alice).youAre as PlayerId;
+    const aiId = aliceId === "P1" ? "P2" : "P1";
+    const view = stateOf(matchId, alice);
+    if (view.pending?.kind === "charge" && view.pending.playerId === aliceId) {
+      const chargeId = view.pending.chargeIds[0] as string;
+      const res = service.submit(alice, { matchId, expectedRevision: view.revision, commands: [{ type: "choose_charge", chargeId, commandId: "keep", matchId, playerId: aliceId }] });
+      expect(res.accepted, JSON.stringify(res.error)).toBe(true);
+    }
     expect(await until(() => !!(store.match(matchId)?.state as GameState).players[aiId]?.sealedCharge)).toBe(true);
   });
 });
