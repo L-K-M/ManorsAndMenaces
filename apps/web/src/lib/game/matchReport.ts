@@ -26,6 +26,8 @@ export interface RenownBreakdown {
   manors: number;
   strongholds: number;
   quests: number;
+  /** Sealed Charges revealed (§27A). */
+  charges: number;
   /** Anything else (bonus Renown). */
   other: number;
   /** Renown lost for good (Disgrace, Stolen Glory): the parts above less this make the total. */
@@ -136,7 +138,8 @@ export function buildMatchReport(engine: RulesEngine, final: GameState, history:
 export function renownBreakdown(engine: RulesEngine, state: GameState, playerId: PlayerId): RenownBreakdown {
   const s = getRenownSources(engine.ctx, state, playerId);
   const quests = s.quests.reduce((sum, q) => sum + q.renown, 0);
-  return { total: s.total, manors: s.manors.renown, strongholds: s.strongholds.renown, quests, other: s.bonus, lost: s.lost };
+  const charges = s.charges.reduce((sum, c) => sum + c.renown, 0);
+  return { total: s.total, manors: s.manors.renown, strongholds: s.strongholds.renown, quests, charges, other: s.bonus, lost: s.lost };
 }
 
 /**
@@ -152,9 +155,10 @@ export function renownBar(b: RenownBreakdown): Record<RenownPart, number> {
     return renown - cut;
   };
   const other = keep(b.other);
+  const charges = keep(b.charges);
   const quests = keep(b.quests);
   const strongholds = keep(b.strongholds);
-  return { manors: keep(b.manors), strongholds, quests, other };
+  return { manors: keep(b.manors), strongholds, quests, charges, other };
 }
 
 function rankPlayers(state: GameState, result: (id: PlayerId) => PlayerResult): PlayerResult[] {

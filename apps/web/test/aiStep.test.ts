@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CommandIntent, GameState, PlayerId } from "@manors-menaces/rules";
 import { AiPace, aiPaceDelayMs, aiStepPace, resolveAiStep, type AiStep } from "../src/lib/game/aiStep.js";
-import { act, cmd, engine, setupGame, cardTestRuleset as standardRuleset } from "../../../packages/rules/test/helpers.js";
+import { act, cmd, engine, mvpRuleset, newGame, setupGame, cardTestRuleset as standardRuleset } from "../../../packages/rules/test/helpers.js";
 
 const resolve = (s: GameState, actor: PlayerId, intent: CommandIntent | null) => resolveAiStep(engine, s, actor, intent, (i) => cmd(s, actor, i));
 
@@ -64,6 +64,14 @@ describe("AI pacing", () => {
     expect(paceOf(assigning, p1, { type: "assign_banners", assignments: { [bannerOf(p1, "s1")]: "R6" } })).toBe(AiPace.Visible);
     const ending = act(assigning, p1, { type: "assign_banners", assignments: {} }).state;
     expect(paceOf(ending, p1, { type: "end_turn" })).toBe(AiPace.Handover);
+  });
+
+  it("keeps a Sealed Charge choice quiet: nothing on the table changes", () => {
+    const s = newGame({ ...mvpRuleset(), sealedCharges: true });
+    const pending = s.pending?.kind === "charge" ? s.pending : null;
+    expect(paceOf(s, pending?.playerId as string, { type: "choose_charge", chargeId: pending?.chargeIds[0] as string })).toBe(AiPace.Quiet);
+    // A choice the engine rejects falls back to keeping the first Charge drawn.
+    expect(resolve(s, pending?.playerId as string, { type: "end_main_phase" })?.command).toMatchObject({ type: "choose_charge", chargeId: pending?.chargeIds[0] });
   });
 
   it("treats a pass that resolves the Spell as visible", () => {

@@ -56,6 +56,7 @@ export function aiStepPace(step: Pick<AiStep, "command" | "events">): AiPace {
   switch (command.type) {
     case "end_main_phase":
     case "resolve_prophecy":
+    case "choose_charge":
       return AiPace.Quiet;
     case "pass_reaction":
       // Passing may resolve the Spell it answered, which is visible.

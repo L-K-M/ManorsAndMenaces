@@ -90,6 +90,7 @@
     { key: "manors", label: "stat.renown_manors" },
     { key: "strongholds", label: "stat.renown_strongholds" },
     { key: "quests", label: "stat.renown_quests" },
+    { key: "charges", label: "stat.renown_charges" },
     { key: "other", label: "stat.renown_other" },
   ] as const;
 
@@ -243,7 +244,9 @@
               {/each}
             </ol>
             <p class="legend" aria-hidden="true">
-              {#each BREAKDOWN.slice(0, 3) as b}<span><i class="seg {b.key}"></i>{t(b.label)}</span>{/each}
+              {#each BREAKDOWN.filter((b) => b.key !== "other" && (b.key !== "charges" || session.draft.ruleset.sealedCharges)) as b}<span
+                  ><i class="seg {b.key}"></i>{t(b.label)}</span
+                >{/each}
               <span><i class="goal-key"></i>{t("ui.target")} {report.targetRenown}</span>
             </p>
           </section>
@@ -676,6 +679,9 @@
   }
   .seg.quests {
     background: #d9a520;
+  }
+  .seg.charges {
+    background: #8a3b2c;
   }
   .seg.other {
     background: #9a9489;

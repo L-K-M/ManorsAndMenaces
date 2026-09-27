@@ -223,6 +223,20 @@ export function formatEvents(events: GameEvent[], state: GameState, map: MapDefi
       case "quest_expired":
         push(t("log.quest_expired", { quest: t(`quest.${e.questId}.name`) }), null, "info", e);
         break;
+      // Sealed Charges (§27A). Which Charge was drawn or kept is never told,
+      // not even to its holder: in hot-seat play everyone reads the Chronicle.
+      case "charges_drawn":
+        push(t("log.charges_drawn", { name: nameOf(state, e.playerId), count: e.count }), e.playerId, "info", e);
+        break;
+      case "charge_kept":
+        push(t("log.charge_kept", { name: nameOf(state, e.playerId) }), e.playerId, "info", e);
+        break;
+      case "charge_revealed":
+        push(t("log.charge_revealed", { name: nameOf(state, e.playerId), charge: t(`charge.${e.chargeId}.name`), renown: e.renown }), e.playerId, "important", e);
+        break;
+      case "charge_recommissioned":
+        push(t("log.charge_recommissioned", { name: nameOf(state, e.playerId) }), e.playerId, "important", e);
+        break;
       case "effect_started":
         if (e.effect === "fog") push(t("log.fog", { name: nameOf(state, e.playerId) }), e.playerId, "info", e);
         else if (e.effect === "plague") {

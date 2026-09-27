@@ -252,7 +252,7 @@ describe("pickAwards", () => {
   const player = (playerId: string, renown: number, s: Partial<MatchStats>): PlayerResult => ({
     playerId,
     name: playerId,
-    renown: { total: renown, manors: renown, strongholds: 0, quests: 0, other: 0, lost: 0 },
+    renown: { total: renown, manors: renown, strongholds: 0, quests: 0, charges: 0, other: 0, lost: 0 },
     stats: stats(s),
   });
 
@@ -285,8 +285,19 @@ describe("pickAwards", () => {
 
 describe("renownBar", () => {
   it("takes Renown lost for good off the last sources, so the bar ends at the total", () => {
-    expect(renownBar({ total: 7, manors: 2, strongholds: 4, quests: 3, other: 1, lost: 3 })).toEqual({ manors: 2, strongholds: 4, quests: 1, other: 0 });
-    expect(renownBar({ total: 0, manors: 1, strongholds: 0, quests: 0, other: 0, lost: 1 })).toEqual({ manors: 0, strongholds: 0, quests: 0, other: 0 });
+    expect(renownBar({ total: 7, manors: 2, strongholds: 4, quests: 3, charges: 0, other: 1, lost: 3 })).toEqual({ manors: 2, strongholds: 4, quests: 1, charges: 0, other: 0 });
+    expect(renownBar({ total: 0, manors: 1, strongholds: 0, quests: 0, charges: 0, other: 0, lost: 1 })).toEqual({ manors: 0, strongholds: 0, quests: 0, charges: 0, other: 0 });
+    // Sealed Charges (§27A) come off before the Quests.
+    expect(renownBar({ total: 8, manors: 2, strongholds: 2, quests: 2, charges: 4, other: 0, lost: 2 })).toEqual({ manors: 2, strongholds: 2, quests: 2, charges: 2, other: 0 });
+  });
+
+  it("counts revealed Sealed Charges as their own part", () => {
+    const s = clone(game.final);
+    const id = s.turnOrder[0] ?? "";
+    s.players[id]!.revealedChargeIds = ["merchant_venturer"];
+    const b = renownBreakdown(engine, s, id);
+    expect(b.charges).toBe(2);
+    expect(b.manors + b.strongholds + b.quests + b.charges + b.other - b.lost).toBe(b.total);
   });
 
   it("stops at a disgraced player's total, short of the goal", () => {
@@ -296,7 +307,7 @@ describe("renownBar", () => {
     const b = renownBreakdown(engine, s, id);
     expect(b.lost).toBe(2);
     const bar = renownBar(b);
-    expect(bar.manors + bar.strongholds + bar.quests + bar.other).toBe(b.total);
+    expect(bar.manors + bar.strongholds + bar.quests + bar.charges + bar.other).toBe(b.total);
     expect(b.total).toBeLessThan(s.ruleset.targetRenown);
   });
 });

@@ -193,6 +193,13 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
       case "quest_claimed":
         add(e.playerId, t("feed.quest", { name: name(e.playerId), quest: t(`quest.${e.questId}.name`), renown: e.renown }));
         break;
+      // Sealed Charges (§27A): a reveal and a Recommission are public; draws are not told.
+      case "charge_revealed":
+        add(e.playerId, t("feed.charge_revealed", { name: name(e.playerId), charge: t(`charge.${e.chargeId}.name`), renown: e.renown }));
+        break;
+      case "charge_recommissioned":
+        add(e.playerId, t("feed.charge_recommissioned", { name: name(e.playerId) }));
+        break;
       case "resource_transferred": {
         const resource = t(`resource.${e.resource}`);
         // A card (Robin of the Glade) takes from the payer: news to them.
