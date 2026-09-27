@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SeatConfig } from "@manors-menaces/protocol";
-import { mvpRuleset } from "@manors-menaces/rules";
+import { BALANCE, mvpRuleset, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
 import { planRematch } from "../src/lib/game/rematch.js";
 import { TUTORIAL_SEED } from "../src/lib/game/saves.js";
 import { engine } from "./helpers.js";
@@ -31,6 +31,24 @@ describe("planRematch", () => {
     expect(plan.options.ruleset).toEqual(mvpRuleset());
     expect(plan.options.board).toEqual({ kind: "fixed", mapId: "greenvale" });
     expect(plan.options.seed).toBeUndefined();
+  });
+
+  // Regression: a rematch of a game saved before ruleset 0.7.0 or 0.8.0 was
+  // a new game without the full-board end or the last round.
+  it("adds the full-board end and the last round to rules saved without them, and keeps the players' choices", () => {
+    // New Game's goal and advanced options.
+    const old: RulesetConfig = { ...standardRuleset(2, { targetRenown: 25 }), questExpiryRounds: 0, initialCards: 0, cardDrawEveryRounds: 0 };
+    delete old.endOnFullBoard;
+    delete old.lastRound;
+    const initialState = engine.createGame({ ...initialStateOptions, ruleset: old });
+    const plan = planRematch({ ...finished, initialState, transport: "local", tutorial: false });
+
+    expect(plan.kind).toBe("local");
+    if (plan.kind !== "local") return;
+    expect(plan.options.ruleset).toEqual({ ...old, endOnFullBoard: true, lastRound: BALANCE.lastRound });
+    expect(plan.options.ruleset?.targetRenown).toBe(25);
+    // The finished game's own rules are left alone.
+    expect(initialState.ruleset.lastRound).toBeUndefined();
   });
 
   it("repeats the New Game island choice, so each game deals new land", () => {
