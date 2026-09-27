@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { CreateMatchRequest } from "@manors-menaces/protocol";
-import { RULESET_VERSION, standardRuleset } from "@manors-menaces/rules";
+import { runAiUntilHuman } from "@manors-menaces/ai";
+import { isWellFormedCommand, type CreateMatchRequest } from "@manors-menaces/protocol";
+import { RULESET_VERSION, clone, createRng, seedRng, standardRuleset } from "@manors-menaces/rules";
 import { Store, type UserRow } from "../src/store.js";
 import { HttpError, MatchService } from "../src/service.js";
+import { engineFor } from "./engines.js";
 
 // The Renown needed to win is chosen when a match is created (spec §7). The
 // server checks it against the goals the rules offer and stores it in the
@@ -89,6 +91,50 @@ describe("creating a match with a Renown goal", () => {
     expect(error?.status).toBe(400);
     expect(error?.message).toMatch(/targetRenown/);
     expect(service.listMatches(alice)).toHaveLength(before);
+  });
+});
+
+describe("the Crown's Levy online (§27.3)", () => {
+  it.each([
+    ["standard", 15, 1],
+    ["standard", 20, 1],
+    ["async", 25, 2],
+    ["standard", 30, 2],
+  ] as const)("runs in a %s match to %i Renown, paying %i Renown", (rulesetName, targetRenown, renown) => {
+    const { matchId } = create({ rulesetName, targetRenown });
+    expect(service.view(matchId, alice).ruleset.crownLevy).toEqual({ price: 5, renown, proclaimByRound: 15 });
+  });
+
+  it("is not part of the Core rules", () => {
+    const { matchId } = create({ rulesetName: "mvp" });
+    expect(service.view(matchId, alice).ruleset.crownLevy).toBeUndefined();
+  });
+
+  it("accepts an answer from the player whose turn it is", () => {
+    const { matchId, inviteCode } = create({});
+    service.joinMatch(bob, inviteCode, "Bob");
+    const match = store.match(matchId);
+    if (!match?.state) throw new Error("match not started");
+    // The AI plays the setup; then this round's Levy names Grain.
+    const engine = engineFor(match.map_id);
+    const rng = createRng(seedRng("levy-online"));
+    let s = match.state;
+    while (s.status === "setup") s = runAiUntilHuman(engine, s, () => true, () => ({ level: "normal", rng }), 1).state;
+    s = clone(s);
+    s.crownLevy = { current: "grain", next: "stone", called: ["grain", "stone"], answeredBy: [] };
+    const active = s.players[s.activePlayerId];
+    if (!active) throw new Error("no active player");
+    active.resources.grain = 5;
+    store.startMatch(matchId, s);
+
+    const user = service.memberPlayerId(matchId, alice.id) === s.activePlayerId ? alice : bob;
+    const command = { type: "answer_levy" as const, resource: "grain" as const, commandId: "levy-1", matchId, playerId: s.activePlayerId };
+    expect(isWellFormedCommand(command)).toBe(true);
+    const r = service.submit(user, { matchId, expectedRevision: s.revision, commands: [command] });
+    expect(r.error).toBeUndefined();
+    expect(r.accepted).toBe(true);
+    expect(r.events).toContainEqual({ type: "levy_answered", playerId: s.activePlayerId, resource: "grain", amount: 5, renown: 1 });
+    expect(r.state?.players[s.activePlayerId]?.levyRenown).toBe(1);
   });
 });
 

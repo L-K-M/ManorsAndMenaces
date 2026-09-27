@@ -1181,3 +1181,19 @@ earlier export restriction for this PR; do not ask again for the same review.
 The PR is ready and the configured review has been requested. Next: inspect
 completed feedback and the latest checks, address applicable important
 findings, and merge under the repository's review stopping rules.
+
+## The Dowager: painting still to make
+
+The Dowager (spec §19.28, a Hero: build a Manor beside your own Stronghold)
+brings the deck to 28 distinct cards. **It has no painting yet.** Its prompt
+is recorded in `media-sources/storybook/cards/prompts.json` in the second and
+third waves' style (`knight_errant.png` as the style reference, a 1536x1024
+original): an elderly dowager taking tea on the doorstep of her new cottage
+while her family peers out of the stronghold across a short lane. Until the
+PNG exists the card shows its Hero emblem (`CardGlyph.svelte`), and
+`apps/web/src/lib/cardPaintings.ts` lists it so that no image is requested.
+When the painting lands, follow the third wave's steps above: save the PNG,
+run `node tools/generate-card-art.mjs`, remove the card from that list and
+add it to the table in `media-sources/storybook/cards/README.md`.
+
+Her Manor is an ordinary Manor on the board; no new board marks were needed.

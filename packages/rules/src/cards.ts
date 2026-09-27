@@ -2,6 +2,7 @@
 // data never contains executable code.
 
 import { BALANCE } from "./balance.js";
+import { checkBuildPayment, createHolding, payForBuild, putOutEmbers } from "./build.js";
 import { own } from "./clone.js";
 import type { RulesContext } from "./context.js";
 import { check, RuleViolation, unreachable } from "./errors.js";
@@ -9,6 +10,7 @@ import type { GameEvent } from "./events.js";
 import { isResourceType } from "./resources.js";
 import {
   canLoseManor,
+  checkDowerHouse,
   disgraceTargets,
   dragonsLandingTargets,
   getPlayerBanners,
@@ -216,6 +218,13 @@ export function validateCardTarget(ctx: RulesContext, state: GameState, playerId
       check(them.resources.grain > 0, "INVALID_CARD_TARGET", "they have no Grain");
       return;
     }
+    case "the_dowager": {
+      check(typeof target.siteId === "string", "INVALID_CARD_TARGET", "unknown Site");
+      const p = own(state.players, playerId);
+      check(p, "UNKNOWN_ENTITY", "player");
+      checkBuildPayment(p, checkDowerHouse(ctx, state, playerId, target.siteId), target.tollPayment, target.extraPayment);
+      return;
+    }
     default:
       return unreachable(target);
   }
@@ -399,8 +408,19 @@ export function resolveCardEffect(tx: Tx, playerId: PlayerId, target: CardTarget
       const h = holdingAt(s, target.siteId);
       check(h, "INVALID_CARD_TARGET");
       if (claimInsurance(tx, h.ownerId, "raiders")) return;
+      // Only The Dowager puts Holdings side by side (§19.28). Their owner may
+      // rebuild a burned one despite the spacing rule, or the loss would be
+      // permanent.
+      const besideOwn = h.dowerHouse || tx.ctx.board.neighbours(h.siteId).some((n) => holdingAt(s, n)?.ownerId === h.ownerId);
       burnManor(tx, playerId, h, "raiders");
-      s.activeEffects.push({ kind: "razed", siteId: h.siteId, ownerId: h.ownerId, sourcePlayerId: playerId });
+      s.activeEffects.push({
+        kind: "razed",
+        siteId: h.siteId,
+        ownerId: h.ownerId,
+        sourcePlayerId: playerId,
+        ...(h.dowerHouse ? { dowerHouse: true as const } : {}),
+        ...(besideOwn ? { besideOwnHoldings: true as const } : {}),
+      });
       return;
     }
     case "siege_fireball": {
@@ -418,6 +438,14 @@ export function resolveCardEffect(tx: Tx, playerId: PlayerId, target: CardTarget
       const amount = Math.min(BALANCE.sabotage.grain, them.resources.grain);
       them.resources.grain -= amount;
       tx.emit({ type: "resources_lost", byPlayerId: playerId, playerId: them.id, resource: "grain", amount, cause: "sabotage" });
+      return;
+    }
+    case "the_dowager": {
+      // Her Dower House, paid for as any Manor there (§19.28).
+      payForBuild(tx, playerId, checkDowerHouse(tx.ctx, s, playerId, target.siteId), target.tollPayment, target.extraPayment, "build_manor");
+      putOutEmbers(tx, target.siteId);
+      const holdingId = createHolding(tx, playerId, target.siteId, { dowerHouse: true });
+      tx.emit({ type: "holding_built", playerId, holdingId, siteId: target.siteId, free: false });
       return;
     }
     default:

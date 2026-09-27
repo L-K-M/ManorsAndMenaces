@@ -1,7 +1,9 @@
 # Card paintings
 
-All 27 distinct cards in the expanded deck have individual
-illustrations. These full-size PNG originals were generated with the built-in
+27 of the 28 distinct cards in the expanded deck have individual
+illustrations. The Dowager (spec §19.28) waits for hers: its prompt is in
+`prompts.json`, and until its PNG lands the card shows its Hero emblem.
+These full-size PNG originals were generated with the built-in
 image tool, using `../../manors-and-menaces-icon-concept.png` as a style
 reference. The second and third waves use `knight_errant.png` to match the finished
 first-wave paintings. `prompts.json` contains every exact prompt and reference. No API/CLI generation

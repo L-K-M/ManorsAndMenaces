@@ -1,10 +1,11 @@
 import type { CardEffectId } from "@manors-menaces/rules";
 import type { CardDefinition } from "./types.js";
 
-// The 51-card deck (spec §19): the 24-card prototype, the second wave
-// (§19.12–19.21), the third wave of attacks on Renown and Grain (§19.22–19.27)
-// and a Counterspell more with each wave. Each card's id is its effect id, so
-// a typo fails the type check instead of producing a card with no effect.
+// The 53-card deck (spec §19): the 24-card prototype, the second wave
+// (§19.12–19.21), the third wave of attacks on Renown and Grain (§19.22–19.27),
+// a Counterspell more with each wave, and The Dowager (§19.28). Each card's id
+// is its effect id, so a typo fails the type check instead of producing a card
+// with no effect.
 const card = (
   id: CardEffectId,
   type: CardDefinition["type"],
@@ -55,4 +56,6 @@ export const CARDS: CardDefinition[] = [
   card("stolen_glory", "spell", 1, { tags: ["renown", "catch_up"] }),
   card("siege_fireball", "spell", 1, { tags: ["holding", "catch_up"] }),
   card("sabotage", "spell", 2, { tags: ["economy", "interference"] }),
+  // The Dowager (§19.28): a Manor beside your own Stronghold.
+  card("the_dowager", "hero", 2, { tags: ["holding", "renown"] }),
 ];

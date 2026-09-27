@@ -162,6 +162,9 @@ describe("event cue priority", () => {
     expect(cueForEvents(events("resource_gained", "holding_upgraded"))).toBe("upgrade");
     expect(cueForEvents(events("card_played", "dragon_landed"))).toBe("menace");
     expect(cueForEvents(events("quest_claimed", "game_won"))).toBe("win");
+    // The Crown's Levy (§27.3): an answer is Renown, a proclamation royal paperwork.
+    expect(cueForEvents(events("resource_spent", "levy_answered"))).toBe("quest");
+    expect(cueForEvents(events("turn_ended", "levy_proclaimed", "turn_started", "resource_gained"))).toBe("writ");
     expect(cueForEvents([])).toBeNull();
   });
 });

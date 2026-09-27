@@ -1,12 +1,13 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { pick } from "./pick";
 
-// The third wave of cards (spec §19.22–19.27) played through the UI. Two
-// human seats share the screen and nobody is dealt cards, so no Counterspell
-// can interrupt; the debug panel (§100) deals the card under test.
+// The third wave of cards (spec §19.22–19.27), and The Dowager (§19.28),
+// played through the UI. Two human seats share the screen and nobody is dealt
+// cards, so no Counterspell can interrupt; the debug panel (§100) deals the
+// card under test.
 
-/** A 2-player hot-seat game past setup, in the first player's Main phase. */
-async function start(page: Page) {
+/** A 2-player hot-seat game past setup, in the first player's Main phase; `seed` fixes the island and the opening. */
+async function start(page: Page, seed?: string) {
   await page.goto("/");
   await page.evaluate(() => {
     localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", privacyCurtain: false, sound: false, rivalChatter: false, bannerWarning: false }));
@@ -18,6 +19,7 @@ async function start(page: Page) {
   await page.getByLabel("Player 2 type").selectOption("human");
   await page.getByText("Advanced", { exact: true }).click();
   await page.getByRole("checkbox", { name: "Starting cards and regular draws" }).uncheck();
+  if (seed) await page.getByLabel(/Seed/).fill(seed);
   await page.getByRole("button", { name: "Begin", exact: true }).click();
   for (let step = 0; step < 20 && !(await page.getByRole("button", { name: /Assign Banners →/ }).count()); step++) {
     const status = await page.locator(".actions .status").evaluateAll((els) => els[0]?.textContent ?? "");
@@ -166,5 +168,36 @@ test("a Siege Fireball leaves a ruin that nobody may build on", async ({ page })
   await expect(page.getByText("In ruins: nobody may build here again").first()).toBeVisible();
   await expect(ruin.locator(".holding")).toHaveCount(0);
   await expect(page.locator(".site .holding")).toHaveCount(4);
+  expect(errors).toEqual([]);
+});
+
+test("The Dowager builds a Manor beside her player's Stronghold", async ({ page }) => {
+  const errors = collectErrors(page);
+  // On this seed's island the first player's opening leaves one Site for her.
+  await start(page, "e2e-dowager");
+  await debug(page, async (panel) => {
+    for (let i = 0; i < 2; i++) await panel.getByRole("button", { name: "Grant 5 of each resource" }).click();
+    await drawCard(panel, "the_dowager");
+  });
+  // Both of the first player's Manors become Strongholds.
+  for (let i = 0; i < 2; i++) {
+    await page.getByRole("button", { name: /^Upgrade to Stronghold/ }).click();
+    await pick(page.locator(".site.hl").first());
+  }
+  await expect(page.locator(".site .holding")).toHaveCount(4);
+
+  await showHand(page);
+  const card = handCard(page, "the_dowager");
+  // Her painting is still to be made: the Hero emblem stands in, and no image is requested.
+  await expect(card.locator(".card-art img")).toHaveCount(0);
+  await card.click();
+  await expect(page.getByText("Choose a Site at the far end of your Route from one of your Strongholds.").first()).toBeVisible();
+  await expect(page.locator(".site.hl")).toHaveCount(1);
+  await pick(page.locator(".site.hl").first());
+
+  await expect(card).toHaveCount(0);
+  await expect(page.locator(".site .holding")).toHaveCount(5);
+  await page.getByRole("tab", { name: "Chronicle" }).click();
+  await expect(page.locator(".log")).toContainText("played The Dowager.");
   expect(errors).toEqual([]);
 });

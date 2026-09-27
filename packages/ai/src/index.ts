@@ -188,7 +188,7 @@ function bestFollowUp(engine: RulesEngine, state: GameState, playerId: PlayerId)
   const p = state.players[playerId];
   const handless: GameState = p ? { ...state, players: { ...state.players, [playerId]: { ...p, hand: [] } } } : state;
   const candidates = mainPhaseCandidates(engine.ctx, handless, playerId, { menaces: false, cards: false }).filter(
-    (c) => c.type === "build_manor" || c.type === "upgrade_holding" || c.type === "build_route" || c.type === "claim_quest",
+    (c) => c.type === "build_manor" || c.type === "upgrade_holding" || c.type === "build_route" || c.type === "claim_quest" || c.type === "answer_levy",
   );
   for (const intent of candidates) {
     const r = engine.applyCommand(state, asCommand(state, playerId, intent));

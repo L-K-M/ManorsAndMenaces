@@ -75,9 +75,9 @@
     give = null;
     via = null;
     if (target && availabilityFor(session, legalFor(session))?.[target].ok) {
-      // The goal is affordable now: close and get on with it (a card is not bought unasked).
+      // The goal is affordable now: close and get on with it (a card is not bought, nor the Levy paid, unasked).
       close();
-      if (target !== "card" && target !== "market") await startAction(session, target);
+      if (target !== "card" && target !== "market" && target !== "levy") await startAction(session, target);
       return;
     }
     if (leftBefore <= 1) close();
@@ -336,10 +336,18 @@
   </Modal>
 {/if}
 
-<!-- Festival at the Inn and Robin of the Glade: name a resource. -->
+<!-- Festival at the Inn and Robin of the Glade: name a resource. The Dowager: pay her Manor's toll or surcharge. -->
 {#if ui.dialog === "resource" && cardStep && legal}
   <Modal title={cardTitle} onclose={resetTool}>
-    <p class="help">{cardRules}</p>
+    {#if cardEffect === "the_dowager"}
+      <p class="help">
+        {cardStep.field === "tollPayment"
+          ? t("target.dowager_toll", { amount: BALANCE.costs.toll })
+          : t("target.dowager_surcharge", { amount: BALANCE.costs.goblinSurcharge })}
+      </p>
+    {:else}
+      <p class="help">{cardRules}</p>
+    {/if}
     <div class="grid">
       {#each resourceOptions as r (r)}
         {@const payers = cardEffect === "robin_of_the_glade" ? robinPayers(session.ctx, gs, legal.playerId, r) : []}

@@ -3,8 +3,8 @@
 // work on such a view, because the client computes legal actions from it.
 
 import { describe, expect, it } from "vitest";
-import { enumerateCardTargets, getLegalActions, HIDDEN_CARD, redactState, type GameState } from "../src/index.js";
-import { cmd, engine, give, grant, setupGame, cardTestRuleset as standardRuleset } from "./helpers.js";
+import { clone, enumerateCardTargets, getLegalActions, HIDDEN_CARD, redactState, type GameState } from "../src/index.js";
+import { cmd, engine, give, grant, passTurn, setupGame, cardTestRuleset as standardRuleset } from "./helpers.js";
 
 const ctx = engine.ctx;
 
@@ -82,6 +82,23 @@ describe("redacted views", () => {
     expect(after.players[p1]?.hand).toEqual([HIDDEN_CARD, HIDDEN_CARD]);
     expect(after.players[p2]?.hand).toEqual([kept]);
     expect(getLegalActions(ctx, after, p1).mode).toBe("main");
+  });
+
+  it("shows every viewer the Crown's Levy, and lets the viewer answer it (§27.3)", () => {
+    const { state, p1, p2 } = setupGame(standardRuleset(2));
+    let s = clone(state);
+    s.questDeck = [];
+    for (let turn = 0; turn < 4; turn++) s = passTurn(s);
+    const levy = s.crownLevy?.current;
+    expect(levy).toBeDefined();
+    s = grant(s, p1, { [levy as string]: 5 });
+    for (const viewer of [p1, p2, null]) expect(redactState(s, viewer).crownLevy).toEqual(s.crownLevy);
+
+    const view = redactState(s, p1);
+    expect(getLegalActions(ctx, view, p1).canAnswerLevy).toBe(true);
+    const r = engine.applyCommand(view, cmd(view, p1, { type: "answer_levy", resource: levy as NonNullable<typeof levy> }));
+    expect(r.error).toBeUndefined();
+    expect(r.newState?.crownLevy?.answeredBy).toEqual([p1]);
   });
 
   it("rejects playing a hidden card with a structured error", () => {

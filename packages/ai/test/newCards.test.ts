@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  clone,
   createRng,
   createRulesEngine,
   enumerateCardTargets,
@@ -236,6 +237,53 @@ describe("helpful cards", () => {
     expect(intent).toMatchObject({ type: "play_card", cardId: "fire_bolt#1", target: { effect: "fire_bolt" } });
     if (intent?.type !== "play_card" || intent.target.effect !== "fire_bolt") return;
     expect(state.routeOwners[intent.target.routeId]).toBe(p2);
+  });
+});
+
+describe("The Dowager (§19.28)", () => {
+  const MANOR = { grain: 1, timber: 1, stone: 1 };
+  const dowager = (siteId: SiteId, pay: { tollPayment?: "iron" } = {}) => play("the_dowager#1", { effect: "the_dowager", siteId, ...pay });
+
+  /**
+   * p1 with a Stronghold on s1, The Dowager and the price of one Manor. p2's
+   * Manor on s3 is off the board, so s2, at the end of p1's s1–s2 Route, is
+   * open to her. With `ordinarySite`, p1 also owns the s2–s5 Route, which
+   * reaches s5, open to an ordinary Manor.
+   */
+  function dowagerPosition(opts: { ordinarySite?: boolean; resources?: Partial<PlayerState["resources"]> } = {}) {
+    const { state: start, p1, p2 } = position();
+    const s = clone(start);
+    const gone = Object.values(s.holdings).find((h) => h.siteId === "s3");
+    if (!gone) throw new Error("no Manor on s3");
+    delete s.holdings[gone.id];
+    for (const b of Object.values(s.banners)) if (b.holdingId === gone.id) delete s.banners[b.id];
+    (s.players[p2] as PlayerState).holdingIds = (s.players[p2] as PlayerState).holdingIds.filter((id) => id !== gone.id);
+    for (const h of Object.values(s.holdings)) if (h.siteId === "s1") h.type = "stronghold";
+    if (opts.ordinarySite) {
+      s.routeOwners[routeId(2, 5)] = p1;
+      (s.players[p1] as PlayerState).routeIds.push(routeId(2, 5));
+    }
+    return { state: withPlayer(s, p1, { hand: ["the_dowager#1"], resources: { ...NONE, ...MANOR, ...opts.resources } }), p1 };
+  }
+
+  it("builds her Dower House when no ordinary Site is open", () => {
+    const { state, p1 } = dowagerPosition();
+    expect(decide(state, p1)).toEqual(dowager("s2"));
+  });
+
+  it("keeps her and builds an ordinary Manor when a Site is open to one", () => {
+    const { state, p1 } = dowagerPosition({ ordinarySite: true });
+    expect(decide(state, p1)).toEqual({ type: "build_manor", siteId: "s5" });
+  });
+
+  it("weighs one target per Site, paying a toll as a Manor there would", () => {
+    const { state: open, p1 } = dowagerPosition({ resources: { iron: 2 } });
+    // The Highwayman on the s1–s2 Route: a toll of any kind; Iron is spare.
+    const state = clone(open);
+    const highwayman = { id: "menace_highwayman", type: "highwayman" as const, location: { kind: "route" as const, routeId: routeId(1, 2) }, state: {} };
+    state.menaces[highwayman.id] = highwayman;
+    const offered = mainPhaseCandidates(engine.ctx, state, p1, { menaces: false, cards: true }).filter((c) => c.type === "play_card");
+    expect(offered).toEqual([dowager("s2", { tollPayment: "iron" })]);
   });
 });
 

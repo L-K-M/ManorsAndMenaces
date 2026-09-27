@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { runAiUntilHuman } from "@manors-menaces/ai";
 import { rulesContentFor } from "@manors-menaces/content";
 import { SAVE_SCHEMA_VERSION, type SaveFile } from "@manors-menaces/protocol";
-import { BALANCE, RULESET_VERSION, createRng, createRulesEngine, mvpRuleset, seedRng, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
+import { BALANCE, RULESET_VERSION, createRng, createRulesEngine, getLegalActions, mvpRuleset, seedRng, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
 import { TUTORIAL_SEED } from "../src/lib/game/saves.js";
 import { pick } from "./pick";
 
@@ -33,7 +33,7 @@ async function beginHotseat(page: Page, rules: "standard" | "mvp" = "standard") 
 
 /**
  * A finished hot-seat game with its full history, played by the AI (three
- * players by default, to 15 Renown, which someone reaches: at a goal of 20
+ * players by default, to 15 Renown, which someone reaches: at a goal of 30
  * this seed's board fills up first, and that ends the game).
  */
 function finishedSave(seed = "e2e-finished", names = ["Ysolde", "Wat", "Maud"], ruleset: RulesetConfig = standardRuleset(3, { targetRenown: 15 })): SaveFile {
@@ -205,7 +205,8 @@ test("a game that ends on a full board says so on the results", async ({ page })
   await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false })));
   await page.reload();
   await page.getByRole("button", { name: "Load game" }).click();
-  const save = finishedSave(undefined, undefined, standardRuleset(3, { targetRenown: 20 }));
+  // A seed whose board fills before the round's last turn, so the Chronicle also announces it.
+  const save = finishedSave("e2e-full-2", undefined, standardRuleset(3, { targetRenown: 30 }));
   await page.getByLabel(/Import a save file/).setInputFiles({ name: "full-board.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(save)) });
 
   const victory = page.getByRole("dialog", { name: "Victory!" });
@@ -304,6 +305,66 @@ async function loadSave(page: Page, save: SaveFile) {
   await page.getByLabel(/Import a save file/).setInputFiles({ name: `round-${save.state.round}.json`, mimeType: "application/json", buffer: Buffer.from(JSON.stringify(save)) });
   await page.locator(".topbar").getByRole("button", { name: "Debug" }).evaluate((el) => (el.style.display = "none"));
 }
+
+/**
+ * A two-player hot-seat save in which the Crown's Levy (§27.3) is in force and
+ * the player whose turn it is can answer it, played by the AI up to there.
+ */
+function levySave(): { save: SaveFile; name: string; resource: string } {
+  const engine = createRulesEngine(rulesContentFor("greenvale"));
+  const seats = ["Ysolde", "Wat"].map((displayName, i) => ({ playerId: `P${i + 1}`, displayName, kind: "human" as const, color: i }));
+  const initialState = engine.createGame({
+    matchId: "local-e2e-levy",
+    seed: "e2e-levy",
+    rulesetVersion: RULESET_VERSION,
+    ruleset: standardRuleset(2, { targetRenown: 30 }),
+    players: seats.map((s) => ({ id: s.playerId, displayName: s.displayName })),
+  });
+  const rng = createRng(seedRng("e2e-levy-ai"));
+  let state = initialState;
+  const commandHistory = [];
+  while (state.status !== "finished" && !(getLegalActions(engine.ctx, state, state.activePlayerId).canAnswerLevy && !state.pending)) {
+    const r = runAiUntilHuman(engine, state, () => true, () => ({ level: "normal", rng }), 1);
+    expect(r.commands, "the AI must keep playing").toHaveLength(1);
+    commandHistory.push(...r.commands);
+    state = r.state;
+  }
+  const levy = state.crownLevy?.current;
+  expect(levy, "the AI must reach a Levy the active player can answer").toBeTruthy();
+  const save: SaveFile = { schemaVersion: SAVE_SCHEMA_VERSION, rulesetVersion: RULESET_VERSION, savedAt: new Date(0).toISOString(), mapId: "greenvale", seats, initialState, state, commandHistory };
+  const resource = `${levy?.[0]?.toUpperCase()}${levy?.slice(1)}`;
+  return { save, name: state.players[state.activePlayerId]?.displayName ?? "?", resource };
+}
+
+test("the Crown's Levy is answered from the Quest panel, and the Chronicle says so", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: false })));
+  await page.reload();
+  await page.getByRole("button", { name: "Load game" }).click();
+  const { save, name, resource } = levySave();
+  await page.getByLabel(/Import a save file/).setInputFiles({ name: "levy.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(save)) });
+  await passCurtain(page);
+
+  // The chip by the round number names this round's Levy and opens the Quest panel.
+  const chip = page.getByRole("button", { name: new RegExp(`^The Crown's Levy this round: ${resource}\\.`) });
+  await expect(chip).toContainText(`Levy: ${resource}`);
+  await chip.click();
+  const levy = page.getByRole("region", { name: "The Crown's Levy" });
+  await expect(levy).toContainText(`The Crown levies ${resource}`);
+  // At a goal of 30 an answer is worth 2 Renown.
+  await expect(levy).toContainText("5 → 2 Renown");
+  await expect(levy).toContainText("Nobody has answered yet.");
+
+  await levy.getByRole("button", { name: "Answer the Levy" }).click();
+  await expect(levy).toContainText(`Answered: ${name}`);
+  await expect(levy.getByRole("button", { name: "Answer the Levy" })).toBeDisabled();
+  await expect(levy).toContainText("You've answered this round's Levy");
+  await page.getByRole("tab", { name: /Chronicle/ }).click();
+  await expect(page.getByText(`${name} answered the Crown's Levy with 5 ${resource}: +2 Renown.`).first()).toBeVisible();
+  expect(errors).toEqual([]);
+});
 
 // Review question: does "Play again" after a tutorial continued from a save
 // drop into an unguided game? It opens the New Game setup instead.

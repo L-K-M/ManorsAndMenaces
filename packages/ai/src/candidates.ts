@@ -5,6 +5,7 @@
 import {
   BALANCE,
   RESOURCE_TYPES,
+  addCost,
   canAffordBuild,
   checkBuildManor,
   checkBuildRoute,
@@ -79,6 +80,11 @@ export function mainPhaseCandidates(ctx: RulesContext, state: GameState, playerI
     out.push({ type: "upgrade_holding", siteId, ...(extra ? { extraPayment: extra } : {}) });
   }
   for (const q of legal.claimableQuests) out.push({ type: "claim_quest", questId: q });
+  // An affordable upgrade outranks the Crown's Levy (§27.3): it adds a Banner
+  // as well as Renown. At goals of 25 and more a Levy pays 2 Renown and would
+  // outscore the upgrade it can starve, so it waits for what the upgrade leaves.
+  const levy = state.crownLevy?.current;
+  if (levy && legal.canAnswerLevy && !out.some((c) => c.type === "upgrade_holding")) out.push({ type: "answer_levy", resource: levy });
   for (const give of legal.marketGive)
     for (const receive of RESOURCE_TYPES) if (receive !== give) out.push({ type: "trade", give, receive });
   for (const post of legal.tradePosts)
@@ -116,6 +122,7 @@ export function mainPhaseCandidates(ctx: RulesContext, state: GameState, playerI
  */
 function pruneCardTargets(ctx: RulesContext, state: GameState, playerId: PlayerId, targets: CardTarget[]): CardTarget[] {
   const effect = targets[0]?.effect;
+  if (effect === "the_dowager") return dowerHousePerSite(state, playerId, targets);
   if (!effect || !PRUNED_EFFECTS.has(effect)) return targets;
   // Sites around the same Regions sicken the same Banners: one of each will do.
   const sickened = (t: CardTarget): string => {
@@ -129,6 +136,24 @@ function pruneCardTargets(ctx: RulesContext, state: GameState, playerId: PlayerI
     .sort((a, b) => b.v - a.v)
     .slice(0, MAX_CARD_TARGETS)
     .map((x) => x.target);
+}
+
+type DowerHouseTarget = Extract<CardTarget, { effect: "the_dowager" }>;
+
+/**
+ * The Dowager's targets on one Site differ only in the resource paid for a
+ * toll or surcharge (§19.28): keep the one an ordinary Manor there would
+ * pay, the spare resource, else the first the player can afford.
+ */
+function dowerHousePerSite(state: GameState, playerId: PlayerId, targets: CardTarget[]): CardTarget[] {
+  const bySite = new Map<string, DowerHouseTarget[]>();
+  for (const t of targets) if (t.effect === "the_dowager") bySite.set(t.siteId, [...(bySite.get(t.siteId) ?? []), t]);
+  return [...bySite.values()].map((options) => {
+    const first = options[0] as DowerHouseTarget;
+    const toll = first.tollPayment ? spareResource(state, playerId, BALANCE.costs.manor) : null;
+    const extra = first.extraPayment ? spareResource(state, playerId, toll ? addCost(BALANCE.costs.manor, { [toll]: BALANCE.costs.toll }) : BALANCE.costs.manor) : null;
+    return options.find((t) => (t.tollPayment ?? null) === toll && (t.extraPayment ?? null) === extra) ?? first;
+  });
 }
 
 function uniqueBy<T>(items: T[], key: (item: T) => string): T[] {
