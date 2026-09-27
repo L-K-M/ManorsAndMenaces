@@ -45,7 +45,9 @@
   }
 </script>
 
-<div class="backdrop" role="presentation" onclick={(e) => e.target === e.currentTarget && onclose?.()}>
+<!-- The follow-up clicks of a double click that opened the dialog land on
+     the backdrop; they must not close it again. -->
+<div class="backdrop" role="presentation" onclick={(e) => e.target === e.currentTarget && e.detail <= 1 && onclose?.()}>
   <div class="modal" class:wide class:bare bind:this={el} role="dialog" aria-modal="true" aria-label={title} tabindex="-1" onkeydown={keydown}>
     <header>
       <h2>{title}</h2>

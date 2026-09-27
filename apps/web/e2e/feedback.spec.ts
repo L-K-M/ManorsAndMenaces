@@ -10,7 +10,7 @@ type Speed = "normal" | "off";
 async function start(page: Page, opts: { humans: 1 | 2; speed: Speed; players?: number; seed?: string }) {
   await page.goto("/");
   await page.evaluate((speed) => {
-    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: speed, reducedMotion: false, sound: false, privacyCurtain: true }));
+    localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: speed, reducedMotion: false, sound: false, privacyCurtain: true, bannerWarning: false }));
     indexedDB.deleteDatabase("manors-menaces");
   }, opts.speed);
   await page.reload();

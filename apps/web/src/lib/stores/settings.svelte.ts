@@ -21,6 +21,11 @@ export interface Settings {
    * flourish show others' plays, as before.
    */
   pauseOnCardPlay: boolean;
+  /**
+   * Ending a turn asks first when another placement of your Banners would
+   * harvest more next turn (BannerWarningDialog).
+   */
+  bannerWarning: boolean;
 }
 
 const KEY = "mm.settings.v1";
@@ -38,6 +43,7 @@ const defaults = (): Settings => ({
   showRegionNames: true,
   rivalChatter: true,
   pauseOnCardPlay: true,
+  bannerWarning: true,
 });
 
 function load(): Settings {

@@ -17,6 +17,7 @@
   import { nudge, resetView, zoomBy, zoomTo } from "../stores/viewport.svelte.js";
   import ActionBar from "./ActionBar.svelte";
   import Announcer from "./Announcer.svelte";
+  import BannerWarningDialog from "./BannerWarningDialog.svelte";
   import Board from "./Board.svelte";
   import CardMagic from "./CardMagic.svelte";
   import BoardHud from "./BoardHud.svelte";
@@ -304,6 +305,7 @@
   {#key plays.current}<PlayedCardDialog {session} {plays} notice={plays.current} />{/key}
 {/if}
 {#if ui.dialog === "menu"}<GameMenu {session} {tutorial} {onexit} onsettings={() => ((settingsFromMenu = true), (ui.dialog = "settings"))} onclose={() => (ui.dialog = null)} />{/if}
+{#if ui.dialog === "banner_warning"}<BannerWarningDialog {session} {legal} />{/if}
 {#if ui.dialog === "settings"}<SettingsDialog onclose={() => ((ui.dialog = settingsFromMenu ? "menu" : null), (settingsFromMenu = false))} />{/if}
 {#if ui.renownOf}<RenownDialog {session} playerId={ui.renownOf} onclose={() => (ui.renownOf = null)} />{/if}
 {#if ui.showDebug}<DebugPanel {session} onclose={() => (ui.showDebug = false)} />{/if}

@@ -459,6 +459,159 @@ export function getHarvestPreview(
   return { banners, totals, total: RESOURCE_TYPES.reduce((s, r) => s + totals[r], 0) };
 }
 
+/**
+ * Search nodes `getBannerAdvice` visits at most. The largest position
+ * measured in AI games (12 Banners) needed under 3,000.
+ */
+const BANNER_ADVICE_BUDGET = 50_000;
+
+/** Why a suggested move helps: the Banner's own gain, or room for another. */
+export type BannerMoveReason = "unplaced" | "blocked_by_troll" | "taken_by_dragon" | "blessing_lost" | "make_room";
+
+export interface BannerMove {
+  bannerId: BannerId;
+  from: RegionId | null;
+  to: RegionId | null;
+  reason: BannerMoveReason;
+}
+
+export interface BannerAdvice {
+  /** Next Harvest total with the draft as it stands. */
+  current: number;
+  /** Highest next Harvest total found over legal placements of the player's own Banners. */
+  best: number;
+  /** A placement of every one of the player's Banners that yields `best`. */
+  assignment: Record<BannerId, RegionId | null>;
+  /** The changes from the draft to `assignment`, ordered so each can be made in turn where possible. */
+  moves: BannerMove[];
+}
+
+/**
+ * §16.3: the best placement of the player's own Banners for the next
+ * Harvest, for a warning before the turn ends: warn when `best > current`.
+ * Rival Banners stay where they are, and among placements with the same
+ * total the one with the fewest moves wins. Like the Harvest preview, it
+ * assumes the board does not change before that Harvest.
+ *
+ * A branch-and-bound over the Banners, fewest adjacent Regions first. It
+ * starts from the draft when that is legal, so running out of `budget`
+ * can only miss a gain, never suggest a worse or illegal placement.
+ */
+export function getBannerAdvice(
+  ctx: RulesContext,
+  state: GameState,
+  playerId: PlayerId,
+  draft: Readonly<Record<BannerId, RegionId | null>> = {},
+  budget = BANNER_ADVICE_BUDGET,
+): BannerAdvice {
+  const banners = getPlayerBanners(state, playerId);
+  const placed: Record<BannerId, RegionId | null> = {};
+  for (const b of banners) placed[b.id] = b.id in draft ? (draft[b.id] ?? null) : b.regionId;
+  const current = getHarvestPreview(ctx, state, playerId, placed).total;
+
+  const amounts = new Map<string, number>();
+  const amountOf = (b: Banner, regionId: RegionId | null): number => {
+    if (!regionId) return 0;
+    const key = `${b.id} ${regionId}`;
+    let amount = amounts.get(key);
+    if (amount === undefined) {
+      amount = computeBannerHarvest(ctx, state, b, regionId).amount;
+      amounts.set(key, amount);
+    }
+    return amount;
+  };
+  // One more resource outweighs any number of Banners left where they are.
+  const weight = banners.length + 1;
+  const scoreOf = (b: Banner, regionId: RegionId | null): number => amountOf(b, regionId) * weight + (placed[b.id] === regionId ? 1 : 0);
+  const adjacent = (b: Banner): readonly RegionId[] => {
+    const holding = state.holdings[b.holdingId];
+    return holding ? ctx.board.site(holding.siteId).adjacentRegionIds : [];
+  };
+
+  const order = [...banners].sort((a, b) => adjacent(a).length - adjacent(b).length);
+  // What order[i..] could add at most, ignoring room in the Regions.
+  const bound: number[] = new Array<number>(order.length + 1).fill(0);
+  for (let i = order.length - 1; i >= 0; i--) {
+    const b = order[i] as Banner;
+    bound[i] = (bound[i + 1] ?? 0) + Math.max(scoreOf(b, null), ...adjacent(b).map((r) => scoreOf(b, r)));
+  }
+
+  // Banners not yet decided wait at home, where they block nothing.
+  const work: Record<BannerId, RegionId | null> = {};
+  for (const b of banners) work[b.id] = null;
+  let best = validateBannerAssignment(ctx, state, playerId, placed).ok
+    ? { score: banners.reduce((n, b) => n + scoreOf(b, placed[b.id] ?? null), 0), assignment: { ...placed } }
+    : { score: -1, assignment: { ...work } };
+  let nodes = 0;
+  const visit = (i: number, score: number): void => {
+    if (++nodes > budget) return;
+    const b = order[i];
+    if (!b) {
+      if (score > best.score) best = { score, assignment: { ...work } };
+      return;
+    }
+    if (score + (bound[i] ?? 0) <= best.score) return;
+    const options = [...getLegalBannerRegions(ctx, state, b.id, work), null]
+      .map((regionId) => ({ regionId, score: scoreOf(b, regionId) }))
+      .sort((x, y) => y.score - x.score);
+    for (const o of options) {
+      work[b.id] = o.regionId;
+      visit(i + 1, score + o.score);
+    }
+    work[b.id] = null;
+  };
+  visit(0, 0);
+
+  const assignment = best.assignment;
+  const moves = banners
+    .filter((b) => (assignment[b.id] ?? null) !== placed[b.id])
+    .map((b): BannerMove => {
+      const from = placed[b.id] ?? null;
+      const to = assignment[b.id] ?? null;
+      return { bannerId: b.id, from, to, reason: moveReason(ctx, state, b, from, to) };
+    });
+  return {
+    current,
+    best: getHarvestPreview(ctx, state, playerId, assignment).total,
+    assignment,
+    moves: inPlayableOrder(ctx, state, placed, moves),
+  };
+}
+
+/** Why moving `banner` from `from` to `to` is part of the best placement. */
+function moveReason(ctx: RulesContext, state: GameState, banner: Banner, from: RegionId | null, to: RegionId | null): BannerMoveReason {
+  if (!from) return "unplaced";
+  const here = computeBannerHarvest(ctx, state, banner, from);
+  const there = to ? computeBannerHarvest(ctx, state, banner, to).amount : 0;
+  if (there <= here.amount) return "make_room";
+  if (here.notes.includes("blocked_by_troll")) return "blocked_by_troll";
+  if (here.notes.includes("taken_by_dragon")) return "taken_by_dragon";
+  // Nothing else changes the amount but Druid's Blessing, which adds only
+  // in Grain and Timber Regions.
+  return "blessing_lost";
+}
+
+/**
+ * Puts a move whose destination is free first, so a player can make the
+ * moves one at a time. A cycle (two Banners swapping full Regions) keeps
+ * its order: one of them has to go home first.
+ */
+function inPlayableOrder(ctx: RulesContext, state: GameState, placed: Readonly<Record<BannerId, RegionId | null>>, moves: BannerMove[]): BannerMove[] {
+  const at = { ...placed };
+  const left = [...moves];
+  const out: BannerMove[] = [];
+  while (left.length > 0) {
+    const next = Math.max(
+      0,
+      left.findIndex((m) => m.to === null || getLegalBannerRegions(ctx, state, m.bannerId, at).includes(m.to)),
+    );
+    const [m] = left.splice(next, 1) as [BannerMove];
+    at[m.bannerId] = m.to;
+    out.push(m);
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------ menaces (§20–26)
 
 export function menaceLocationKind(type: MenaceType): MenaceLocation["kind"] {

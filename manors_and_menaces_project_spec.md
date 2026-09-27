@@ -769,6 +769,14 @@ The UI must preview next Harvest.
 
 The player explicitly confirms assignments.
 
+Before the turn ends, the UI warns when another legal placement of the player's own Banners would harvest more at their next Harvest (`getBannerAdvice`). Rival Banners stay where they are, and among equal totals the placement with the fewest moves wins, so a Bog Witch (same amount) or a sick Banner (nothing anywhere) never warns by itself, and neither does a Banner at home with no Region to go to. The warning names each move and its reason (at home, the Toll Troll, the Young Dragon, a Druid's Blessing outside Grain and Timber, or room for another Banner) and offers:
+
+- **Place Banners** (the default): back to the board, the first Banner to move picked up;
+- **Place them for me**: the suggestion goes into the draft, and the turn does not end;
+- **End turn anyway**.
+
+A setting, also offered as "Don't warn me again", turns the warning off. It is advice only: no command, protocol or server change, and AI seats never see it.
+
 ## 16.4 Phase 4 — End Turn
 
 Resolve, in order:
@@ -2461,6 +2469,8 @@ Bog Witch
 ```
 
 The preview should update immediately as Banners move.
+
+Ending the turn compares the preview's total with the best legal placement and warns when that is higher (§16.3).
 
 ---
 
