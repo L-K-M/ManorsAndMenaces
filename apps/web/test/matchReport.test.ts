@@ -169,14 +169,15 @@ function ragnarokGame(): { initial: GameState; final: GameState; commands: GameC
 
 /**
  * Three normal AIs to 20 Renown on a seed whose board fills up first: the
- * round that ends on the full board ends the game (§7).
+ * round that ends on the full board ends the game (§7). The goal is pinned
+ * because the default of 15 is reached before the board fills.
  */
 function fullBoardGame(): { initial: GameState; final: GameState; commands: GameCommand[] } {
   const initial = engine.createGame({
     matchId: "m-full",
     seed: "e2e-finished",
     rulesetVersion: RULESET_VERSION,
-    ruleset: standardRuleset(3),
+    ruleset: standardRuleset(3, { targetRenown: 20 }),
     players: ["P1", "P2", "P3"].map((id, i) => ({ id, displayName: `Player ${i + 1}` })),
   });
   const rng = createRng(seedRng("e2e-finished-ai"));

@@ -5,10 +5,10 @@ import { rememberRenownGoal, rememberedRenownGoal, renownGoal } from "../src/lib
 // default for the player count until you pick a goal, which is remembered.
 describe("renownGoal", () => {
   it("follows the rules and player count until you pick a goal", () => {
-    expect(renownGoal("standard", 2, null)).toEqual({ value: 20, usual: 20, choices: [15, 20, 25, 30] });
-    expect(renownGoal("standard", 3, null).value).toBe(20);
-    expect(renownGoal("standard", 4, null)).toEqual({ value: 18, usual: 18, choices: [15, 18, 20, 25, 30] });
-    expect(renownGoal("async", 4, null).value).toBe(18);
+    expect(renownGoal("standard", 2, null)).toEqual({ value: 15, usual: 15, choices: [15, 20, 25, 30] });
+    expect(renownGoal("standard", 3, null).value).toBe(15);
+    expect(renownGoal("standard", 4, null)).toEqual({ value: 13, usual: 13, choices: [13, 15, 20, 25, 30] });
+    expect(renownGoal("async", 4, null).value).toBe(13);
     expect(renownGoal("mvp", 3, null)).toEqual({ value: 10, usual: 10, choices: [10, 15, 20, 25, 30] });
   });
 
@@ -17,17 +17,17 @@ describe("renownGoal", () => {
       expect(renownGoal(rules, players, 25).value).toBe(25);
       expect(renownGoal(rules, players, 15).value).toBe(15);
     }
-    // Picking the usual goal still pins it: four players keep 20, not 18.
-    expect(renownGoal("standard", 4, 20).value).toBe(20);
+    // Picking the usual goal still pins it: four players keep 15, not 13.
+    expect(renownGoal("standard", 4, 15).value).toBe(15);
   });
 
   it("falls back to the default when these rules do not offer the picked goal", () => {
-    // 10 is a Core goal and 18 the four-player one.
-    expect(renownGoal("standard", 3, 10).value).toBe(20);
+    // 10 is a Core goal and 13 the four-player one.
+    expect(renownGoal("standard", 3, 10).value).toBe(15);
     expect(renownGoal("mvp", 3, 10).value).toBe(10);
-    expect(renownGoal("standard", 2, 18).value).toBe(20);
-    expect(renownGoal("standard", 4, 18).value).toBe(18);
-    expect(renownGoal("standard", 3, 17).value).toBe(20);
+    expect(renownGoal("standard", 2, 13).value).toBe(15);
+    expect(renownGoal("standard", 4, 13).value).toBe(13);
+    expect(renownGoal("standard", 3, 17).value).toBe(15);
   });
 });
 

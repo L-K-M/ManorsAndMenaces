@@ -7,8 +7,8 @@ const engine = createRulesEngine(rulesContentFor());
 
 /**
  * Three Easy AIs on Greenvale, stopping at the end of `maxRounds`. The goal
- * stays at 15 Renown, which the 40-round limit below was set for: at the
- * Standard default of 20 a three-player board can fill up first (§129.6).
+ * is pinned at 15 Renown, which the 40-round limit below was set for: at a
+ * goal of 20 a three-player board can fill up first (§129.6).
  */
 function playEasy(seed: string, maxRounds: number): { final: GameState; commands: GameCommand[] } {
   let s = engine.createGame({

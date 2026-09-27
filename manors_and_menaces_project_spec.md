@@ -237,7 +237,7 @@ Resource visibility is intentionally public to reduce memory burden and make tac
 
 # 7. Victory
 
-The standard game ends when a player reaches **20 Renown** (**18 Renown with 4 players**) and completes their current turn.
+The standard game ends when a player reaches **15 Renown** (**13 Renown with 4 players**) and completes their current turn.
 
 The MVP ruleset (no cards, no Quests) uses a target of **10 Renown**, because Holdings are its only Renown source (see §7.1).
 
@@ -2476,7 +2476,7 @@ Tutorial must explicitly teach:
 6. Menaces interfere with local rules.
 7. Cards move Menaces or Banners.
 8. Royal Quests score Renown.
-9. Reach the target Renown to win (Standard: 20 by default, or 18 with 4 players; Core tutorial: 10).
+9. Reach the target Renown to win (Standard: 15 by default, or 13 with 4 players; Core tutorial: 10).
 
 Tutorial should be interactive, not a wall of text.
 
@@ -3937,7 +3937,7 @@ Support a `RulesetConfig`.
 ```ts
 interface RulesetConfig {
   playerCount: number;
-  targetRenown: number;            // chosen at creation (§7); default 20 standard (18 with 4 players), 10 MVP
+  targetRenown: number;            // chosen at creation (§7); default 15 standard (13 with 4 players), 10 MVP
   activeMenaces: MenaceType[];     // §118
   enableCards: boolean;
   enableReactionCards: boolean;
@@ -4348,7 +4348,7 @@ The core design is considered validated only if playtesting shows:
 4. Menaces add tactics rather than frustration;
 5. Market trading prevents resource deadlocks;
 6. roads and Holdings create meaningful spatial expansion;
-7. the default 20 Renown (18 with 4 players) produces acceptable match length, and the other goals (§7) offer shorter and longer games;
+7. the default 15 Renown (13 with 4 players) produces acceptable match length, and the other goals (§7) offer shorter and longer games;
 8. cards do not dominate strategy;
 9. Quests create varied objectives;
 10. players want to replay with different Menaces/Quests.
@@ -4532,3 +4532,5 @@ The same runs with the full-board end rule and the third-wave cards (§129.5), r
 | 4 | 18 | 40/40 | 29 (avg round 23.8) | 22.4 (15–37) | 15.6 | 33 / 20 / 28 / 20 % |
 
 Every game finishes. At the default goals games still run past the §68 target of 12–16 turns per player, most with 4 players, and nearly half of the three-player games and most four-player games end on a full board rather than at the goal. The third seat won 53 % of three-player games, above the 45 % target; with about ±8 points of noise in 40 games, that needs a larger run before any tuning.
+
+**The default returns to 15 (September 2026).** Players found 20 out of reach. With 3 or 4 players the board usually fills first, and the leader then has about 19 Renown with 3 players and about 15 with 4, as the tables above show. The Standard and async default is 15 again, or 13 with 4 players. 20, 25 and 30 stay on offer; 18 is no longer offered with 4 players. Saved games and running matches keep the goal they were created with.

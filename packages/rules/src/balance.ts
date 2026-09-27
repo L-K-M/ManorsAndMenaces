@@ -3,8 +3,9 @@ import type { MenaceType, ResourceCost, RulesetConfig } from "./types.js";
 // All tunable numbers live here (spec §121). Do not scatter numbers in code.
 export const BALANCE = {
   // Default Renown goals. Keep four-player games shorter on the more crowded
-  // board (spec §7).
-  targetRenown: { standard: 20, standardFourPlayers: 18, mvp: 10 },
+  // board (spec §7). 20 (18 with four players) was rarely reached before the
+  // board filled up (§129.6).
+  targetRenown: { standard: 15, standardFourPlayers: 13, mvp: 10 },
   /** Renown goals a new game may be created with, besides its rules' default (§7). */
   targetRenownChoices: [15, 20, 25, 30],
   costs: {

@@ -33,8 +33,8 @@ async function beginHotseat(page: Page, rules: "standard" | "mvp" = "standard") 
 
 /**
  * A finished hot-seat game with its full history, played by the AI (three
- * players by default, to 15 Renown, which someone reaches: at the Standard
- * default of 20 this seed's board fills up first, and that ends the game).
+ * players by default, to 15 Renown, which someone reaches: at a goal of 20
+ * this seed's board fills up first, and that ends the game).
  */
 function finishedSave(seed = "e2e-finished", names = ["Ysolde", "Wat", "Maud"], ruleset: RulesetConfig = standardRuleset(3, { targetRenown: 15 })): SaveFile {
   const engine = createRulesEngine(rulesContentFor("greenvale"));
@@ -205,7 +205,7 @@ test("a game that ends on a full board says so on the results", async ({ page })
   await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false })));
   await page.reload();
   await page.getByRole("button", { name: "Load game" }).click();
-  const save = finishedSave(undefined, undefined, standardRuleset(3));
+  const save = finishedSave(undefined, undefined, standardRuleset(3, { targetRenown: 20 }));
   await page.getByLabel(/Import a save file/).setInputFiles({ name: "full-board.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(save)) });
 
   const victory = page.getByRole("dialog", { name: "Victory!" });

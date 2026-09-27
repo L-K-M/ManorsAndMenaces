@@ -50,10 +50,10 @@ describe("creating a match with a Renown goal", () => {
   });
 
   it.each([
-    ["standard", 2, 20],
-    ["standard", 3, 20],
-    ["standard", 4, 18],
-    ["async", 4, 18],
+    ["standard", 2, 15],
+    ["standard", 3, 15],
+    ["standard", 4, 13],
+    ["async", 4, 13],
     ["mvp", 4, 10],
   ] as const)("uses the %s default with %i seats when none is chosen", (rulesetName, seatCount, target) => {
     const { matchId } = create({ rulesetName, seatCount });
@@ -62,7 +62,7 @@ describe("creating a match with a Renown goal", () => {
 
   it.each([
     ["standard", 2, 30],
-    ["standard", 4, 18],
+    ["standard", 4, 13],
     ["mvp", 3, 10],
     ["mvp", 2, 25],
   ] as const)("accepts a %s goal offered with %i seats: %i", (rulesetName, seatCount, targetRenown) => {
@@ -72,7 +72,8 @@ describe("creating a match with a Renown goal", () => {
 
   it.each([
     ["standard", 2, 10],
-    ["standard", 3, 18],
+    ["standard", 3, 13],
+    ["standard", 4, 18],
     ["async", 2, 17],
     ["mvp", 2, 12],
     ["standard", 2, 35],
@@ -93,14 +94,14 @@ describe("creating a match with a Renown goal", () => {
 
 describe("matches created before the goal changed", () => {
   it("start with the goal saved in their lobby", () => {
-    // A lobby created when the 2-player Standard goal was 15.
-    store.createMatch({ id: "old", ruleset: { ...standardRuleset(2), targetRenown: 15 }, rulesVersion: RULESET_VERSION, mapId: "greenvale", seed: "old-goal", inviteCode: "OLDGOAL" });
+    // A lobby created when the 2-player Standard goal was 20.
+    store.createMatch({ id: "old", ruleset: { ...standardRuleset(2), targetRenown: 20 }, rulesVersion: RULESET_VERSION, mapId: "greenvale", seed: "old-goal", inviteCode: "OLDGOAL" });
     for (let seat = 0; seat < 2; seat++) {
       store.addSeat({ match_id: "old", seat, player_id: `P${seat + 1}`, user_id: seat === 0 ? alice.id : null, display_name: seat === 0 ? "Alice" : "Open seat", kind: "human", ai_level: null });
     }
     service.joinMatch(bob, "OLDGOAL", "Bob");
     const view = service.view("old", bob);
     expect(view.status).toBe("playing");
-    expect(view.state?.ruleset.targetRenown).toBe(15);
+    expect(view.state?.ruleset.targetRenown).toBe(20);
   });
 });

@@ -26,7 +26,7 @@ function withRenown(s: GameState, p: PlayerId, renown: number): GameState {
 }
 
 describe("Renown goal defaults (§7)", () => {
-  it.each([[2, 20], [3, 20], [4, 18]])("targets %i-player Standard and async games at their default", (players, target) => {
+  it.each([[2, 15], [3, 15], [4, 13]])("targets %i-player Standard and async games at their default", (players, target) => {
     expect(standardRuleset(players).targetRenown).toBe(target);
     expect(asyncRuleset(players).targetRenown).toBe(target);
     expect(defaultTargetRenown("standard", players)).toBe(target);
@@ -41,7 +41,7 @@ describe("Renown goal defaults (§7)", () => {
   it("offers 15, 20, 25 and 30, plus the rules' own default", () => {
     expect(targetRenownChoices("standard", 2)).toEqual([15, 20, 25, 30]);
     expect(targetRenownChoices("async", 3)).toEqual([15, 20, 25, 30]);
-    expect(targetRenownChoices("standard", 4)).toEqual([15, 18, 20, 25, 30]);
+    expect(targetRenownChoices("standard", 4)).toEqual([13, 15, 20, 25, 30]);
     expect(targetRenownChoices("mvp", 2)).toEqual([10, 15, 20, 25, 30]);
   });
 });
@@ -66,6 +66,11 @@ describe("choosing a Renown goal (§7)", () => {
   it.each([10, 13, 17, 18, 35, 0, -20, 20.5, Number.NaN, Number.POSITIVE_INFINITY])("refuses a goal of %s Renown for a 2-player Standard game", (targetRenown) => {
     expect(() => standardRuleset(2, { targetRenown })).toThrow(RangeError);
     expect(() => asyncRuleset(2, { targetRenown })).toThrow(RangeError);
+  });
+
+  it("no longer offers four players 18 Renown, their default before it returned to 13", () => {
+    expect(() => standardRuleset(4, { targetRenown: 18 })).toThrow(RangeError);
+    expect(() => asyncRuleset(4, { targetRenown: 18 })).toThrow(RangeError);
   });
 
   it("refuses goals the Core rules do not offer", () => {
@@ -102,9 +107,9 @@ describe("Ragnarök's omen follows the chosen goal (§19.13)", () => {
 });
 
 describe("games created before the goal changed (§7)", () => {
-  // Before this change the Standard goal was 15, or 13 with 4 players. A saved
-  // game or running online match stores its goal, so it keeps it.
-  it.each([15, 13])("still end at their saved goal of %i", (targetRenown) => {
+  // For a while the Standard goal was 20, or 18 with 4 players. A saved game
+  // or running online match stores its goal, so it keeps it.
+  it.each([20, 18])("still end at their saved goal of %i", (targetRenown) => {
     const { state, p1 } = setupGame({ ...standardRuleset(2), targetRenown });
     const restored = JSON.parse(JSON.stringify(state)) as GameState;
     expect(restored.ruleset.targetRenown).toBe(targetRenown);

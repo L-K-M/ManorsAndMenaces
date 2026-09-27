@@ -469,7 +469,7 @@ describe("review regressions", () => {
 });
 
 describe("rulesets", () => {
-  it.each([[2, 20], [3, 20], [4, 18]])("targets the Standard and async Renown goal with %i players", (players, target) => {
+  it.each([[2, 15], [3, 15], [4, 13]])("targets the Standard and async Renown goal with %i players", (players, target) => {
     expect(standardRuleset(players).targetRenown).toBe(target);
     expect(asyncRuleset(players).targetRenown).toBe(target);
   });
@@ -484,13 +484,13 @@ describe("rulesets", () => {
 });
 
 describe("victory (§7)", () => {
-  it.each([18, 19, 20])("checks the new Standard target at %i Renown", (renown) => {
+  it.each([13, 14, 15])("checks the Standard target at %i Renown", (renown) => {
     const { state, p1 } = setupGame(standardRuleset(2));
     const result = engine.applyDebugCommand(state, { type: "debug_set_bonus_renown", commandId: "target", matchId: "m1", playerId: p1, targetPlayerId: p1, value: renown - getRenown(ctx, state, p1) });
     expect(result.accepted).toBe(true);
     const ended = passTurn(result.newState as GameState);
-    expect(ended.status).toBe(renown >= 20 ? "finished" : "playing");
-    if (renown >= 20) expect(ended.winnerId).toBe(p1);
+    expect(ended.status).toBe(renown >= 15 ? "finished" : "playing");
+    if (renown >= 15) expect(ended.winnerId).toBe(p1);
   });
   it.each([10, 12])("honors a saved Standard target of %i Renown", (targetRenown) => {
     const { state, p1 } = setupGame({ ...standardRuleset(2), targetRenown });
