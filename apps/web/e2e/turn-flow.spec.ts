@@ -208,8 +208,9 @@ test("only the suggested Market route marks a resource as suggested", async ({ p
 });
 
 test("a claimable Quest is badged, prompted, and recalled when leaving Main", async ({ page }) => {
-  // A seed that reveals Far Reaches (#22's 2-player deck changed the shuffle).
-  await startHotseat(page, "e2e-seed-7");
+  // A seed that reveals Far Reaches (the deck's size decides the shuffle:
+  // #22's 2-player deck and the third wave of cards each moved it).
+  await startHotseat(page, "e2e-seed-10");
   // The first player's Manors sit far apart, so Far Reaches is complete.
   await completeSetup(page);
 
