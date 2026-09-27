@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "../i18n.js";
   import { RIVALS, rivalById } from "@manors-menaces/content";
-  import { BALANCE } from "@manors-menaces/rules";
+  import { BALANCE, crownLevyRules } from "@manors-menaces/rules";
   import { assignRivals, rivalName } from "../game/rivals.js";
   // Online lobby (spec §86): guest session, private invite links first,
   // your asynchronous matches, and joining by code.
@@ -42,6 +42,8 @@
   // The Renown to win (§7), as on New Game: the default until you pick one.
   let pickedGoal: number | null = $state(rememberedRenownGoal());
   const goal = $derived(renownGoal(rules, seatCount, pickedGoal));
+  /** Standard and async matches have the Crown's Levy (§27.3); the server builds it the same way. */
+  const levy = $derived.by(() => (rules === "mvp" ? undefined : crownLevyRules(goal.value)));
   // Sealed Charges (§27A), as on New Game: off unless chosen.
   let sealedCharges = $state(false);
   let aiCount = $state(0);
@@ -338,6 +340,7 @@
           </select>
         </label>
         <p class="hint" id="lobby-goal-hint">{renownGoalHint(rules, seatCount, goal.value)}</p>
+        {#if levy}<p class="hint">{t("ui.levy_hint", { round: levy.proclaimByRound + 1, renown: levy.renown, price: levy.price })}</p>{/if}
         <label class="option">
           <input type="checkbox" bind:checked={sealedCharges} />
           {t("ui.sealed_charges_option")}
