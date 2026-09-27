@@ -398,7 +398,7 @@ describe("the third wave (§19.22–19.27)", () => {
   describe("Counterspell", () => {
     const counter = { type: "react", cardId: "counterspell#1" };
     const pass = { type: "pass_reaction" };
-    /** p1 casts `cardId` at p2, who leads by 2 and holds a Counterspell. */
+    /** p1 casts `cardId` at p2, who leads by 1 with a third Manor (on s5) and holds a Counterspell. */
     function cast(cardId: string, target: Extract<CommandIntent, { type: "play_card" }>["target"], patch: Partial<PlayerState> = {}) {
       const { state: start, p1, p2 } = position();
       let s = withPlayer(withManor(start, p2, "s5"), p1, { hand: [cardId] });

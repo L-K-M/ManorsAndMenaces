@@ -51,8 +51,12 @@ describe("remembered Renown goal", () => {
   });
 
   it("ignores stored values that are not whole numbers", () => {
+    // The key the goal is stored under, so a renamed key cannot pass unread.
+    rememberRenownGoal(25);
+    const [key] = [...store.keys()];
+    if (!key) throw new Error("nothing was stored");
     for (const junk of ["", "abc", "25.5", "1e3x", "-"]) {
-      store.set("mm.renownGoal.v1", junk);
+      store.set(key, junk);
       expect(rememberedRenownGoal()).toBeNull();
     }
   });

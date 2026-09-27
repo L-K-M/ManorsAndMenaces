@@ -60,9 +60,10 @@ export const WEIGHTS = {
   rivalRenown: 0.6,
   /**
    * Per unit of each rival's stock (concave, as `stockWorth`), scaled by
-   * threat: what Sabotage burns. As small as `denial`, which values a rival's
-   * Harvest, so resources that other actions give rivals (a Writ's bribe, the
-   * Festival's Grain) barely change how those actions score.
+   * threat, so that Sabotage, which burns only their Grain, scores. Every
+   * resource counts, at a weight as small as `denial`, which values a
+   * rival's Harvest, so resources that other actions give rivals (a Writ's
+   * bribe, the Festival's Grain) barely change how those actions score.
    */
   rivalStock: 0.12,
   win: 1000,

@@ -1283,6 +1283,19 @@ describe("Siege Fireball (§19.26)", () => {
     refuse(ahead, g.p1, card, fireball("s3"), "INVALID_CARD_TARGET");
   });
 
+  it("needs the rival strictly ahead on Renown even when they have enough Holdings", () => {
+    const { s: base, p1, p2 } = siegeFixture();
+    const { s: withCard, card } = dealt(base, p2, "siege_fireball");
+    // p1 keeps 3 Holdings and 4 Renown; p2 draws level, then passes them.
+    for (const renown of [4, 5]) {
+      const s = withRenown(withCard, p2, renown);
+      expect(player(s, p1).holdingIds.length).toBeGreaterThanOrEqual(BALANCE.raid.minHoldings);
+      expect(getRenown(ctx, s, p1)).toBe(4);
+      expect(offered(s, p2, card)).toEqual([]);
+      refuse(s, p2, card, fireball("s5"), "INVALID_CARD_TARGET");
+    }
+  });
+
   it("keeps initial placement off a ruin too", () => {
     const s = edit(newGame(standardRuleset(2)), (c) => (c.ruinedSiteIds = ["s5"]));
     expect(getLegalInitialManorSites(ctx, s)).not.toContain("s5");

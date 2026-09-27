@@ -1111,7 +1111,7 @@ The third wave (§19.22–19.27) answers a playtest request for more offensive c
 **Timing:** Main Action  
 **Requirement:** A rival has more Renown than you.  
 **Effect:** Choose such a rival. For the rest of the game they lose 1 Renown and you gain 1 (`BALANCE.renownSwing`).  
-**Note:** Their loss is kept in `lostRenown` and your gain in `bonusRenown` (§33.1). The `renown_stolen` event names both players.  
+**Note:** Their loss is kept in `lostRenown` and your gain in `bonusRenown` (§33.1). The `renown_stolen` event names both players. If their Royal Insurance Policy absorbs the card, neither happens: they lose nothing and you gain nothing (§19.19).  
 **Rationale:** The strongest card of the wave, a two-point swing, so there is one copy, and only a player behind may play it. It never puts you more than 1 Renown ahead of the rival you rob.
 
 ## 19.26 Siege Fireball ×1
@@ -1635,6 +1635,7 @@ export interface GameState {
   ruinedSiteIds?: SiteId[]; // Siege Fireball (§19.26): nobody may build there again
   historyMeta: HistoryMeta;
   winnerId?: PlayerId;
+  endCause?: "ragnarok" | "full_board"; // §19.13, §7; absent when the target was reached
 }
 ```
 

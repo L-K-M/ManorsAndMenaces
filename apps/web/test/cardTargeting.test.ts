@@ -161,13 +161,13 @@ function rivalHolding(s: GameState): GameState["holdings"][string] {
 }
 
 /** Gives the actor a Route that ends at `siteId`, taking it from whoever owned it. */
-function routeTo(s: GameState, me: Player, siteId: string): void {
+function routeTo(s: GameState, siteId: string): void {
   const route = ctx.board.routesAt(siteId)[0];
   if (!route) throw new Error(`no Route at ${siteId}`);
   const owner = s.routeOwners[route.id];
   if (owner) (s.players[owner] as Player).routeIds = (s.players[owner] as Player).routeIds.filter((r) => r !== route.id);
   s.routeOwners[route.id] = actor;
-  me.routeIds.push(route.id);
+  (s.players[actor] as Player).routeIds.push(route.id);
 }
 
 /** Each new card, set up so it can be played, and the dialogs its flow opens. */
@@ -226,18 +226,18 @@ const NEW_CARDS: { effect: CardEffectId; setup?: (s: GameState, me: Player) => v
   },
   {
     effect: "siege_engines",
-    setup: (s, me) => {
+    setup: (s) => {
       const h = rivalHolding(s);
       h.type = "stronghold";
-      routeTo(s, me, h.siteId);
+      routeTo(s, h.siteId);
     },
     dialogs: [],
   },
   {
     effect: "raiders",
-    setup: (s, me) => {
+    setup: (s) => {
       extraHolding(s, rival, "h_raided");
-      routeTo(s, me, s.holdings.h_raided?.siteId as string);
+      routeTo(s, s.holdings.h_raided?.siteId as string);
     },
     dialogs: [],
   },
