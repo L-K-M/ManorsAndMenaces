@@ -15,5 +15,5 @@ export * from "./hash.js";
 export { createRulesEngine, type ApplyResult, type RulesEngine } from "./engine.js";
 export { isCardUsableInRuleset, validateCardTarget } from "./cards.js";
 export { rankPlayers } from "./victory.js";
-export { getFavourAwards, getRivalNeighbours, isVoiceSpeaking, virtueScore, type FavourAward } from "./voice.js";
+export { getFavourAwards, getRivalNeighbours, getVoiceStatus, isVoiceSpeaking, virtueScore, type FavourAward, type VoiceStatus } from "./voice.js";
 export { clone } from "./clone.js";

@@ -175,7 +175,7 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
     revealedQuestIds = questDeck.splice(0, ruleset.revealedQuestCount);
   }
   // Drawn after every older RNG use, so games without the Voice deal as before.
-  const crownsVoice = ruleset.crownsVoice ? createCrownsVoice(rng, ruleset.crownsVoice) : undefined;
+  const crownsVoice = ruleset.crownsVoice ? createCrownsVoice(rng, ruleset.crownsVoice, questDeck) : undefined;
 
   const playerStates: Record<PlayerId, PlayerState> = {};
   players.forEach((p, seat) => {

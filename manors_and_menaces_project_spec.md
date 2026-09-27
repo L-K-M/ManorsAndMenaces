@@ -260,7 +260,7 @@ The target is `RulesetConfig.targetRenown`. It is chosen when a game is created:
 
 The winning condition is checked during the End Turn phase of the active player's turn, after all other end-of-turn effects.
 
-In the base game only the active player can gain Renown, because building and Quest claims happen only in their own Main Action phase. The check therefore looks at the active player first. If any player is at or above the target when the check runs, the game ends. If more than one player is at or above the target (possible only through future effects), use the following tie-break order:
+In the base game only the active player can gain Renown, because building and Quest claims happen only in their own Main Action phase. The check therefore looks at the active player first. If any player is at or above the target when the check runs, the game ends. If more than one player is at or above the target (possible through future effects, or through the experimental Crown's Voice, §129.7, whose Favour moves between any players in the End Turn of the last player in turn order, before this check), use the following tie-break order:
 
 1. highest Renown;
 2. most completed Royal Quests;
@@ -4579,7 +4579,7 @@ As the next round begins, the next Voice becomes the current one and a new next 
 
 **Favour** is public and counts as Renown: `getRenown`, the `favour` part of `getRenownSources` and the Renown dialog. Losing Favour never takes Renown below 0 (§8). Nothing is demolished and nobody loses a Holding: La Città's cascade from lost citizens to lost buildings is left out.
 
-**Settings.** `crownsVoice: { purse, from }`. `purse` is the Favour the Crown starts with. With `from: "first_round"` the Voice speaks at the end of every round. With `"quest_deck_empty"` it speaks only at the end of rounds that end with the Royal Quest deck empty, which it stays once it has run out; Core games have no Quests, so there it speaks from round 1. The Voice does not turn while it is silent. New games get `crownsVoiceRules()`: a purse of 15, speaking once the Quest deck is empty.
+**Settings.** `crownsVoice: { purse, from }`. `purse` is the Favour the Crown starts with. With `from: "first_round"` the Voice speaks at the end of every round. With `"quest_deck_empty"` it speaks at the end of every round from the first that begins with the Royal Quest deck empty; Core games have no Quests, so there it speaks from round 1. The deck runs out in an End Turn, as a claimed Quest is replaced, and the Voice then waits for the next round instead of speaking as that round ends. So every seat knows a full round ahead, and the player whose End Turn empties the deck cannot make the Voice speak before the others can act. The state records it as a round begins (`crownsVoice.speaking`), and it never falls silent again. A waiting Voice does not turn, and its first speaking round favours the virtue it showed while it waited. New games get `crownsVoiceRules()`: a purse of 15, speaking once the Quest deck is empty.
 
 **Events and interface.** A `favour_won` event (winner, rival, source, virtue, both Sites and both scores) for each Favour, and `crowns_voice_turned` as a round begins. The Chronicle and the action feed tell both, and the feed speaks to the player who loses Favour. The top bar shows "The Crown favours Might (next: Plenty)" (in short on phones), with the purse and the scoring in its tooltip.
 
@@ -4589,6 +4589,8 @@ As the next round begins, the next Voice becomes the current one and a new next 
 
 `pnpm simulate --map drawn --games 30` (normal AI, a drawn island and layout per game, the same 30 seeds in every row, the full-board rule on), without and with `--override '{"crownsVoice":{"purse":P,"from":F}}'`. "Margin" is the winner's Renown less the runner-up's. "Lead changes" count how often, in the last 5 rounds, the lead passed to a player with strictly more Renown than the leader.
 
+The rows that start the Voice once the Quest deck is empty were measured with it waiting for the round after the deck runs out (see Settings above). Speaking in the round the deck ran out, as first built, the chosen setting gave 18.7 rounds, 21 full-board endings, a winner of 21.8 Renown and a margin of 3.9 with 3 players at goal 25.
+
 Choosing when the Voice starts and the size of the purse, 3 players unless shown:
 
 | Voice | Goal | Rounds | Full-board endings | Winner Renown (of it Favour) | Margin | Favour per game from the purse / from rivals |
@@ -4597,17 +4599,17 @@ Choosing when the Voice starts and the size of the purse, 3 players unless shown
 | round 1, purse 10 | 25 | 17.4 | 15/30 | 23.3 (6.4) | 6.6 | 9.9 / 22.3 |
 | round 1, purse 15 | 25 | 17.0 | 12/30 | 24.0 (7.9) | 6.4 | 13.4 / 22.5 |
 | round 1, purse 20 | 25 | 16.5 | 11/30 | 24.2 (8.5) | 5.8 | 14.9 / 20.1 |
-| Quest deck empty, purse 10 | 25 | 19.0 | 22/30 | 21.7 (4.2) | 4.4 | 7.5 / 10.1 |
-| Quest deck empty, purse 15 | 25 | 18.7 | 21/30 | 21.8 (4.5) | 3.9 | 8.6 / 9.8 |
-| Quest deck empty, purse 20 | 25 | 18.7 | 21/30 | 21.8 (4.8) | 3.7 | 8.9 / 9.8 |
+| Quest deck empty, purse 10 | 25 | 19.3 | 23/30 | 21.1 (3.2) | 3.9 | 6.9 / 10.5 |
+| Quest deck empty, purse 15 | 25 | 19.0 | 23/30 | 21.3 (3.6) | 3.5 | 7.8 / 9.1 |
+| Quest deck empty, purse 20 | 25 | 19.0 | 23/30 | 21.3 (3.6) | 3.4 | 8.1 / 9.0 |
 | off | 15 | 14.4 | 1/30 | 14.9 | 3.0 | |
 | round 1, purse 15 | 15 | 10.8 | 0/30 | 15.6 (5.9) | 4.1 | 9.0 / 7.5 |
-| Quest deck empty, purse 15 | 15 | 13.9 | 1/30 | 15.4 (0.8) | 3.0 | 1.5 / 0.5 |
-| Quest deck empty, purse 15 | 30 | 20.1 | 27/30 | 22.5 (4.8) | 4.1 | 9.2 / 14.1 |
-| Quest deck empty, purse 20 | 30 | 20.1 | 27/30 | 22.8 (5.3) | 3.8 | 9.9 / 14.0 |
+| Quest deck empty, purse 15 | 15 | 14.1 | 1/30 | 15.2 (0.5) | 3.1 | 0.8 / 0.4 |
+| Quest deck empty, purse 15 | 30 | 20.0 | 26/30 | 21.8 (3.5) | 3.6 | 8.2 / 12.5 |
+| Quest deck empty, purse 20 | 30 | 19.7 | 25/30 | 22.2 (3.8) | 3.9 | 8.8 / 12.0 |
 | off, 4 players | 25 | 23.0 | 30/30 | 14.7 | 3.0 | |
-| Quest deck empty, purse 15, 4 players | 25 | 22.4 | 26/30 | 18.6 (5.2) | 3.9 | 12.0 / 22.6 |
-| Quest deck empty, purse 20, 4 players | 25 | 22.6 | 22/30 | 20.0 (7.2) | 4.7 | 14.2 / 23.3 |
+| Quest deck empty, purse 15, 4 players | 25 | 22.3 | 29/30 | 18.1 (4.4) | 3.8 | 10.7 / 18.3 |
+| Quest deck empty, purse 20, 4 players | 25 | 21.9 | 26/30 | 19.1 (5.2) | 4.6 | 12.4 / 18.0 |
 
 At goals 15 and 20 with 3 players, and at 13 with 4, purses of 15 and 20 play identically: games draw less than 6 Favour from the purse on average.
 
@@ -4616,25 +4618,25 @@ Without and with the chosen setting (purse 15, from the round the Quest deck emp
 | Players, goal | Voice | Finished | Full-board endings (avg round) | Rounds (range) | Winner Renown | Margin | Favour by seat | Lead changes in the last 5 rounds | Seat win rates |
 |---|---|---:|---|---|---:|---:|---|---|---|
 | 3, 15 | off | 30/30 | 1 (15.0) | 14.4 (12–20) | 14.9 | 3.0 | | 0.77, in 63 % of games | 40 / 33 / 27 % |
-| 3, 15 | on | 30/30 | 1 (15.0) | 13.9 (12–16) | 15.4 | 3.0 | 0.3 / 0.6 / 0.6 | 0.67, in 53 % | 37 / 40 / 23 % |
+| 3, 15 | on | 30/30 | 1 (15.0) | 14.1 (12–16) | 15.2 | 3.1 | 0.2 / 0.3 / 0.3 | 0.67, in 53 % | 47 / 30 / 23 % |
 | 3, 20 | off | 30/30 | 20 (19.3) | 18.8 (14–28) | 18.0 | 2.9 | | 0.43, in 30 % | 33 / 43 / 23 % |
-| 3, 20 | on | 30/30 | 6 (17.3) | 17.0 (13–23) | 19.6 | 3.4 | 1.8 / 2.0 / 2.0 | 0.97, in 60 % | 40 / 37 / 23 % |
+| 3, 20 | on | 30/30 | 6 (17.5) | 17.3 (14–23) | 19.4 | 3.1 | 2.0 / 1.7 / 1.8 | 0.70, in 57 % | 37 / 40 / 23 % |
 | 3, 25 | off | 30/30 | 29 (20.3) | 20.2 (14–37) | 18.5 | 3.1 | | 0.43, in 30 % | 40 / 37 / 23 % |
-| 3, 25 | on | 30/30 | 21 (19.0) | 18.7 (15–26) | 21.8 | 3.9 | 2.8 / 3.1 / 2.6 | 0.53, in 43 % | 40 / 33 / 27 % |
+| 3, 25 | on | 30/30 | 23 (19.0) | 19.0 (14–26) | 21.3 | 3.5 | 2.0 / 2.9 / 2.9 | 0.73, in 47 % | 33 / 43 / 23 % |
 | 3, 30 | off | 30/30 | 30 (20.1) | 20.1 (14–28) | 18.4 | 2.9 | | 0.33, in 30 % | 50 / 37 / 13 % |
-| 3, 30 | on | 30/30 | 27 (19.8) | 20.1 (14–27) | 22.5 | 4.1 | 2.8 / 3.2 / 3.3 | 0.43, in 33 % | 37 / 37 / 27 % |
+| 3, 30 | on | 30/30 | 26 (19.5) | 20.0 (14–28) | 21.8 | 3.6 | 1.8 / 2.9 / 3.4 | 0.50, in 37 % | 37 / 43 / 20 % |
 | 4, 13 | off | 30/30 | 4 (20.3) | 16.5 (13–35) | 13.3 | 3.2 | | 0.73, in 47 % | 17 / 23 / 43 / 17 % |
-| 4, 13 | on | 30/30 | 1 (20.0) | 14.9 (12–22) | 13.4 | 2.8 | 0.8 / 0.5 / 0.4 / 1.0 | 0.77, in 47 % | 23 / 27 / 23 / 27 % |
+| 4, 13 | on | 30/30 | 1 (20.0) | 15.2 (13–24) | 13.4 | 2.9 | 0.4 / 0.4 / 0.4 / 0.8 | 0.80, in 50 % | 23 / 27 / 27 / 23 % |
 | 4, 25 | off | 30/30 | 30 (23.0) | 23.0 (15–36) | 14.7 | 3.0 | | 0.30, in 23 % | 30 / 27 / 27 / 17 % |
-| 4, 25 | on | 30/30 | 26 (22.5) | 22.4 (15–36) | 18.6 | 3.9 | 2.2 / 2.9 / 2.6 / 4.3 | 0.70, in 43 % | 27 / 20 / 17 / 37 % |
+| 4, 25 | on | 30/30 | 29 (22.3) | 22.3 (15–36) | 18.1 | 3.8 | 2.2 / 2.1 / 2.3 / 4.2 | 0.60, in 47 % | 27 / 13 / 20 / 40 % |
 
 **Rival pairs on a full board.** Counted at the end of every game that ended on a full board: about 11 pairs with 3 players (6 to 18 across islands and games) and about 15 with 4 players at goal 25 (10 to 19). With the cap of 2 Favour per player and round, those pairs move at most 6 Favour a round with 3 players and 8 with 4.
 
 Findings:
 
 1. **Speaking from round 1 feeds the leader.** The virtues reward being ahead (more Strongholds, Routes and Banners). An early Voice roughly doubles the winner's margin at goal 25 (3.1 to 5.8–6.6 Renown with every purse tried) and ends goal-15 games 3.6 rounds sooner.
-2. **Speaking once the Quest deck is empty**, which happens late in the game, lifts the 3-player winner at goals 25 and 30 from about 18.5 to about 22 Renown, inside the 20–25 band. Full-board endings fall from 20 to 6 of 30 games at goal 20, from 29 to 21 at 25 and from 30 to 27 at 30. Goal-15 games are 0.5 rounds shorter, as the Quest deck seldom empties before someone reaches 15. The margin still rises, by 0.5 to 1.2 Renown with 3 players at goals 20 to 30 and by 0.9 with 4 at goal 25. The lead changes hands in the last 5 rounds somewhat more often (in 33–60 % of games at goals 20 to 30, against 30 %).
-3. **The purse matters little once the Voice starts late.** A game draws about 9 Favour from it at goals 25 and 30. A purse of 10 runs dry, so more Favour is taken from rivals and the margin grows (4.4 at goal 25). Purses of 15 and 20 play alike with 3 players (within 0.3 Renown), but with 4 players at goal 25 a purse of 20 raised the margin to 4.7 against 3.9. Hence 15: a limit that 4-player games reach, after which Favour only changes hands.
-4. **Four players at goal 13** end 1.6 rounds sooner on average: the Voice finishes the longest games (35 rounds without it, 22 with it), and the margin does not rise.
-5. **Seats.** No seat stands out beyond the noise of 30 games (about ±9 points). The last seat's 37 % with 4 players at goal 25, and its larger Favour there, are worth rechecking: the Voice speaks at the end of the last seat's turn, although every seat's builds of the round count alike.
+2. **Speaking once the Quest deck is empty**, which happens late in the game, lifts the 3-player winner at goals 25 and 30 from about 18.5 to 21.3 and 21.8 Renown, inside the 20–25 band. Full-board endings fall from 20 to 6 of 30 games at goal 20, from 29 to 23 at 25 and from 30 to 26 at 30. Goal-15 games are 0.3 rounds shorter, as the Quest deck seldom empties before someone reaches 15. The margin still rises, by 0.2 to 0.7 Renown with 3 players at goals 20 to 30 and by 0.8 with 4 at goal 25. The lead changes hands in the last 5 rounds somewhat more often (in 37–57 % of games at goals 20 to 30, against 30 %).
+3. **The purse matters little once the Voice starts late.** A game draws about 8 Favour from it at goals 25 and 30. A purse of 10 runs dry, so more Favour is taken from rivals and the margin grows (3.9 against 3.5 at goal 25). Purses of 15 and 20 play alike with 3 players (within 0.4 Renown), but with 4 players at goal 25 a purse of 20 raised the margin to 4.6 against 3.8. Hence 15: those 4-player games draw about 11 Favour from it, and once it is spent Favour only changes hands.
+4. **Four players at goal 13** end 1.3 rounds sooner on average: the Voice finishes the longest games (35 rounds without it, 24 with it), and the margin does not rise.
+5. **Seats.** No seat stands out beyond the noise of 30 games (about ±9 points). The last seat's 40 % with 4 players at goal 25 (37 % with the first timing), and its larger Favour there (4.2 against 2.1 to 2.3), are worth rechecking: the Voice speaks at the end of the last seat's turn, although every seat's builds of the round count alike.
 6. **To watch with people.** Players who build for the virtue, as the AI does not, will move more Favour. As the rule rewards the leader, a cap of 1 Favour a round, or Favour taken only from players ahead, are the next levers if margins grow. With 3 players a trailing player can choose which rival to contest, and so which of them gains (kingmaking). A board overlay of the pairs and their projected winners, like the §54 Harvest preview, is not built.

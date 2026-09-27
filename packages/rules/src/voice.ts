@@ -21,6 +21,7 @@ import {
   type GameState,
   type Holding,
   type PlayerId,
+  type QuestId,
   type SiteId,
 } from "./types.js";
 
@@ -62,11 +63,24 @@ export function getRivalNeighbours(ctx: RulesContext, state: GameState): [Holdin
   return pairs;
 }
 
+/**
+ * When the Voice speaks (§129.7): `speaking` as this round ends;
+ * `from_next_round` when the Quest deck ran out during this round, so that
+ * every seat gets a round's warning; `waiting` while Quests remain.
+ */
+export type VoiceStatus = "speaking" | "from_next_round" | "waiting";
+
+/** The Voice's status, or null in a game without it. */
+export function getVoiceStatus(state: GameState): VoiceStatus | null {
+  const voice = state.crownsVoice;
+  if (!voice) return null;
+  if (voice.speaking) return "speaking";
+  return state.questDeck.length === 0 ? "from_next_round" : "waiting";
+}
+
 /** Whether the Voice speaks when this round ends (§129.7). */
 export function isVoiceSpeaking(state: GameState): boolean {
-  const rules = state.ruleset.crownsVoice;
-  if (!rules || !state.crownsVoice) return false;
-  return rules.from === "first_round" || state.questDeck.length === 0;
+  return getVoiceStatus(state) === "speaking";
 }
 
 /** One Favour the Voice awards: `playerId`'s Holding on `siteId` beat `rivalId`'s on `rivalSiteId`. */
@@ -159,11 +173,12 @@ function drawVirtue(rng: GameRng, deck: Record<CrownsVirtue, number>): CrownsVir
 }
 
 /** The Voice at game creation: the first two cards are turned and on show. */
-export function createCrownsVoice(rng: GameRng, rules: CrownsVoiceRules): CrownsVoiceState {
+export function createCrownsVoice(rng: GameRng, rules: CrownsVoiceRules, questDeck: readonly QuestId[]): CrownsVoiceState {
   const deck = fullDeck();
   const current = drawVirtue(rng, deck);
   const next = drawVirtue(rng, deck);
-  return { current, next, deck, purse: rules.purse, harvested: [] };
+  const speaking = rules.from === "first_round" || questDeck.length === 0;
+  return { current, next, deck, purse: rules.purse, harvested: [], speaking };
 }
 
 /** The Voice speaks as the round ends (§129.7): Favour moves between rival neighbours. */
@@ -184,15 +199,19 @@ export function crownSpeaks(tx: Tx): void {
 }
 
 /**
- * A new round begins: last round's Harvests are forgotten, and a Voice that
- * spoke turns to the next virtue and shows the one after. Run before anything
- * at the round's start can change `isVoiceSpeaking`.
+ * A new round begins, before its first Harvest: last round's Harvests are
+ * forgotten, and a Voice that spoke turns to the next virtue and shows the
+ * one after. A silent Voice starts to speak when the round begins with the
+ * Quest deck empty, favouring the virtue it showed while it waited.
  */
 export function turnVoice(tx: Tx): void {
   const voice = tx.s.crownsVoice;
   if (!voice) return;
   voice.harvested = [];
-  if (!isVoiceSpeaking(tx.s)) return;
+  if (!voice.speaking) {
+    voice.speaking = tx.s.questDeck.length === 0;
+    return;
+  }
   voice.current = voice.next;
   voice.next = drawVirtue(tx.rng, voice.deck);
   tx.emit({ type: "crowns_voice_turned", virtue: voice.current, next: voice.next });

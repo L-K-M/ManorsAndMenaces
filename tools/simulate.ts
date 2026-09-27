@@ -320,7 +320,7 @@ if (RULESET.crownsVoice) {
       `moved per game: from the purse ${avg(results.map((r) => r.favourFromPurse)).toFixed(1)}, from rivals ${avg(results.map((r) => r.favourFromRivals)).toFixed(1)}`,
   );
 }
-console.log(`seat win rates:     ${seatWins.map((w, k) => `seat${k + 1} ${pct(w)}`).join("  ")}   target: none > ${PLAYERS === 4 ? "30" : "45"}%`);
+console.log(`seat win rates:      ${seatWins.map((w, k) => `seat${k + 1} ${pct(w)}`).join("  ")}   target: none > ${PLAYERS === 4 ? "30" : "45"}%`);
 console.log(`harvest per turn:    early ${avg(results.flatMap((r) => r.harvestMid)).toFixed(2)}  later ${avg(results.flatMap((r) => r.harvestLate)).toFixed(2)}   target mid 3–5, late 4–7`);
 console.log(`per game:            writs ${avg(results.map((r) => r.writs)).toFixed(1)}  wardens ${avg(results.map((r) => r.wardens)).toFixed(1)}  trades ${avg(results.map((r) => r.trades)).toFixed(1)}  cards bought ${avg(results.map((r) => r.bought)).toFixed(1)} played ${avg(results.map((r) => r.cards)).toFixed(1)}  quests ${avg(results.map((r) => r.quests)).toFixed(1)}`);
 console.log(`produced per game:   ${JSON.stringify(produced)}`);

@@ -171,8 +171,8 @@ export interface CrownsVoiceRules {
   purse: number;
   /**
    * `first_round`: the Voice speaks at the end of every round.
-   * `quest_deck_empty`: only at the end of rounds that end with the Quest
-   * deck empty, which it stays once it runs out.
+   * `quest_deck_empty`: at the end of every round from the first that
+   * begins with the Quest deck empty.
    */
   from: CrownsVoiceStart;
 }
@@ -449,6 +449,12 @@ export interface CrownsVoiceState {
   purse: number;
   /** Banners that produced resources at their owner's Harvest this round (Plenty). */
   harvested: BannerId[];
+  /**
+   * Whether the Voice speaks as this round ends. Set when the game is created
+   * or as a round begins, never mid-round, so every seat knows it a round
+   * ahead; once set it stays set.
+   */
+  speaking: boolean;
 }
 
 /** How a game can end before anyone reaches the target (§7): Ragnarök, or a round that ends on a full board. */

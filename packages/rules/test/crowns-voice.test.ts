@@ -14,8 +14,10 @@ import {
   getRenown,
   getRenownSources,
   getRivalNeighbours,
+  getVoiceStatus,
   hashState,
   holdingAt,
+  isBoardFull,
   isVoiceSpeaking,
   redactState,
   seedRng,
@@ -267,6 +269,32 @@ describe("the Crown's Voice: Favour", () => {
     const won = events.findIndex((e) => e.type === "game_won");
     expect(events.findIndex((e) => e.type === "favour_won")).toBeLessThan(won);
   });
+
+  it("speaks before the full-board end, so Favour can decide it", () => {
+    const { state, p1, p2 } = setupGame(voiceRules({ ...mvpRuleset(), endOnFullBoard: true }));
+    // State surgery: every Holding a Stronghold, and the second player's
+    // Stronghold on s5 fills the board. s5 touches none of its owner's
+    // Routes, so s1 and s9 out-score it in Roads.
+    const s = edit(favouring(state, "roads"), (c) => {
+      for (const h of Object.values(c.holdings)) h.type = "stronghold";
+      c.holdings.h_s5 = { id: "h_s5", siteId: "s5", ownerId: p2, type: "stronghold" };
+      player(c, p2).holdingIds.push("h_s5");
+      player(c, p1).bonusRenown += 1;
+    });
+    expect(isBoardFull(ctx, s)).toBe(true);
+    // Without the Voice the second player would win the full board, 6 to 5.
+    expect(getRenown(ctx, s, p1)).toBe(5);
+    expect(getRenown(ctx, s, p2)).toBe(6);
+    const { state: after, events } = endRound(s);
+    expect(favourEvents(events).map((e) => e.type === "favour_won" && [e.siteId, e.rivalSiteId])).toEqual([
+      ["s1", "s5"],
+      ["s9", "s5"],
+    ]);
+    expect(after.status).toBe("finished");
+    expect(after.endCause).toBe("full_board");
+    expect(after.winnerId).toBe(p1);
+    expect(events.map((e) => e.type).lastIndexOf("favour_won")).toBeLessThan(events.findIndex((e) => e.type === "game_won"));
+  });
 });
 
 describe("the Crown's Voice: the deck", () => {
@@ -315,23 +343,51 @@ describe("the Crown's Voice: the deck", () => {
     expect(new Set(firsts).size).toBeGreaterThan(1);
   });
 
-  it("stays silent until the Quest deck is empty when it waits for it", () => {
+  it("stays silent until a round begins with the Quest deck empty when it waits for it", () => {
     const rules = voiceRules(standardRuleset(2), { purse: 10, from: "quest_deck_empty" });
     const { state, p1 } = setupGame(rules);
     const s = favouring(upgrade(state, "s1"), "might");
     expect(s.questDeck.length).toBeGreaterThan(0);
-    expect(isVoiceSpeaking(s)).toBe(false);
+    expect(getVoiceStatus(s)).toBe("waiting");
     const silent = endRound(s);
     expect(favourEvents(silent.events)).toEqual([]);
     // Silent rounds do not turn the Voice either.
     expect(silent.state.crownsVoice?.current).toBe("might");
     expect(silent.events.some((e) => e.type === "crowns_voice_turned")).toBe(false);
 
-    const drained = edit(s, (c) => (c.questDeck = []));
-    expect(isVoiceSpeaking(drained)).toBe(true);
-    const spoken = endRound(drained);
+    // The last seat's End Turn reveals the last Quest (state surgery: one
+    // Quest left in the deck and a slot free). Nobody else could react, so
+    // the Voice stays silent as this round ends and speaks from the next.
+    let last = passTurn(s);
+    expect(last.activePlayerId).toBe(last.turnOrder.at(-1));
+    last = edit(last, (c) => {
+      c.questDeck = c.questDeck.slice(0, 1);
+      c.revealedQuestIds = c.revealedQuestIds.slice(1);
+    });
+    expect(getVoiceStatus(edit(last, (c) => (c.questDeck = [])))).toBe("from_next_round");
+    const woke = endTurn(last);
+    expect(woke.state.questDeck).toEqual([]);
+    expect(favourEvents(woke.events)).toEqual([]);
+    expect(getVoiceStatus(woke.state)).toBe("speaking");
+    expect(isVoiceSpeaking(woke.state)).toBe(true);
+    // The Voice favours what it showed while it waited: no card turns yet.
+    expect(woke.state.crownsVoice?.current).toBe("might");
+    expect(woke.events.some((e) => e.type === "crowns_voice_turned")).toBe(false);
+
+    const spoken = endRound(woke.state);
     expect(favourEvents(spoken.events)).toHaveLength(2);
     expect(player(spoken.state, p1).favour).toBe(2);
+    // Once it has spoken, the card turns as the next round begins.
+    const turned = spoken.events.findIndex((e) => e.type === "crowns_voice_turned");
+    expect(turned).toBeGreaterThan(spoken.events.map((e) => e.type).lastIndexOf("favour_won"));
+    expect(spoken.state.crownsVoice?.current).toBe(woke.state.crownsVoice?.next);
+  });
+
+  it("speaks from the first round in Core games, which have no Quests", () => {
+    const { state } = setupGame(voiceRules(mvpRuleset(), { purse: 10, from: "quest_deck_empty" }));
+    expect(state.questDeck).toEqual([]);
+    expect(getVoiceStatus(state)).toBe("speaking");
+    expect(getVoiceStatus(setupGame(mvpRuleset()).state)).toBeNull();
   });
 });
 
