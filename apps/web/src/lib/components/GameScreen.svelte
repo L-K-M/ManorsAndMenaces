@@ -221,7 +221,7 @@
 {/snippet}
 
 <div class="game" inert={!!session.curtainFor} data-layout={layout} class:no-cards={!cardsEnabled} class:tray-open={trayOpen} style="--sheet-overlap: {sheetOverlap}px">
-  <header class="topbar">
+  <header class="topbar" class:with-voice={!!gs.crownsVoice}>
     <button class="ghost icon" onclick={() => (ui.dialog = "menu")} aria-label={t("ui.main_menu")} aria-haspopup="dialog"><ToolIcon name="menu" /></button>
     <img class="brand-mark" src={`${import.meta.env.BASE_URL}art/manor-troll.png`} alt="" width="40" height="40" />
     <h1>{t("app.title")}</h1>
@@ -780,6 +780,16 @@
   @container topbar (max-width: 30rem) {
     .levy-chip-text {
       display: none;
+    }
+  }
+  /* The Crown's Voice chip needs the room: beside it the round chip takes
+     its short form on any phone, so the buttons keep to one row. */
+  @container topbar (max-width: 28rem) {
+    .with-voice .round .full {
+      display: none;
+    }
+    .with-voice .round .pill::after {
+      content: attr(data-short);
     }
   }
   @container topbar (max-width: 24rem) {
