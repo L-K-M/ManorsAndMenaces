@@ -283,7 +283,7 @@ Default Renown values:
 | Minor Royal Quest | 1 |
 | Major Royal Quest | 2 |
 | Rare card/story reward (base game: The Unreliable Bard, §19.20) | 1 |
-| Major landmark objective | 1–2 |
+| Major landmark objective | 2 (Sealed Charges, §27A) |
 | Sealed Charge, a lobby option (§27A), revealed when met | 2 |
 
 The major landmark objectives are the five landmark Charges of Sealed Charges (§27A), worth 2 each; without the option there are none. A revealed Charge is its own Renown source, beside Holdings, Quests and bonus Renown, and stays scored like a claimed Quest.
@@ -1451,7 +1451,7 @@ Each Charge is worth 2 Renown when revealed (`BALANCE.sealedCharges.renown`), as
 | Deeds | The King's Clerk (3 Royal Writs), Merchant Venturer (5 trades at the Market or a Trading Post), Collector of Tales (3 cards bought) | Counted from when the Charge was drawn: the player's counts then (`stats.writsIssued`, `marketTrades`, `cardsBought`) are its baseline (`SealedCharge.since`). |
 | Menaces | Troll Herder, Friend of Outlaws, Dragon Tamer, The Witch's Errand, Patron of Tinkers | Move the named Menace 2 times after the draw, with a Warden or a card. Only games with the option count moves per Menace (`stats.menaceMoves`). |
 
-The deck of a new game holds every Charge the game can meet, shuffled with the match RNG (§30) after the card and Quest decks, so games without the option draw exactly as before. Charges naming a Menace not in play are removed first, and so are Charges whose landmark is not on the board, whose rule is off (Royal Writs, cards) or whose board has too few Regions of their resource. Every island has all five landmarks and enough Regions, so a Standard deck holds 12 Charges and one per active Menace: 14 with 2 or 3 players, 15 with 4.
+The deck of a new game holds every Charge the game can meet, shuffled with the match RNG (§30) after the card and Quest decks, so games without the option draw exactly as before. Charges naming a Menace not in play are removed first, and so are Charges whose landmark is not on the board, whose rule is off (Royal Writs, cards, or for a Menace Charge both Wardens and cards) or whose board has too few Regions of their resource. Every island has all five landmarks and enough Regions, so a Standard deck holds 12 Charges and one per active Menace: 14 with 2 or 3 players, 15 with 4.
 
 ## 27A.2 Drawing and keeping
 
@@ -1459,6 +1459,7 @@ The deck of a new game holds every Charge the game can meet, shuffled with the m
 - A Charge not kept goes to the bottom of the deck, face down. The deck is drawn without replacement, so every player's Charge is their own.
 - With fewer than 2 Charges left to draw, the player keeps one of those there are; with none, they draw nothing.
 - A player holds at most one sealed Charge at a time.
+- A `choose_charge` when no Charge is being chosen, such as the same choice sent twice, is refused with `NO_CHARGE_CHOICE`.
 
 ## 27A.3 Revealing
 
@@ -1474,12 +1475,13 @@ Once per game, in their Main phase, a player may pay 1 Essence (`BALANCE.sealedC
 
 ## 27A.6 What players see
 
-- Everyone sees that a player holds a sealed Charge (a seal on the scoreboard and in the Players panel), how many Charges are left in the deck, every revealed Charge and all Renown.
+- Everyone sees that a player holds a sealed Charge (a seal on the scoreboard and in the Players panel), how many Charges are left in the deck (in the Quests tab), every revealed Charge and all Renown.
 - Only the holder sees their Charge, with its progress, in the Quests tab, and only the player choosing sees the Charges they drew. Online, the server replaces rivals' Charges, a rival's draw and the deck with `hidden` (§105); `charges_drawn` and `charge_kept` reach other players without the Charge. In hot-seat play the choice waits behind the privacy curtain (§56.1), and the Chronicle says only that a Charge was drawn or kept.
+- The first seat draws when the game is created, which reports no events, so a local game's Chronicle tells that draw from the initial state. An online match's Chronicle comes from the server's history of commands (§62) and does not tell it.
 
 ## 27A.7 The AI
 
-The AI keeps the Charge it is further along. It counts Banners where its next Banner Assignment could put them, and a landmark it has not reached yet by its distance, so each Route toward it pays; between Charges it has made no progress on, it prefers the kinds it meets most often in simulation. It values progress toward its own Charge (`WEIGHTS.chargeProgress`), saves for the Writ, card or Warden a deed or Menace Charge needs, places its Banners to meet a Banner or landmark Charge when an assignment can, and Recommissions a Charge it can no longer meet. It plans on its redacted view (§105) and counts each rival's sealed Charge as 1 expected Renown.
+The AI keeps the Charge it is further along. It counts Banners where its next Banner Assignment could put them, and a landmark it has not reached yet by its distance, so each Route toward it pays; between Charges it has made no progress on, it prefers the kinds it meets most often in simulation. It values progress toward its own Charge (`WEIGHTS.chargeProgress`), saves for the Writ, card or Warden a deed or Menace Charge needs, places its Banners to meet a Banner or landmark Charge when an assignment can, and Recommissions a Charge it can no longer meet. It plans on its redacted view (§105), with one exception: whether Recommission can draw a Charge now is read from the full state, since a player learns as much by trying and a refused try would make the AI end its Main phase. It counts each rival's sealed Charge as 1 expected Renown.
 
 ---
 
@@ -1494,9 +1496,10 @@ The AI keeps the Charge it is further along. It counts Banners where its next Ba
 5. Set Ragnarök aside face up; it joins the draw pile only at the endgame omen (§19.13). Shuffle the rest of the card deck using match RNG.
 6. Shuffle Quest deck using match RNG.
 7. Reveal 3 Quests.
-8. Players place initial Holdings in snake order. Each Manor is followed immediately by one free Route and, for a player's second Manor, their starting resources (§28.2–28.3).
-9. Players assign initial Banners in **reverse** turn order (§28.4).
-10. Begin turn 1.
+8. With Sealed Charges (§27A), shuffle the Charge deck using match RNG; each player in turn order draws 2 Charges and keeps 1 (§27A.2).
+9. Players place initial Holdings in snake order. Each Manor is followed immediately by one free Route and, for a player's second Manor, their starting resources (§28.2–28.3).
+10. Players assign initial Banners in **reverse** turn order (§28.4).
+11. Begin turn 1.
 
 ## 28.2 Initial Holdings
 
@@ -1575,6 +1578,7 @@ Random elements may include:
 - initial first player;
 - Quest order;
 - card deck order;
+- Sealed Charge deck order (§27A.1);
 - procedural map generation in future;
 - optional Dark Wizard events.
 
@@ -1774,6 +1778,7 @@ export type GameCommand =
   | IssueRoyalWritCommand
   | HireWardenCommand
   | ClaimQuestCommand
+  | RecommissionChargeCommand   // Sealed Charges (§27A.5)
   | EndMainPhaseCommand
   // banner assignment
   | AssignBannersCommand
@@ -1782,7 +1787,10 @@ export type GameCommand =
   | EndTurnCommand
   // reaction windows (§109), issued by a non-active player
   | ReactCommand
-  | PassReactionCommand;
+  | PassReactionCommand
+  // other pending decisions (§109), issued by the player deciding
+  | ResolveProphecyCommand      // Prophecy (§19.9)
+  | ChooseChargeCommand;        // Sealed Charges (§27A.2)
 ```
 
 Debug-only commands (such as granting resources, §100) are a separate `DebugCommand` union. Production builds reject them.
@@ -4087,7 +4095,7 @@ Sealed Charges (§27A) are the one rule that adds hidden information beyond card
 - *Permanently erase major progress?* No. A revealed Charge stays scored, and nothing takes a sealed Charge away.
 - *A goal made impossible?* A landmark Charge can be closed off by rivals' Holdings and Routes, or by full Regions. Recommission (§27A.5) trades it in once per game, and every later draw skips landmark Charges. Banner, deed and Menace Charges stay possible on a full board.
 - *Skip a turn?* No. Keeping a Charge after a reveal happens inside the End Turn, before the next player's turn begins.
-- *Loops?* No. Each reveal draws at most once, and at most 2 or 3 Charges per player per game (§27A.4); Recommission is once per game.
+- *Loops?* No. Each reveal draws at most once, and a player reveals at most 2 or 3 Charges per game (§27A.4); Recommission is once per game.
 - *Negative resources?* No. Recommission's Essence is checked like any payment.
 - *Punish one seat?* Seats choose in turn order, each from 2 Charges of their own, drawn without replacement. §129.7 measures the seat win rates with the option.
 
