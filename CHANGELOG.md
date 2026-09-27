@@ -70,10 +70,10 @@
   0.9.0), under Advanced on New Game. From the first round that begins
   with the Quest deck empty (round 1 in the Core rules), the Crown favours
   Might, Roads or Plenty each round. As the round ends, rival Holdings
-  that touch the same Region compare their scores in it, and the higher
-  wins 1 Favour, which counts as Renown, from the rival or from the
-  Crown's purse of 15, at most 2 a round. The top bar names this round's
-  virtue and the next, and a tap tells how each one scores.
+  that touch the same Region compare their scores in that virtue, and
+  the higher wins 1 Favour, which counts as Renown, from the rival or
+  from the Crown's purse of 15, at most 2 a round. The top bar names
+  this round's virtue and the next, and a tap tells how each one scores.
 - Svelte/SVG web client and an online server, with Playwright E2E tests
   covering create/join/setup across two browsers.
 - Tauri desktop shell (macOS universal, Linux, Windows) and an unsigned

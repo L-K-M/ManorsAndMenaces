@@ -1747,10 +1747,12 @@ export interface GameState {
 
   questDeck: QuestId[];
   publicQuests: PublicQuestState[];
+  chargeDeck?: ChargeId[]; // Sealed Charges (§27A), face down, top first; absent when the option is off
 
   delayedEffects: DelayedEffect[];
   ruinedSiteIds?: SiteId[]; // Siege Fireball (§19.26): nobody may build there again
   crownLevy?: { current: ResourceType | null; next: ResourceType; called: ResourceType[]; answeredBy: PlayerId[] }; // §27.3, public
+  crownsVoice?: CrownsVoiceState; // §129.10, public: the virtues, the Voice deck, the purse, this round's Harvests
   historyMeta: HistoryMeta;
   winnerId?: PlayerId;
   endCause?: "ragnarok" | "full_board" | "last_round"; // §19.13, §7; absent when the target was reached
@@ -1770,10 +1772,13 @@ export interface PlayerState {
 
   // Renown from explicit rewards (rare cards, story rewards). Total Renown is
   // derived by getRenown() from Holdings + claimed Quests + levyRenown +
-  // bonusRenown - lostRenown; it is never stored.
+  // revealed Sealed Charges + favour + bonusRenown - lostRenown; it is never
+  // stored.
   bonusRenown: number;
   // Renown from answering the Crown's Levy (§27.3); absent until the first answer.
   levyRenown?: number;
+  // Favour won through the Crown's Voice (§129.10), counted as Renown; absent until first won or lost.
+  favour?: number;
   // Renown lost for the rest of the game (Disgrace, Stolen Glory, §8). Never
   // more than keeps the total at 0 or above; absent in older saves.
   lostRenown?: number;
@@ -1783,6 +1788,12 @@ export interface PlayerState {
 
   claimedQuestIds: QuestId[];
   charters?: CardId[]; // face up in front of the player (§18.1); absent in older saves
+
+  // Sealed Charges (§27A): the Charge held face down, those revealed (2 Renown
+  // each), and whether the one Recommission is used. Rivals see only a seal.
+  sealedCharge?: { id: ChargeId; since?: number };
+  revealedChargeIds?: ChargeId[];
+  recommissioned?: boolean;
 
   stats: PlayerStats;
 
@@ -1842,6 +1853,7 @@ export type GameCommand =
   | IssueRoyalWritCommand
   | HireWardenCommand
   | ClaimQuestCommand
+  | AnswerLevyCommand           // the Crown's Levy (§27.3)
   | RecommissionChargeCommand   // Sealed Charges (§27A.5)
   | EndMainPhaseCommand
   // banner assignment
@@ -4084,6 +4096,8 @@ interface RulesetConfig {
   };
   warden: { enabled: boolean; maxPerTurn: number };
   sealedCharges?: boolean;         // §27A: a lobby option, absent (off) unless chosen
+  crownLevy?: { price: number; renown: number; proclaimByRound: number }; // §27.3: Standard and async, from 0.9.0
+  crownsVoice?: { purse: number; from: "first_round" | "quest_deck_empty" }; // §129.10: local games only, absent (off) unless chosen
 }
 ```
 
