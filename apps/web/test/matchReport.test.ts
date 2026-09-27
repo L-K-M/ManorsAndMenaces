@@ -371,6 +371,18 @@ describe("renownBar", () => {
   });
 });
 
+describe("renownBreakdown", () => {
+  it("counts Favour of the Crown (§129.10) with the other Renown, so the parts make the total", () => {
+    const s = clone(game.final);
+    const id = s.turnOrder[0] ?? "";
+    s.players[id]!.favour = 3;
+    const b = renownBreakdown(engine, s, id);
+    expect(b.other).toBe((s.players[id]?.bonusRenown ?? 0) + 3);
+    expect(b.total).toBe(getRenown(engine.ctx, s, id));
+    expect(b.manors + b.strongholds + b.quests + b.other - b.lost).toBe(b.total);
+  });
+});
+
 describe("renownChart", () => {
   it("draws one line per player across the plot, with the target inside it", () => {
     const timeline = { rounds: [0, 1, 2, 3], series: { P1: [2, 3, 5, 10], P2: [2, 2, 4, 7] } };

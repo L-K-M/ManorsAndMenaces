@@ -37,6 +37,8 @@
   import ResourcePurse from "./ResourcePurse.svelte";
   import RivalQuips from "./RivalQuips.svelte";
   import ScoreStrip from "./ScoreStrip.svelte";
+  import CrownsVoiceChip from "./CrownsVoiceChip.svelte";
+  import CrownsVoiceDialog from "./CrownsVoiceDialog.svelte";
   import RenownDialog from "./RenownDialog.svelte";
   import ResourceIcon from "./ResourceIcon.svelte";
   import ToolIcon from "./ToolIcon.svelte";
@@ -248,6 +250,7 @@
         <span class="levy-chip-text">{levy.current ? t("levy.chip", { resource: t(`resource.${shown}`) }) : t("levy.chip_next", { resource: t(`resource.${shown}`) })}</span>
       </button>
     {/if}
+    <CrownsVoiceChip {session} />
     <div class="score"><ScoreStrip {session} /></div>
     <span class="spacer"></span>
     {#if session.transport.kind === "local" && !tutorial}<button class="ghost" onclick={save}>{savedNote ?? t("ui.save")}</button>{/if}
@@ -353,6 +356,7 @@
 {/if}
 {#if ui.dialog === "settings"}<SettingsDialog onclose={() => ((ui.dialog = settingsFromMenu ? "menu" : null), (settingsFromMenu = false))} />{/if}
 {#if ui.renownOf}<RenownDialog {session} playerId={ui.renownOf} onclose={() => (ui.renownOf = null)} />{/if}
+{#if ui.dialog === "crowns_voice"}<CrownsVoiceDialog {session} onclose={() => (ui.dialog = null)} />{/if}
 {#if ui.showDebug}<DebugPanel {session} onclose={() => (ui.showDebug = false)} />{/if}
 
 <style>

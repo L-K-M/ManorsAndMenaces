@@ -30,7 +30,7 @@ export interface RenownBreakdown {
   levy: number;
   /** Sealed Charges revealed (§27A). */
   charges: number;
-  /** Anything else (bonus Renown). */
+  /** Anything else (bonus Renown, and Favour of the Crown, §129.10). */
   other: number;
   /** Renown lost for good (Disgrace, Stolen Glory): the parts above less this make the total. */
   lost: number;
@@ -141,7 +141,7 @@ export function renownBreakdown(engine: RulesEngine, state: GameState, playerId:
   const s = getRenownSources(engine.ctx, state, playerId);
   const quests = s.quests.reduce((sum, q) => sum + q.renown, 0);
   const charges = s.charges.reduce((sum, c) => sum + c.renown, 0);
-  return { total: s.total, manors: s.manors.renown, strongholds: s.strongholds.renown, quests, levy: s.levy, charges, other: s.bonus, lost: s.lost };
+  return { total: s.total, manors: s.manors.renown, strongholds: s.strongholds.renown, quests, levy: s.levy, charges, other: s.bonus + s.favour, lost: s.lost };
 }
 
 /**

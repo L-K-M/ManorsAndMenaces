@@ -1,4 +1,4 @@
-import type { CrownLevyRules, MenaceType, ResourceCost, RulesetConfig } from "./types.js";
+import type { CrownLevyRules, CrownsVoiceRules, MenaceType, ResourceCost, RulesetConfig } from "./types.js";
 
 // All tunable numbers live here (spec §121). Do not scatter numbers in code.
 export const BALANCE = {
@@ -78,9 +78,28 @@ export const BALANCE = {
       { fromGoal: 30, charges: 3 },
     ],
   },
+  /** The Crown's Voice (experimental, §129.10). */
+  crownsVoice: {
+    /** Voice cards of each virtue in a deck. */
+    cardsPerVirtue: 8,
+    might: { manor: 1, stronghold: 2 },
+    /** Highest Roads and Plenty scores. */
+    maxRoads: 3,
+    maxPlenty: 2,
+    /** Most Favour a player gains in one round. */
+    maxGainPerRound: 2,
+    /** The settings a new game with the Voice gets, chosen by simulation (§129.10). */
+    purse: 15,
+    from: "quest_deck_empty",
+  },
 } as const;
 
 export const RULESET_VERSION = "0.8.0";
+
+/** The Crown's Voice as a new game gets it (§129.10). */
+export function crownsVoiceRules(): CrownsVoiceRules {
+  return { purse: BALANCE.crownsVoice.purse, from: BALANCE.crownsVoice.from };
+}
 
 /** Fixed Menace sets by player count (spec §118). */
 export function standardMenaces(playerCount: number): MenaceType[] {

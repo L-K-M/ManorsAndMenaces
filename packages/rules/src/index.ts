@@ -16,4 +16,5 @@ export { createRulesEngine, type ApplyResult, type RulesEngine } from "./engine.
 export { isCardUsableInRuleset, validateCardTarget } from "./cards.js";
 export { canRecommission, chargeDeckFor, chargesPerGame, getChargeProgress } from "./charges.js";
 export { rankPlayers } from "./victory.js";
+export { getFavourAwards, getRivalNeighbours, getVoiceStatus, isVoiceSpeaking, virtueScore, type FavourAward, type VoiceStatus } from "./voice.js";
 export { clone } from "./clone.js";

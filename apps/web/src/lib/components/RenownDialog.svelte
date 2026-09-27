@@ -1,7 +1,7 @@
 <script lang="ts">
   // Where a player's Renown comes from (§7): Holdings, claimed Royal Quests,
-  // the Crown's Levy (§27.3), revealed Sealed Charges (§27A) and bonus
-  // Renown. All of it is public, so any player can be inspected.
+  // the Crown's Levy (§27.3), revealed Sealed Charges (§27A), bonus Renown
+  // and Favour (§129.10). All of it is public, so any player can be inspected.
   import { getRenownSources, type PlayerId } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import { chargeName } from "../game/charges.js";
@@ -28,6 +28,7 @@
       { icon: "crown", label: t("ui.levy_renown"), renown: sources.levy },
       ...sources.charges.map((c): Row => ({ icon: "seal", label: chargeName(c.chargeId), renown: c.renown })),
       { icon: "sparkle", label: t("ui.bonus_renown"), renown: sources.bonus },
+      { icon: "crown", label: t("ui.favour"), renown: sources.favour },
       { icon: "minus", label: t("ui.lost_renown"), renown: -sources.lost },
     ];
     return all.filter((r) => r.renown !== 0);

@@ -6,6 +6,7 @@ import { BALANCE } from "./balance.js";
 import type { RulesContext } from "./context.js";
 import type { HarvestNote } from "./events.js";
 import { own } from "./clone.js";
+import { compareIds } from "./ids.js";
 import { addCost, canAfford } from "./resources.js";
 import {
   RESOURCE_TYPES,
@@ -37,24 +38,6 @@ export function getPlayerHoldings(state: GameState, playerId: PlayerId): Holding
 
 export function getPlayerRoutes(state: GameState, playerId: PlayerId): RouteId[] {
   return state.players[playerId]?.routeIds ?? [];
-}
-
-/** The numeric suffix of an engine id such as `banner_12`, or NaN if it has none. */
-function idNumber(id: string): number {
-  const n = Number(id.slice(id.lastIndexOf("_") + 1));
-  return Number.isInteger(n) ? n : Number.NaN;
-}
-
-/**
- * Orders `banner_2` before `banner_10`, the same order as a numeric `en`
- * collation for engine ids. Locale-free on purpose: it is deterministic on
- * every platform (§30), and `localeCompare` with options built an ICU
- * collator per call, which made this sort dominate AI decision time.
- */
-function compareIds(a: string, b: string): number {
-  const d = idNumber(a) - idNumber(b);
-  if (d) return d;
-  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 export function getPlayerBanners(state: GameState, playerId: PlayerId): Banner[] {
@@ -106,7 +89,7 @@ export function bannersSupported(holding: Holding): number {
 export function getRenown(ctx: RulesContext, state: GameState, playerId: PlayerId): number {
   const p = state.players[playerId];
   if (!p) return 0;
-  let renown = p.bonusRenown + (p.levyRenown ?? 0) - (p.lostRenown ?? 0);
+  let renown = p.bonusRenown + (p.levyRenown ?? 0) + (p.favour ?? 0) - (p.lostRenown ?? 0);
   for (const h of getPlayerHoldings(state, playerId)) renown += h.type === "manor" ? BALANCE.renown.manor : BALANCE.renown.stronghold;
   for (const q of p.claimedQuestIds) renown += ctx.quest(q).renown;
   renown += (p.revealedChargeIds?.length ?? 0) * BALANCE.sealedCharges.renown;
@@ -128,6 +111,8 @@ export interface RenownSources {
   bonus: number;
   /** Renown lost for the rest of the game (Disgrace, Stolen Glory), subtracted from the total. */
   lost: number;
+  /** Favour won through the Crown's Voice (§129.10). */
+  favour: number;
 }
 
 // Kept apart from getRenown, which the AI calls in its inner loops.
@@ -146,6 +131,7 @@ export function getRenownSources(ctx: RulesContext, state: GameState, playerId: 
     charges: (p?.revealedChargeIds ?? []).map((chargeId) => ({ chargeId, renown: BALANCE.sealedCharges.renown })),
     bonus: p?.bonusRenown ?? 0,
     lost: p?.lostRenown ?? 0,
+    favour: p?.favour ?? 0,
   };
 }
 
