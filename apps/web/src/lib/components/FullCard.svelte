@@ -7,11 +7,11 @@
   let { def }: { def: CardRulesDefinition } = $props();
 </script>
 
-<div class="full-card"><CardFace {def} expanded /></div>
+<div class="full-card"><CardFace {def} view="read" /></div>
 
 <style>
   .full-card {
-    width: min(16rem, 100%);
+    width: min(22rem, 100%);
     margin: 0.2rem auto 0.7rem;
     filter: drop-shadow(0 6px 12px #38231855);
   }
