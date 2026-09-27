@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { BALANCE } from "@manors-menaces/rules";
 import { pick } from "./pick";
+import { acknowledgePlays } from "./plays";
 
 // Responsive game layout (spec §53): the board stays the hero on every screen,
 // never rescales while you play, and every HUD control is reachable.
@@ -24,7 +25,7 @@ async function status(page: Page): Promise<string> {
   return page.locator(".actions .status").evaluateAll((els) => els[0]?.textContent ?? "");
 }
 
-/** Plays the human's setup; the AI plays its own. Ends in the first Main phase. */
+/** Plays the human's setup; the AI plays its own, and any card it plays waits for OK. Ends in the first Main phase. */
 async function completeSetup(page: Page) {
   const main = page.getByRole("button", { name: /Assign Banners →/ });
   for (let k = 0; k < 40 && !(await main.count()); k++) {
@@ -39,7 +40,7 @@ async function completeSetup(page: Page) {
         if (await regions.count()) await pick(regions.first());
       }
       await page.getByRole("button", { name: /Confirm Banners/ }).click();
-    } else await page.waitForTimeout(250);
+    } else if (!(await acknowledgePlays(page))) await page.waitForTimeout(250);
   }
   await expect(main).toBeVisible();
 }
