@@ -548,11 +548,17 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
     if (endsRound) return finishGame(tx, checkVictory(tx, true) as PlayerId, "full_board");
     tx.emit({ type: "board_full" });
   }
+  // Every game ends with its last round at the latest, and the most Renown
+  // wins, target reached or not (§7). Absent or 0 in older games, which play on.
+  const lastRound = s.ruleset.lastRound ?? 0;
+  if (lastRound > 0 && endsRound && s.round >= lastRound) return finishGame(tx, checkVictory(tx, true) as PlayerId, "last_round");
   foretellEndgame(tx);
   const idx = s.turnOrder.indexOf(playerId);
   const nextIdx = (idx + 1) % s.turnOrder.length;
   if (nextIdx === 0) {
     s.round += 1;
+    // Told one round ahead, and again as the last round begins.
+    if (lastRound > 0 && s.round >= lastRound - 1 && s.round <= lastRound) tx.emit({ type: "reign_ending", round: s.round, lastRound });
     expireQuests(tx);
     const interval = s.ruleset.cardDrawEveryRounds ?? 0;
     if (interval > 0 && s.round % interval === 0) dealCardsToAll(tx, 1, "round");

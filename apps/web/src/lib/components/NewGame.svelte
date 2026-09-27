@@ -10,7 +10,7 @@
   import RivalPortrait from "./RivalPortrait.svelte";
   import type { BoardChoice, NewGameOptions } from "../game/session.svelte.js";
   import { rememberName, rememberedName } from "../game/playerName.js";
-  import { rememberRenownGoal, rememberedRenownGoal, renownGoal } from "../game/renownGoal.js";
+  import { rememberRenownGoal, rememberedRenownGoal, renownGoal, renownGoalHint } from "../game/renownGoal.js";
 
   let { onstart, onback }: { onstart: (opts: NewGameOptions) => void; onback: () => void } = $props();
 
@@ -153,10 +153,11 @@
       <label class="rule"><input type="radio" name="mode" value="mvp" bind:group={mode} /> <b>{t("ui.core")}</b> {t("ui.banners_building_and_the_toll", { target: renownGoal("mvp", count, pickedGoal).value })}</label>
       <label class="goal">
         {t("ui.renown_to_win")}
-        <select bind:value={() => goal.value, (target) => (pickedGoal = target)}>
+        <select bind:value={() => goal.value, (target) => (pickedGoal = target)} aria-describedby="goal-hint">
           {#each goal.choices as n (n)}<option value={n}>{n === goal.usual ? t("ui.renown_goal_usual", { target: n }) : n}</option>{/each}
         </select>
       </label>
+      <p class="hint" id="goal-hint">{renownGoalHint(mode, count, goal.value)}</p>
     </fieldset>
     <details>
       <summary>{t("ui.advanced")}</summary>

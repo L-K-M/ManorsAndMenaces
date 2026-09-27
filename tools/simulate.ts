@@ -97,6 +97,8 @@ interface GameStats {
   ragnarokRound: number | null;
   /** Round the game ended on a full board, if it did (§7). */
   fullBoardRound: number | null;
+  /** Whether the game ended with its last round (§7). */
+  lastRoundEnd: boolean;
   targetRenown: number;
   // Second-wave card outcomes (§19.12–19.21).
   holdingsDestroyed: number;
@@ -155,6 +157,7 @@ function playOne(i: number): GameStats {
     omenRound: null,
     ragnarokRound: null,
     fullBoardRound: null,
+    lastRoundEnd: false,
     targetRenown: s.ruleset.targetRenown,
     holdingsDestroyed: 0,
     holdingsReduced: 0,
@@ -202,6 +205,7 @@ function playOne(i: number): GameStats {
       if (e.type === "card_foretold") stats.omenRound ??= before.round;
       if (e.type === "game_won" && e.cause === "ragnarok") stats.ragnarokRound = before.round;
       if (e.type === "game_won" && e.cause === "full_board") stats.fullBoardRound = before.round;
+      if (e.type === "game_won" && e.cause === "last_round") stats.lastRoundEnd = true;
       if (e.type === "holding_destroyed") stats.holdingsDestroyed++;
       if (e.type === "holding_reduced") stats.holdingsReduced++;
       if (e.type === "route_burned") stats.routesBurned++;
@@ -265,6 +269,11 @@ const fullBoards = results.filter((r) => r.fullBoardRound !== null);
 if (fullBoards.length) {
   const short = fullBoards.filter((r) => r.winnerRenown < r.targetRenown).length;
   console.log(`full board:          ended ${fullBoards.length}/${GAMES} (avg round ${avg(fullBoards.map((r) => Number(r.fullBoardRound))).toFixed(1)}, winner below target in ${short})`);
+}
+const lastRounds = results.filter((r) => r.lastRoundEnd);
+if (lastRounds.length) {
+  const short = lastRounds.filter((r) => r.winnerRenown < r.targetRenown).length;
+  console.log(`last round:          ended ${lastRounds.length}/${GAMES} (round ${RULESET.lastRound}, winner below target in ${short})`);
 }
 console.log(`rounds (turns/player): avg ${avg(finished.map((r) => r.rounds)).toFixed(1)}  min ${Math.min(...finished.map((r) => r.rounds))}  max ${Math.max(...finished.map((r) => r.rounds))}   target 12–16`);
 console.log(`winner renown:       avg ${avg(finished.map((r) => r.winnerRenown)).toFixed(1)} (holdings ${avg(finished.map((r) => r.renownSources.holdings)).toFixed(1)}, quests ${avg(finished.map((r) => r.renownSources.quests)).toFixed(1)}, bonus less lost ${avg(finished.map((r) => r.renownSources.bonus)).toFixed(1)})`);

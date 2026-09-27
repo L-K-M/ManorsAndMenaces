@@ -2,7 +2,8 @@
 // the online lobby: the rules' default for the player count until you pick a
 // goal. Your last pick is remembered per browser, like your name.
 
-import { defaultTargetRenown, targetRenownChoices, type RulesetName } from "@manors-menaces/rules";
+import { BALANCE, defaultTargetRenown, targetRenownChoices, type RulesetName } from "@manors-menaces/rules";
+import { t } from "../i18n.js";
 
 const KEY = "mm.renownGoal.v1";
 
@@ -24,6 +25,21 @@ export function renownGoal(rules: RulesetName, playerCount: number, picked: numb
   const choices = targetRenownChoices(rules, playerCount);
   const usual = defaultTargetRenown(rules, playerCount);
   return { value: picked !== null && choices.includes(picked) ? picked : usual, usual, choices };
+}
+
+/**
+ * The lowest goals the board usually fills up before, after which the most
+ * Renown wins (§7), by player count: from simulations of the Standard rules
+ * (§129.7). The Core rules were not simulated, so they get no such hint.
+ */
+const BOARD_FILLS_FIRST_FROM = { fourPlayers: 20, fewerPlayers: 25 } as const;
+
+/** What a goal means, shown under the choice: whether the board usually fills first, and the last round. */
+export function renownGoalHint(rules: RulesetName, playerCount: number, goal: number): string {
+  const lastRound = t("ui.renown_goal_last_round", { last: BALANCE.lastRound });
+  if (rules === "mvp") return lastRound;
+  const fillsFrom = playerCount >= 4 ? BOARD_FILLS_FIRST_FROM.fourPlayers : BOARD_FILLS_FIRST_FROM.fewerPlayers;
+  return goal >= fillsFrom ? `${t("ui.renown_goal_board_fills")} ${lastRound}` : lastRound;
 }
 
 /** The goal you last picked, or null. The rules check it before it is used. */

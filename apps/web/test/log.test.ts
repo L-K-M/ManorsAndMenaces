@@ -144,6 +144,24 @@ describe("formatEvents: second-wave cards", () => {
     ]);
     expect(endCauseOf(entries)).toBe("full_board");
   });
+
+  it("warns as the last two rounds begin, says the reign ended, and reads the ending back", () => {
+    const entries = formatEvents(
+      [
+        { type: "reign_ending", round: 29, lastRound: 30 },
+        { type: "reign_ending", round: 30, lastRound: 30 },
+        { type: "game_won", playerId: "P2", renown: 14, cause: "last_round" },
+      ],
+      state,
+      map,
+    );
+    expect(entries.map((e) => [e.kind, e.text])).toEqual([
+      ["omen", "The reign ends after round 30. The next round is the last."],
+      ["omen", "Round 30 is the last. When it ends, the most Renown wins."],
+      ["important", "The reign has ended. Player 2 wins with the most Renown: 14."],
+    ]);
+    expect(endCauseOf(entries)).toBe("last_round");
+  });
 });
 
 describe("formatEvents: third-wave cards", () => {
