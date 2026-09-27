@@ -184,21 +184,6 @@ If the folder holds no `manors.sqlite`, say because its name is mistyped, the re
 
 The in-game tutorial teaches all of this interactively.
 
-## Repository layout
-
-| Path | What |
-|---|---|
-| `packages/rules` | Deterministic, framework-free rules engine (commands → events, seeded RNG, hidden-information views) |
-| `packages/content` | Map, cards, Quests, Menaces, English strings, map validation |
-| `packages/ai` | Heuristic AI (§57) |
-| `packages/protocol` | Client/server protocol and save-file types |
-| `apps/web` | Svelte 5 + SVG client (also the Tauri frontend) |
-| `apps/server` | Node HTTP/WebSocket server with SQLite persistence |
-| `src-tauri` | Tauri 2 desktop shell |
-| `tools` | Map generator (`pnpm map:generate`) and balance simulator (`pnpm simulate`) |
-
-See [AGENTS.md](AGENTS.md) for build, test and release commands.
-
 ## License
 
 MIT — see [LICENSE](LICENSE).

@@ -12,7 +12,22 @@
 **Players:** 2–4  
 **Primary mode:** Competitive multiplayer  
 **Secondary modes:** Pass-and-play, AI opponents, asynchronous online play  
-**Target session length:** 35–60 minutes  
+**Target session length:** 35–60 minutes
+
+## Repository layout
+
+| Path | What |
+|---|---|
+| `packages/rules` | Deterministic, framework-free rules engine (commands → events, seeded RNG, hidden-information views) |
+| `packages/content` | Map, cards, Quests, Menaces, English strings, map validation |
+| `packages/ai` | Heuristic AI (§57) |
+| `packages/protocol` | Client/server protocol and save-file types |
+| `apps/web` | Svelte 5 + SVG client (also the Tauri frontend) |
+| `apps/server` | Node HTTP/WebSocket server with SQLite persistence |
+| `src-tauri` | Tauri 2 desktop shell |
+| `tools` | Map generator (`pnpm map:generate`) and balance simulator (`pnpm simulate`) |
+
+See [AGENTS.md](AGENTS.md) for build, test and release commands.
 
 ---
 
