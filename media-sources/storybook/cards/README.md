@@ -1,9 +1,9 @@
 # Card paintings
 
-All 21 distinct cards in the expanded 40-card deck have individual
+All 27 distinct cards in the expanded deck have individual
 illustrations. These full-size PNG originals were generated with the built-in
 image tool, using `../../manors-and-menaces-icon-concept.png` as a style
-reference. The second wave uses `knight_errant.png` to match the finished
+reference. The second and third waves use `knight_errant.png` to match the finished
 first-wave paintings. `prompts.json` contains every exact prompt and reference. No API/CLI generation
 fallback was used.
 
@@ -30,10 +30,17 @@ fallback was used.
 | Robin of the Glade | [View](robin_of_the_glade.png) |
 | The Unreliable Bard | [View](unreliable_bard.png) |
 | Treasure Hunter | [View](treasure_hunter.png) |
+| Disgrace | [View](disgrace.png) |
+| Siege Engines | [View](siege_engines.png) |
+| Raiders | [View](raiders.png) |
+| Stolen Glory | [View](stolen_glory.png) |
+| Siege Fireball | [View](siege_fireball.png) |
+| Sabotage | [View](sabotage.png) |
 
-The six third-wave cards (Disgrace, Siege Engines, Raiders, Stolen Glory,
-Siege Fireball and Sabotage) have prompts in `prompts.json` but no paintings
-yet; until they do, the game shows their type emblem (see `ART_DIRECTION.md`).
+The third wave uses comic, bloodless scenes to explain its effects: a town
+crier embarrassing a lord, goblin siege engineers, pony-mounted raiders,
+a sculptor stealing a statue's glory, a battle-wizard and a suspicious dwarf
+roasting chestnuts. All six originals are 1536 × 1024 PNGs.
 
 The knight is Dame Alda, matching her revised flavor text. The cast also
 includes a woman wizard, goblin woman druid, goblin alchemist, male dragon

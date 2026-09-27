@@ -19,6 +19,7 @@
   import { boardSpots } from "../art/board-spots.js";
   import CoastLayer from "./board/CoastLayer.svelte";
   import HoldingFigure from "./board/HoldingFigure.svelte";
+  import SiteRemains from "./board/SiteRemains.svelte";
   import LandmarkArt from "./board/LandmarkArt.svelte";
   import MenaceFigure from "./board/MenaceFigure.svelte";
   import TerrainLayer from "./board/TerrainLayer.svelte";
@@ -740,21 +741,15 @@
             <path d={emblemPath(theme.shape, 4)} transform="translate(0,-26)" fill={theme.light} stroke={theme.dark} stroke-width="1.5" />
           </g>
         {:else if ruined.has(site.id)}
-          <!-- in ruins (Siege Fireball): broken walls on rubble, where nobody may build again -->
           <g class="ruin" pointer-events="none">
-            <path d="M-12,7H12 M-10,7V-1L-8,-4L-6.5,-1L-4.5,-3V7Z M2,7V-6L4,-4L5.5,-8L8.5,-4V7Z" fill="#a39684" stroke="#3d3328" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" />
-            <path d="M6,-3L4.5,1L6.5,3" fill="none" stroke="#3d3328" stroke-width="1.2" />
-            <circle cx="-1" cy="5.5" r="2" fill="#8a7d6c" stroke="#3d3328" stroke-width="1.2" />
+            <SiteRemains kind="ruined" />
+          </g>
+        {:else if razed.has(site.id)}
+          <g class="razed-site" pointer-events="none">
+            <SiteRemains kind="razed" />
           </g>
         {:else}
           <circle class="empty-site" r="7" fill="#fffaf0" stroke="#6b5a3a" stroke-width="2.5" pointer-events="none" />
-          {#if razed.has(site.id)}
-            <!-- razed (Raiders): the burned Manor smoulders while only its owner may rebuild -->
-            <g class="flame" transform="translate(0,-9)" pointer-events="none">
-              <path d={FLAME_PATH} fill="#f07b1f" stroke="#7a1d10" stroke-width="1.3" />
-              <path d={FLAME_PATH} transform="translate(0,2.5) scale(0.5)" fill="#ffd23f" />
-            </g>
-          {/if}
         {/if}
         {#if isHl}
           <circle r={siteRing(!!holding)} class="hl-casing" stroke-width={px(5, 6)} pointer-events="none" />
