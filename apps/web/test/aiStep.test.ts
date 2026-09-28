@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CommandIntent, GameState, PlayerId } from "@manors-menaces/rules";
 import { AiPace, aiPaceDelayMs, aiStepPace, resolveAiStep, type AiStep } from "../src/lib/game/aiStep.js";
-import { act, cmd, engine, setupGame, cardTestRuleset as standardRuleset } from "../../../packages/rules/test/helpers.js";
+import { act, cmd, engine, mvpRuleset, newGame, setupGame, standardRuleset as rulesetAtGoal, cardTestRuleset as standardRuleset } from "../../../packages/rules/test/helpers.js";
 
 const resolve = (s: GameState, actor: PlayerId, intent: CommandIntent | null) => resolveAiStep(engine, s, actor, intent, (i) => cmd(s, actor, i));
 
@@ -64,6 +64,35 @@ describe("AI pacing", () => {
     expect(paceOf(assigning, p1, { type: "assign_banners", assignments: { [bannerOf(p1, "s1")]: "R6" } })).toBe(AiPace.Visible);
     const ending = act(assigning, p1, { type: "assign_banners", assignments: {} }).state;
     expect(paceOf(ending, p1, { type: "end_turn" })).toBe(AiPace.Handover);
+  });
+
+  it("keeps a Sealed Charge choice quiet: nothing on the table changes", () => {
+    const s = newGame({ ...mvpRuleset(), sealedCharges: true });
+    const pending = s.pending?.kind === "charge" ? s.pending : null;
+    expect(paceOf(s, pending?.playerId as string, { type: "choose_charge", chargeId: pending?.chargeIds[0] as string })).toBe(AiPace.Quiet);
+    // A choice the engine rejects falls back to keeping the first Charge drawn.
+    expect(resolve(s, pending?.playerId as string, { type: "end_main_phase" })?.command).toMatchObject({ type: "choose_charge", chargeId: pending?.chargeIds[0] });
+  });
+
+  // Regression (review): at goal 25 the End Turn that reveals a Charge got
+  // the handover's half beat, and the choice after it, which starts the next
+  // turn, got none.
+  it("shows a Charge revealed at End Turn, and hands over once the next one is kept", () => {
+    const g = setupGame({ ...rulesetAtGoal(2, { targetRenown: 25 }), sealedCharges: true });
+    let s = g.state;
+    // p1's Manor on s1 and Banner in R1 already meet the test content's Royal Castle Charge.
+    s = { ...s, pending: { kind: "charge", playerId: g.p1, chargeIds: ["castle"] } };
+    s = act(s, g.p1, { type: "choose_charge", chargeId: "castle" }).state;
+    s = act(s, g.p1, { type: "end_main_phase" }).state;
+    s = act(s, g.p1, { type: "assign_banners", assignments: {} }).state;
+    const reveal = resolve(s, g.p1, { type: "end_turn" }) as AiStep;
+    expect(reveal.events.map((e) => e.type)).toContain("charge_revealed");
+    expect(aiStepPace(reveal)).toBe(AiPace.Visible);
+
+    const next = reveal.newState.pending?.kind === "charge" ? reveal.newState.pending.chargeIds : [];
+    const keep = resolve(reveal.newState, g.p1, { type: "choose_charge", chargeId: next[0] as string }) as AiStep;
+    expect(keep.events.map((e) => e.type)).toContain("turn_started");
+    expect(aiStepPace(keep)).toBe(AiPace.Handover);
   });
 
   it("treats a pass that resolves the Spell as visible", () => {

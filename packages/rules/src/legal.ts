@@ -3,6 +3,7 @@
 
 import { BALANCE } from "./balance.js";
 import { validateCardTarget } from "./cards.js";
+import { canRecommission } from "./charges.js";
 import type { RulesContext } from "./context.js";
 import { RuleViolation, unreachable } from "./errors.js";
 import { getQuestProgress } from "./quests.js";
@@ -48,6 +49,8 @@ export type ActionMode =
   | "end"
   | "reaction"
   | "prophecy"
+  /** Sealed Charges (§27A): keep one of the Charges drawn (`state.pending.chargeIds`). */
+  | "charge"
   | "finished";
 
 export interface LegalActionSummary {
@@ -74,6 +77,8 @@ export interface LegalActionSummary {
   claimableQuests: QuestId[];
   /** This round's Crown's Levy is in force, unanswered by the player, and they can pay it (§27.3). */
   canAnswerLevy: boolean;
+  /** Sealed Charges (§27A): may pay to discard the Charge and draw again, once per game. */
+  canRecommission: boolean;
   mustDiscard: number;
   reactionCards: CardId[];
 }
@@ -103,6 +108,7 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
     wardenMenaces: [],
     claimableQuests: [],
     canAnswerLevy: false,
+    canRecommission: false,
     mustDiscard: 0,
     reactionCards: [],
   };
@@ -114,6 +120,7 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
       return { ...empty, mode: "reaction", reactionCards: p.hand.filter((c) => c !== HIDDEN_CARD && ctx.cardOf(c).timing.includes("reaction")) };
     }
     if (state.pending.kind === "prophecy" && state.pending.playerId === playerId) return { ...empty, mode: "prophecy" };
+    if (state.pending.kind === "charge" && state.pending.playerId === playerId) return { ...empty, mode: "charge" };
     return empty;
   }
   if (state.activePlayerId !== playerId) return empty;
@@ -191,6 +198,7 @@ export function getLegalActions(ctx: RulesContext, state: GameState, playerId: P
     wardenMenaces,
     claimableQuests,
     canAnswerLevy,
+    canRecommission: canRecommission(ctx, state, playerId),
   };
 }
 

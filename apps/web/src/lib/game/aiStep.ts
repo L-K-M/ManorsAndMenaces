@@ -57,13 +57,19 @@ export function aiStepPace(step: Pick<AiStep, "command" | "events">): AiPace {
     case "end_main_phase":
     case "resolve_prophecy":
       return AiPace.Quiet;
+    case "choose_charge":
+      // Nothing on the table changes, but keeping a Charge after a reveal
+      // is what passes the turn (§27A.4).
+      return events.some((e) => e.type === "turn_started") ? AiPace.Handover : AiPace.Quiet;
     case "pass_reaction":
       // Passing may resolve the Spell it answered, which is visible.
       return events.every((e) => e.type === "reaction_passed" || e.type === "phase_changed") ? AiPace.Quiet : AiPace.Visible;
     case "assign_banners":
       return events.some((e) => e.type === "banner_assigned") ? AiPace.Visible : AiPace.Quiet;
     case "end_turn":
-      return events.some((e) => e.type === "game_won") ? AiPace.Visible : AiPace.Handover;
+      // A Sealed Charge revealed (§27A) is news; at goals 25 and 30 the turn
+      // then waits for the next Charge to be kept.
+      return events.some((e) => e.type === "game_won" || e.type === "charge_revealed") ? AiPace.Visible : AiPace.Handover;
     default:
       return AiPace.Visible;
   }

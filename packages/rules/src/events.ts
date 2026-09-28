@@ -2,6 +2,7 @@ import type {
   BannerId,
   CardEffectId,
   CardId,
+  ChargeId,
   GameEndCause,
   HoldingId,
   MenaceId,
@@ -138,6 +139,14 @@ export type GameEvent =
    */
   | { type: "levy_proclaimed"; resource: ResourceType; round: number; current: ResourceType | null }
   | { type: "levy_answered"; playerId: PlayerId; resource: ResourceType; amount: number; renown: number }
+  /** Sealed Charges (§27A): `count` Charges drawn for `playerId` to keep one; `chargeIds` only for them. */
+  | { type: "charges_drawn"; playerId: PlayerId; chargeIds: ChargeId[] | null; count: number }
+  /** `playerId` keeps a Charge face down; `chargeId` only for them. */
+  | { type: "charge_kept"; playerId: PlayerId; chargeId: ChargeId | null }
+  /** A met Charge is revealed and scored at its holder's End Turn. Public. */
+  | { type: "charge_revealed"; playerId: PlayerId; chargeId: ChargeId; renown: number }
+  /** Recommission: `playerId` paid and discarded their Charge face down, unrevealed. */
+  | { type: "charge_recommissioned"; playerId: PlayerId }
   | { type: "phase_changed"; playerId: PlayerId; phase: TurnPhase }
   | { type: "setup_step"; playerId: PlayerId; step: "place_manor" | "place_route" | "assign_banners" }
   | { type: "turn_started"; playerId: PlayerId; turnNumber: number; round: number }
@@ -164,5 +173,6 @@ export type ResourceReason =
   | "goblin_tinkers"
   | "card_effect"
   | "crown_levy"
+  | "recommission"
   | "discard"
   | "debug";

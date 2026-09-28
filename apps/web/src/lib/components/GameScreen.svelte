@@ -26,6 +26,7 @@
   import GameMenu from "./GameMenu.svelte";
   import HandPanel from "./HandPanel.svelte";
   import HarvestPreview from "./HarvestPreview.svelte";
+  import ChargePanel from "./ChargePanel.svelte";
   import LogPanel from "./LogPanel.svelte";
   import Modal from "./Modal.svelte";
   import Overlays from "./Overlays.svelte";
@@ -298,6 +299,7 @@
       {#if ui.panel === "players"}
         <PlayersPanel {session} />
       {:else if ui.panel === "quests"}
+        <ChargePanel {session} {legal} />
         <QuestPanel {session} {legal} />
       {:else}
         <LogPanel {session} />
