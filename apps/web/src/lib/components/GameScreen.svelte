@@ -37,6 +37,7 @@
   import RivalQuips from "./RivalQuips.svelte";
   import ScoreStrip from "./ScoreStrip.svelte";
   import RenownDialog from "./RenownDialog.svelte";
+  import ResourceIcon from "./ResourceIcon.svelte";
   import ToolIcon from "./ToolIcon.svelte";
   import SettingsDialog from "./SettingsDialog.svelte";
   import TutorialCoach from "./TutorialCoach.svelte";
@@ -126,6 +127,11 @@
   function closePanel() {
     panelOpen = false;
     panelToggle?.focus();
+  }
+  /** The Levy chip shows the Quest panel, where the Levy is answered (§27.3). */
+  function showLevy() {
+    ui.panel = "quests";
+    if (slideOver && !panelOpen) void openPanel();
   }
   function closeTray() {
     const hadFocus = !!document.activeElement?.closest("#dock-tray");
@@ -225,6 +231,21 @@
       </button>
     {:else}
       <span class="round">{roundLabel}</span>
+    {/if}
+    {#if gs.crownLevy}
+      {@const levy = gs.crownLevy}
+      {@const shown = levy.current ?? levy.next}
+      <!-- The Crown's Levy (§27.3): opens the Quest panel, where it can be answered. -->
+      <button
+        class="ghost levy-chip"
+        onclick={showLevy}
+        aria-label={levy.current
+          ? t("levy.chip_label", { resource: t(`resource.${levy.current}`), next: t(`resource.${levy.next}`) })
+          : t("levy.chip_label_first", { resource: t(`resource.${levy.next}`) })}
+      >
+        <ResourceIcon resource={shown} size={16} label={false} />
+        <span class="levy-chip-text">{levy.current ? t("levy.chip", { resource: t(`resource.${shown}`) }) : t("levy.chip_next", { resource: t(`resource.${shown}`) })}</span>
+      </button>
     {/if}
     <div class="score"><ScoreStrip {session} /></div>
     <span class="spacer"></span>
@@ -431,6 +452,40 @@
     background: linear-gradient(100deg, #2a1d17, #52271a);
     color: #ffe9cf;
     font-weight: 700;
+  }
+  /* A full-height touch target around a smaller pill, like the Voice and
+     score chips. */
+  .topbar .levy-chip {
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 44px;
+    padding: 0 0.55rem;
+    border: none;
+    border-radius: 999px;
+    background: none;
+    box-shadow: none;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+  .topbar .levy-chip:hover:not(:disabled) {
+    background: none;
+  }
+  .topbar .levy-chip::before {
+    content: "";
+    position: absolute;
+    inset: 50% 0 auto;
+    z-index: -1;
+    height: 32px;
+    translate: 0 -50%;
+    border: 1px solid #fff5;
+    border-radius: 999px;
+    transition: background 0.2s;
+  }
+  .topbar .levy-chip:hover::before {
+    background: #fff2;
   }
   /* The scoreboard takes the free space in the bar and shrinks (names
      first) rather than wrapping the bar onto a second row. */
@@ -738,6 +793,12 @@
   }
   [data-layout="sheet"] .topbar h1 {
     display: none;
+  }
+  /* On a phone the Levy chip keeps only its resource, so the bar stays one row. */
+  @container topbar (max-width: 30rem) {
+    .levy-chip-text {
+      display: none;
+    }
   }
   @container topbar (max-width: 24rem) {
     .round:not(.ending) {

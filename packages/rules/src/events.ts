@@ -131,6 +131,13 @@ export type GameEvent =
   | { type: "quest_revealed"; questId: QuestId }
   /** Unclaimed for `ruleset.questExpiryRounds` rounds: back to the bottom of the Quest deck. */
   | { type: "quest_expired"; questId: QuestId }
+  /**
+   * As a round begins, the Crown's Levy for `round`, the next one, is
+   * proclaimed, and `current`, proclaimed a round ago, takes effect (null
+   * for the first Levy). Public (§27.3).
+   */
+  | { type: "levy_proclaimed"; resource: ResourceType; round: number; current: ResourceType | null }
+  | { type: "levy_answered"; playerId: PlayerId; resource: ResourceType; amount: number; renown: number }
   | { type: "phase_changed"; playerId: PlayerId; phase: TurnPhase }
   | { type: "setup_step"; playerId: PlayerId; step: "place_manor" | "place_route" | "assign_banners" }
   | { type: "turn_started"; playerId: PlayerId; turnNumber: number; round: number }
@@ -156,5 +163,6 @@ export type ResourceReason =
   | "toll"
   | "goblin_tinkers"
   | "card_effect"
+  | "crown_levy"
   | "discard"
   | "debug";

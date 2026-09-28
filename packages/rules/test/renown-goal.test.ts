@@ -57,9 +57,12 @@ describe("choosing a Renown goal (§7)", () => {
     for (const targetRenown of targetRenownChoices("mvp", 2)) expect(mvpRuleset({ targetRenown }).targetRenown).toBe(targetRenown);
   });
 
-  it("changes nothing else about the rules", () => {
-    const chosen = standardRuleset(3, { targetRenown: 25 });
-    expect({ ...chosen, targetRenown: 0 }).toEqual({ ...standardRuleset(3), targetRenown: 0 });
+  it("changes nothing else about the rules but what the Crown's Levy pays", () => {
+    const { crownLevy: chosenLevy, ...chosen } = standardRuleset(3, { targetRenown: 25 });
+    const { crownLevy: defaultLevy, ...fallback } = standardRuleset(3);
+    expect({ ...chosen, targetRenown: 0 }).toEqual({ ...fallback, targetRenown: 0 });
+    // A Levy pays 2 Renown at goals of 25 and more (§27.3).
+    expect(chosenLevy).toEqual({ ...defaultLevy, renown: 2 });
     expect(asyncRuleset(3, { targetRenown: 25 }).enableReactionCards).toBe(false);
   });
 

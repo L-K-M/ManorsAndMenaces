@@ -1,4 +1,4 @@
-import type { MenaceType, ResourceCost, RulesetConfig } from "./types.js";
+import type { CrownLevyRules, MenaceType, ResourceCost, RulesetConfig } from "./types.js";
 
 // All tunable numbers live here (spec §121). Do not scatter numbers in code.
 export const BALANCE = {
@@ -54,9 +54,16 @@ export const BALANCE = {
   raid: { minHoldings: 3 },
   /** Grain Sabotage burns (§19.27). */
   sabotage: { grain: 2 },
+  /**
+   * The Crown's Levy (§27.3): 5 of the named resource for 1 Renown, or 2 at
+   * goals of 25 and more, which building alone rarely reaches before the
+   * board fills (§129.6). The first Levy is proclaimed once the Quest deck
+   * runs out, as round 15 begins at the latest.
+   */
+  crownLevy: { price: 5, renown: 1, highGoalRenown: 2, highGoal: 25, proclaimByRound: 15 },
 } as const;
 
-export const RULESET_VERSION = "0.8.0";
+export const RULESET_VERSION = "0.9.0";
 
 /** Fixed Menace sets by player count (spec §118). */
 export function standardMenaces(playerCount: number): MenaceType[] {
@@ -139,12 +146,19 @@ export function mvpRuleset(options: RulesetOptions = {}): RulesetConfig {
   };
 }
 
-/** Standard game with cards, reactions and Quests. */
+/** The Crown's Levy for a game with this goal (§27.3). */
+function crownLevy(targetRenown: number): CrownLevyRules {
+  const { price, renown, highGoalRenown, highGoal, proclaimByRound } = BALANCE.crownLevy;
+  return { price, renown: targetRenown >= highGoal ? highGoalRenown : renown, proclaimByRound };
+}
+
+/** Standard game with cards, reactions, Quests and the Crown's Levy. */
 export function standardRuleset(playerCount: number, options: RulesetOptions = {}): RulesetConfig {
+  const targetRenown = chosenTargetRenown(defaultTargetRenown("standard", playerCount), options);
   return {
     ...common,
     name: "standard",
-    targetRenown: chosenTargetRenown(defaultTargetRenown("standard", playerCount), options),
+    targetRenown,
     activeMenaces: standardMenaces(playerCount),
     enableCards: true,
     enableReactionCards: true,
@@ -152,6 +166,7 @@ export function standardRuleset(playerCount: number, options: RulesetOptions = {
     questExpiryRounds: BALANCE.questExpiryRounds,
     initialCards: BALANCE.initialCards,
     cardDrawEveryRounds: BALANCE.cardDrawEveryRounds,
+    crownLevy: crownLevy(targetRenown),
   };
 }
 

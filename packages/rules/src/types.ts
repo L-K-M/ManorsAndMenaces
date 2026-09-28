@@ -102,6 +102,7 @@ export const CARD_EFFECT_IDS = [
   "stolen_glory",
   "siege_fireball",
   "sabotage",
+  "the_dowager",
 ] as const;
 export type CardEffectId = (typeof CARD_EFFECT_IDS)[number];
 
@@ -205,6 +206,25 @@ export interface RulesetConfig {
    * (`reign_ending`) begin after setup.
    */
   lastRound?: number;
+  /**
+   * The Crown's Levy (§27.3): once the Quest deck runs out, each round names
+   * a resource that anyone may pay for Renown. Absent in games created before
+   * ruleset 0.9.0 and in the Core rules, which never hear of it.
+   */
+  crownLevy?: CrownLevyRules;
+}
+
+/** How the Crown's Levy runs in a game (§27.3). */
+export interface CrownLevyRules {
+  /** Resources of the named kind an answer pays to the supply. */
+  price: number;
+  /** Renown an answer gains. */
+  renown: number;
+  /**
+   * The first Levy is proclaimed as this round begins, for the round after,
+   * if the Quest deck has not run out before.
+   */
+  proclaimByRound: number;
 }
 
 export interface PlayerConfig {
@@ -228,6 +248,11 @@ export interface Holding {
   siteId: SiteId;
   ownerId: PlayerId;
   type: "manor" | "stronghold";
+  /**
+   * Built by The Dowager (§19.28) next to its owner's Holdings, closer than
+   * the spacing rule allows. Absent on every other Holding.
+   */
+  dowerHouse?: true;
 }
 
 export interface Banner {
@@ -282,6 +307,8 @@ export interface PlayerState {
    * saves and until the first loss.
    */
   lostRenown?: number;
+  /** Renown from answering the Crown's Levy (§27.3), kept for the game. Absent until the first answer. */
+  levyRenown?: number;
   holdingIds: HoldingId[];
   routeIds: RouteId[];
   claimedQuestIds: QuestId[];
@@ -316,7 +343,20 @@ export type ActiveEffect =
    * Raiders: only the burned Manor's owner may build on the Site, or next to
    * it, until the end of their next turn.
    */
-  | { kind: "razed"; siteId: SiteId; ownerId: PlayerId; sourcePlayerId: PlayerId };
+  | {
+      kind: "razed";
+      siteId: SiteId;
+      ownerId: PlayerId;
+      sourcePlayerId: PlayerId;
+      /** The burned Manor was a Dower House (§19.28): its owner's rebuild there is one again. */
+      dowerHouse?: true;
+      /**
+       * The burned Manor was a Dower House or stood beside one of its
+       * owner's Holdings (§19.28): the owner's rebuild there waives the
+       * spacing rule toward their own Holdings.
+       */
+      besideOwnHoldings?: true;
+    };
 
 /** A decision the game is waiting on before normal play resumes (§109). */
 export type PendingDecision =
@@ -363,7 +403,9 @@ export type CardTarget =
   | { effect: "raiders"; siteId: SiteId }
   | { effect: "stolen_glory"; opponentId: PlayerId }
   | { effect: "siege_fireball"; siteId: SiteId }
-  | { effect: "sabotage"; opponentId: PlayerId };
+  | { effect: "sabotage"; opponentId: PlayerId }
+  /** The Manor's toll and surcharge, when due, as for `build_manor`. */
+  | { effect: "the_dowager"; siteId: SiteId; tollPayment?: ResourceType; extraPayment?: ResourceType };
 
 export interface GameState {
   revision: number;
@@ -401,6 +443,8 @@ export interface GameState {
   activeEffects: ActiveEffect[];
   /** Sites a Siege Fireball left in ruins: nobody may build on them again. Absent in older saves. */
   ruinedSiteIds?: SiteId[];
+  /** The Crown's Levy (§27.3), public; absent until the first Levy is proclaimed. */
+  crownLevy?: CrownLevyState;
   pending?: PendingDecision;
   nextIds: { holding: number; banner: number };
   winnerId?: PlayerId;
@@ -408,6 +452,21 @@ export interface GameState {
   endCause?: GameEndCause;
   /** equalTurns: the target has been reached; the game ends with this round. */
   endTriggered?: boolean;
+}
+
+/** The Levies proclaimed so far (§27.3). Both this round's and the next round's are public. */
+export interface CrownLevyState {
+  /** The resource this round's Levy names; null in the round the first Levy is proclaimed. */
+  current: ResourceType | null;
+  /** The resource the next round's Levy names. */
+  next: ResourceType;
+  /**
+   * The resources called in the current cycle, oldest first, `next` last. The
+   * Crown calls each of the five once before it calls any of them again.
+   */
+  called: ResourceType[];
+  /** Players who have answered this round's Levy, in the order they did. */
+  answeredBy: PlayerId[];
 }
 
 /**

@@ -7,7 +7,7 @@ import type { CardEffectId } from "@manors-menaces/rules";
  * which would fail to load and log an error. Remove a card from this list
  * when its runtime WebP lands in public/art/cards.
  */
-const AWAITING_PAINTING: ReadonlySet<CardEffectId> = new Set();
+const AWAITING_PAINTING: ReadonlySet<CardEffectId> = new Set(["the_dowager"]);
 
 export function hasCardPainting(id: CardEffectId): boolean {
   return !AWAITING_PAINTING.has(id);

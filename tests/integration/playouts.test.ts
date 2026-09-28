@@ -67,12 +67,33 @@ function checkInvariants(s: GameState, cards: number): void {
   }
   // Nobody ever builds on a ruin, and no card takes Renown below 0.
   for (const ruin of s.ruinedSiteIds ?? []) expect(sites, `ruined ${ruin}`).not.toContain(ruin);
+  // Spacing (§10.3): Holdings side by side belong to one player, and one of
+  // them is The Dowager's Manor (§19.28).
+  for (const h of Object.values(s.holdings)) {
+    for (const n of ctx.board.neighbours(h.siteId)) {
+      const next = Object.values(s.holdings).find((x) => x.siteId === n);
+      if (!next) continue;
+      expect(next.ownerId, `${h.siteId} beside ${n}`).toBe(h.ownerId);
+      expect(!!(h.dowerHouse || next.dowerHouse), `${h.siteId} beside ${n}`).toBe(true);
+    }
+  }
   for (const p of Object.values(s.players)) {
     expect(getRenown(ctx, s, p.id), `${p.id}'s Renown`).toBeGreaterThanOrEqual(0);
     expect(p.lostRenown ?? 0).toBeGreaterThanOrEqual(0);
   }
   // Changeling, Charters and Ragnarök move cards around; none may appear or vanish.
   expect(cardCount(s)).toBe(cards);
+  // The Crown's Levy (§27.3): each player answers once a round, and the Crown
+  // calls each resource once a cycle, the next Levy last.
+  const levy = s.crownLevy;
+  if (levy) {
+    expect(new Set(levy.answeredBy).size).toBe(levy.answeredBy.length);
+    for (const id of levy.answeredBy) expect(s.turnOrder).toContain(id);
+    expect(new Set(levy.called).size).toBe(levy.called.length);
+    expect(levy.called.at(-1)).toBe(levy.next);
+  }
+  const perAnswer = s.ruleset.crownLevy?.renown ?? 1;
+  for (const p of Object.values(s.players)) expect((p.levyRenown ?? 0) % perAnswer, `${p.id}'s Levy Renown`).toBe(0);
 }
 
 const sorted = (cards: readonly string[]): string[] => [...cards].sort();
@@ -220,6 +241,19 @@ describe("AI playouts", () => {
       console.log(name, "rounds", final.round, "commands", commands.length, describeWin(final, won));
     }, 120_000);
   }
+
+  // At a goal of 25 the Quest deck runs out and the Crown's Levy (§27.3) is
+  // proclaimed long before anyone wins. On this seed every player answers
+  // some, before the board fills.
+  it("levy-3p: plays through the Crown's Levy and keeps invariants", () => {
+    const rs = standardRuleset(3, { targetRenown: 25 });
+    const { initial, final, commands } = playGame(3, rs, "levy-3p-c");
+    expect(final.status).toBe("finished");
+    expect(final.crownLevy?.called.length).toBeGreaterThan(0);
+    expect(Object.values(final.players).some((p) => (p.levyRenown ?? 0) > 0)).toBe(true);
+    expect(hashState(engine.replay(initial, commands))).toBe(hashState(final));
+    console.log("levy-3p", "rounds", final.round, "levy", final.turnOrder.map((id) => final.players[id]?.levyRenown ?? 0).join("/"), final.endCause ?? "target");
+  }, 120_000);
 
   // Every player draws a free card each turn, so the cards (the second wave's
   // Route burning, Holding destruction, hand swaps and Charters) actually get

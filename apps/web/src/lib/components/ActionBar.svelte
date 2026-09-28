@@ -1,22 +1,17 @@
 <script lang="ts">
-  import {
-    RESOURCE_TYPES,
-    getPlayerBanners,
-    type ActionAvailability,
-    type LegalActionSummary,
-    type PlayerAction,
-    type ResourceCost,
-  } from "@manors-menaces/rules";
+  import { RESOURCE_TYPES, getPlayerBanners, type ActionAvailability, type LegalActionSummary, type PlayerAction } from "@manors-menaces/rules";
   import { tick } from "svelte";
-  import { hasKey, t } from "../i18n.js";
+  import { t } from "../i18n.js";
   import {
     ACTION_LABEL,
     availabilityFor,
     bannerWarningFor,
     confirmBanners,
     confirmBannersAndEndTurn,
+    costText,
     startAction,
     tradeToAfford,
+    whyUnavailable,
     type Highlights,
   } from "../game/interaction.js";
   import { currentActor, type GameSession } from "../game/session.svelte.js";
@@ -93,19 +88,8 @@
   const market = $derived(gs.ruleset.market);
   const helpText = (key: string): string => t(key, { give: market.give, receive: market.receive, limit: market.maxTradesPerTurn });
 
-  const costList = (cost: ResourceCost, any = 0): string =>
-    [
-      ...RESOURCE_TYPES.filter((r) => (cost[r] ?? 0) > 0).map((r) => `${cost[r]} ${t(`resource.${r}`)}`),
-      ...(any > 0 ? [t("why.any_resource", { count: any })] : []),
-    ].join(", ");
-
-  /** One line on why an action is unavailable, from the rules reason code. */
-  function why(action: PlayerAction, a: ActionAvailability): string {
-    if (!a.reason) return "";
-    if (a.reason === "NEED_RESOURCES") return t("why.NEED_RESOURCES", { list: costList(a.missing ?? {}, a.missingAny ?? 0) });
-    const specific = `why.${a.reason}.${action}`;
-    return t(hasKey(specific) ? specific : `why.${a.reason}`, { count: market.give });
-  }
+  const costList = costText;
+  const why = (action: PlayerAction, a: ActionAvailability): string => whyUnavailable(action, a, market.give);
   const toolDetail = (action: PlayerAction, a: ActionAvailability): string =>
     a.ok ? (action === "market" ? t("status.market_trades_left", { count: a.tradesLeft ?? 0 }) : costList(a.cost, a.extraAny)) : why(action, a);
 

@@ -4,6 +4,7 @@
 
 import { clone, own } from "./clone.js";
 import { BALANCE } from "./balance.js";
+import { createBanner, createHolding, payForBuild, putOutEmbers } from "./build.js";
 import { isCardUsableInRuleset, resolveCardEffect, validateCardTarget } from "./cards.js";
 import type { DebugCommand, GameCommand } from "./commands.js";
 import { createContext, type RulesContext } from "./context.js";
@@ -26,11 +27,11 @@ import {
   isLastSeat,
   isLegalMenaceDestination,
   isRuinedSite,
+  levyClosedReason,
+  ownRazedMark,
   passesSpacing,
   playersAtTarget,
-  totalBuildCost,
   validateBannerAssignment,
-  type BuildCheck,
 } from "./selectors.js";
 import { Tx } from "./tx.js";
 import { finishGame, rankPlayers } from "./victory.js";
@@ -39,7 +40,6 @@ import {
   type BannerId,
   type GameConfig,
   type GameState,
-  type HoldingId,
   type MenaceInstance,
   type PlayerId,
   type PlayerState,
@@ -304,6 +304,9 @@ function execute(tx: Tx, cmd: GameCommand): void {
     case "claim_quest":
       inPhase("main");
       return claimQuest(tx, cmd.playerId, cmd.questId);
+    case "answer_levy":
+      inPhase("main");
+      return answerLevy(tx, cmd.playerId, cmd.resource);
     case "end_main_phase":
       inPhase("main");
       s.phase = "banner_assignment";
@@ -333,23 +336,6 @@ function execute(tx: Tx, cmd: GameCommand): void {
 }
 
 // ------------------------------------------------------------------ setup (§28)
-
-function createHolding(tx: Tx, playerId: PlayerId, siteId: SiteId): HoldingId {
-  const s = tx.s;
-  const id = `holding_${s.nextIds.holding++}`;
-  s.holdings[id] = { id, siteId, ownerId: playerId, type: "manor" };
-  tx.player(playerId).holdingIds.push(id);
-  createBanner(tx, playerId, id);
-  return id;
-}
-
-function createBanner(tx: Tx, playerId: PlayerId, holdingId: HoldingId): BannerId {
-  const s = tx.s;
-  const id = `banner_${s.nextIds.banner++}`;
-  s.banners[id] = { id, ownerId: playerId, holdingId, regionId: null, settled: false };
-  tx.emit({ type: "banner_created", playerId, bannerId: id, holdingId });
-  return id;
-}
 
 function placeInitialManor(tx: Tx, playerId: PlayerId, siteId: SiteId): void {
   const s = tx.s;
@@ -420,6 +406,7 @@ function assignInitialBanners(tx: Tx, playerId: PlayerId, assignments: Record<Ba
     for (const [r, n] of Object.entries(s.ruleset.seatBonus?.[i] ?? {})) if (isResourceType(r) && n) tx.gain(id, r, n, "starting_resources");
   });
   dealCardsToAll(tx, s.ruleset.initialCards ?? 0, "setup");
+  proclaimLevy(tx);
   startTurn(tx, s.activePlayerId);
 }
 
@@ -566,6 +553,7 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
     const lastRound = s.ruleset.lastRound ?? 0;
     if (lastRound > 0 && s.round >= lastRound - 1 && s.round <= lastRound) tx.emit({ type: "reign_ending", round: s.round, lastRound });
     expireQuests(tx);
+    proclaimLevy(tx);
     const interval = s.ruleset.cardDrawEveryRounds ?? 0;
     if (interval > 0 && s.round % interval === 0) dealCardsToAll(tx, 1, "round");
   }
@@ -600,22 +588,6 @@ function foretellEndgame(tx: Tx): void {
 
 // ------------------------------------------------------------------ building
 
-function payForBuild(tx: Tx, playerId: PlayerId, check_: BuildCheck, toll: unknown, surcharge: unknown, reason: "build_route" | "build_manor" | "upgrade_holding"): void {
-  if (!check_.legal) throw new RuleViolation(check_.reason);
-  if (check_.needsToll) check(isResourceType(toll), "INVALID_PAYMENT", "toll required (Highwayman)");
-  else check(toll === undefined, "INVALID_PAYMENT", "no toll is due");
-  if (check_.needsSurcharge) check(isResourceType(surcharge), "INVALID_PAYMENT", "Goblin Tinkers surcharge required");
-  else check(surcharge === undefined, "INVALID_PAYMENT", "no surcharge is due");
-  const t = check_.needsToll ? (toll as ResourceType) : undefined;
-  const g = check_.needsSurcharge ? (surcharge as ResourceType) : undefined;
-  const p = tx.player(playerId);
-  const total = totalBuildCost(check_, t, g);
-  for (const r of RESOURCE_TYPES) check(p.resources[r] >= (total[r] ?? 0), "INSUFFICIENT_RESOURCES", r);
-  tx.spend(playerId, check_.cost, reason);
-  if (t) tx.spend(playerId, { [t]: BALANCE.costs.toll }, "toll");
-  if (g) tx.spend(playerId, { [g]: BALANCE.costs.goblinSurcharge }, "goblin_tinkers");
-}
-
 function buildRoute(tx: Tx, playerId: PlayerId, routeId: string, toll: unknown): void {
   check(typeof routeId === "string", "INVALID_COMMAND");
   const c = checkBuildRoute(tx.ctx, tx.s, playerId, routeId);
@@ -631,9 +603,10 @@ function buildManor(tx: Tx, playerId: PlayerId, siteId: string, toll: unknown, s
   check(typeof siteId === "string", "INVALID_COMMAND");
   const c = checkBuildManor(tx.ctx, tx.s, playerId, siteId);
   payForBuild(tx, playerId, c, toll, surcharge, "build_manor");
-  // Rebuilding a razed Manor puts out its embers (Raiders, §19.24).
-  tx.s.activeEffects = tx.s.activeEffects.filter((e) => !(e.kind === "razed" && e.siteId === siteId));
-  const holdingId = createHolding(tx, playerId, siteId);
+  // A razed Dower House rebuilt by its owner is one again (§19.28).
+  const dowerHouse = ownRazedMark(tx.s, playerId, siteId)?.dowerHouse === true;
+  putOutEmbers(tx, siteId);
+  const holdingId = createHolding(tx, playerId, siteId, { dowerHouse });
   tx.emit({ type: "holding_built", playerId, holdingId, siteId, free: false });
 }
 
@@ -921,6 +894,47 @@ function expireQuests(tx: Tx): void {
     revealTopQuest(tx, slot);
     s.questDeck.push(q);
   });
+}
+
+// ------------------------------------------------------------------ the Crown's Levy (§27.3)
+
+/**
+ * Run as each round begins. The first Levy is proclaimed once a round begins
+ * with the Quest deck empty, or as `proclaimByRound` begins, for the round
+ * after; from then on the proclaimed Levy takes effect and the next is
+ * proclaimed. Each Levy names a resource drawn from the match RNG among
+ * those not yet called in this cycle of five; a new cycle never opens with
+ * the resource that closed the last. Games without the rule never draw, so
+ * they replay as before.
+ */
+function proclaimLevy(tx: Tx): void {
+  const s = tx.s;
+  const rules = s.ruleset.crownLevy;
+  if (!rules) return;
+  const levy = s.crownLevy;
+  if (!levy && s.questDeck.length > 0 && s.round < rules.proclaimByRound) return;
+  const cycle = levy && levy.called.length < RESOURCE_TYPES.length ? levy.called : [];
+  // The last Levy is in `cycle`, or closed the last cycle: never twice running.
+  const open = RESOURCE_TYPES.filter((r) => !cycle.includes(r) && r !== levy?.next);
+  const next = open[tx.rng.nextInt(open.length)] as ResourceType;
+  const current = levy?.next ?? null;
+  s.crownLevy = { current, next, called: [...cycle, next], answeredBy: [] };
+  tx.emit({ type: "levy_proclaimed", resource: next, round: s.round + 1, current });
+}
+
+function answerLevy(tx: Tx, playerId: PlayerId, resource: unknown): void {
+  const s = tx.s;
+  const closed = levyClosedReason(s, playerId);
+  if (closed) throw new RuleViolation(closed);
+  const rules = s.ruleset.crownLevy;
+  const levy = s.crownLevy;
+  check(rules && levy?.current, "LEVY_NOT_ACTIVE");
+  check(resource === levy.current, "INVALID_PAYMENT", `this round's Levy is ${levy.current}`);
+  tx.spend(playerId, { [levy.current]: rules.price }, "crown_levy");
+  levy.answeredBy.push(playerId);
+  const p = tx.player(playerId);
+  p.levyRenown = (p.levyRenown ?? 0) + rules.renown;
+  tx.emit({ type: "levy_answered", playerId, resource: levy.current, amount: rules.price, renown: rules.renown });
 }
 
 // ------------------------------------------------------------------ debug (§100)

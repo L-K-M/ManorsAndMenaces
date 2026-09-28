@@ -260,7 +260,7 @@ The target is `RulesetConfig.targetRenown`. It is chosen when a game is created:
 
 The winning condition is checked during the End Turn phase of the active player's turn, after all other end-of-turn effects.
 
-In the base game only the active player can gain Renown, because building and Quest claims happen only in their own Main Action phase. The check therefore looks at the active player first. If any player is at or above the target when the check runs, the game ends. If more than one player is at or above the target (possible only through future effects), use the following tie-break order:
+In the base game only the active player can gain Renown, because building, Quest claims and answers to the Crown's Levy (§27.3) happen only in their own Main Action phase. The check therefore looks at the active player first. If any player is at or above the target when the check runs, the game ends. If more than one player is at or above the target (possible only through future effects), use the following tie-break order:
 
 1. highest Renown;
 2. most completed Royal Quests;
@@ -272,7 +272,7 @@ Simultaneous wins should be rare.
 
 **Exception: Ragnarök.** The game can also end before anyone reaches the target. When Ragnarök resolves (§19.13), the game ends at once, in the middle of the turn, without the End Turn phase. The winner is decided by the same tie-break order, applied to all players, and may have less than the target Renown.
 
-**Exception: a full board.** The board can fill up before anyone reaches the target, most often with 3 or 4 players and the higher goals (§129.6). The board is full when no Site could take a new Manor, whoever builds, because each is built on, in ruins (§19.26) or too close to a Holding (§10.3), and every Holding is a Stronghold. A Site burned down by Raiders (§19.24) counts as open, since its owner may rebuild there. On a full board nobody can build for Renown any more; only Quests and cards remain. So when the round ends on a full board (the End Turn phase of the last player in turn order, after the victory check above), the game ends. The winner is decided by the same tie-break order, applied to all players, and may have less than the target Renown. Until then, each End Turn on a full board announces that the game ends with the round if the board is still full then (`board_full`); a card that empties it again, such as Raiders or Siege Engines, lets the game go on. The game records how it ended (`endCause: "full_board"`). The rule is `RulesetConfig.endOnFullBoard`, on in every ruleset from 0.7.0; games created before it play on.
+**Exception: a full board.** The board can fill up before anyone reaches the target, most often with 3 or 4 players and the higher goals (§129.6). The board is full when no Site could take a new Manor, whoever builds, because each is built on, in ruins (§19.26) or too close to a Holding (§10.3), and every Holding is a Stronghold. A Site burned down by Raiders (§19.24) counts as open, since its owner may rebuild there. On a full board nobody can build for Renown any more; only Quests, cards and the Crown's Levy (§27.3) remain. So when the round ends on a full board (the End Turn phase of the last player in turn order, after the victory check above), the game ends. The winner is decided by the same tie-break order, applied to all players, and may have less than the target Renown. Until then, each End Turn on a full board announces that the game ends with the round if the board is still full then (`board_full`); a card that opens it again, such as Raiders or Siege Engines, or adds a Manor, such as The Dowager (§19.28), lets the game go on. A card that could add one but is still in a hand does not: hands are hidden, and the check also runs on the redacted views that clients and the AI plan with. The game records how it ended (`endCause: "full_board"`). The rule is `RulesetConfig.endOnFullBoard`, on in every ruleset from 0.7.0; games created before it play on.
 
 **Exception: the last round.** Every game ends after round 30 at the latest, whatever the goal and the number of players (§129.7). When the last player in turn order ends round 30 (their End Turn phase, after the victory check and the full-board check above), the game ends. The winner is decided by the same tie-break order, applied to all players, and may have less than the target Renown. A player who reaches the target in round 30 wins as usual, and a round 30 that also ends on a full board records the full board as its end. The round is shown as "Round n of 30" from the start ("n/30" where the top bar is narrow), and it opens how the game can end. As rounds 29 and 30 begin, the game announces that the reign is ending (`reign_ending`), and a game that ends this way records it (`endCause: "last_round"`). Ragnarök can still end the game sooner. The rule is `RulesetConfig.lastRound` (`BALANCE.lastRound`), 30 in every ruleset from 0.8.0; games created before it play on, and "Play again" after one of them adds it. A last round must be 3 or more, so that both announcements fall after setup.
 
@@ -300,6 +300,7 @@ Default Renown values:
 | Minor Royal Quest | 1 |
 | Major Royal Quest | 2 |
 | Rare card/story reward (base game: The Unreliable Bard, §19.20) | 1 |
+| Answering the Crown's Levy (§27.3), each time | 1 (2 at goals of 25 and more) |
 | Major landmark objective | 1–2 |
 
 A Manor upgraded to a Stronghold increases the player's Renown by **+1**, because the site moves from 1 total Renown to 2 total Renown.
@@ -415,6 +416,8 @@ canBuildHolding(siteId) =
 
 This prevents overly dense construction and preserves meaningful resource adjacency.
 
+**Exception: The Dowager (§19.28).** Her Manor may stand next to its builder's own Holdings, never next to a rival's. So may its owner's rebuild of one that Raiders burned, during the rebuild window (§19.24).
+
 ---
 
 # 11. Suggested v0.1 Fixed Map
@@ -526,6 +529,7 @@ interface Holding {
   siteId: SiteId;
   ownerId: PlayerId;
   type: "manor" | "stronghold";
+  dowerHouse?: true; // built by The Dowager (§19.28), closer than §10.3 allows
 }
 ```
 
@@ -771,6 +775,7 @@ Typical actions:
 - Issue a Royal Writ (§14.7);
 - Hire a Warden to move a Menace (§26.1);
 - Claim completed Quest;
+- Answer the Crown's Levy (§27.3);
 - Use landmark ability (not in base game; see §80);
 - Activate hero ability.
 
@@ -934,7 +939,7 @@ This prevents card effects from overwhelming the board economy.
 
 # 19. Initial Card Set
 
-The deck has 51 cards: the 24-card prototype (§19.1–19.11), a second wave of 15 cards (§19.12–19.21), a third wave of 10 cards that attack Renown and Grain (§19.22–19.27), and a Counterspell more with each wave (§19.2).
+The deck has 53 cards: the 24-card prototype (§19.1–19.11), a second wave of 15 cards (§19.12–19.21), a third wave of 10 cards that attack Renown and Grain (§19.22–19.27), a Counterspell more with each wave (§19.2), and The Dowager (§19.28).
 
 Recommended copies are shown.
 
@@ -1129,7 +1134,7 @@ The third wave (§19.22–19.27) answers a playtest request for more offensive c
 **Timing:** Main Action  
 **Requirement:** An opponent's Manor stands at an end of one of your Routes, and that opponent has at least 3 Holdings (`BALANCE.raid.minHoldings`).  
 **Effect:** Choose such a Manor. It burns down with its Banner, costing its owner 1 Renown. Until the end of the owner's next turn the Site is razed: only they may build on it or on a Site next to it.  
-**Note:** This is Fire Bolt's rebuild window (§19.14) for a Manor. Rebuilding on the Site ends it, as does the end of the owner's next turn. The neighbours are protected too, or the raider could take the spot, or block the rebuild by the spacing rule (§10.3), with a Manor of their own on the far end of the very Route that made the raid possible. Building on a razed Site, or next to it, that is not yours is refused with `SITE_RAZED`. Only a Manor burns; Strongholds are Siege Engines' business.  
+**Note:** This is Fire Bolt's rebuild window (§19.14) for a Manor. Rebuilding on the Site ends it, as does the end of the owner's next turn. The neighbours are protected too, or the raider could take the spot, or block the rebuild by the spacing rule (§10.3), with a Manor of their own on the far end of the very Route that made the raid possible. Building on a razed Site, or next to it, that is not yours is refused with `SITE_RAZED`. Only a Manor burns; Strongholds are Siege Engines' business. A burned Dower House (§19.28) passes its mark to the razed Site (`dowerHouse`), so its owner's rebuild there is a Dower House again. It and any other Manor burned beside one of its owner's Holdings, such as a Stronghold beside a Dower House once Siege Engines reduce it, leave the spacing rule waived toward the owner's Holdings (`besideOwnHoldings`), so the owner may rebuild with an ordinary build during the window.  
 **Rationale:** The 3-Holding minimum is Dragon's Landing's (§19.15): nobody drops below the two Holdings everyone starts with, so no player is eliminated (§3). The rebuild window keeps the loss reversible (§2.3).
 
 ## 19.25 Stolen Glory ×1
@@ -1159,16 +1164,26 @@ The third wave (§19.22–19.27) answers a playtest request for more offensive c
 **Note:** The design is a player's own ("burn down a grain silo, target loses two grain resources"). The Royal Insurance Policy does not cover it (§19.19). The Grain goes to the supply, not to the caster. The `resources_lost` event carries `cause: "sabotage"`.  
 **Rationale:** A cheap, reversible nuisance aimed at a rival's next Manor or Stronghold, both of which need Grain.
 
-Total: 51 cards: 35 Spells, 9 Heroes, 3 Stories, 2 Tricks and 2 Charters.
+## 19.28 The Dowager ×2
+
+**Type:** Hero  
+**Timing:** Main Action  
+**Requirement:** One of your Routes joins one of your Strongholds to an empty Site, no rival's Holding stands next to that Site, and you can pay for a Manor there.  
+**Effect:** Build a Manor on that Site, her Dower House, and pay its full cost as for any Manor there: the Manor's price plus the Highwaywoman's toll (§22) and the Goblin Tinkers' surcharge (§25) when due. The spacing rule (§10.3) is waived only toward your own Holdings.  
+**Card text:** "Build a Manor, at full cost, at the far end of your Route from one of your Strongholds. It may stand next to your own Holdings, never next to a rival's."  
+**Note:** The Route must be usable, as for any build (§13): a fogged Route does not count. A ruined Site (§19.26) is refused, as is a Site razed for someone else or next to one (§19.24); a ruin next door does not stop her, since a ruin is not a Holding. Afterwards the Dower House is an ordinary Manor, worth 1 Renown with 1 Banner, and can be upgraded. It is marked `dowerHouse` (§12.3): when Raiders burn one, or a Manor of its owner's beside it, the owner may rebuild during the rebuild window (§19.24). Played on a razed Site of yours, she ends its window, as any build there does. Dragon's Landing gives no window, so a Dower House it burns is gone. As a Hero she opens no reaction window and cannot be countered (§109), and she harms nobody, so no Royal Insurance Policy pays out. She does not keep a full board open while held (§7). The target names the Site and, when due, the toll and surcharge resources (`tollPayment`, `extraPayment`), as `build_manor` does.  
+**Rationale:** Late in a game almost every Holding is a Stronghold and no Site is far enough from the others for an ordinary Manor, so she brings Renown where building has stopped, without crowding a rival's Regions. At full price she costs the card and the Manor, about the Renown per resource of ordinary building. Requiring a Stronghold keeps her out of the opening, where an early Banner would snowball.
+
+Total: 53 cards: 35 Spells, 11 Heroes, 3 Stories, 2 Tricks and 2 Charters.
 
 Setup leaves out cards that cannot be played with the active Menaces (§19.5, §118) and sets Ragnarök aside (§19.13):
 
 | Players | Cards | Draw pile at setup | Set aside | Left out |
 |---|---:|---:|---|---|
-| 2 | 46 | 45 | Ragnarök | Dragon Whisperer ×2, Teleportation Mishap ×2, Treasure Hunter |
-| 3–4 | 51 | 50 | Ragnarök | none |
+| 2 | 48 | 47 | Ragnarök | Dragon Whisperer ×2, Teleportation Mishap ×2, Treasure Hunter |
+| 3–4 | 53 | 52 | Ragnarök | none |
 
-With 2 players the deck holds 33 Spells and 6 Heroes. The async ruleset (§109) also leaves out the 4 Counterspells.
+With 2 players the deck holds 33 Spells and 8 Heroes. The async ruleset (§109) also leaves out the 4 Counterspells.
 
 ---
 
@@ -1456,6 +1471,22 @@ With the rule set to N rounds:
 
 No randomness is involved beyond the setup shuffle of the Quest deck (§30), so replays stay deterministic.
 
+## 27.3 The Crown's Levy
+
+On in the Standard and async rules at every goal (`RulesetConfig.crownLevy`, from ruleset 0.9.0). The Core rules have no Quests and no Levy. Games created before 0.9.0 have no `crownLevy` field and play on without it: the engine never draws a Levy for them, so they replay as before.
+
+The first round that begins with the Quest deck empty, or round 15 (`proclaimByRound`) at the latest, the King's Marshal rides in and proclaims a Levy for the next round. From then on, as each round begins, the proclaimed Levy takes effect and the Marshal proclaims the next. This round's Levy and the next round's are always public (`GameState.crownLevy`).
+
+- **The resource.** Each Levy names one resource. The Crown calls each of the five once, in an order drawn from the match RNG (§30), before it calls any of them again, and never one two rounds running: a new cycle does not open with the resource that closed the last. `crownLevy.called` lists the current cycle, the next Levy last, so the rest of the cycle can be read from it. Each proclamation carries a line of fiction: Timber for the King's new fleet, Stone to mend the Royal Castle's walls, Grain to feed the army on the march, Iron for the royal armoury, Essence for the court wizards' wards.
+- **Answer the Levy** (Main Action, once per player per round, `answer_levy`): pay 5 (`price`) of this round's resource to the supply and gain 1 Renown, or 2 when the game's goal is 25 or more (`BALANCE.crownLevy`). It does not matter how the resources were got: Harvest, the Market, a Trading Post or a card.
+- The command names the resource, which must be this round's (`INVALID_PAYMENT` otherwise), so a stale client never pays for the wrong Levy. It is refused with `LEVY_NOT_ACTIVE` before the first Levy takes effect and with `LEVY_LIMIT_REACHED` for a second answer in a round.
+- **Levy Renown** is kept for the rest of the game, like a claimed Quest's, but it is not a Quest: it counts for neither the Quest tie-break (§7) nor any Quest condition. It is its own Renown source (`PlayerState.levyRenown`, the `levy` part of `getRenownSources`), shown as such in the Renown dialog and on the results.
+- The Levy runs until the game ends; the victory check, a full board (§7) and Ragnarök end the game as before.
+- Events: `levy_proclaimed` (public: the Levy now in force, null for the first, and the next one) and `levy_answered`.
+- The Quest panel shows the Levy above the Quests: its resource, the price and Renown, the next Levy, who has answered, and a button that says why it is unavailable (the shortfall, with the Market trades that cover it). A chip beside the round number names this round's Levy.
+
+**Rationale.** With 3 or 4 players the board usually fills before anyone reaches a goal of 20 or more (§129.6). The Levy is a Renown source that needs no Site and spends the late surplus. It starts when the Quest deck runs out, around round 15 in simulations, when building has slowed. 5 resources for 1 Renown is about the price of a Manor with its Routes; the Renown doubles at 25 and 30, which building alone rarely reaches. The AI saves for this round's Levy and the next, trades toward it, and never answers while an affordable upgrade waits.
+
 ---
 
 # 28. Setup
@@ -1660,6 +1691,7 @@ export interface GameState {
 
   delayedEffects: DelayedEffect[];
   ruinedSiteIds?: SiteId[]; // Siege Fireball (§19.26): nobody may build there again
+  crownLevy?: { current: ResourceType | null; next: ResourceType; called: ResourceType[]; answeredBy: PlayerId[] }; // §27.3, public
   historyMeta: HistoryMeta;
   winnerId?: PlayerId;
   endCause?: "ragnarok" | "full_board" | "last_round"; // §19.13, §7; absent when the target was reached
@@ -1678,9 +1710,11 @@ export interface PlayerState {
   hand: CardId[];
 
   // Renown from explicit rewards (rare cards, story rewards). Total Renown is
-  // derived by getRenown() from Holdings + claimed Quests + bonusRenown -
-  // lostRenown; it is never stored.
+  // derived by getRenown() from Holdings + claimed Quests + levyRenown +
+  // bonusRenown - lostRenown; it is never stored.
   bonusRenown: number;
+  // Renown from answering the Crown's Levy (§27.3); absent until the first answer.
+  levyRenown?: number;
   // Renown lost for the rest of the game (Disgrace, Stolen Glory, §8). Never
   // more than keeps the total at 0 or above; absent in older saves.
   lostRenown?: number;
@@ -4048,6 +4082,10 @@ The third wave (§19.22–19.27) was asked for as offensive cards, so each is he
 **Sabotage (§19.27)** takes at most 2 Grain and never more than the target has, so it cannot create negative resources.
 
 None of the six can loop or skip a turn, all are public, and all are Spells, so Counterspell answers every one of them.
+
+## 111.3 The Dowager against the checklist
+
+**The Dowager (§19.28)** only builds, so most of the checklist does not apply: she erases nothing, cannot loop, and pays in full from what her player holds. She never crowds a rival, since no rival's Holding may stand next to her Manor, and the spacing rule still protects everyone else's Regions. Her Manor raises a Banner like any other; with no free Region it waits at home (§112). She cannot be countered, as building never could, and nothing about her is hidden once played. Held, she cannot keep a full board open (§7).
 
 ---
 

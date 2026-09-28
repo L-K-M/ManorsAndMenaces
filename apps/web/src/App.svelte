@@ -345,6 +345,7 @@
       {#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as n}<li>{t(`tutorial.${n}`)}</li>{/each}
     </ol>
     <p>{t("ui.card_income_hint", { count: BALANCE.initialCards, rounds: BALANCE.cardDrawEveryRounds })}</p>
+    <p>{t("ui.levy_rules", { round: BALANCE.crownLevy.proclaimByRound + 1, price: BALANCE.crownLevy.price, renown: BALANCE.crownLevy.renown, more: BALANCE.crownLevy.highGoalRenown, goal: BALANCE.crownLevy.highGoal })}</p>
     <h3>{t("ui.costs")}</h3>
     <ul>
       <li>{t("action.build_route")}: {t("cost.route")}</li>

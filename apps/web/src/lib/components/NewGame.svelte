@@ -31,6 +31,8 @@
   // one; the goal you last picked comes back.
   let pickedGoal: number | null = $state(rememberedRenownGoal());
   const goal = $derived(renownGoal(mode, count, pickedGoal));
+  // The Crown's Levy (§27.3) comes with the Standard rules; its Renown follows the goal.
+  const levy = $derived(mode === "standard" ? standardRuleset(count, { targetRenown: goal.value }).crownLevy : undefined);
   const KINDS = NAMES.map((_, i) => (i === 0 ? "human" : "ai") as "human" | "ai");
   // Start the line-up at a random rival so new games meet different faces.
   const initialRivals = assignRivals(KINDS, Math.floor(Math.random() * RIVALS.length));
@@ -158,6 +160,7 @@
         </select>
       </label>
       <p class="hint" id="goal-hint">{renownGoalHint(mode, count, goal.value)}</p>
+      {#if levy}<p class="hint">{t("ui.levy_hint", { round: levy.proclaimByRound + 1, renown: levy.renown, price: levy.price })}</p>{/if}
     </fieldset>
     <details>
       <summary>{t("ui.advanced")}</summary>
