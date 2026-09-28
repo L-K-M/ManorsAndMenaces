@@ -2,7 +2,7 @@
 // and the board's hover card.
 
 import type { MapDefinition } from "@manors-menaces/content";
-import type { Banner, GameState } from "@manors-menaces/rules";
+import type { Banner, GameState, SiteClosedReason } from "@manors-menaces/rules";
 import { t } from "../i18n.js";
 import type { Pick } from "../stores/ui.svelte.js";
 import { regionName } from "./log.js";
@@ -16,6 +16,9 @@ export interface Description {
 export type BannerRegionOf = (banner: Banner) => string | null;
 
 const committedRegion: BannerRegionOf = (b) => b.regionId;
+
+/** Why no Manor may go on a Site for whoever is looking, or null if one still may (rules: manorSiteClosedReason). */
+export type ManorClosedOf = (siteId: string) => SiteClosedReason | null;
 
 /** Sick with the Plague: the Banner produces nothing at its owner's next Harvest. */
 function isSick(s: GameState, bannerId: string): boolean {
@@ -34,7 +37,24 @@ function razedOwner(s: GameState, siteId: string): string | null {
   return null;
 }
 
-export function describePick(map: MapDefinition, s: GameState, p: Pick, bannerRegion: BannerRegionOf = committedRegion): Description | null {
+/**
+ * Whether a Manor may still go on the empty Site, and if not, why: its own
+ * ruin or razing already has a line of its own.
+ */
+function manorLine(s: GameState, siteId: string, closed: SiteClosedReason | null): string[] {
+  if (closed === null) return [t("inspect.site_open")];
+  if (closed === "SITE_TOO_CLOSE") return [t("inspect.site_too_close")];
+  if (closed === "SITE_RAZED" && razedOwner(s, siteId) === null) return [t("inspect.site_near_razed")];
+  return [];
+}
+
+export function describePick(
+  map: MapDefinition,
+  s: GameState,
+  p: Pick,
+  bannerRegion: BannerRegionOf = committedRegion,
+  manorClosed?: ManorClosedOf,
+): Description | null {
   const playerName = (id: string) => s.players[id]?.displayName ?? "";
   const occupant = (b: Banner) => {
     const name = playerName(b.ownerId);
@@ -72,6 +92,7 @@ export function describePick(map: MapDefinition, s: GameState, p: Pick, bannerRe
           h ? t("inspect.holding_of", { holding: t(`holding.${h.type}`), name: playerName(h.ownerId) }) : t("inspect.empty_site"),
           ...((s.ruinedSiteIds ?? []).includes(site.id) ? [t("inspect.ruined")] : []),
           ...(razedFor ? [t(s.activePlayerId === razedFor ? "inspect.razed_now" : "inspect.razed", { name: playerName(razedFor) })] : []),
+          ...(!h && manorClosed ? manorLine(s, site.id, manorClosed(site.id)) : []),
           t("inspect.touches", { list: site.adjacentRegionIds.map((r) => regionName(map, r)).join(", ") }),
           ...(site.tradePost ? [t("inspect.trade_post", { resource: t(`resource.${site.tradePost.resource}`) })] : []),
         ],

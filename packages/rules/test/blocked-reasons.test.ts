@@ -10,8 +10,10 @@ import {
   getLegalInitialManorSites,
   getLegalInitialRoutes,
   getRenown,
+  checkBuildManor,
   initialManorClosedReason,
   initialRouteClosedReason,
+  manorSiteClosedReason,
   HIDDEN_CARD,
   type GameState,
   type PlayerId,
@@ -128,5 +130,27 @@ describe("starting placements", () => {
     expect(initialRouteClosedReason(ctx, s, routeId(3, 6))).toBeNull();
     const open = ctx.board.topology.routes.map((r) => r.id).filter((id) => initialRouteClosedReason(ctx, s, id) === null);
     expect(open.sort()).toEqual([...getLegalInitialRoutes(ctx, s)].sort());
+  });
+});
+
+describe("manorSiteClosedReason", () => {
+  it("agrees with checkBuildManor for every Site and player, and for anyone", () => {
+    const { state } = setupGame(cardTestRuleset(3));
+    const reasons = new Set<string | null>();
+    for (const s of [state, passTurn(state), passTurn(passTurn(state))]) {
+      for (const { id } of ctx.board.topology.sites) {
+        for (const p of s.turnOrder) {
+          const closed = manorSiteClosedReason(ctx, s, p, id);
+          const check = checkBuildManor(ctx, s, p, id);
+          // Open means buildable once a network reaches the Site.
+          if (closed === null) expect(check.legal || check.reason === "NOT_CONNECTED", id).toBe(true);
+          else expect(check, id).toEqual({ legal: false, reason: closed });
+          reasons.add(closed);
+        }
+        const anyone = s.turnOrder.some((p) => manorSiteClosedReason(ctx, s, p, id) === null);
+        expect(manorSiteClosedReason(ctx, s, null, id) === null, id).toBe(anyone);
+      }
+    }
+    expect([...reasons].sort()).toEqual(["SITE_OCCUPIED", "SITE_TOO_CLOSE", null].sort());
   });
 });

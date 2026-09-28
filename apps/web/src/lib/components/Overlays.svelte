@@ -1,6 +1,7 @@
 <script lang="ts">
   // Victory screen and the entity inspector. The privacy curtain lives in
   // PrivacyCurtain.svelte, outside the game root that it makes inert.
+  import { manorSiteClosedReason } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
   import ToolIcon from "./ToolIcon.svelte";
   import { describePick } from "../game/inspect.js";
@@ -14,7 +15,9 @@
   let { session, tutorial = false, onexit, onrematch }: { session: GameSession; tutorial?: boolean; onexit: () => void; onrematch: () => void } = $props();
   const gs = $derived(session.authoritative);
 
-  const inspectText = $derived(ui.inspect ? describePick(session.map, session.draft, ui.inspect) : null);
+  // An empty Site's inspector says whether a Manor may still go there, as the board's ring does.
+  const manorClosed = (siteId: string) => manorSiteClosedReason(session.ctx, session.draft, session.viewerId, siteId);
+  const inspectText = $derived(ui.inspect ? describePick(session.map, session.draft, ui.inspect, undefined, manorClosed) : null);
   const landmark = $derived.by(() => {
     const pick = ui.inspect;
     return pick?.kind === "site" ? session.map.sites.find((site) => site.id === pick.id)?.landmarkId : undefined;
