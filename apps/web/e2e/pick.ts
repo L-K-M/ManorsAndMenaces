@@ -1,4 +1,4 @@
-import type { Locator, Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 // A pointer click lands on the centre of an element's box. For board pieces
 // that point can lie on a neighbour: a Route along a curving coast bends away
@@ -25,4 +25,18 @@ export async function clickRoute(page: Page, route: Locator): Promise<void> {
     return { x: onScreen.x, y: onScreen.y };
   });
   await page.mouse.click(x, y);
+}
+
+/**
+ * Taps a Banner in a Banner phase and says whether it is now selected. A
+ * Banner at home with no Region to go to is not: its tap opens a dialog
+ * saying why, which this closes.
+ */
+export async function selectBanner(page: Page, banner: Locator): Promise<boolean> {
+  await banner.click();
+  const refused = page.getByRole("dialog", { name: "This Banner can't move" });
+  if (!(await refused.count())) return true;
+  await refused.getByRole("button", { name: "OK", exact: true }).click();
+  await expect(refused).toHaveCount(0);
+  return false;
 }

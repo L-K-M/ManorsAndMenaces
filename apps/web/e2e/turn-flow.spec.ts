@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { pick } from "./pick";
+import { pick, selectBanner } from "./pick";
 
 // Turn flow: phase buttons that survive repeated clicks, the Market staying
 // open between trades, the Banner phase fast path, the idle Banner warning
@@ -48,7 +48,7 @@ async function completeSetup(page: Page, firstSite?: RegExp) {
     else if (/starting Banners/.test(s)) {
       const n = await page.locator(".banner.hl").count();
       for (let i = 0; i < n; i++) {
-        await page.locator(".banner.hl").nth(i).click();
+        if (!(await selectBanner(page, page.locator(".banner.hl").nth(i)))) continue;
         const regions = page.locator(".region.hl");
         if (await regions.count()) await pick(regions.first());
       }
@@ -243,7 +243,8 @@ async function sendBannersHome(page: Page) {
   const banners = page.locator(".banner.hl");
   const n = await banners.count();
   for (let i = 0; i < n; i++) {
-    await banners.nth(i).click();
+    // A Banner at home with nowhere to go is home already.
+    if (!(await selectBanner(page, banners.nth(i)))) continue;
     await page.getByRole("button", { name: /Send home/ }).click();
   }
   await expect(page.locator(".banner.hl.home")).toHaveCount(n);

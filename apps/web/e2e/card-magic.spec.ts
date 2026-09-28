@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { pick } from "./pick";
+import { pick, selectBanner } from "./pick";
 
 async function startVsAi(page: Page, speed: "normal" | "off", reducedMotion = false) {
   await page.goto("/");
@@ -32,7 +32,7 @@ async function completeSetup(page: Page) {
     else if (/starting Banners/.test(s)) {
       const n = await page.locator(".banner.hl").count();
       for (let i = 0; i < n; i++) {
-        await page.locator(".banner.hl").nth(i).click();
+        if (!(await selectBanner(page, page.locator(".banner.hl").nth(i)))) continue;
         const regions = page.locator(".region.hl");
         if (await regions.count()) await pick(regions.first());
       }

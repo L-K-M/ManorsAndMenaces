@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { ISLANDS } from "@manors-menaces/content";
-import { clickRoute, clickSite, pick } from "./pick";
+import { clickRoute, clickSite, pick, selectBanner } from "./pick";
 
 // The illustrated board: terrain, landmark art, Menace figures, the sea
 // cartouche, and how settings (animation, high contrast) change them.
@@ -251,7 +251,7 @@ test("highlighted Routes stay visible on a busy main-phase board", async ({ page
     else if (/starting Banners/.test(s)) {
       const n = await page.locator(".banner.hl").count();
       for (let i = 0; i < n; i++) {
-        await page.locator(".banner.hl").nth(i).click();
+        if (!(await selectBanner(page, page.locator(".banner.hl").nth(i)))) continue;
         const regions = page.locator(".region.hl");
         if (await regions.count()) await pick(regions.first());
       }

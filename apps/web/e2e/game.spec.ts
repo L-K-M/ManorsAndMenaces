@@ -5,7 +5,7 @@ import { rulesContentFor } from "@manors-menaces/content";
 import { SAVE_SCHEMA_VERSION, type SaveFile } from "@manors-menaces/protocol";
 import { BALANCE, RULESET_VERSION, createRng, createRulesEngine, crownsVoiceRules, getLegalActions, mvpRuleset, seedRng, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
 import { TUTORIAL_SEED } from "../src/lib/game/saves.js";
-import { pick } from "./pick";
+import { pick, selectBanner } from "./pick";
 import { topBarRowOffsets } from "./topbar";
 
 // Critical flows (spec §66.5): create game, initial placement, first turn,
@@ -66,7 +66,7 @@ async function status(page: Page): Promise<string> {
 async function assignAllBanners(page: Page) {
   const n = await page.locator(".banner.hl").count();
   for (let i = 0; i < n; i++) {
-    await page.locator(".banner.hl").nth(i).click();
+    if (!(await selectBanner(page, page.locator(".banner.hl").nth(i)))) continue;
     const regions = page.locator(".region.hl");
     if (await regions.count()) await pick(regions.first());
   }

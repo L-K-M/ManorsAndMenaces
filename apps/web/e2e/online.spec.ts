@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type BrowserContext, type Page, type WebSocketRoute } from "@playwright/test";
 import type { MatchHistoryResponse } from "@manors-menaces/protocol";
 import { linkIn, mailTo } from "./outbox";
-import { pick } from "./pick";
+import { pick, selectBanner } from "./pick";
 
 // Online play (spec §58–60, §86): two browsers, invite code, synchronized setup.
 
@@ -34,7 +34,7 @@ async function playSetup(pages: Page[]) {
       else if (/starting Banners/.test(s)) {
         const n = await p.locator(".banner.hl").count();
         for (let k = 0; k < n; k++) {
-          await p.locator(".banner.hl").nth(k).click();
+          if (!(await selectBanner(p, p.locator(".banner.hl").nth(k)))) continue;
           if (await p.locator(".region.hl").count()) await pick(p.locator(".region.hl").first());
         }
         await p.getByRole("button", { name: /Confirm Banners/ }).click();
