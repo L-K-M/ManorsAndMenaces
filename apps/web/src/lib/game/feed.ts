@@ -286,11 +286,13 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
         out.push({ actorId: null, text, at: null, gains: null, againstViewer: false, self: false, omen: true });
         break;
       }
-      // The King's Marshal proclaims each round's Levy to everyone, like an omen (§27.3).
+      // The King's Marshal proclaims each round's Levy to everyone (§27.3).
+      // The first stands out like an omen, as the Chronicle's does; the
+      // later ones come every round, as ordinary news.
       case "levy_proclaimed": {
         const params = { resource: t(`resource.${e.resource}`), reason: t(`levy.reason.${e.resource}`) };
-        const text = e.current ? t("feed.levy_proclaimed", { ...params, current: t(`resource.${e.current}`) }) : t("feed.levy_first", params);
-        out.push({ actorId: null, text, at: null, gains: null, againstViewer: false, self: false, omen: true });
+        if (e.current) tell(null, t("feed.levy_proclaimed", { ...params, current: t(`resource.${e.current}`) }), null, false);
+        else out.push({ actorId: null, text: t("feed.levy_first", params), at: null, gains: null, againstViewer: false, self: false, omen: true });
         break;
       }
       case "levy_answered":

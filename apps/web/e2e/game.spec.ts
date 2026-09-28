@@ -347,9 +347,11 @@ test("the Crown's Levy is answered from the Quest panel, and the Chronicle says 
   await page.getByLabel(/Import a save file/).setInputFiles({ name: "levy.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(save)) });
   await passCurtain(page);
 
-  // The chip by the round number names this round's Levy and opens the Quest panel.
-  const chip = page.getByRole("button", { name: new RegExp(`^The Crown's Levy this round: ${resource}\\.`) });
+  // The chip by the round number names this round's Levy and opens the Quest
+  // panel. Its name starts with what it shows, and it is a full touch target.
+  const chip = page.getByRole("button", { name: new RegExp(`^Levy: ${resource}\\. Next round: `) });
   await expect(chip).toContainText(`Levy: ${resource}`);
+  expect((await chip.boundingBox())?.height).toBeGreaterThanOrEqual(44);
   await chip.click();
   const levy = page.getByRole("region", { name: "The Crown's Levy" });
   await expect(levy).toContainText(`The Crown levies ${resource}`);
