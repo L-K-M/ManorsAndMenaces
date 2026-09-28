@@ -1197,3 +1197,15 @@ run `node tools/generate-card-art.mjs`, remove the card from that list and
 add it to the table in `media-sources/storybook/cards/README.md`.
 
 Her Manor is an ordinary Manor on the board; no new board marks were needed.
+
+## Open Sites
+
+An empty Site where a Manor may still be built (spec §47.3) keeps the cream
+empty-site dot and gains a dashed plot ring in the board's dark ink over a
+faint cream wash, like a surveyor's staked-out plot; every other empty Site
+shrinks to a small muted dot. The ring scales up to 1.6x when the board is
+zoomed out (Trading Posts go to 2.2x), so it stays readable on a phone
+without covering the board in rings. It hides on a highlighted Site, whose
+target ring takes its place, and dims with other non-targets while a tool is
+armed. High contrast draws it in black. Checked at 1400x900 (whole island
+and three zoom steps) and at 390x844.

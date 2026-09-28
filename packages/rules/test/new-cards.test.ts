@@ -19,7 +19,9 @@ import {
   holdingAt,
   insurancePolicyOf,
   isBoardFull,
+  isSiteOpenFor,
   isSmoulderingFor,
+  manorSiteClosedReason,
   plagueBanners,
   rankPlayers,
   redactEvent,
@@ -1611,6 +1613,14 @@ describe("The Dowager (§19.28)", () => {
       const { s, p1, p2 } = raided();
       expect(holdingAt(s, "s2")).toBeUndefined();
       expect(razedEffects(s)).toEqual([{ kind: "razed", siteId: "s2", ownerId: p1, sourcePlayerId: p2, dowerHouse: true, besideOwnHoldings: true }]);
+    });
+
+    it("counts the razed Site as open to its owner alone while the ashes are warm", () => {
+      const { s, p1, p2 } = raided();
+      expect(isSiteOpenFor(ctx, s, p1, "s2")).toBe(true);
+      expect(manorSiteClosedReason(ctx, s, p2, "s2")).toBe("SITE_RAZED");
+      // Open to someone, so open on a board seen by no player in particular.
+      expect(manorSiteClosedReason(ctx, s, null, "s2")).toBeNull();
     });
 
     it("lets its owner rebuild it with an ordinary build while the ashes are warm, and not after", () => {

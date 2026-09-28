@@ -2408,6 +2408,10 @@ Banner assignment should preferably use click/tap selection rather than drag-onl
 
 A tap that asks for something the rules refuse opens a dialog saying why, never nothing: a Banner at home with no Region to go to, a Region the selected Banner can't take, a card in hand that can't be played now (not the Main phase, a turn's card already played, a Counterspell outside a reaction, or nothing it could be played on), and, while a build, Writ, Warden or card target is being picked, a piece of the kind asked for that isn't a legal choice. The reason comes from the rules engine (`getCardPlayability`, the build and Writ checks, the setup placement reasons). A tap on any other piece opens the inspector as before; disabled buttons stay disabled, with their reason beside them or in their accessible name.
 
+## 47.3 Open Sites
+
+Every empty Site where a Manor may still be built wears a dashed plot ring, so players can plan where to expand: not built on, not in ruins, not too close to a Holding (§10.3), and not razed for someone else or next to such a Site (§19.24). The network and the purse are left out; the Manor tool's highlights show where a build is legal now. The answer is the viewer's (`manorSiteClosedReason`), or with no viewer, anyone's. Every other empty Site shrinks to a small muted dot. The Site's accessible name ends "open for a Manor", and its inspector says whether a Manor may still be built there, or why not.
+
 ---
 
 # 48. Board Camera

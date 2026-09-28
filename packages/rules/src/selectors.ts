@@ -273,6 +273,8 @@ enum Spacing {
   BesideOwnHoldings = "beside_own_holdings",
 }
 
+export type SiteClosedReason = "SITE_OCCUPIED" | "SITE_RUINED" | "SITE_RAZED" | "SITE_TOO_CLOSE";
+
 /**
  * Why the player may not put a Manor on the Site whatever their network: it
  * is built on, in ruins (Siege Fireball), razed for someone else or next to
@@ -284,7 +286,7 @@ function siteClosedReason(
   playerId: PlayerId,
   siteId: SiteId,
   spacing = Spacing.Ordinary,
-): "SITE_OCCUPIED" | "SITE_RUINED" | "SITE_RAZED" | "SITE_TOO_CLOSE" | null {
+): SiteClosedReason | null {
   if (holdingAt(state, siteId)) return "SITE_OCCUPIED";
   if (isRuinedSite(state, siteId)) return "SITE_RUINED";
   if ([siteId, ...ctx.board.neighbours(siteId)].some((id) => isRazedFor(state, id, playerId))) return "SITE_RAZED";
@@ -304,15 +306,31 @@ export function ownRazedMark(state: GameState, playerId: PlayerId, siteId: SiteI
   return state.activeEffects.find((e): e is Extract<ActiveEffect, { kind: "razed" }> => e.kind === "razed" && e.siteId === siteId && e.ownerId === playerId);
 }
 
+/**
+ * Why no ordinary Manor may go on the Site whatever the builder's network and
+ * purse, or null if one may once a network reaches it: for the player, or
+ * with no player, for anyone in the game (then the first player's reason).
+ * The rebuild of a Manor burned beside its owner's Holdings waives spacing
+ * toward them (§19.24). The Dowager's waiver is left out, as in isBoardFull:
+ * a card in a hand is not public.
+ */
+export function manorSiteClosedReason(ctx: RulesContext, state: GameState, playerId: PlayerId | null, siteId: SiteId): SiteClosedReason | null {
+  if (playerId === null) {
+    const reasons = state.turnOrder.map((p) => manorSiteClosedReason(ctx, state, p, siteId));
+    return reasons.includes(null) ? null : (reasons[0] ?? null);
+  }
+  const spacing = ownRazedMark(state, playerId, siteId)?.besideOwnHoldings ? Spacing.BesideOwnHoldings : Spacing.Ordinary;
+  return siteClosedReason(ctx, state, playerId, siteId, spacing);
+}
+
 /** Whether the player could build a Manor on the Site once their network reaches it (for planning ahead). */
 export function isSiteOpenFor(ctx: RulesContext, state: GameState, playerId: PlayerId, siteId: SiteId): boolean {
-  return siteClosedReason(ctx, state, playerId, siteId) === null;
+  return manorSiteClosedReason(ctx, state, playerId, siteId) === null;
 }
 
 export function checkBuildManor(ctx: RulesContext, state: GameState, playerId: PlayerId, siteId: SiteId): BuildCheck {
   if (!ctx.board.hasSite(siteId)) return { legal: false, reason: "UNKNOWN_ENTITY" };
-  const spacing = ownRazedMark(state, playerId, siteId)?.besideOwnHoldings ? Spacing.BesideOwnHoldings : Spacing.Ordinary;
-  const closed = siteClosedReason(ctx, state, playerId, siteId, spacing);
+  const closed = manorSiteClosedReason(ctx, state, playerId, siteId);
   if (closed) return { legal: false, reason: closed };
   const needsSurcharge = menaceAt(state, { kind: "site", siteId })?.type === "goblin_tinkers";
   const base = { cost: { ...BALANCE.costs.manor }, needsSurcharge };

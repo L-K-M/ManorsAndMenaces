@@ -2,7 +2,7 @@
   // The SVG board (spec §47). Layers, bottom to top: sea, terrain/Regions,
   // Routes, Sites/Holdings, Banners, Menaces, highlights. Every interactive
   // entity is a focusable button with an accessible name (spec §52).
-  import { getPlayerBanners, type Banner, type HarvestPreview, type LegalActionSummary, type MenaceInstance } from "@manors-menaces/rules";
+  import { getPlayerBanners, manorSiteClosedReason, type Banner, type HarvestPreview, type LegalActionSummary, type MenaceInstance } from "@manors-menaces/rules";
   import { onMount, untrack } from "svelte";
   import { t } from "../i18n.js";
   import type { GameSession } from "../game/session.svelte.js";
@@ -123,6 +123,10 @@
   // (only its owner may build there) until the end of the owner's next turn.
   const ruined = $derived(new Set(gs.ruinedSiteIds ?? []));
   const razed = $derived(new Set(gs.activeEffects.flatMap((e) => (e.kind === "razed" ? [e.siteId] : []))));
+  // Why no Manor may go on each Site, for the viewer or, with none, anyone
+  // (§10.3). Empty Sites that are still open are marked so players can plan.
+  const manorClosed = $derived(new Map(map.sites.map((s) => [s.id, manorSiteClosedReason(session.ctx, gs, session.viewerId, s.id)])));
+  const openSites = $derived(new Set([...manorClosed].flatMap(([id, reason]) => (reason === null ? [id] : []))));
   /** Where a sick Banner's mark sits, relative to the Banner's foot. */
   const SICK_AT = { x: 12, y: -27 } as const;
 
@@ -326,6 +330,8 @@
   const homeAt = $derived({ x: 3 + bannerRing * 0.71, y: -12 + bannerRing * 0.71 });
   const menaceRing = $derived(px(12, 32 * PIECE_SCALE));
   const postScale = $derived(Math.min(2.2, Math.max(1, 1 / k)));
+  // The open-Site ring grows less, so a zoomed-out board is not all rings.
+  const plotScale = $derived(Math.min(1.6, postScale));
 
   // ------------------------------------------------------------------ targets
   // Targets stay bright under crisp outlines while a veil dims the rest of the
@@ -507,7 +513,7 @@
   let tipH = $state(0);
   const tip = $derived.by(() => {
     if (!hover || !tipReady) return null;
-    const text = describePick(map, gs, hover, bannerRegion);
+    const text = describePick(map, gs, hover, bannerRegion, (id) => manorClosed.get(id) ?? null);
     const anchor = anchorOf(hover);
     if (!text || !anchor) return null;
     const noteLines = hover.kind === "region" ? (previewByRegion.get(hover.id)?.notes ?? []).map((n) => t(`harvest.${n}`)) : [];
@@ -717,7 +723,7 @@
         tabindex={isHl || !targeting ? 0 : -1}
         aria-label={holding
           ? `${t(`holding.${holding.type}`)} of ${gs.players[holding.ownerId]?.displayName}${site.landmarkId ? `, ${t(`landmark.${site.landmarkId}`)}` : ""}`
-          : `${t("inspect.site")}${site.landmarkId ? `, ${t(`landmark.${site.landmarkId}`)}` : ""}${site.tradePost ? `, ${t("aria.trade_post", { resource: t(`resource.${site.tradePost.resource}`) })}` : ""}${ruined.has(site.id) ? t("aria.site_ruined") : razed.has(site.id) ? t("aria.site_razed") : ""}`}
+          : `${t("inspect.site")}${site.landmarkId ? `, ${t(`landmark.${site.landmarkId}`)}` : ""}${site.tradePost ? `, ${t("aria.trade_post", { resource: t(`resource.${site.tradePost.resource}`) })}` : ""}${ruined.has(site.id) ? t("aria.site_ruined") : razed.has(site.id) ? t("aria.site_razed") : ""}${openSites.has(site.id) ? t("aria.site_open") : ""}`}
         onclick={() => pick(hl.locations.has(`site:${site.id}`) ? { kind: "location", location: { kind: "site", siteId: site.id } } : { kind: "site", id: site.id })}
         onkeydown={(e) => key(e, { kind: "site", id: site.id })}
         onpointerenter={(e) => hoverIn(e, { kind: "site", id: site.id })}
@@ -748,8 +754,13 @@
           <g class="razed-site" pointer-events="none">
             <SiteRemains kind="razed" />
           </g>
-        {:else}
+        {:else if openSites.has(site.id)}
           <circle class="empty-site" r="7" fill="#fffaf0" stroke="#6b5a3a" stroke-width="2.5" pointer-events="none" />
+        {:else}
+          <circle class="empty-site closed" r="4.5" fill="#d9ccae" stroke="#6b5a3a" stroke-width="1.5" pointer-events="none" />
+        {/if}
+        {#if !holding && openSites.has(site.id)}
+          <circle class="empty-site plot" r="12" transform="scale({plotScale})" pointer-events="none" />
         {/if}
         {#if isHl}
           <circle r={siteRing(!!holding)} class="hl-casing" stroke-width={px(5, 6)} pointer-events="none" />
@@ -1123,6 +1134,22 @@
   .tip strong {
     font-family: var(--font-display);
     font-size: 1rem;
+  }
+  /* An empty Site that can still take a Manor: a surveyor's staked-out plot.
+     A highlighted Site's target ring takes its place. */
+  .plot {
+    fill: #fffaf0;
+    fill-opacity: 0.35;
+    stroke: #4a3a22;
+    stroke-width: 2;
+    stroke-dasharray: 4.7 3.2;
+  }
+  .site.hl .plot {
+    display: none;
+  }
+  .hc .plot {
+    stroke: #000;
+    fill-opacity: 0.6;
   }
   .targeting .route:not(.hl),
   .targeting .site:not(.hl) .empty-site,

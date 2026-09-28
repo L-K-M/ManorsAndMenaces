@@ -126,6 +126,27 @@ test.describe("targets", () => {
   });
 });
 
+test.describe("open Sites", () => {
+  test("a ring marks each empty Site that can still take a Manor, and tapping a Site says why", async ({ page }) => {
+    await startHotseat(page);
+    await completeSetup(page);
+    const board = page.locator("svg.board");
+    const open = board.locator(".site[aria-label$=', open for a Manor']");
+    const closed = board.locator(".site").filter({ has: page.locator(".empty-site.closed") });
+    await expect(open.first()).toBeVisible();
+    await expect(closed.first()).toBeVisible();
+    // Exactly the open Sites wear the ring; the Sites next to the starting Manors do not.
+    await expect(board.locator(".site .plot")).toHaveCount(await open.count());
+    await expect(closed.locator(".plot")).toHaveCount(0);
+
+    const inspector = page.locator("aside.inspect");
+    await clickSite(page, closed.filter({ hasNot: page.locator("[data-landmark]") }).first());
+    await expect(inspector).toContainText("Too close to a Holding: no Manor may be built here");
+    await clickSite(page, open.filter({ hasNot: page.locator("[data-landmark]") }).first());
+    await expect(inspector).toContainText("A Manor may still be built here");
+  });
+});
+
 test.describe("focus", () => {
   test("clicking a board piece leaves no focus rectangle", async ({ page }) => {
     await startHotseat(page);
