@@ -37,6 +37,8 @@
   import ResourcePurse from "./ResourcePurse.svelte";
   import RivalQuips from "./RivalQuips.svelte";
   import ScoreStrip from "./ScoreStrip.svelte";
+  import CrownsVoiceChip from "./CrownsVoiceChip.svelte";
+  import CrownsVoiceDialog from "./CrownsVoiceDialog.svelte";
   import RenownDialog from "./RenownDialog.svelte";
   import ResourceIcon from "./ResourceIcon.svelte";
   import ToolIcon from "./ToolIcon.svelte";
@@ -219,7 +221,7 @@
 {/snippet}
 
 <div class="game" inert={!!session.curtainFor} data-layout={layout} class:no-cards={!cardsEnabled} class:tray-open={trayOpen} style="--sheet-overlap: {sheetOverlap}px">
-  <header class="topbar">
+  <header class="topbar" class:with-voice={!!gs.crownsVoice}>
     <button class="ghost icon" onclick={() => (ui.dialog = "menu")} aria-label={t("ui.main_menu")} aria-haspopup="dialog"><ToolIcon name="menu" /></button>
     <img class="brand-mark" src={`${import.meta.env.BASE_URL}art/manor-troll.png`} alt="" width="40" height="40" />
     <h1>{t("app.title")}</h1>
@@ -248,9 +250,10 @@
         <span class="levy-chip-text">{levy.current ? t("levy.chip", { resource: t(`resource.${shown}`) }) : t("levy.chip_next", { resource: t(`resource.${shown}`) })}</span>
       </button>
     {/if}
+    <CrownsVoiceChip {session} />
     <div class="score"><ScoreStrip {session} /></div>
     <span class="spacer"></span>
-    {#if session.transport.kind === "local" && !tutorial}<button class="ghost" onclick={save}>{savedNote ?? t("ui.save")}</button>{/if}
+    {#if session.transport.kind === "local" && !tutorial}<button class="ghost save" onclick={save}>{savedNote ?? t("ui.save")}</button>{/if}
     <button class="ghost icon" onclick={() => (ui.dialog = "settings")} aria-label={t("ui.settings")}><ToolIcon name="gear" /></button>
     {#if import.meta.env.DEV}<button class="ghost" onclick={() => (ui.showDebug = true)}>{t("ui.debug")}</button>{/if}
     {#if slideOver}
@@ -353,6 +356,7 @@
 {/if}
 {#if ui.dialog === "settings"}<SettingsDialog onclose={() => ((ui.dialog = settingsFromMenu ? "menu" : null), (settingsFromMenu = false))} />{/if}
 {#if ui.renownOf}<RenownDialog {session} playerId={ui.renownOf} onclose={() => (ui.renownOf = null)} />{/if}
+{#if ui.dialog === "crowns_voice"}<CrownsVoiceDialog {session} onclose={() => (ui.dialog = null)} />{/if}
 {#if ui.showDebug}<DebugPanel {session} onclose={() => (ui.showDebug = false)} />{/if}
 
 <style>
@@ -800,6 +804,24 @@
   @container topbar (max-width: 30rem) {
     .levy-chip-text {
       display: none;
+    }
+  }
+  /* On a phone the buttons keep to one row beside the Levy and Voice chips:
+     Save, which the game menu also offers, leaves the bar, and so does its
+     longer "Saved." note. */
+  @container topbar (max-width: 28rem) {
+    .topbar .save {
+      display: none;
+    }
+  }
+  /* The Crown's Voice chip needs the room: beside it the round chip takes
+     its short form on any phone, so the buttons keep to one row. */
+  @container topbar (max-width: 28rem) {
+    .with-voice .round .full {
+      display: none;
+    }
+    .with-voice .round .pill::after {
+      content: attr(data-short);
     }
   }
   @container topbar (max-width: 24rem) {

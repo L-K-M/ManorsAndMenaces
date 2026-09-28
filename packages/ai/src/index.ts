@@ -7,7 +7,6 @@ import {
   BALANCE,
   computeBannerHarvest,
   dragonsLandingTargets,
-  getChargeProgress,
   getLegalActions,
   getLegalBannerRegions,
   getPlayerBanners,
@@ -15,6 +14,7 @@ import {
   getLegalInitialRoutes,
   holdingAt,
   insurancePolicyOf,
+  meetsChargeWith,
   passesSpacing,
   plagueBanners,
   rankPlayers,
@@ -321,24 +321,12 @@ export function optimizeBanners(ctx: RulesContext, state: GameState, playerId: P
   let assign = bestAssignment(ctx, state, playerId, opts, null);
   if (bonus) {
     const sealed = bestAssignment(ctx, state, playerId, opts, bonus);
-    if (meetsCharge(ctx, state, playerId, sealed)) assign = sealed;
+    if (meetsChargeWith(ctx, state, playerId, sealed)) assign = sealed;
   }
   // Only send changes.
   const out: Record<BannerId, RegionId | null> = {};
   for (const b of banners) if ((assign[b.id] ?? null) !== b.regionId) out[b.id] = assign[b.id] ?? null;
   return out;
-}
-
-/** Whether the player's Sealed Charge is met with their Banners placed so. */
-function meetsCharge(ctx: RulesContext, state: GameState, playerId: PlayerId, assign: Record<BannerId, RegionId | null>): boolean {
-  const charge = state.players[playerId]?.sealedCharge;
-  if (!charge) return false;
-  const banners = { ...state.banners };
-  for (const [id, regionId] of Object.entries(assign)) {
-    const b = banners[id];
-    if (b) banners[id] = { ...b, regionId };
-  }
-  return getChargeProgress(ctx, { ...state, banners }, playerId, charge).complete;
 }
 
 /** The search behind `optimizeBanners`; `extra` adds a Region's worth toward the Charge. */

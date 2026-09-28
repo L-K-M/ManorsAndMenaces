@@ -15,6 +15,9 @@ export const MUSIC_URL = "./audio/old-tower-inn.mp3";
  */
 const ATTACKS: readonly GameEvent["type"][] = ["holding_destroyed", "holding_reduced", "renown_lost", "renown_stolen", "resources_lost"];
 
+/** Renown won: a Quest, the Bard, the Crown's Levy, a Sealed Charge revealed (§27A) or Favour (§129.10). */
+const RENOWN_WON: readonly GameEvent["type"][] = ["quest_claimed", "renown_gained", "levy_answered", "charge_revealed", "favour_won"];
+
 /** Pick at most one cue per event batch so sounds do not pile up. */
 export function cueForEvents(events: readonly GameEvent[]): Cue | null {
   const types = new Set(events.map((e) => e.type));
@@ -22,7 +25,7 @@ export function cueForEvents(events: readonly GameEvent[]): Cue | null {
   // Calamities and the omen outrank the card that caused them.
   if (types.has("card_foretold") || types.has("dragon_landed") || types.has("route_burned")) return "menace";
   if (ATTACKS.some((type) => types.has(type))) return "menace";
-  if (types.has("quest_claimed") || types.has("renown_gained") || types.has("levy_answered")) return "quest";
+  if (RENOWN_WON.some((type) => types.has(type))) return "quest";
   // A policy paying out is paperwork, like a Writ, and so is the Crown's Levy proclaimed.
   if (types.has("royal_writ_issued") || types.has("insurance_claimed") || types.has("levy_proclaimed")) return "writ";
   if (types.has("menace_moved")) return "menace";
