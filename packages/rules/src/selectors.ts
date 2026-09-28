@@ -382,14 +382,31 @@ export function getLegalRoutes(ctx: RulesContext, state: GameState, playerId: Pl
 
 // ------------------------------------------------------------------ setup legality
 
+/** Why a starting Manor can't go on the Site (§28), in the engine's order, or null if it can. */
+export function initialManorClosedReason(ctx: RulesContext, state: GameState, siteId: SiteId): "SITE_OCCUPIED" | "SITE_RUINED" | "SITE_TOO_CLOSE" | null {
+  if (holdingAt(state, siteId)) return "SITE_OCCUPIED";
+  if (isRuinedSite(state, siteId)) return "SITE_RUINED";
+  if (!passesSpacing(ctx, state, siteId)) return "SITE_TOO_CLOSE";
+  return null;
+}
+
+/** Why a starting Route can't be built (§28): it is taken, or does not touch the Manor just placed. Null if it can. */
+export function initialRouteClosedReason(ctx: RulesContext, state: GameState, routeId: RouteId): "ROUTE_OCCUPIED" | "NOT_CONNECTED" | null {
+  if (state.routeOwners[routeId] !== undefined) return "ROUTE_OCCUPIED";
+  const siteId = state.setup?.lastPlacedSiteId;
+  const r = ctx.board.route(routeId);
+  if (!siteId || (r.siteA !== siteId && r.siteB !== siteId)) return "NOT_CONNECTED";
+  return null;
+}
+
 export function getLegalInitialManorSites(ctx: RulesContext, state: GameState): SiteId[] {
-  return ctx.board.topology.sites.map((s) => s.id).filter((id) => passesSpacing(ctx, state, id) && !isRuinedSite(state, id));
+  return ctx.board.topology.sites.map((s) => s.id).filter((id) => initialManorClosedReason(ctx, state, id) === null);
 }
 
 export function getLegalInitialRoutes(ctx: RulesContext, state: GameState): RouteId[] {
   const siteId = state.setup?.lastPlacedSiteId;
   if (!siteId) return [];
-  return ctx.board.routesAt(siteId).filter((r) => state.routeOwners[r.id] === undefined).map((r) => r.id);
+  return ctx.board.routesAt(siteId).filter((r) => initialRouteClosedReason(ctx, state, r.id) === null).map((r) => r.id);
 }
 
 // ------------------------------------------------------------------ banners (§14)

@@ -216,6 +216,38 @@ export function enumerateCardTargets(ctx: RulesContext, state: GameState, player
   return cardTargetCandidates(ctx, state, playerId, cardId).filter((t) => isValidCardTarget(ctx, state, playerId, cardId, t));
 }
 
+/** Why a card in the player's hand can't be played now, most fundamental first. */
+export type CardBlockedReason =
+  /** Not a card the player holds, or hidden from this view. */
+  | "NOT_IN_HAND"
+  | "FEATURE_DISABLED"
+  /** Played only in answer to another player's Spell (Counterspell). */
+  | "REACTION_ONLY"
+  /** Not the player's Main phase. */
+  | "WRONG_PHASE"
+  /** The player has played as many cards this turn as the rules allow. */
+  | "LIMIT_REACHED"
+  /** Nothing the card could be played on right now. */
+  | "NO_TARGET";
+
+export type CardPlayability = { ok: true } | { ok: false; reason: CardBlockedReason };
+
+/**
+ * Whether the player may play a card from their hand now and, if not, why.
+ * It agrees with `getLegalActions(...).playableCards`; a UI explains a tap on
+ * an unplayable card with it rather than re-deriving legality (spec §103).
+ */
+export function getCardPlayability(ctx: RulesContext, state: GameState, playerId: PlayerId, cardId: CardId): CardPlayability {
+  const p = state.players[playerId];
+  if (!p || cardId === HIDDEN_CARD || !p.hand.includes(cardId)) return { ok: false, reason: "NOT_IN_HAND" };
+  if (!state.ruleset.enableCards) return { ok: false, reason: "FEATURE_DISABLED" };
+  if (!ctx.cardOf(cardId).timing.includes("main")) return { ok: false, reason: "REACTION_ONLY" };
+  if (getLegalActions(ctx, state, playerId).mode !== "main") return { ok: false, reason: "WRONG_PHASE" };
+  if (p.nonReactionCardsPlayedThisTurn >= state.ruleset.maxNonReactionCardsPerTurn) return { ok: false, reason: "LIMIT_REACHED" };
+  if (!hasCardTarget(ctx, state, playerId, cardId)) return { ok: false, reason: "NO_TARGET" };
+  return { ok: true };
+}
+
 /** Whether the card has any valid target; stops at the first (Transmutation Magic lists up to 110). */
 function hasCardTarget(ctx: RulesContext, state: GameState, playerId: PlayerId, cardId: CardId): boolean {
   return cardTargetCandidates(ctx, state, playerId, cardId).some((t) => isValidCardTarget(ctx, state, playerId, cardId, t));

@@ -18,6 +18,7 @@
   import ActionBar from "./ActionBar.svelte";
   import Announcer from "./Announcer.svelte";
   import BannerWarningDialog from "./BannerWarningDialog.svelte";
+  import BlockedDialog from "./BlockedDialog.svelte";
   import Board from "./Board.svelte";
   import CardMagic from "./CardMagic.svelte";
   import BoardHud from "./BoardHud.svelte";
@@ -357,6 +358,7 @@
 {#if ui.dialog === "settings"}<SettingsDialog onclose={() => ((ui.dialog = settingsFromMenu ? "menu" : null), (settingsFromMenu = false))} />{/if}
 {#if ui.renownOf}<RenownDialog {session} playerId={ui.renownOf} onclose={() => (ui.renownOf = null)} />{/if}
 {#if ui.dialog === "crowns_voice"}<CrownsVoiceDialog {session} onclose={() => (ui.dialog = null)} />{/if}
+<BlockedDialog />
 {#if ui.showDebug}<DebugPanel {session} onclose={() => (ui.showDebug = false)} />{/if}
 
 <style>
