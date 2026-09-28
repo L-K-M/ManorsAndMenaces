@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clone, manorSiteClosedReason, standardRuleset, type GameState, type PlayerId } from "@manors-menaces/rules";
+import { clone, holdingAt, manorSiteClosedReason, standardRuleset, type GameState, type PlayerId } from "@manors-menaces/rules";
 import { mapFor } from "../src/lib/game/engine.js";
 import { describePick, type ManorClosedOf } from "../src/lib/game/inspect.js";
 import { t } from "../src/lib/i18n.js";
@@ -63,9 +63,11 @@ describe("the Site inspector", () => {
 
   it("explains a Site closed by a razed neighbour, and leaves the razed Site to its own line", () => {
     // Raiders burn p1's Manor: its Site and the empty Sites around it are
-    // p1's alone until the end of p1's next turn (§19.24).
+    // p1's alone until the end of p1's next turn (§19.24). An ordinary raid:
+    // no Holding stands next to the Manor, so no spacing waiver is due.
     const [p1, p2] = base.turnOrder as [PlayerId, PlayerId];
-    const manor = Object.values(base.holdings).find((h) => h.ownerId === p1 && h.type === "manor")!;
+    const alone = (siteId: string) => ctx.board.neighbours(siteId).every((n) => !holdingAt(base, n));
+    const manor = Object.values(base.holdings).find((h) => h.ownerId === p1 && h.type === "manor" && alone(h.siteId))!;
     const s = clone(base);
     delete s.holdings[manor.id];
     s.activeEffects.push({ kind: "razed", siteId: manor.siteId, ownerId: p1, sourcePlayerId: p2 });

@@ -1142,7 +1142,8 @@
     fill-opacity: 0.35;
     stroke: #4a3a22;
     stroke-width: 2;
-    stroke-dasharray: 4.7 3.2;
+    /* Ten dashes around r=12 (2π·12 ≈ 75.4), so no seam where the ring closes. */
+    stroke-dasharray: 4.5 3.04;
   }
   .site.hl .plot {
     display: none;
