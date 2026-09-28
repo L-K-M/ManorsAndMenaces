@@ -2,7 +2,7 @@
   import { untrack } from "svelte";
   import { t } from "../i18n.js";
   import type { AiLevel, SeatConfig } from "@manors-menaces/protocol";
-  import { BALANCE, CROWNS_VIRTUES, crownsVoiceRules, mvpRuleset, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
+  import { BALANCE, mvpRuleset, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
   import { PLAYER_THEMES, emblemPath } from "../theme.js";
   import { ISLANDS, RIVALS, rivalById } from "@manors-menaces/content";
   import { assignRivals, distinctRivals, freeRival, rivalName, rivalsTakenBy } from "../game/rivals.js";
@@ -11,8 +11,6 @@
   import type { BoardChoice, NewGameOptions } from "../game/session.svelte.js";
   import { rememberName, rememberedName } from "../game/playerName.js";
   import { rememberRenownGoal, rememberedRenownGoal, renownGoal, renownGoalHint } from "../game/renownGoal.js";
-  import { listText } from "../game/feed.js";
-  import { virtueName } from "../game/log.js";
 
   let { onstart, onback }: { onstart: (opts: NewGameOptions) => void; onback: () => void } = $props();
 
@@ -29,19 +27,6 @@
   // every Quest on offer until claimed.
   let questExpiry = $state(true);
   let cardIncome = $state(true);
-  // Sealed Charges (§27A): a secret goal for each player, off unless chosen.
-  let sealedCharges = $state(false);
-  // The Crown's Voice (§129.10): an experimental rule, offered in local games only.
-  let crownsVoice = $state(false);
-  // Core games have no Quests, so there the Voice speaks from the first round.
-  const voiceHint = $derived.by(() =>
-    t("ui.crowns_voice_hint", {
-      start: t(`ui.crowns_voice_from.${mode === "mvp" ? "first_round" : BALANCE.crownsVoice.from}`),
-      virtues: listText(CROWNS_VIRTUES.map(virtueName)),
-      purse: BALANCE.crownsVoice.purse,
-      max: BALANCE.crownsVoice.maxGainPerRound,
-    }),
-  );
   // The Renown to win (§7) follows the rules and player count until you pick
   // one; the goal you last picked comes back.
   let pickedGoal: number | null = $state(rememberedRenownGoal());
@@ -101,10 +86,9 @@
       ...(s.kind === "ai" ? { aiLevel: s.level, ...(s.rivalId ? { rivalId: s.rivalId } : {}) } : {}),
       color: i,
     }));
-    const options = { targetRenown: goal.value, sealedCharges };
-    const rules: RulesetConfig =
+    const options = { targetRenown: goal.value };
+    const ruleset: RulesetConfig =
       mode === "mvp" ? mvpRuleset(options) : { ...standardRuleset(count, options), questExpiryRounds: questExpiry ? BALANCE.questExpiryRounds : 0, initialCards: cardIncome ? BALANCE.initialCards : 0, cardDrawEveryRounds: cardIncome ? BALANCE.cardDrawEveryRounds : 0 };
-    const ruleset: RulesetConfig = crownsVoice ? { ...rules, crownsVoice: crownsVoiceRules() } : rules;
     const board: BoardChoice = island ? { kind: "drawn", islandId: island } : { kind: "drawn" };
     onstart({ seats: chosen, ruleset, board, ...(seed.trim() ? { seed: seed.trim() } : {}) });
   }
@@ -186,10 +170,6 @@
         <p>{t("ui.card_income_hint", { count: BALANCE.initialCards, rounds: BALANCE.cardDrawEveryRounds })}</p>
         <label class="check"><input type="checkbox" bind:checked={questExpiry} /> {t("ui.quest_expiry_option", { rounds: BALANCE.questExpiryRounds })}</label>
       {/if}
-      <label class="check"><input type="checkbox" bind:checked={sealedCharges} /> {t("ui.sealed_charges_option")}</label>
-      <p>{t("ui.sealed_charges_hint", { renown: BALANCE.sealedCharges.renown })}</p>
-      <label class="check"><input type="checkbox" bind:checked={crownsVoice} /> {t("ui.crowns_voice_option")}</label>
-      <p>{voiceHint}</p>
     </details>
     <div class="row">
       <button type="button" onclick={onback}>{t("ui.back")}</button>

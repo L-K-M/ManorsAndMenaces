@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SeatConfig } from "@manors-menaces/protocol";
-import { BALANCE, asyncRuleset, clone, mvpRuleset, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
+import { BALANCE, mvpRuleset, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
 import { planRematch } from "../src/lib/game/rematch.js";
 import { TUTORIAL_SEED } from "../src/lib/game/saves.js";
 import { engine } from "./helpers.js";
@@ -49,22 +49,6 @@ describe("planRematch", () => {
     expect(plan.options.ruleset?.targetRenown).toBe(25);
     // The finished game's own rules are left alone.
     expect(initialState.ruleset.lastRound).toBeUndefined();
-  });
-
-  // Regression: a rematch of a Standard game saved before ruleset 0.9.0 was
-  // a new game without the Crown's Levy, which every new Standard game has.
-  it("adds the Crown's Levy to Standard and async rules saved without it, never to the Core rules", () => {
-    const rematchOf = (ruleset: RulesetConfig) => {
-      const plan = planRematch({ ...finished, initialState: engine.createGame({ ...initialStateOptions, ruleset }), transport: "local", tutorial: false });
-      return plan.kind === "local" ? plan.options.ruleset : undefined;
-    };
-    for (const [rules, goal] of [[standardRuleset(2), 15], [standardRuleset(3, { targetRenown: 25 }), 25], [asyncRuleset(2, { targetRenown: 30 }), 30]] as const) {
-      const old: RulesetConfig = clone(rules);
-      delete old.crownLevy;
-      expect(rematchOf(old)?.crownLevy, `goal ${goal}`).toEqual(rules.crownLevy);
-      expect(rematchOf(old)?.targetRenown).toBe(goal);
-    }
-    expect(rematchOf(mvpRuleset())?.crownLevy).toBeUndefined();
   });
 
   it("repeats the New Game island choice, so each game deals new land", () => {

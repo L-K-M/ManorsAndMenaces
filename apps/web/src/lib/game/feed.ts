@@ -6,7 +6,7 @@ import type { MapDefinition } from "@manors-menaces/content";
 import { RESOURCE_TYPES, type GameEvent, type GameState, type MenaceLocation, type PlayerId, type ResourceType } from "@manors-menaces/rules";
 import { t } from "../i18n.js";
 import { regionPoint, type Point } from "./harvestFlights.js";
-import { cardName, nameOf, regionName, routeEnds, routeName, sharedRegionId, siteName, virtueName } from "./log.js";
+import { cardName, nameOf, regionName, routeEnds, routeName, siteName } from "./log.js";
 
 // Place names now live with the Chronicle's; kept importable from here.
 export { routeName, siteName };
@@ -42,14 +42,6 @@ const ATTACK_FEED = {
   siege_fireball: "feed.fireballed",
   siege_engines: "feed.besieged",
 } as const;
-
-/** The feed line for a Favour the Crown's Voice moved, told from the viewer's side (§129.10). */
-function favourFeedKey(e: Extract<GameEvent, { type: "favour_won" }>, viewerId: PlayerId | null): string {
-  const purse = e.source === "purse";
-  if (e.playerId === viewerId) return purse ? "feed.favour_you_won_purse" : "feed.favour_you_won";
-  if (e.rivalId === viewerId && !purse) return "feed.favour_you_lost";
-  return purse ? "feed.favour_won_purse" : "feed.favour_won";
-}
 
 /** Fewer than this many unseen actions are left to the live toasts alone. */
 export const DIGEST_MIN_ITEMS = 4;
@@ -201,13 +193,6 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
       case "quest_claimed":
         add(e.playerId, t("feed.quest", { name: name(e.playerId), quest: t(`quest.${e.questId}.name`), renown: e.renown }));
         break;
-      // Sealed Charges (§27A): a reveal and a Recommission are public; draws are not told.
-      case "charge_revealed":
-        add(e.playerId, t("feed.charge_revealed", { name: name(e.playerId), charge: t(`charge.${e.chargeId}.name`), renown: e.renown }));
-        break;
-      case "charge_recommissioned":
-        add(e.playerId, t("feed.charge_recommissioned", { name: name(e.playerId) }));
-        break;
       case "resource_transferred": {
         const resource = t(`resource.${e.resource}`);
         // A card (Robin of the Glade) takes from the payer: news to them.
@@ -301,26 +286,16 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
         out.push({ actorId: null, text, at: null, gains: null, againstViewer: false, self: false, omen: true });
         break;
       }
-      // The King's Marshal proclaims each round's Levy to everyone (§27.3).
-      // The first stands out like an omen, as the Chronicle's does; the
-      // later ones come every round, as ordinary news.
+      // The King's Marshal proclaims each round's Levy to everyone, like an omen (§27.3).
       case "levy_proclaimed": {
         const params = { resource: t(`resource.${e.resource}`), reason: t(`levy.reason.${e.resource}`) };
-        if (e.current) tell(null, t("feed.levy_proclaimed", { ...params, current: t(`resource.${e.current}`) }), null, false);
-        else out.push({ actorId: null, text: t("feed.levy_first", params), at: null, gains: null, againstViewer: false, self: false, omen: true });
+        const text = e.current ? t("feed.levy_proclaimed", { ...params, current: t(`resource.${e.current}`) }) : t("feed.levy_first", params);
+        out.push({ actorId: null, text, at: null, gains: null, againstViewer: false, self: false, omen: true });
         break;
       }
       case "levy_answered":
         add(e.playerId, t("feed.levy_answered", { name: name(e.playerId), renown: e.renown }));
         break;
-      case "favour_won": {
-        // The Crown's Voice moves Favour as the round ends (§129.10): news for every player.
-        const regionId = sharedRegionId(map, e.siteId, e.rivalSiteId);
-        const params = { name: name(e.playerId), rival: name(e.rivalId), virtue: virtueName(e.virtue), region: regionName(map, regionId) };
-        const lost = e.rivalId === viewerId && e.source === "rival";
-        tell(e.playerId, t(favourFeedKey(e, viewerId), params), regionId ? regionPoint(map, regionId) : null, lost);
-        break;
-      }
       case "harvest_completed": {
         if (e.playerId === viewerId) {
           const harvested = events.some((x) => x.type === "banner_harvested" && x.playerId === e.playerId);

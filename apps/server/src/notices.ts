@@ -6,11 +6,11 @@ import { EN } from "@manors-menaces/content";
 import type { MatchNotice, NoticeKind } from "@manors-menaces/protocol";
 import type { GameState, PlayerId } from "@manors-menaces/rules";
 
-/** Who must act next: reaction, prophecy and Charge (§27A) decisions come before the active player. */
+/** Who must act next: reaction and prophecy decisions come before the active player. */
 export function actorOf(state: GameState): PlayerId | null {
   if (state.status === "finished") return null;
   if (state.pending?.kind === "reaction") return state.pending.eligiblePlayerIds[0] ?? null;
-  if (state.pending?.kind === "prophecy" || state.pending?.kind === "charge") return state.pending.playerId;
+  if (state.pending?.kind === "prophecy") return state.pending.playerId;
   return state.activePlayerId;
 }
 

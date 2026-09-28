@@ -278,7 +278,7 @@ describe("getBannerAdvice", () => {
     for (const [s, draft] of cases) {
       const full = getBannerAdvice(ctx, s, g.p1, draft);
       for (const budget of [0, 1, 2, 5, 20]) {
-        const advice = getBannerAdvice(ctx, s, g.p1, draft, { budget });
+        const advice = getBannerAdvice(ctx, s, g.p1, draft, budget);
         expect(advice.current).toBe(full.current);
         expect(advice.best).toBeGreaterThanOrEqual(advice.current);
         expect(advice.best).toBeLessThanOrEqual(full.best);

@@ -27,10 +27,9 @@ export function isCardDialog(pick: string | null): pick is CardDialog {
  * `card_confirm` spells out a card's effect before it is played (see
  * CONFIRMED_CARDS); `banner_warning` stops a turn from ending while the
  * Banners could harvest more (BannerWarningDialog); `round_endings`, opened
- * from the round chip, tells how the game ends; `crowns_voice`, opened from
- * the Crown's Voice chip, tells how the Voice scores.
+ * from the round chip, tells how the game ends.
  */
-export type Dialog = null | "market" | "settings" | "writ" | CardDialog | "card_confirm" | "rules" | "save" | "menu" | "banner_warning" | "round_endings" | "crowns_voice";
+export type Dialog = null | "market" | "settings" | "writ" | CardDialog | "card_confirm" | "rules" | "save" | "menu" | "banner_warning" | "round_endings";
 
 export interface UiState {
   tool: Tool;

@@ -1,4 +1,4 @@
-import type { CrownLevyRules, CrownsVoiceRules, MenaceType, ResourceCost, RulesetConfig } from "./types.js";
+import type { CrownLevyRules, MenaceType, ResourceCost, RulesetConfig } from "./types.js";
 
 // All tunable numbers live here (spec §121). Do not scatter numbers in code.
 export const BALANCE = {
@@ -61,45 +61,9 @@ export const BALANCE = {
    * runs out, as round 15 begins at the latest.
    */
   crownLevy: { price: 5, renown: 1, highGoalRenown: 2, highGoal: 25, proclaimByRound: 15 },
-  /** Sealed Charges, the lobby option (§27A). */
-  sealedCharges: {
-    /** Renown a met Charge scores when revealed, as much as a major Quest. */
-    renown: 2,
-    /** Charges drawn each time; the player keeps one. */
-    drawn: 2,
-    /** Recommission, once per game: discard your Charge and draw again. */
-    recommission: { essence: 1 },
-    /**
-     * Charges a player may reveal over a game at these Renown goals and
-     * above, one after another: after a reveal they draw again. One below 25.
-     */
-    perGame: [
-      { fromGoal: 25, charges: 2 },
-      { fromGoal: 30, charges: 3 },
-    ],
-  },
-  /** The Crown's Voice (experimental, §129.10). */
-  crownsVoice: {
-    /** Voice cards of each virtue in a deck. */
-    cardsPerVirtue: 8,
-    might: { manor: 1, stronghold: 2 },
-    /** Highest Roads and Plenty scores. */
-    maxRoads: 3,
-    maxPlenty: 2,
-    /** Most Favour a player gains in one round. */
-    maxGainPerRound: 2,
-    /** The settings a new game with the Voice gets, chosen by simulation (§129.10). */
-    purse: 15,
-    from: "quest_deck_empty",
-  },
 } as const;
 
 export const RULESET_VERSION = "0.9.0";
-
-/** The Crown's Voice as a new game gets it (§129.10). */
-export function crownsVoiceRules(): CrownsVoiceRules {
-  return { purse: BALANCE.crownsVoice.purse, from: BALANCE.crownsVoice.from };
-}
 
 /** Fixed Menace sets by player count (spec §118). */
 export function standardMenaces(playerCount: number): MenaceType[] {
@@ -134,8 +98,6 @@ export interface RulesetOptions {
    * and players. Absent: the rules' default (§7).
    */
   targetRenown?: number;
-  /** Deal Sealed Charges (§27A), the lobby option. Absent: off. */
-  sealedCharges?: boolean;
 }
 
 /** The Renown goal a new game has unless another is chosen (§7). The Core goal does not depend on the player count. */
@@ -171,16 +133,6 @@ function chosenTargetRenown(fallback: number, options: RulesetOptions): number {
   return target;
 }
 
-/** Whether a request's Sealed Charges option (§27A) is valid: absent, true or false; for checking untrusted input. */
-export function isSealedChargesChoice(option: unknown): option is boolean | undefined {
-  return option === undefined || typeof option === "boolean";
-}
-
-/** The option as a ruleset field: present only when on, so rulesets without it stay as they were. */
-function sealedChargesOption(options: RulesetOptions): Pick<RulesetConfig, "sealedCharges"> {
-  return options.sealedCharges ? { sealedCharges: true } : {};
-}
-
 /** §91 — MVP: no cards, no Quests, Toll Troll only, 10 Renown unless another goal is chosen. */
 export function mvpRuleset(options: RulesetOptions = {}): RulesetConfig {
   return {
@@ -191,12 +143,11 @@ export function mvpRuleset(options: RulesetOptions = {}): RulesetConfig {
     enableCards: false,
     enableReactionCards: false,
     enableQuests: false,
-    ...sealedChargesOption(options),
   };
 }
 
-/** The Crown's Levy a new Standard or async game with this goal gets (§27.3). */
-export function crownLevyRules(targetRenown: number): CrownLevyRules {
+/** The Crown's Levy for a game with this goal (§27.3). */
+function crownLevy(targetRenown: number): CrownLevyRules {
   const { price, renown, highGoalRenown, highGoal, proclaimByRound } = BALANCE.crownLevy;
   return { price, renown: targetRenown >= highGoal ? highGoalRenown : renown, proclaimByRound };
 }
@@ -215,8 +166,7 @@ export function standardRuleset(playerCount: number, options: RulesetOptions = {
     questExpiryRounds: BALANCE.questExpiryRounds,
     initialCards: BALANCE.initialCards,
     cardDrawEveryRounds: BALANCE.cardDrawEveryRounds,
-    crownLevy: crownLevyRules(targetRenown),
-    ...sealedChargesOption(options),
+    crownLevy: crownLevy(targetRenown),
   };
 }
 

@@ -4,8 +4,6 @@ import type { MapDefinition } from "@manors-menaces/content";
 import type { HistoryEntry } from "@manors-menaces/protocol";
 import {
   cardDefIdOf,
-  getVoiceStatus,
-  type CrownsVirtue,
   type GameCommand,
   type GameEvent,
   type GameState,
@@ -15,7 +13,6 @@ import {
   type MenaceLocation,
   type RouteId,
   type RulesEngine,
-  type VoiceStatus,
 } from "@manors-menaces/rules";
 import { t } from "../i18n.js";
 import { replayHistory } from "./replay.js";
@@ -57,32 +54,6 @@ export function siteName(map: MapDefinition, siteId: string): string {
   if (!s) return "?";
   if (s.landmarkId) return t(`landmark.${s.landmarkId}`);
   return regionName(map, s.adjacentRegionIds[0]);
-}
-
-/** The first Region two Sites both touch, where rival neighbours meet (the Crown's Voice, §129.10). */
-export function sharedRegionId(map: MapDefinition, siteA: string, siteB: string): string | null {
-  const a = map.sites.find((x) => x.id === siteA);
-  const b = map.sites.find((x) => x.id === siteB);
-  return a?.adjacentRegionIds.find((id) => b?.adjacentRegionIds.includes(id)) ?? null;
-}
-
-/** A virtue the Crown can favour, by name. */
-export function virtueName(virtue: CrownsVirtue): string {
-  return t(`voice.virtue.${virtue}.name`);
-}
-
-const VOICE_STATUS_KEYS: Record<VoiceStatus, string> = {
-  speaking: "voice.chip",
-  from_next_round: "voice.chip_next_round",
-  waiting: "voice.chip_waiting",
-};
-
-/** What the Crown's Voice favours and when it speaks (§129.10); empty in a game without it. */
-export function crownsVoiceText(state: GameState): string {
-  const voice = state.crownsVoice;
-  const status = getVoiceStatus(state);
-  if (!voice || !status) return "";
-  return t(VOICE_STATUS_KEYS[status], { virtue: virtueName(voice.current), next: virtueName(voice.next) });
 }
 
 /** A Route's two end Sites, or null for an unknown Route. */
@@ -253,20 +224,6 @@ export function formatEvents(events: GameEvent[], state: GameState, map: MapDefi
       case "quest_expired":
         push(t("log.quest_expired", { quest: t(`quest.${e.questId}.name`) }), null, "info", e);
         break;
-      // Sealed Charges (§27A). Which Charge was drawn or kept is never told,
-      // not even to its holder: in hot-seat play everyone reads the Chronicle.
-      case "charges_drawn":
-        push(t("log.charges_drawn", { name: nameOf(state, e.playerId), count: e.count }), e.playerId, "info", e);
-        break;
-      case "charge_kept":
-        push(t("log.charge_kept", { name: nameOf(state, e.playerId) }), e.playerId, "info", e);
-        break;
-      case "charge_revealed":
-        push(t("log.charge_revealed", { name: nameOf(state, e.playerId), charge: t(`charge.${e.chargeId}.name`), renown: e.renown }), e.playerId, "important", e);
-        break;
-      case "charge_recommissioned":
-        push(t("log.charge_recommissioned", { name: nameOf(state, e.playerId) }), e.playerId, "important", e);
-        break;
       case "effect_started":
         if (e.effect === "fog") push(t("log.fog", { name: nameOf(state, e.playerId) }), e.playerId, "info", e);
         else if (e.effect === "plague") {
@@ -360,21 +317,6 @@ export function formatEvents(events: GameEvent[], state: GameState, map: MapDefi
           e,
         );
         break;
-      case "favour_won": {
-        const params = {
-          virtue: virtueName(e.virtue),
-          name: nameOf(state, e.playerId),
-          rival: nameOf(state, e.rivalId),
-          region: regionName(map, sharedRegionId(map, e.siteId, e.rivalSiteId)),
-          score: e.score,
-          other: e.rivalScore,
-        };
-        push(t(e.source === "purse" ? "log.favour_won_purse" : "log.favour_won", params), e.playerId, "important", e);
-        break;
-      }
-      case "crowns_voice_turned":
-        push(t("log.voice_turned", { virtue: virtueName(e.virtue), next: virtueName(e.next) }), null, "info", e);
-        break;
       case "game_won":
         if (e.cause === "ragnarok") push(t("log.won_ragnarok", { name: nameOf(state, e.playerId), renown: e.renown }), e.playerId, "omen", e);
         else if (e.cause === "full_board") push(t("log.won_full_board", { name: nameOf(state, e.playerId), renown: e.renown }), e.playerId, "important", e);
@@ -411,17 +353,6 @@ export function noticeEntry(text: string, playerId: string | null): LogEntry {
 }
 
 /**
- * Chronicle lines for what a new game drew before any command: the first
- * seat's Sealed Charges (§27A.2). Creating a game reports no events, so the
- * line comes from its initial state.
- */
-export function openingLog(initial: GameState, map: MapDefinition): LogEntry[] {
-  const pending = initial.pending;
-  if (pending?.kind !== "charge") return [];
-  return formatEvents([{ type: "charges_drawn", playerId: pending.playerId, chargeIds: null, count: pending.chargeIds.length }], initial, map);
-}
-
-/**
  * Rebuilds the Chronicle of a saved game by replaying its history (the log
  * itself is not saved). When the replay stops early or does not reach
  * `saved` (unrecorded debug commands), the entries it could derive end with
@@ -434,7 +365,7 @@ export function rebuildLog(
   history: readonly GameCommand[],
   saved: GameState,
 ): { entries: LogEntry[]; complete: boolean } {
-  const entries = openingLog(initial, map);
+  const entries: LogEntry[] = [];
   const { complete } = replayHistory(engine, initial, history, (step) => entries.push(...formatEvents(step.events, step.after, map)), saved);
   if (!complete) entries.push({ id: nextId++, text: t("log.history_unavailable"), playerId: null, kind: "info" });
   return { entries, complete };

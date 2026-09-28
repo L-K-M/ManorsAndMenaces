@@ -6,7 +6,6 @@ import { clone, own } from "./clone.js";
 import { BALANCE } from "./balance.js";
 import { createBanner, createHolding, payForBuild, putOutEmbers } from "./build.js";
 import { isCardUsableInRuleset, resolveCardEffect, validateCardTarget } from "./cards.js";
-import { chargeDeckFor, drawCharges, drawsAnotherCharge, keepCharge, recommissionCharge, revealMetCharge, takeCharges } from "./charges.js";
 import type { DebugCommand, GameCommand } from "./commands.js";
 import { createContext, type RulesContext } from "./context.js";
 import { check, OK, RuleViolation, type RuleError, type RuleValidation } from "./errors.js";
@@ -36,7 +35,6 @@ import {
 } from "./selectors.js";
 import { Tx } from "./tx.js";
 import { finishGame, rankPlayers } from "./victory.js";
-import { checkCrownsVoiceRules, createCrownsVoice, crownSpeaks, turnVoice } from "./voice.js";
 import {
   RESOURCE_TYPES,
   type BannerId,
@@ -149,7 +147,6 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
   const { players, ruleset } = config;
   if (players.length < 2 || players.length > 4) throw new Error("Manors & Menaces supports 2–4 players");
   if (new Set(players.map((p) => p.id)).size !== players.length) throw new Error("Player ids must be unique");
-  if (ruleset.crownsVoice !== undefined) checkCrownsVoiceRules(ruleset.crownsVoice);
   const rng = createRng(seedRng(config.seed));
 
   const first = rng.nextInt(players.length);
@@ -178,13 +175,6 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
     questDeck = rng.shuffle(ctx.content.quests.map((q) => q.id));
     revealedQuestIds = questDeck.splice(0, ruleset.revealedQuestCount);
   }
-  // Sealed Charges (§27A), shuffled after the other decks so that games
-  // without them draw exactly as before. Before the first placement each
-  // seat in turn order draws and keeps one; the first draws now.
-  const chargeDeck = ruleset.sealedCharges ? rng.shuffle(chargeDeckFor(ctx, ruleset)) : undefined;
-  const firstCharges = chargeDeck ? takeCharges(ctx, chargeDeck, "setup") : [];
-  // Drawn after every older RNG use, so games without the Voice deal as before.
-  const crownsVoice = ruleset.crownsVoice ? createCrownsVoice(rng, ruleset.crownsVoice, questDeck) : undefined;
 
   const playerStates: Record<PlayerId, PlayerState> = {};
   players.forEach((p, seat) => {
@@ -242,11 +232,8 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
     revealedQuestIds,
     // The opening Quests are on show from round 1, when play begins.
     ...(ruleset.enableQuests && ruleset.questExpiryRounds ? { revealedQuestRounds: Object.fromEntries(revealedQuestIds.map((q) => [q, 1])) } : {}),
-    ...(chargeDeck ? { chargeDeck } : {}),
     activeEffects: [],
-    ...(firstCharges.length ? { pending: { kind: "charge" as const, playerId: turnOrder[0] as PlayerId, chargeIds: firstCharges } } : {}),
     nextIds: { holding: 1, banner: 1 },
-    ...(crownsVoice ? { crownsVoice } : {}),
   };
 }
 
@@ -268,8 +255,6 @@ function execute(tx: Tx, cmd: GameCommand): void {
         return passReaction(tx, cmd.playerId);
       case "resolve_prophecy":
         return resolveProphecy(tx, cmd.playerId, cmd.order);
-      case "choose_charge":
-        return chooseCharge(tx, cmd.playerId, cmd.chargeId);
       default:
         throw new RuleViolation("PENDING_DECISION");
     }
@@ -322,9 +307,6 @@ function execute(tx: Tx, cmd: GameCommand): void {
     case "answer_levy":
       inPhase("main");
       return answerLevy(tx, cmd.playerId, cmd.resource);
-    case "recommission_charge":
-      inPhase("main");
-      return recommissionCharge(tx, cmd.playerId);
     case "end_main_phase":
       inPhase("main");
       s.phase = "banner_assignment";
@@ -346,8 +328,6 @@ function execute(tx: Tx, cmd: GameCommand): void {
     case "pass_reaction":
     case "resolve_prophecy":
       throw new RuleViolation("NO_PENDING_REACTION");
-    case "choose_charge":
-      throw new RuleViolation("NO_CHARGE_CHOICE");
     case "place_initial_manor":
     case "place_initial_route":
     case "assign_initial_banners":
@@ -498,8 +478,6 @@ function resolveHarvest(tx: Tx, playerId: PlayerId): void {
     const banner = s.banners[b.id];
     if (banner) banner.settled = true;
   }
-  // The Crown's Voice scores Plenty from the Banners that produced this round (§129.10).
-  if (s.crownsVoice) for (const o of outcomes) if (o.amount > 0) s.crownsVoice.harvested.push(o.bannerId);
   // The Plague lasts for exactly one Harvest of each sick Banner's owner.
   const cured = new Set(getPlayerBanners(s, playerId).map((b) => b.id));
   if (s.activeEffects.some((e) => e.kind === "sick" && cured.has(e.bannerId))) {
@@ -541,16 +519,11 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   p.nonReactionCardsPlayedThisTurn = 0;
   p.writsIssuedThisTurn = 0;
   p.wardensHiredThisTurn = 0;
-  // Sealed Charges (§27A): a met Charge is revealed and scored before the victory check.
-  const revealed = revealMetCharge(tx, playerId);
   tx.emit({ type: "turn_ended", playerId });
 
-  // These checks are shared with hasNextHarvest (nextHarvest.ts), which says
+  // These checks are shared with hasNextHarvest (selectors.ts), which says
   // whether a player harvests again before the game ends.
   const endsRound = isLastSeat(s, playerId);
-  // The Crown's Voice speaks as the round ends, so its Favour counts in the
-  // checks below (§129.10).
-  if (endsRound) crownSpeaks(tx);
   let winner = checkVictory(tx);
   if (winner && s.ruleset.equalTurns) {
     s.endTriggered = true;
@@ -571,17 +544,6 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   // wins, target reached or not (§7). Absent or 0 in older games, which play on.
   if (endsRound && isLastRound(s)) return finishGame(tx, checkVictory(tx, true) as PlayerId, "last_round");
   foretellEndgame(tx);
-  // At the higher goals a reveal is followed by a new draw; the turn passes
-  // once the player has kept one (chooseCharge). Not when the game ends with
-  // this round: no End Turn of theirs is left to reveal it.
-  const turnsLeft = !isLastRound(s) && !s.endTriggered;
-  if (revealed && turnsLeft && drawsAnotherCharge(s, playerId) && drawCharges(tx, playerId, "later")) return;
-  handOver(tx, playerId);
-}
-
-/** The turn passes from `playerId` to the next seat, starting a new round after the last. */
-function handOver(tx: Tx, playerId: PlayerId): void {
-  const s = tx.s;
   const idx = s.turnOrder.indexOf(playerId);
   const nextIdx = (idx + 1) % s.turnOrder.length;
   if (nextIdx === 0) {
@@ -592,7 +554,6 @@ function handOver(tx: Tx, playerId: PlayerId): void {
     if (lastRound > 0 && s.round >= lastRound - 1 && s.round <= lastRound) tx.emit({ type: "reign_ending", round: s.round, lastRound });
     expireQuests(tx);
     proclaimLevy(tx);
-    turnVoice(tx);
     const interval = s.ruleset.cardDrawEveryRounds ?? 0;
     if (interval > 0 && s.round % interval === 0) dealCardsToAll(tx, 1, "round");
   }
@@ -864,22 +825,6 @@ function resolveProphecy(tx: Tx, playerId: PlayerId, order: unknown): void {
   s.cardDeck.splice(0, pending.cardIds.length, ...(order as string[]));
   delete s.pending;
   tx.emit({ type: "prophecy_resolved", playerId });
-}
-
-// ------------------------------------------------------------------ Sealed Charges (§27A)
-
-/** Keeps a Charge, then carries on with what drew it: the setup deal, or the End Turn after a reveal. */
-function chooseCharge(tx: Tx, playerId: PlayerId, chargeId: unknown): void {
-  keepCharge(tx, playerId, chargeId);
-  const s = tx.s;
-  if (s.status === "setup") {
-    // Each seat in turn order draws before the first placement.
-    const next = s.turnOrder[s.turnOrder.indexOf(playerId) + 1];
-    if (next) drawCharges(tx, next, "setup");
-    return;
-  }
-  // A Recommission draws in the Main phase, and play simply goes on.
-  if (s.phase === "end") handOver(tx, playerId);
 }
 
 function discardCards(tx: Tx, playerId: PlayerId, cardIds: unknown): void {

@@ -14,8 +14,6 @@ export type CardId = string;
 /** A card definition id, e.g. "wizard_interference". */
 export type CardDefId = string;
 export type QuestId = string;
-/** A Sealed Charge definition id (§27A), e.g. "merchant_venturer". */
-export type ChargeId = string;
 
 export const RESOURCE_TYPES = ["grain", "timber", "stone", "iron", "essence"] as const;
 export type ResourceType = (typeof RESOURCE_TYPES)[number];
@@ -151,56 +149,14 @@ export interface QuestRulesDefinition {
   exclusive: boolean;
 }
 
-/** The deeds a Sealed Charge can ask for, counted from when it was drawn (§27A). */
-export const CHARGE_DEEDS = ["writs", "trades", "cards_bought"] as const;
-export type ChargeDeed = (typeof CHARGE_DEEDS)[number];
-
-/** What a Sealed Charge asks for (§27A): typed code keyed by `kind`, with the numbers from content. */
-export type ChargeGoal =
-  /** The player's network reaches the landmark, and one of their Banners is in a Region touching its Site. */
-  | { kind: "landmark"; landmarkId: LandmarkId }
-  /** Banners in `count` different Regions of `resource` at the same time. */
-  | { kind: "banners"; resource: ResourceType; count: number }
-  /** `count` of the deed since the Charge was drawn. */
-  | { kind: "deed"; deed: ChargeDeed; count: number }
-  /** Move the Menace `count` times since the Charge was drawn. */
-  | { kind: "menace"; menaceType: MenaceType; count: number };
-
-export interface ChargeRulesDefinition {
-  id: ChargeId;
-  goal: ChargeGoal;
-}
-
 /** Everything content-specific the engine is parameterised with. */
 export interface RulesContent {
   board: BoardTopology;
   cards: CardRulesDefinition[];
   quests: QuestRulesDefinition[];
-  /** The Sealed Charge deck (§27A). Absent: no Charge can be dealt. */
-  charges?: ChargeRulesDefinition[];
 }
 
 // ------------------------------------------------------------------ config
-
-/** What the Crown can favour in a round (the Crown's Voice, spec §129.10). */
-export const CROWNS_VIRTUES = ["might", "roads", "plenty"] as const;
-export type CrownsVirtue = (typeof CROWNS_VIRTUES)[number];
-
-/** When the Crown's Voice first speaks (§129.10). */
-export const CROWNS_VOICE_STARTS = ["first_round", "quest_deck_empty"] as const;
-export type CrownsVoiceStart = (typeof CROWNS_VOICE_STARTS)[number];
-
-/** The Crown's Voice settings (experimental, §129.10). */
-export interface CrownsVoiceRules {
-  /** Favour in the Crown's purse when the game begins. */
-  purse: number;
-  /**
-   * `first_round`: the Voice speaks at the end of every round.
-   * `quest_deck_empty`: at the end of every round from the first that
-   * begins with the Quest deck empty.
-   */
-  from: CrownsVoiceStart;
-}
 
 export interface RulesetConfig {
   name: string;
@@ -256,19 +212,6 @@ export interface RulesetConfig {
    * ruleset 0.9.0 and in the Core rules, which never hear of it.
    */
   crownLevy?: CrownLevyRules;
-  /**
-   * Sealed Charges (§27A): each player keeps a hidden personal goal, revealed
-   * and scored at their End Turn once met. A lobby option from ruleset
-   * 0.9.0; absent or false, nobody holds a Charge.
-   */
-  sealedCharges?: boolean;
-  /**
-   * The Crown's Voice (experimental, §129.10): at the end of each round rival
-   * Holdings that touch the same Region contest the virtue the Crown favours,
-   * for Favour that counts as Renown. Absent: off, as in every game created
-   * before ruleset 0.9.0. Local games only.
-   */
-  crownsVoice?: CrownsVoiceRules;
 }
 
 /** How the Crown's Levy runs in a game (§27.3). */
@@ -349,18 +292,6 @@ export interface PlayerStats {
   writsReceived: number;
   marketTrades: number;
   cardsBought: number;
-  /** Moves of each Menace type by this player, kept only with Sealed Charges (§27A). */
-  menaceMoves?: Partial<Record<MenaceType, number>>;
-}
-
-/** A player's unrevealed Charge (§27A). Rivals see only that one is held. */
-export interface SealedCharge {
-  id: ChargeId;
-  /**
-   * A deed or Menace Charge: the player's count of it when the Charge was
-   * drawn, since the goal counts only what comes after.
-   */
-  since?: number;
 }
 
 export interface PlayerState {
@@ -378,19 +309,11 @@ export interface PlayerState {
   lostRenown?: number;
   /** Renown from answering the Crown's Levy (§27.3), kept for the game. Absent until the first answer. */
   levyRenown?: number;
-  /** Favour won through the Crown's Voice (§129.10); counts as Renown. Absent until first won or lost. */
-  favour?: number;
   holdingIds: HoldingId[];
   routeIds: RouteId[];
   claimedQuestIds: QuestId[];
   /** Charter cards kept face up in front of the player (§18.1). Absent in older saves. */
   charters?: CardId[];
-  /** Sealed Charges (§27A): the Charge the player holds face down, if any. */
-  sealedCharge?: SealedCharge;
-  /** Sealed Charges met and revealed, in order; each is worth `BALANCE.sealedCharges.renown`. */
-  revealedChargeIds?: ChargeId[];
-  /** The player has used their one Recommission (§27A). */
-  recommissioned?: boolean;
   stats: PlayerStats;
   marketTradesThisTurn: number;
   nonReactionCardsPlayedThisTurn: number;
@@ -451,13 +374,6 @@ export type PendingDecision =
       playerId: PlayerId;
       /** Top cards of the deck, in current order (hidden from others). */
       cardIds: CardId[];
-    }
-  | {
-      /** Sealed Charges (§27A): keep one of the Charges drawn; the rest go to the bottom of the deck. */
-      kind: "charge";
-      playerId: PlayerId;
-      /** The Charges drawn (hidden from others). */
-      chargeIds: ChargeId[];
     };
 
 /** Card target payloads, discriminated by the card's effect. */
@@ -521,8 +437,6 @@ export interface GameState {
 
   questDeck: QuestId[];
   revealedQuestIds: QuestId[];
-  /** Sealed Charges (§27A): the face-down Charge deck, top first. Absent when the option is off. */
-  chargeDeck?: ChargeId[];
   /** First round each revealed Quest can be claimed in (§27.2); kept only when `ruleset.questExpiryRounds` is on. */
   revealedQuestRounds?: Record<QuestId, number>;
 
@@ -538,31 +452,6 @@ export interface GameState {
   endCause?: GameEndCause;
   /** equalTurns: the target has been reached; the game ends with this round. */
   endTriggered?: boolean;
-  /** The Crown's Voice (§129.10), present when `ruleset.crownsVoice` is on. All of it is public. */
-  crownsVoice?: CrownsVoiceState;
-}
-
-export interface CrownsVoiceState {
-  /** The virtue the Crown favours when this round ends. */
-  current: CrownsVirtue;
-  /** The virtue it favours next, on show one round ahead. */
-  next: CrownsVirtue;
-  /**
-   * Cards left in the Voice deck, by virtue. Each card is drawn from these
-   * with the match RNG as it is turned: the odds of a shuffled deck, with no
-   * hidden order kept in the state.
-   */
-  deck: Record<CrownsVirtue, number>;
-  /** Favour left in the Crown's purse. */
-  purse: number;
-  /** Banners that produced resources at their owner's Harvest this round (Plenty). */
-  harvested: BannerId[];
-  /**
-   * Whether the Voice speaks as this round ends. Set when the game is created
-   * or as a round begins, never mid-round, so every seat knows it a round
-   * ahead; once set it stays set.
-   */
-  speaking: boolean;
 }
 
 /** The Levies proclaimed so far (§27.3). Both this round's and the next round's are public. */

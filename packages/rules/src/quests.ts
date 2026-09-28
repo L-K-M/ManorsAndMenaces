@@ -35,8 +35,8 @@ function connectedSites(ctx: RulesContext, state: GameState, playerId: PlayerId,
   return seen;
 }
 
-/** Sites the player's network reaches (§27): their Holdings and usable Route endpoints. */
-export function reachedSites(ctx: RulesContext, state: GameState, playerId: PlayerId): Set<SiteId> {
+/** Sites the player's network reaches: their Holdings and usable Route endpoints. */
+function reachedSites(ctx: RulesContext, state: GameState, playerId: PlayerId): Set<SiteId> {
   const out = new Set<SiteId>(getPlayerHoldings(state, playerId).map((h) => h.siteId));
   for (const routeId of state.players[playerId]?.routeIds ?? []) {
     if (!isRouteUsable(state, routeId, { allowHighwayman: true })) continue;

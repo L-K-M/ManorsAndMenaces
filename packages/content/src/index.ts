@@ -1,7 +1,6 @@
 import { clone, type BoardTopology, type RulesContent } from "@manors-menaces/rules";
 import { recentCache } from "./cache.js";
 import { CARDS } from "./cards.js";
-import { CHARGES } from "./charges.js";
 import { mapById } from "./maps.js";
 import { GREENVALE_MAP } from "./maps/greenvale.js";
 import { QUESTS } from "./quests.js";
@@ -10,7 +9,6 @@ import { validateMap } from "./validate.js";
 
 export * from "./types.js";
 export { CARDS } from "./cards.js";
-export { CHARGES } from "./charges.js";
 export { QUESTS } from "./quests.js";
 export { MENACES } from "./menaces.js";
 export { EN } from "./i18n/en.js";
@@ -67,7 +65,6 @@ export function rulesContentFor(mapId: string = GREENVALE_MAP.id): RulesContent 
       ...(c.setAside ? { setAside: true as const } : {}),
     })),
     quests: QUESTS.map((q) => ({ id: q.id, renown: q.renown, conditionId: q.conditionId, exclusive: q.exclusive })),
-    charges: CHARGES.map((c) => ({ id: c.id, goal: clone(c.goal) })),
   };
   contentCache.set(mapId, content);
   return content;

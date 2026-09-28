@@ -2,7 +2,6 @@ import type {
   CardEffectId,
   CardTiming,
   CardType,
-  ChargeGoal,
   LandmarkId,
   MenaceLocation,
   MenaceType,
@@ -93,14 +92,6 @@ export interface QuestDefinition {
   descriptionKey: string;
   conditionId: QuestConditionId;
   exclusive: boolean;
-}
-
-/** A Sealed Charge (§27A): a hidden personal goal. */
-export interface ChargeDefinition {
-  id: string;
-  nameKey: string;
-  descriptionKey: string;
-  goal: ChargeGoal;
 }
 
 export interface MenaceDefinition {

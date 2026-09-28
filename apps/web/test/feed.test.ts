@@ -174,21 +174,6 @@ describe("feedItemsFor: second-wave cards", () => {
     expect(feedItemsFor([taken], state, map, "P2")).toEqual([]);
   });
 
-  it("tells every player of each Favour the Crown's Voice moves, from their side", () => {
-    const a = map.sites[0]!;
-    const b = map.sites.find((s) => s.id !== a.id && s.adjacentRegionIds.some((r) => a.adjacentRegionIds.includes(r)))!;
-    const region = map.regions.find((r) => a.adjacentRegionIds.includes(r.id) && b.adjacentRegionIds.includes(r.id))!;
-    const won = (source: "rival" | "purse"): GameEvent => ({ type: "favour_won", playerId: "P2", rivalId: "P1", source, virtue: "plenty", siteId: a.id, rivalSiteId: b.id, score: 2, rivalScore: 0 });
-    const told = (source: "rival" | "purse", viewer: string | null) => feedItemsFor([won(source)], state, map, viewer).map((i) => [i.text, i.againstViewer]);
-
-    expect(told("rival", "P1")).toEqual([[`Bertram took 1 Favour from you (Plenty, ${region.name})`, true]]);
-    expect(told("rival", "P2")).toEqual([[`You took 1 Favour from Alice (Plenty, ${region.name})`, false]]);
-    expect(told("rival", "P3")).toEqual([[`Bertram took 1 Favour from Alice (Plenty, ${region.name})`, false]]);
-    expect(told("purse", "P1")).toEqual([[`Bertram won 1 Favour from the Crown (Plenty, ${region.name})`, false]]);
-    expect(told("purse", "P2")).toEqual([[`You won 1 Favour from the Crown (Plenty, ${region.name})`, false]]);
-    expect(feedItemsFor([won("purse")], state, map, null)[0]?.at).not.toBeNull();
-  });
-
   it("tells every viewer that the game ends with the round if the board stays full", () => {
     for (const viewer of ["P1", "P2", null]) {
       expect(feedItemsFor([{ type: "board_full" }], state, map, viewer)).toEqual([
@@ -205,14 +190,13 @@ describe("feedItemsFor: second-wave cards", () => {
     }
   });
 
-  // Only the first proclamation is an omen: later ones come every round.
   it("proclaims the Crown's Levy to every viewer and tells others who answered it (§27.3)", () => {
     for (const viewer of ["P1", "P2", null]) {
       expect(feedItemsFor([{ type: "levy_proclaimed", resource: "essence", round: 16, current: null }], state, map, viewer)).toEqual([
         { actorId: null, text: "The King's Marshal proclaims the Crown's Levy: Essence for the court wizards' wards, from next round", at: null, gains: null, againstViewer: false, self: false, omen: true },
       ]);
-      expect(feedItemsFor([{ type: "levy_proclaimed", resource: "grain", round: 17, current: "essence" }], state, map, viewer)).toEqual([
-        { actorId: null, text: "The Crown levies Essence this round, and Grain next round", at: null, gains: null, againstViewer: false, self: false },
+      expect(feedItemsFor([{ type: "levy_proclaimed", resource: "grain", round: 17, current: "essence" }], state, map, viewer).map((i) => i.text)).toEqual([
+        "The Crown levies Essence this round, and Grain next round",
       ]);
     }
     const answered: GameEvent = { type: "levy_answered", playerId: "P2", resource: "essence", amount: 5, renown: 2 };

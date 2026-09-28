@@ -84,11 +84,6 @@ export class Tx {
       const p = this.player(by);
       p.stats.menacesMoved += 1;
       if (locationAffectsPlayer(this.s, from, by)) p.stats.menacesMovedOffOwnAssets += 1;
-      // Only Sealed Charges (§27A) count moves per Menace; older games keep their stats as they were.
-      if (this.s.ruleset.sealedCharges) {
-        const moves = (p.stats.menaceMoves ??= {});
-        moves[menace.type] = (moves[menace.type] ?? 0) + 1;
-      }
     }
     menace.location = to;
     this.emit({ type: "menace_moved", byPlayerId: by, menaceId: menace.id, from, to });

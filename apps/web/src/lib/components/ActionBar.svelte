@@ -287,7 +287,7 @@
         <button class="ghost" class:arming disabled={arming || !session.canUndo} onclick={once(() => session.undo())}><ToolIcon name="undo" size={18} /> {t("action.undo")}</button>
         <button class="primary" class:arming disabled={arming || legal.mustDiscard > 0} onclick={once(endTurn)}>{t("action.end_turn")}<kbd aria-hidden="true">⏎</kbd></button>
       </div>
-    {:else if legal.mode === "reaction" || legal.mode === "prophecy" || legal.mode === "charge"}
+    {:else if legal.mode === "reaction" || legal.mode === "prophecy"}
       <p class="status">{t("status.decision")}</p>
     {/if}
   </div>

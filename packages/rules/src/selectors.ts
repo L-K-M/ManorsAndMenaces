@@ -6,7 +6,6 @@ import { BALANCE } from "./balance.js";
 import type { RulesContext } from "./context.js";
 import type { HarvestNote } from "./events.js";
 import { own } from "./clone.js";
-import { compareIds } from "./ids.js";
 import { addCost, canAfford } from "./resources.js";
 import {
   RESOURCE_TYPES,
@@ -14,7 +13,6 @@ import {
   type Banner,
   type BannerId,
   type CardId,
-  type ChargeId,
   type GameState,
   type Holding,
   type MenaceId,
@@ -38,6 +36,24 @@ export function getPlayerHoldings(state: GameState, playerId: PlayerId): Holding
 
 export function getPlayerRoutes(state: GameState, playerId: PlayerId): RouteId[] {
   return state.players[playerId]?.routeIds ?? [];
+}
+
+/** The numeric suffix of an engine id such as `banner_12`, or NaN if it has none. */
+function idNumber(id: string): number {
+  const n = Number(id.slice(id.lastIndexOf("_") + 1));
+  return Number.isInteger(n) ? n : Number.NaN;
+}
+
+/**
+ * Orders `banner_2` before `banner_10`, the same order as a numeric `en`
+ * collation for engine ids. Locale-free on purpose: it is deterministic on
+ * every platform (§30), and `localeCompare` with options built an ICU
+ * collator per call, which made this sort dominate AI decision time.
+ */
+function compareIds(a: string, b: string): number {
+  const d = idNumber(a) - idNumber(b);
+  if (d) return d;
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 export function getPlayerBanners(state: GameState, playerId: PlayerId): Banner[] {
@@ -89,10 +105,9 @@ export function bannersSupported(holding: Holding): number {
 export function getRenown(ctx: RulesContext, state: GameState, playerId: PlayerId): number {
   const p = state.players[playerId];
   if (!p) return 0;
-  let renown = p.bonusRenown + (p.levyRenown ?? 0) + (p.favour ?? 0) - (p.lostRenown ?? 0);
+  let renown = p.bonusRenown + (p.levyRenown ?? 0) - (p.lostRenown ?? 0);
   for (const h of getPlayerHoldings(state, playerId)) renown += h.type === "manor" ? BALANCE.renown.manor : BALANCE.renown.stronghold;
   for (const q of p.claimedQuestIds) renown += ctx.quest(q).renown;
-  renown += (p.revealedChargeIds?.length ?? 0) * BALANCE.sealedCharges.renown;
   return renown;
 }
 
@@ -105,14 +120,10 @@ export interface RenownSources {
   quests: { questId: QuestId; renown: number }[];
   /** Renown from answering the Crown's Levy (§27.3). */
   levy: number;
-  /** Sealed Charges met and revealed (§27A), in the order they were revealed. */
-  charges: { chargeId: ChargeId; renown: number }[];
   /** Renown granted outright, such as by the Unreliable Bard. */
   bonus: number;
   /** Renown lost for the rest of the game (Disgrace, Stolen Glory), subtracted from the total. */
   lost: number;
-  /** Favour won through the Crown's Voice (§129.10). */
-  favour: number;
 }
 
 // Kept apart from getRenown, which the AI calls in its inner loops.
@@ -128,10 +139,8 @@ export function getRenownSources(ctx: RulesContext, state: GameState, playerId: 
     strongholds: { count: strongholds, renown: strongholds * BALANCE.renown.stronghold },
     quests,
     levy: p?.levyRenown ?? 0,
-    charges: (p?.revealedChargeIds ?? []).map((chargeId) => ({ chargeId, renown: BALANCE.sealedCharges.renown })),
     bonus: p?.bonusRenown ?? 0,
     lost: p?.lostRenown ?? 0,
-    favour: p?.favour ?? 0,
   };
 }
 
@@ -219,8 +228,7 @@ export function isBoardFull(ctx: RulesContext, state: GameState): boolean {
 }
 
 // ------------------------------------------------------------------ game end (§7)
-// The End Turn checks (engine.ts endTurn) and hasNextHarvest (nextHarvest.ts)
-// share these.
+// The End Turn checks (engine.ts endTurn) and hasNextHarvest share these.
 
 /** Whether the player takes the round's last turn, so their End Turn ends the round. */
 export function isLastSeat(state: GameState, playerId: PlayerId): boolean {
@@ -244,6 +252,22 @@ export function playersAtTarget(ctx: RulesContext, state: GameState): PlayerId[]
 /** Whether a round that ends now ends the game on a full board (§7). */
 export function endsOnFullBoard(ctx: RulesContext, state: GameState): boolean {
   return state.ruleset.endOnFullBoard === true && isBoardFull(ctx, state);
+}
+
+/**
+ * Whether the player harvests again, at the start of their next turn:
+ * false when the game is sure to end first. That is when someone has the
+ * target Renown (the game ends at this End Turn, or with the round under
+ * equal turns), when equal turns already end the game with this round, in
+ * the last round, and when the player ends the round on a full board.
+ * Endings still open are not foreseen: Ragnarök, a rival reaching the
+ * target later in the round, and a board that fills before the round's last
+ * seat, which a card could empty again.
+ */
+export function hasNextHarvest(ctx: RulesContext, state: GameState, playerId: PlayerId): boolean {
+  if (state.status === "finished" || state.endTriggered || isLastRound(state)) return false;
+  if (playersAtTarget(ctx, state).length > 0) return false;
+  return !(isLastSeat(state, playerId) && endsOnFullBoard(ctx, state));
 }
 
 // ------------------------------------------------------------------ build requirements
@@ -579,13 +603,6 @@ export interface BannerMove {
   reason: BannerMoveReason;
 }
 
-export interface BannerAdviceOptions {
-  /** Search nodes to visit at most; the default suits a warning shown before End Turn. */
-  budget?: number;
-  /** The advice is the draft or a placement this accepts. */
-  keep?: (assignment: Readonly<Record<BannerId, RegionId | null>>) => boolean;
-}
-
 export interface BannerAdvice {
   /** Next Harvest total with the draft as it stands. */
   current: number;
@@ -609,15 +626,14 @@ export interface BannerAdvice {
  *
  * A branch-and-bound over the Banners, fewest adjacent Regions first. It
  * starts from the draft when that is legal, so running out of `budget`
- * can only miss a gain, never suggest a worse or illegal placement. With
- * `keep`, a complete placement it rejects is never taken.
+ * can only miss a gain, never suggest a worse or illegal placement.
  */
 export function getBannerAdvice(
   ctx: RulesContext,
   state: GameState,
   playerId: PlayerId,
   draft: Readonly<Record<BannerId, RegionId | null>> = {},
-  { budget = BANNER_ADVICE_BUDGET, keep }: BannerAdviceOptions = {},
+  budget = BANNER_ADVICE_BUDGET,
 ): BannerAdvice {
   const banners = getPlayerBanners(state, playerId);
   const placed: Record<BannerId, RegionId | null> = {};
@@ -683,7 +699,7 @@ export function getBannerAdvice(
     if (++nodes > budget) return;
     const b = order[i];
     if (!b) {
-      if (score > best.score && (!keep || keep(work))) best = { score, assignment: { ...work } };
+      if (score > best.score) best = { score, assignment: { ...work } };
       return;
     }
     if (score + (bound[i] ?? 0) <= best.score) return;

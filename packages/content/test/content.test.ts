@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  ALL_MENACES,
   CARD_EFFECT_IDS,
   HARVEST_NOTES,
   QUEST_CONDITION_IDS,
   RULESET_VERSION,
-  chargeDeckFor,
   clone,
   createRulesEngine,
   getLegalActions,
@@ -17,7 +15,7 @@ import {
   type QuestConditionId,
   type GameState,
 } from "@manors-menaces/rules";
-import { CARDS, CHARGES, EN, GREENVALE_MAP, ISLANDS, MAPS, MENACES, QUESTS, rulesContentFor, toBoardTopology, type MapDefinition } from "../src/index.js";
+import { CARDS, EN, GREENVALE_MAP, MAPS, MENACES, QUESTS, rulesContentFor, type MapDefinition } from "../src/index.js";
 
 const content = rulesContentFor();
 const engine = createRulesEngine(content);
@@ -150,46 +148,6 @@ describe("quest definitions (§27, §40)", () => {
       const hits = s.cardDeck.filter((c) => typeOf(c) === type).length;
       expect(atLeast(s.cardDeck.length, hits, CARDS_DRAWN, need), `${quest} with ${players} players`).toBeGreaterThanOrEqual(MIN_CHANCE);
     }
-  });
-});
-
-describe("Sealed Charge definitions (§27A)", () => {
-  it("have unique ids and text for every key", () => {
-    expect(new Set(CHARGES.map((c) => c.id)).size).toBe(CHARGES.length);
-    for (const c of CHARGES) {
-      expectKey(c.nameKey);
-      expectKey(c.descriptionKey);
-    }
-  });
-  it("reach the rules engine", () => {
-    expect(content.charges).toEqual(CHARGES.map((c) => ({ id: c.id, goal: c.goal })));
-  });
-  it("state the number the engine checks, and name the landmark or Menace", () => {
-    for (const c of CHARGES) {
-      const text = EN[c.descriptionKey] ?? "";
-      const g = c.goal;
-      if (g.kind === "landmark") expect(text, c.id).toContain(EN[`landmark.${g.landmarkId}`]);
-      else expect(text, c.id).toContain(`${g.count} `);
-      if (g.kind === "menace") expect(text, c.id).toContain(EN[`menace.${g.menaceType}.name`]);
-      if (g.kind === "banners") expect(text, c.id).toContain(EN[`resource.${g.resource}`]);
-    }
-  });
-  it("can all be met on every island: its landmarks and enough Regions are there", () => {
-    expect(ISLANDS.length).toBeGreaterThan(10);
-    for (const map of ISLANDS) {
-      const ctx = createRulesEngine({ ...content, board: toBoardTopology(map) }).ctx;
-      const everything = { ...standardRuleset(4), activeMenaces: [...ALL_MENACES] };
-      expect(chargeDeckFor(ctx, everything), map.id).toEqual(CHARGES.map((c) => c.id));
-    }
-  });
-  it.each([
-    [2, ["troll_herder", "friend_of_outlaws"]],
-    [3, ["troll_herder", "dragon_tamer"]],
-    [4, ["troll_herder", "dragon_tamer", "witchs_errand"]],
-  ] as const)("%i players: a deck of 12 plus the Menaces in play", (players, menaces) => {
-    const deck = chargeDeckFor(engine.ctx, standardRuleset(players, { sealedCharges: true }));
-    expect(deck).toHaveLength(12 + menaces.length);
-    expect(deck.filter((id) => CHARGES.find((c) => c.id === id)?.goal.kind === "menace")).toEqual(menaces);
   });
 });
 

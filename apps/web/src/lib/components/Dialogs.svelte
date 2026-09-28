@@ -30,7 +30,6 @@
     robinPayers,
     startAction,
   } from "../game/interaction.js";
-  import { chargeChoices, chargeDescription, chargeName } from "../game/charges.js";
   import { gainsText, listText, siteName } from "../game/feed.js";
   import { regionName } from "../game/log.js";
   import type { GameSession } from "../game/session.svelte.js";
@@ -480,22 +479,6 @@
   </Modal>
 {/if}
 
-<!-- Sealed Charges (§27A): only the player choosing sees the Charges drawn; in hot-seat play the curtain comes first. -->
-{#if legal?.mode === "charge" && !holdDecisions}
-  <Modal title={t("ui.charge_choose_title")}>
-    <p class="help">{t("ui.charge_choose_help", { renown: BALANCE.sealedCharges.renown })}</p>
-    <ul class="charge-choices">
-      {#each chargeChoices(gs, legal.playerId) as id (id)}
-        <li>
-          <strong><ToolIcon name="seal" size={16} />{chargeName(id)}</strong>
-          <p>{chargeDescription(id)}</p>
-          <button class="primary" onclick={() => session.perform({ type: "choose_charge", chargeId: id })}>{t("action.keep_charge", { charge: chargeName(id) })}</button>
-        </li>
-      {/each}
-    </ul>
-  </Modal>
-{/if}
-
 <style>
   .help {
     font-size: 0.9rem;
@@ -561,32 +544,6 @@
   .victims {
     margin: 0.2rem 0 0.6rem;
     padding-left: 1.2rem;
-    font-size: 0.9rem;
-  }
-  .charge-choices {
-    display: grid;
-    gap: 0.6rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .charge-choices li {
-    display: grid;
-    gap: 0.35rem;
-    justify-items: start;
-    padding: 0.6rem 0.7rem;
-    border: 1px solid #7a3b2e66;
-    border-radius: 10px;
-    background: var(--paper-sheet);
-  }
-  .charge-choices strong {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    font: 700 1.05rem/1.1 var(--font-display);
-  }
-  .charge-choices p {
-    margin: 0;
     font-size: 0.9rem;
   }
 </style>

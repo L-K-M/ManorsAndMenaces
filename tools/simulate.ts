@@ -15,19 +15,15 @@
 import { runAiUntilHuman, type AiLevel } from "@manors-menaces/ai";
 import { GREENVALE_MAP, mapIdForNewGame, rulesContentFor } from "@manors-menaces/content";
 import {
-  BALANCE,
   RESOURCE_TYPES,
   RULESET_VERSION,
   cardDefIdOf,
   createRng,
   createRulesEngine,
-  crownsVoiceRules,
   getPlayerHoldings,
   getRenown,
-  getRivalNeighbours,
   isCardUsableInRuleset,
   mvpRuleset,
-  rankPlayers,
   seedRng,
   standardRuleset,
   type GameEvent,
@@ -47,11 +43,7 @@ const LEVEL = arg("level", "normal") as AiLevel;
 const MAX_ROUNDS = Number(arg("max-rounds", "60"));
 const EQUAL_TURNS = args.includes("--equal-turns");
 // Extra ruleset overrides as JSON, e.g. --override '{"enableQuests":false}'.
-// '{"crownsVoice":true}' turns on the Crown's Voice with the settings a new
-// game gets (§129.10); '{"crownsVoice":{"purse":10,"from":"first_round"}}'
-// tries others.
 const OVERRIDE = JSON.parse(arg("override", "{}")) as Record<string, unknown>;
-if (OVERRIDE.crownsVoice === true) OVERRIDE.crownsVoice = crownsVoiceRules();
 
 // --exclude-cards a,b removes card definitions from the deck (balance experiments).
 const EXCLUDE = new Set(arg("exclude-cards", "").split(",").filter(Boolean));
@@ -85,11 +77,7 @@ interface GameStats {
   rounds: number;
   winnerSeat: number | null;
   winnerRenown: number;
-  renownSources: { holdings: number; quests: number; levy: number; bonus: number; charges: number };
-  /** Sealed Charges (§27A) kept and revealed, by kind of goal, and Recommissions. */
-  chargesKept: Record<string, number>;
-  chargesRevealed: Record<string, number>;
-  recommissions: number;
+  renownSources: { holdings: number; quests: number; levy: number; bonus: number };
   writs: number;
   wardens: number;
   trades: number;
@@ -119,17 +107,6 @@ interface GameStats {
   levyAnswers: number;
   levyChances: number;
   targetRenown: number;
-  /** Winner's Renown less the best other player's. */
-  margin: number;
-  /** Times the lead passed to another player (one with strictly more Renown) in the last 5 rounds. */
-  leadChangesLast5: number;
-  /** Rival neighbour pairs when the game ended (§129.10). */
-  rivalPairs: number;
-  // The Crown's Voice (§129.10).
-  /** Favour each seat held at the end, in turn order. */
-  favour: number[];
-  favourFromRivals: number;
-  favourFromPurse: number;
   // Second-wave card outcomes (§19.12–19.21).
   holdingsDestroyed: number;
   holdingsReduced: number;
@@ -173,10 +150,7 @@ function playOne(i: number): GameStats {
     rounds: 0,
     winnerSeat: null,
     winnerRenown: 0,
-    renownSources: { holdings: 0, quests: 0, levy: 0, bonus: 0, charges: 0 },
-    chargesKept: {},
-    chargesRevealed: {},
-    recommissions: 0,
+    renownSources: { holdings: 0, quests: 0, levy: 0, bonus: 0 },
     writs: 0,
     wardens: 0,
     trades: 0,
@@ -198,12 +172,6 @@ function playOne(i: number): GameStats {
     levyAnswers: 0,
     levyChances: 0,
     targetRenown: s.ruleset.targetRenown,
-    margin: 0,
-    leadChangesLast5: 0,
-    rivalPairs: 0,
-    favour: [],
-    favourFromRivals: 0,
-    favourFromPurse: 0,
     holdingsDestroyed: 0,
     holdingsReduced: 0,
     routesBurned: 0,
@@ -225,16 +193,6 @@ function playOne(i: number): GameStats {
   const holder = new Map<string, { owner: string; since: number }>();
   const longest = new Map<string, number>();
   let lastRound = -1;
-  // The lead passes only to a player with strictly more Renown than the leader.
-  let leader: string | null = null;
-  /** Rounds at whose end the lead had passed. */
-  const leadChanges: number[] = [];
-  const followLead = (endedRound: number): void => {
-    const best = rankPlayers(ctx, s, s.turnOrder)[0];
-    if (!best) return;
-    if (leader !== null && best !== leader && getRenown(ctx, s, best) > getRenown(ctx, s, leader)) leadChanges.push(endedRound);
-    if (leader === null || getRenown(ctx, s, best) > getRenown(ctx, s, leader)) leader = best;
-  };
   for (let step = 0; step < 20000 && s.status !== "finished" && s.round <= MAX_ROUNDS; step++) {
     const r = runAiUntilHuman(engine, s, () => true, () => ({ level: LEVEL, rng }), 1);
     if (r.commands.length === 0) break;
@@ -262,7 +220,6 @@ function playOne(i: number): GameStats {
       if (e.type === "game_won" && e.cause === "ragnarok") stats.ragnarokRound = before.round;
       if (e.type === "game_won" && e.cause === "full_board") stats.fullBoardRound = before.round;
       if (e.type === "game_won" && e.cause === "last_round") stats.lastRoundEnd = true;
-      if (e.type === "favour_won") stats[e.source === "rival" ? "favourFromRivals" : "favourFromPurse"]++;
       if (e.type === "holding_destroyed") stats.holdingsDestroyed++;
       if (e.type === "holding_reduced") stats.holdingsReduced++;
       if (e.type === "route_burned") stats.routesBurned++;
@@ -282,13 +239,9 @@ function playOne(i: number): GameStats {
         stats.levyAnswers++;
         stats.levyRenown += e.renown;
       }
-      if (e.type === "charge_kept" && e.chargeId) bump(stats.chargesKept, ctx.charge(e.chargeId).goal.kind);
-      if (e.type === "charge_revealed") bump(stats.chargesRevealed, ctx.charge(e.chargeId).goal.kind);
-      if (e.type === "charge_recommissioned") stats.recommissions++;
     }
     if (s.round !== lastRound && s.status === "playing") {
       lastRound = s.round;
-      followLead(s.round - 1);
       for (const region of ctx.board.topology.regions) {
         const owner = Object.values(s.banners).find((b) => b.regionId === region.id)?.ownerId ?? "";
         // Only contestable Regions count: another player has a Holding next to it.
@@ -305,19 +258,13 @@ function playOne(i: number): GameStats {
   }
   stats.rounds = s.round;
   stats.finished = s.status === "finished";
-  followLead(s.round);
-  stats.leadChangesLast5 = leadChanges.filter((round) => round > s.round - 5).length;
-  stats.rivalPairs = getRivalNeighbours(ctx, s).length;
-  stats.favour = s.turnOrder.map((id) => s.players[id]?.favour ?? 0);
   if (s.winnerId) {
     stats.winnerSeat = s.turnOrder.indexOf(s.winnerId);
     stats.winnerRenown = getRenown(ctx, s, s.winnerId);
-    stats.margin = stats.winnerRenown - Math.max(...s.turnOrder.filter((id) => id !== s.winnerId).map((id) => getRenown(ctx, s, id)));
     stats.renownSources.holdings = getPlayerHoldings(s, s.winnerId).reduce((n, h) => n + (h.type === "manor" ? 1 : 2), 0);
     stats.renownSources.quests = (s.players[s.winnerId]?.claimedQuestIds ?? []).reduce((n, q) => n + ctx.quest(q).renown, 0);
     stats.renownSources.levy = s.players[s.winnerId]?.levyRenown ?? 0;
     stats.renownSources.bonus = (s.players[s.winnerId]?.bonusRenown ?? 0) - (s.players[s.winnerId]?.lostRenown ?? 0);
-    stats.renownSources.charges = (s.players[s.winnerId]?.revealedChargeIds?.length ?? 0) * BALANCE.sealedCharges.renown;
   }
   stats.maxHoldShare = Math.max(0, ...[...longest.values()]) / Math.max(1, s.round);
   stats.dowerHouses = Object.values(s.holdings).filter((h) => h.dowerHouse).length;
@@ -352,19 +299,8 @@ if (lastRounds.length) {
 }
 console.log(`rounds (turns/player): avg ${avg(finished.map((r) => r.rounds)).toFixed(1)}  min ${Math.min(...finished.map((r) => r.rounds))}  max ${Math.max(...finished.map((r) => r.rounds))}   target 12–16`);
 console.log(
-  `winner renown:       avg ${avg(finished.map((r) => r.winnerRenown)).toFixed(1)} (holdings ${avg(finished.map((r) => r.renownSources.holdings)).toFixed(1)}, quests ${avg(finished.map((r) => r.renownSources.quests)).toFixed(1)}, levy ${avg(finished.map((r) => r.renownSources.levy)).toFixed(1)}, charges ${avg(finished.map((r) => r.renownSources.charges)).toFixed(1)}, bonus less lost ${avg(finished.map((r) => r.renownSources.bonus)).toFixed(1)}, favour ${avg(finished.map((r) => (r.winnerSeat === null ? 0 : (r.favour[r.winnerSeat] ?? 0)))).toFixed(1)})`,
+  `winner renown:       avg ${avg(finished.map((r) => r.winnerRenown)).toFixed(1)} (holdings ${avg(finished.map((r) => r.renownSources.holdings)).toFixed(1)}, quests ${avg(finished.map((r) => r.renownSources.quests)).toFixed(1)}, levy ${avg(finished.map((r) => r.renownSources.levy)).toFixed(1)}, bonus less lost ${avg(finished.map((r) => r.renownSources.bonus)).toFixed(1)})`,
 );
-console.log(`winner margin:       avg ${avg(finished.map((r) => r.margin)).toFixed(1)} Renown over the runner-up (by 1 or less in ${pct(finished.filter((r) => r.margin <= 1).length)} of games)`);
-console.log(`lead changes:        in the last 5 rounds avg ${avg(results.map((r) => r.leadChangesLast5)).toFixed(2)} per game, in ${pct(results.filter((r) => r.leadChangesLast5 > 0).length)} of games`);
-const pairs = (rs: GameStats[]) => (rs.length ? `avg ${avg(rs.map((r) => r.rivalPairs)).toFixed(1)} (${Math.min(...rs.map((r) => r.rivalPairs))}–${Math.max(...rs.map((r) => r.rivalPairs))})` : "none");
-console.log(`rival pairs at end:  all games ${pairs(results)}, full-board endings ${pairs(fullBoards)}`);
-if (RULESET.crownsVoice) {
-  const seatFavour = Array.from({ length: PLAYERS }, (_, k) => avg(results.map((r) => r.favour[k] ?? 0)).toFixed(1));
-  console.log(
-    `crown's voice:       ${JSON.stringify(RULESET.crownsVoice)}  Favour at the end by seat ${seatFavour.join(" / ")}  ` +
-      `moved per game: from the purse ${avg(results.map((r) => r.favourFromPurse)).toFixed(1)}, from rivals ${avg(results.map((r) => r.favourFromRivals)).toFixed(1)}`,
-  );
-}
 if (RULESET.crownLevy) {
   const levied = results.filter((r) => r.firstLevyRound !== null);
   const answers = results.reduce((n, r) => n + r.levyAnswers, 0);
@@ -372,19 +308,6 @@ if (RULESET.crownLevy) {
   console.log(
     `crown's levy:        proclaimed in ${levied.length}/${GAMES} games (first Levy in round ${avg(levied.map((r) => Number(r.firstLevyRound))).toFixed(1)} on average); Levy Renown per player ${(avg(results.map((r) => r.levyRenown)) / PLAYERS).toFixed(2)}; answered ${answers} of ${chances} chances (${Math.round((100 * answers) / Math.max(1, chances))}%)`,
   );
-}
-if (RULESET.sealedCharges) printChargeTelemetry();
-
-/** Sealed Charges (§27A): how many each player keeps and meets, by kind of goal. */
-function printChargeTelemetry(): void {
-  const sum = (pick: (r: GameStats) => Record<string, number>, kind?: string) =>
-    results.reduce((n, r) => n + Object.entries(pick(r)).reduce((m, [k, v]) => m + (kind === undefined || k === kind ? v : 0), 0), 0);
-  const perPlayer = (n: number) => (n / Math.max(1, results.length * PLAYERS)).toFixed(2);
-  const kept = sum((r) => r.chargesKept);
-  const revealed = sum((r) => r.chargesRevealed);
-  const kinds = ["landmark", "banners", "deed", "menace"].map((k) => `${k} ${sum((r) => r.chargesRevealed, k)}/${sum((r) => r.chargesKept, k)}`).join("  ");
-  console.log(`sealed charges:      kept ${perPlayer(kept)} per player, revealed ${perPlayer(revealed)} (${Math.round((100 * revealed) / Math.max(1, kept))}% of kept); recommissions ${avg(results.map((r) => r.recommissions)).toFixed(2)} per game`);
-  console.log(`charges met / kept:  ${kinds}`);
 }
 console.log(`seat win rates:      ${seatWins.map((w, k) => `seat${k + 1} ${pct(w)}`).join("  ")}   target: none > ${PLAYERS === 4 ? "30" : "45"}%`);
 console.log(`harvest per turn:    early ${avg(results.flatMap((r) => r.harvestMid)).toFixed(2)}  later ${avg(results.flatMap((r) => r.harvestLate)).toFixed(2)}   target mid 3–5, late 4–7`);

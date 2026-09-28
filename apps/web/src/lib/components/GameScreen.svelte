@@ -26,7 +26,6 @@
   import GameMenu from "./GameMenu.svelte";
   import HandPanel from "./HandPanel.svelte";
   import HarvestPreview from "./HarvestPreview.svelte";
-  import ChargePanel from "./ChargePanel.svelte";
   import LogPanel from "./LogPanel.svelte";
   import Modal from "./Modal.svelte";
   import Overlays from "./Overlays.svelte";
@@ -37,8 +36,6 @@
   import ResourcePurse from "./ResourcePurse.svelte";
   import RivalQuips from "./RivalQuips.svelte";
   import ScoreStrip from "./ScoreStrip.svelte";
-  import CrownsVoiceChip from "./CrownsVoiceChip.svelte";
-  import CrownsVoiceDialog from "./CrownsVoiceDialog.svelte";
   import RenownDialog from "./RenownDialog.svelte";
   import ResourceIcon from "./ResourceIcon.svelte";
   import ToolIcon from "./ToolIcon.svelte";
@@ -221,7 +218,7 @@
 {/snippet}
 
 <div class="game" inert={!!session.curtainFor} data-layout={layout} class:no-cards={!cardsEnabled} class:tray-open={trayOpen} style="--sheet-overlap: {sheetOverlap}px">
-  <header class="topbar" class:with-voice={!!gs.crownsVoice}>
+  <header class="topbar">
     <button class="ghost icon" onclick={() => (ui.dialog = "menu")} aria-label={t("ui.main_menu")} aria-haspopup="dialog"><ToolIcon name="menu" /></button>
     <img class="brand-mark" src={`${import.meta.env.BASE_URL}art/manor-troll.png`} alt="" width="40" height="40" />
     <h1>{t("app.title")}</h1>
@@ -250,10 +247,9 @@
         <span class="levy-chip-text">{levy.current ? t("levy.chip", { resource: t(`resource.${shown}`) }) : t("levy.chip_next", { resource: t(`resource.${shown}`) })}</span>
       </button>
     {/if}
-    <CrownsVoiceChip {session} />
     <div class="score"><ScoreStrip {session} /></div>
     <span class="spacer"></span>
-    {#if session.transport.kind === "local" && !tutorial}<button class="ghost save" onclick={save}>{savedNote ?? t("ui.save")}</button>{/if}
+    {#if session.transport.kind === "local" && !tutorial}<button class="ghost" onclick={save}>{savedNote ?? t("ui.save")}</button>{/if}
     <button class="ghost icon" onclick={() => (ui.dialog = "settings")} aria-label={t("ui.settings")}><ToolIcon name="gear" /></button>
     {#if import.meta.env.DEV}<button class="ghost" onclick={() => (ui.showDebug = true)}>{t("ui.debug")}</button>{/if}
     {#if slideOver}
@@ -302,7 +298,6 @@
       {#if ui.panel === "players"}
         <PlayersPanel {session} />
       {:else if ui.panel === "quests"}
-        <ChargePanel {session} {legal} />
         <QuestPanel {session} {legal} />
       {:else}
         <LogPanel {session} />
@@ -356,7 +351,6 @@
 {/if}
 {#if ui.dialog === "settings"}<SettingsDialog onclose={() => ((ui.dialog = settingsFromMenu ? "menu" : null), (settingsFromMenu = false))} />{/if}
 {#if ui.renownOf}<RenownDialog {session} playerId={ui.renownOf} onclose={() => (ui.renownOf = null)} />{/if}
-{#if ui.dialog === "crowns_voice"}<CrownsVoiceDialog {session} onclose={() => (ui.dialog = null)} />{/if}
 {#if ui.showDebug}<DebugPanel {session} onclose={() => (ui.showDebug = false)} />{/if}
 
 <style>
@@ -459,39 +453,15 @@
     color: #ffe9cf;
     font-weight: 700;
   }
-  /* A full-height touch target around a smaller pill, like the Voice and
-     score chips. */
   .topbar .levy-chip {
-    position: relative;
-    isolation: isolate;
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    min-height: 44px;
-    padding: 0 0.55rem;
-    border: none;
+    min-height: 32px;
+    padding: 0.1rem 0.55rem;
     border-radius: 999px;
-    background: none;
-    box-shadow: none;
     font-size: 0.8rem;
     white-space: nowrap;
-  }
-  .topbar .levy-chip:hover:not(:disabled) {
-    background: none;
-  }
-  .topbar .levy-chip::before {
-    content: "";
-    position: absolute;
-    inset: 50% 0 auto;
-    z-index: -1;
-    height: 32px;
-    translate: 0 -50%;
-    border: 1px solid #fff5;
-    border-radius: 999px;
-    transition: background 0.2s;
-  }
-  .topbar .levy-chip:hover::before {
-    background: #fff2;
   }
   /* The scoreboard takes the free space in the bar and shrinks (names
      first) rather than wrapping the bar onto a second row. */
@@ -804,24 +774,6 @@
   @container topbar (max-width: 30rem) {
     .levy-chip-text {
       display: none;
-    }
-  }
-  /* On a phone the buttons keep to one row beside the Levy and Voice chips:
-     Save, which the game menu also offers, leaves the bar, and so does its
-     longer "Saved." note. */
-  @container topbar (max-width: 28rem) {
-    .topbar .save {
-      display: none;
-    }
-  }
-  /* The Crown's Voice chip needs the room: beside it the round chip takes
-     its short form on any phone, so the buttons keep to one row. */
-  @container topbar (max-width: 28rem) {
-    .with-voice .round .full {
-      display: none;
-    }
-    .with-voice .round .pill::after {
-      content: attr(data-short);
     }
   }
   @container topbar (max-width: 24rem) {

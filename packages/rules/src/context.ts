@@ -1,5 +1,5 @@
 import { indexBoard, type BoardIndex } from "./board.js";
-import type { CardDefId, CardId, CardRulesDefinition, ChargeId, ChargeRulesDefinition, QuestId, QuestRulesDefinition, RulesContent } from "./types.js";
+import type { CardDefId, CardId, CardRulesDefinition, QuestId, QuestRulesDefinition, RulesContent } from "./types.js";
 
 /** Content plus precomputed indexes, shared by all engine functions. */
 export interface RulesContext {
@@ -9,8 +9,6 @@ export interface RulesContext {
   cardOf(cardId: CardId): CardRulesDefinition;
   quest(id: QuestId): QuestRulesDefinition;
   hasQuest(id: string): boolean;
-  /** A Sealed Charge definition (§27A). */
-  charge(id: ChargeId): ChargeRulesDefinition;
 }
 
 const cache = new WeakMap<RulesContent, RulesContext>();
@@ -25,7 +23,6 @@ export function createContext(content: RulesContent): RulesContext {
   if (cached) return cached;
   const cards = new Map(content.cards.map((c) => [c.id, c]));
   const quests = new Map(content.quests.map((q) => [q.id, q]));
-  const charges = new Map((content.charges ?? []).map((c) => [c.id, c]));
   const card = (defId: CardDefId): CardRulesDefinition => {
     const def = cards.get(defId);
     if (!def) throw new Error(`Unknown card: ${defId}`);
@@ -42,11 +39,6 @@ export function createContext(content: RulesContent): RulesContext {
       return q;
     },
     hasQuest: (id) => quests.has(id),
-    charge: (id) => {
-      const c = charges.get(id);
-      if (!c) throw new Error(`Unknown charge: ${id}`);
-      return c;
-    },
   };
   cache.set(content, ctx);
   return ctx;

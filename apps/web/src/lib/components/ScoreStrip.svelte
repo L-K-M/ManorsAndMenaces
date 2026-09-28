@@ -3,9 +3,8 @@
   // Renown, with the player whose turn it is marked. The full Players panel
   // stays one tap away; this strip is what you glance at between actions.
   // Tapping a player shows where their Renown comes from.
-  import { BALANCE, getRenown } from "@manors-menaces/rules";
+  import { getRenown } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
-  import ToolIcon from "./ToolIcon.svelte";
   import { currentActor, type GameSession } from "../game/session.svelte.js";
   import { PLAYER_THEMES, emblemPath } from "../theme.js";
   import { ui } from "../stores/ui.svelte.js";
@@ -59,11 +58,8 @@
             ><path d={emblemPath(theme.shape, 7)} fill={theme.color} stroke={theme.dark} stroke-width="1.5" /></svg
           >
           <span class="name">{p.displayName}</span>
-          <span class="renown" aria-hidden="true"
-            >{renown}<small>/{gs.ruleset.targetRenown}</small>{#if p.sealedCharge}<span class="sealed"><ToolIcon name="seal" size={12} /></span>{/if}</span
-          >
+          <span class="renown" aria-hidden="true">{renown}<small>/{gs.ruleset.targetRenown}</small></span>
           <span class="sr">{t("ui.renown_count", { renown, target: gs.ruleset.targetRenown })}</span>
-          {#if p.sealedCharge}<span class="sr">{t("players.sealed_title", { name: p.displayName, renown: BALANCE.sealedCharges.renown })}</span>{/if}
         </button>
       </li>
     {/if}
@@ -152,13 +148,6 @@
   .renown small {
     font-weight: 400;
     opacity: 0.7;
-  }
-  /* A Sealed Charge (§27A) not yet revealed: Renown that may still come. */
-  .sealed {
-    display: inline-flex;
-    margin-left: 0.15rem;
-    vertical-align: -0.1em;
-    opacity: 0.85;
   }
   /* A narrow scoreboard row (phones) keeps the names and drops the target,
      which the Players panel still shows, and tightens the chips. */

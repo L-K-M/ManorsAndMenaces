@@ -3,10 +3,9 @@ import { expect, test, type Page } from "@playwright/test";
 import { runAiUntilHuman } from "@manors-menaces/ai";
 import { rulesContentFor } from "@manors-menaces/content";
 import { SAVE_SCHEMA_VERSION, type SaveFile } from "@manors-menaces/protocol";
-import { BALANCE, RULESET_VERSION, createRng, createRulesEngine, crownsVoiceRules, getLegalActions, mvpRuleset, seedRng, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
+import { BALANCE, RULESET_VERSION, createRng, createRulesEngine, getLegalActions, mvpRuleset, seedRng, standardRuleset, type RulesetConfig } from "@manors-menaces/rules";
 import { TUTORIAL_SEED } from "../src/lib/game/saves.js";
 import { pick } from "./pick";
-import { topBarRowOffsets } from "./topbar";
 
 // Critical flows (spec §66.5): create game, initial placement, first turn,
 // build route, assign banner, harvest, buy card, move menace, save/reload, win.
@@ -222,17 +221,15 @@ test("a game that ends on a full board says so on the results", async ({ page })
 /**
  * A three-player game in play in `round`, for the round chip: a fresh game
  * moved on to that round, saved without a history (as quest-art.spec.ts does).
- * From round 16 the Crown's Levy is in force, as in any Standard game by
- * then (§27.3); `voice` adds the Crown's Voice, speaking by then too.
  */
-function saveInRound(round: number, { voice = false } = {}): SaveFile {
+function saveInRound(round: number): SaveFile {
   const engine = createRulesEngine(rulesContentFor("greenvale"));
   const seats = ["Ysolde", "Wat", "Maud"].map((displayName, i) => ({ playerId: `P${i + 1}`, displayName, kind: "human" as const, color: i }));
   const state = engine.createGame({
     matchId: "local-e2e-reign",
     seed: "e2e-reign",
     rulesetVersion: RULESET_VERSION,
-    ruleset: voice ? { ...standardRuleset(3), crownsVoice: crownsVoiceRules() } : standardRuleset(3),
+    ruleset: standardRuleset(3),
     players: seats.map((s) => ({ id: s.playerId, displayName: s.displayName })),
   });
   state.status = "playing";
@@ -240,11 +237,6 @@ function saveInRound(round: number, { voice = false } = {}): SaveFile {
   state.round = round;
   state.activePlayerId = "P1";
   delete state.setup;
-  if (round >= 16) {
-    state.questDeck = [];
-    state.crownLevy = { current: "grain", next: "stone", called: ["timber", "grain", "stone"], answeredBy: [] };
-    if (state.crownsVoice) state.crownsVoice.speaking = true;
-  }
   return { schemaVersion: SAVE_SCHEMA_VERSION, rulesetVersion: RULESET_VERSION, savedAt: new Date(0).toISOString(), mapId: "greenvale", seats, initialState: structuredClone(state), state, commandHistory: [] };
 }
 
@@ -283,8 +275,6 @@ test("a game that ends on the last round says so, and the round chip counts towa
   await expect(endings).toBeHidden();
 });
 
-// The buttons keep to one row, above the scoreboard's, with the Crown's
-// Levy chip beside the round. Save is in the game menu on a phone.
 for (const width of [320, 360]) {
   test(`on a ${width}px phone the round chip shortens rather than wrap the top bar`, async ({ page }) => {
     await page.setViewportSize({ width, height: 740 });
@@ -296,8 +286,6 @@ for (const width of [320, 360]) {
     // Round 28: no chip on a narrow bar.
     await loadSave(page, saveInRound(28));
     await expect(page.locator(".round")).toBeHidden();
-    await expect(page.locator(".levy-chip")).toBeVisible();
-    expect(Math.max(...(await topBarRowOffsets(page, false)))).toBeLessThan(4);
     const plain = await barHeight();
     // Rounds 29 and 30 show it, short, in the same height.
     for (const [round, label] of [[29, "Round 29 of 30"], [30, "Last round"]] as const) {
@@ -305,28 +293,8 @@ for (const width of [320, 360]) {
       const chip = page.getByRole("button", { name: label });
       await expect(chip).toBeVisible();
       expect(await shortLabel()).toBe(`"${round}/30"`);
-      expect(Math.max(...(await topBarRowOffsets(page, false)))).toBeLessThan(4);
       expect(await barHeight()).toBe(plain);
     }
-    await expect(page.locator(".topbar").getByRole("button", { name: "Save", exact: true })).toBeHidden();
-  });
-}
-
-for (const width of [360, 412]) {
-  test(`on a ${width}px phone the Crown's Voice and Levy chips fit the top bar to the last round`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 800 });
-    await page.goto("/");
-    await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ animationSpeed: "off", sound: false, privacyCurtain: false })));
-    for (const round of [28, 29, 30]) {
-      await loadSave(page, saveInRound(round, { voice: true }));
-      await expect(page.locator(".topbar .voice .tiny")).toBeVisible();
-      await expect(page.locator(".levy-chip")).toBeVisible();
-      expect(Math.max(...(await topBarRowOffsets(page, false))), `round ${round}`).toBeLessThan(4);
-    }
-    // The game menu saves instead of the top bar.
-    await page.getByRole("button", { name: "Main menu" }).click();
-    await page.getByRole("button", { name: "Save game" }).click();
-    await expect(page.getByRole("status").filter({ hasText: /^Saved\.$/ })).toBeVisible();
   });
 }
 
@@ -379,11 +347,9 @@ test("the Crown's Levy is answered from the Quest panel, and the Chronicle says 
   await page.getByLabel(/Import a save file/).setInputFiles({ name: "levy.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(save)) });
   await passCurtain(page);
 
-  // The chip by the round number names this round's Levy and opens the Quest
-  // panel. Its name starts with what it shows, and it is a full touch target.
-  const chip = page.getByRole("button", { name: new RegExp(`^Levy: ${resource}\\. Next round: `) });
+  // The chip by the round number names this round's Levy and opens the Quest panel.
+  const chip = page.getByRole("button", { name: new RegExp(`^The Crown's Levy this round: ${resource}\\.`) });
   await expect(chip).toContainText(`Levy: ${resource}`);
-  expect((await chip.boundingBox())?.height).toBeGreaterThanOrEqual(44);
   await chip.click();
   const levy = page.getByRole("region", { name: "The Crown's Levy" });
   await expect(levy).toContainText(`The Crown levies ${resource}`);

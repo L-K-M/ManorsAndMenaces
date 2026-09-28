@@ -25,7 +25,7 @@ import { aiPaceDelayMs, aiStepPace, resolveAiStep, type AiStep } from "./aiStep.
 import { mapIdForNewGame } from "@manors-menaces/content";
 import { engineFor, mapFor } from "./engine.js";
 import { EventBus } from "./eventBus.js";
-import { formatEvents, noticeEntry, openingLog, rebuildLog, type LogEntry } from "./log.js";
+import { formatEvents, noticeEntry, rebuildLog, type LogEntry } from "./log.js";
 import type { PlayNotice } from "./plays.js";
 import { initialView, nextView, privacyMode, revealView, type PrivacyMode, type PrivacyView } from "./privacy.js";
 import { autosavesToPrune, describeSave, exportFileName, manualSaveId, newAutosaveId, replayPending, saveLabel } from "./saves.js";
@@ -89,11 +89,11 @@ const AI_STUCK_RETRY_MS = 5000;
 /** How long an AI fallback notice stays up at least, so players can read it. */
 const AI_NOTICE_MIN_MS = 4000;
 
-/** Who must act next: reaction, prophecy and Charge (§27A) decisions come before the active player. */
+/** Who must act next: reaction/prophecy decisions come before the active player. */
 export function currentActor(state: GameState): PlayerId | null {
   if (state.status === "finished") return null;
   if (state.pending?.kind === "reaction") return state.pending.eligiblePlayerIds[0] ?? null;
-  if (state.pending?.kind === "prophecy" || state.pending?.kind === "charge") return state.pending.playerId;
+  if (state.pending?.kind === "prophecy") return state.pending.playerId;
   return state.activePlayerId;
 }
 
@@ -222,7 +222,6 @@ export class GameSession {
       seats: opts.seats,
       initialState,
       state: initialState,
-      log: openingLog(initialState, mapFor(mapId)),
       ...(opts.autosave === false ? { autosave: false } : {}),
     });
   }

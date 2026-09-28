@@ -90,16 +90,11 @@ test("two players create, join and complete setup online", async ({ browser }) =
 test("an online match plays to the Renown its creator picked, for the player who joins too", async ({ browser }) => {
   const alice = await player(browser, "Alice");
   const goal = alice.getByLabel("Renown to win");
-  // Standard and async matches have the Crown's Levy (§27.3), and the lobby says so.
-  const levy = alice.getByText(/the Crown's Levy offers/);
   await expect(goal).toHaveValue("15");
-  await expect(levy).toHaveText("Once the Quest deck runs out, by round 16 at the latest, the Crown's Levy offers 1 Renown a round for 5 of the resource it names.");
   await alice.getByLabel("Rules").selectOption("mvp");
   await expect(goal).toHaveValue("10");
-  await expect(levy).toHaveCount(0);
   await alice.getByLabel("Rules").selectOption("async");
   await goal.selectOption("25");
-  await expect(levy).toContainText("offers 2 Renown a round for 5");
   await alice.getByRole("button", { name: /Create/ }).click();
   const code = ((await alice.locator(".code").textContent()) ?? "").trim();
   const bob = await player(browser, "Bob");

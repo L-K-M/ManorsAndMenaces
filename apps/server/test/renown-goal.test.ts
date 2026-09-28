@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runAiUntilHuman } from "@manors-menaces/ai";
 import { isWellFormedCommand, type CreateMatchRequest } from "@manors-menaces/protocol";
-import { RULESET_VERSION, clone, createRng, crownsVoiceRules, seedRng, standardRuleset } from "@manors-menaces/rules";
+import { RULESET_VERSION, clone, createRng, seedRng, standardRuleset } from "@manors-menaces/rules";
 import { Store, type UserRow } from "../src/store.js";
 import { HttpError, MatchService } from "../src/service.js";
 import { engineFor } from "./engines.js";
@@ -135,22 +135,6 @@ describe("the Crown's Levy online (§27.3)", () => {
     expect(r.accepted).toBe(true);
     expect(r.events).toContainEqual({ type: "levy_answered", playerId: s.activePlayerId, resource: "grain", amount: 5, renown: 1 });
     expect(r.state?.players[s.activePlayerId]?.levyRenown).toBe(1);
-  });
-});
-
-// The Crown's Voice (§129.10) is an experimental option for local games. The
-// server builds a match's ruleset from the options it knows, so no request
-// can turn it on.
-describe("the Crown's Voice online", () => {
-  it("stays off whatever the request carries", () => {
-    const voice = { ...crownsVoiceRules(), from: "first_round" };
-    const { matchId, inviteCode } = create({ crownsVoice: voice, ruleset: { ...standardRuleset(2), crownsVoice: voice } });
-    service.joinMatch(bob, inviteCode, "Bob");
-    const view = service.view(matchId, alice);
-    expect(view.status).toBe("playing");
-    expect(view.ruleset).not.toHaveProperty("crownsVoice");
-    expect(view.state?.ruleset).not.toHaveProperty("crownsVoice");
-    expect(view.state).not.toHaveProperty("crownsVoice");
   });
 });
 

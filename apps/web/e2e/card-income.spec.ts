@@ -43,10 +43,8 @@ test("starting hands and round-three draws persist through reload without duplic
   await expect(page.locator(".hand button.card")).toHaveCount(3);
   await expect(page.locator(".draw-note")).toHaveText("Next free card: round 6");
   const cards = await page.locator(".hand button.card").evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
-  // From the game menu, which saves on a phone too.
-  await page.getByRole("button", { name: "Main menu" }).click();
-  await page.getByRole("button", { name: "Save game" }).click();
-  await expect(page.getByRole("status").filter({ hasText: /^Saved\.$/ })).toBeVisible();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Saved." })).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: /^Continue/ }).click();
   await expect(page.getByRole("button", { name: /Assign Banners →/ })).toBeVisible();

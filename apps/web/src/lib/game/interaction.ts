@@ -10,13 +10,14 @@ import {
   dragonsLandingTargets,
   enumerateCardTargets,
   getActionAvailability,
+  getBannerAdvice,
   getBannerRegionOptions,
-  getBannerWarning,
   getLegalActions,
   getLegalBannerRegions,
   getLegalMenaceDestinations,
   getPlayerBanners,
   getRenown,
+  hasNextHarvest,
   insurancePolicyOf,
   plagueBanners,
   type ActionAvailability,
@@ -554,8 +555,8 @@ let lastWarning: { ctx: RulesContext; state: GameState; playerId: PlayerId; draf
 
 /**
  * §16.3: how the Banners could harvest more next turn than the draft does,
- * or null when they cannot, or when the game ends before that Harvest
- * (getBannerWarning). Asked before a turn ends.
+ * or null when they cannot, or when the game ends before that Harvest.
+ * Asked before a turn ends.
  */
 export function bannerWarningFor(session: GameSession, legal: LegalActionSummary | null): BannerAdvice | null {
   if (legal?.mode !== "banner_assignment") return null;
@@ -565,7 +566,11 @@ export function bannerWarningFor(session: GameSession, legal: LegalActionSummary
   const draft = JSON.stringify(ui.bannerDraft);
   const last = lastWarning;
   if (last && last.ctx === ctx && last.state === state && last.playerId === playerId && last.draft === draft) return last.advice;
-  const advice = getBannerWarning(ctx, state, playerId, ui.bannerDraft);
+  let advice: BannerAdvice | null = null;
+  if (hasNextHarvest(ctx, state, playerId)) {
+    const found = getBannerAdvice(ctx, state, playerId, ui.bannerDraft);
+    if (found.best > found.current) advice = found;
+  }
   lastWarning = { ctx, state, playerId, draft, advice };
   return advice;
 }
