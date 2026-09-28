@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  clone,
   getCardPlayability,
   getLegalActions,
   getLegalInitialManorSites,
@@ -64,6 +65,13 @@ describe("getCardPlayability", () => {
     expect(getCardPlayability(ctx, s, p1, card)).toEqual({ ok: false, reason: "NO_TARGET" });
   });
 
+  it("puts cards being off before everything else", () => {
+    const { state, p1, p2 } = setupGame(cardTestRuleset(2));
+    const { s, card } = dealt(state, p2, "festival_at_the_inn");
+    const off = { ...s, ruleset: { ...s.ruleset, enableCards: false } };
+    expect(getCardPlayability(ctx, off, p1, card)).toEqual({ ok: false, reason: "FEATURE_DISABLED" });
+  });
+
   it("refuses a card the player doesn't hold, or can't see", () => {
     const { state, p1, p2 } = setupGame(cardTestRuleset(2));
     const { s, card } = dealt(state, p2, "festival_at_the_inn");
@@ -73,20 +81,13 @@ describe("getCardPlayability", () => {
 
   it("agrees with getLegalActions on every card, in and out of turn", () => {
     const { state, p1, p2 } = setupGame(cardTestRuleset(2));
+    // Every card, dealt to both players by state surgery: a debug draw takes
+    // from the deck, which holds too few copies of some and none of others.
     const defs = testContent().cards.map((c) => c.id);
-    // A debug draw takes from the deck; a card not in it yet (Ragnarok) is skipped.
-    const tryGive = (s: GameState, p: PlayerId, def: string): GameState => {
-      try {
-        return give(s, p, def);
-      } catch {
-        return s;
-      }
-    };
     const outcomes = new Set<boolean>();
     for (const base of [state, passTurn(state), passTurn(passTurn(state))]) {
-      let s = base;
-      for (const def of defs) s = tryGive(tryGive(s, p1, def), p2, def);
-      expect(s.players[p1]?.hand.length).toBeGreaterThan(20);
+      const s = clone(base);
+      for (const pid of [p1, p2]) (s.players[pid] as GameState["players"][string]).hand = [...defs];
       for (const pid of [p1, p2]) {
         const playable = getLegalActions(ctx, s, pid).playableCards;
         for (const card of s.players[pid]?.hand ?? []) {

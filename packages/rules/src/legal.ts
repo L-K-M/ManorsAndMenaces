@@ -218,9 +218,9 @@ export function enumerateCardTargets(ctx: RulesContext, state: GameState, player
 
 /** Why a card in the player's hand can't be played now, most fundamental first. */
 export type CardBlockedReason =
+  | "FEATURE_DISABLED"
   /** Not a card the player holds, or hidden from this view. */
   | "NOT_IN_HAND"
-  | "FEATURE_DISABLED"
   /** Played only in answer to another player's Spell (Counterspell). */
   | "REACTION_ONLY"
   /** Not the player's Main phase. */
@@ -238,9 +238,9 @@ export type CardPlayability = { ok: true } | { ok: false; reason: CardBlockedRea
  * an unplayable card with it rather than re-deriving legality (spec §103).
  */
 export function getCardPlayability(ctx: RulesContext, state: GameState, playerId: PlayerId, cardId: CardId): CardPlayability {
+  if (!state.ruleset.enableCards) return { ok: false, reason: "FEATURE_DISABLED" };
   const p = state.players[playerId];
   if (!p || cardId === HIDDEN_CARD || !p.hand.includes(cardId)) return { ok: false, reason: "NOT_IN_HAND" };
-  if (!state.ruleset.enableCards) return { ok: false, reason: "FEATURE_DISABLED" };
   if (!ctx.cardOf(cardId).timing.includes("main")) return { ok: false, reason: "REACTION_ONLY" };
   if (getLegalActions(ctx, state, playerId).mode !== "main") return { ok: false, reason: "WRONG_PHASE" };
   if (p.nonReactionCardsPlayedThisTurn >= state.ruleset.maxNonReactionCardsPerTurn) return { ok: false, reason: "LIMIT_REACHED" };
