@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { pick } from "./pick";
+import { pick, selectBanner } from "./pick";
 import { acknowledgePlays, playDialog } from "./plays";
 
 // Hot-seat privacy (§56.1): with two humans and an AI sharing one device, the
@@ -47,7 +47,7 @@ async function untilHumanMainTurn(page: Page): Promise<void> {
     else if (/starting Banners/.test(s)) {
       const n = await page.locator(".banner.hl").count();
       for (let i = 0; i < n; i++) {
-        await page.locator(".banner.hl").nth(i).click();
+        if (!(await selectBanner(page, page.locator(".banner.hl").nth(i)))) continue;
         const regions = page.locator(".region.hl");
         if (await regions.count()) await pick(regions.first());
       }

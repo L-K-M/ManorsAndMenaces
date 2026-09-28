@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { clickSite, pick } from "./pick";
+import { clickSite, pick, selectBanner } from "./pick";
 
 // Board readability (targets, labels, focus, hover, motion settings).
 
@@ -42,7 +42,7 @@ async function completeSetup(page: Page) {
     else if (/starting Banners/.test(s)) {
       const n = await page.locator(".banner.hl").count();
       for (let i = 0; i < n; i++) {
-        await page.locator(".banner.hl").nth(i).click();
+        if (!(await selectBanner(page, page.locator(".banner.hl").nth(i)))) continue;
         const regions = page.locator(".region.hl");
         if (await regions.count()) await pick(regions.first());
       }

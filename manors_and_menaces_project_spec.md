@@ -2406,6 +2406,8 @@ Support:
 
 Banner assignment should preferably use click/tap selection rather than drag-only interaction, because drag is less accessible.
 
+A tap that asks for something the rules refuse opens a dialog saying why, never nothing: a Banner at home with no Region to go to, a Region the selected Banner can't take, a card in hand that can't be played now (not the Main phase, a turn's card already played, a Counterspell outside a reaction, or nothing it could be played on), and, while a build, Writ, Warden or card target is being picked, a piece of the kind asked for that isn't a legal choice. The reason comes from the rules engine (`getCardPlayability`, the build and Writ checks, the setup placement reasons). A tap on any other piece opens the inspector as before; disabled buttons stay disabled, with their reason beside them or in their accessible name.
+
 ---
 
 # 48. Board Camera

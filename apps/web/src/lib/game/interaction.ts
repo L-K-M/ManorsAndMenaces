@@ -3,26 +3,34 @@
 
 import { spareResource } from "@manors-menaces/ai";
 import {
+  BALANCE,
   RESOURCE_TYPES,
+  cardDefIdOf,
   checkBuildManor,
   checkBuildRoute,
   checkUpgrade,
+  checkWritTarget,
   dragonsLandingTargets,
   enumerateCardTargets,
   getActionAvailability,
   getBannerRegionOptions,
   getBannerWarning,
+  getCardPlayability,
   getLegalActions,
   getLegalBannerRegions,
   getLegalMenaceDestinations,
   getPlayerBanners,
   getRenown,
+  initialManorClosedReason,
+  initialRouteClosedReason,
   insurancePolicyOf,
+  menaceLocationKind,
   plagueBanners,
   type ActionAvailability,
   type BannerAdvice,
   type BannerId,
-  type BannerRegionOption,
+  type BuildCheck,
+  type CardId,
   type CardTarget,
   type CommandIntent,
   type GameState,
@@ -31,6 +39,7 @@ import {
   type MenaceLocation,
   type PlayerAction,
   type PlayerId,
+  type RegionId,
   type ResourceCost,
   type ResourceType,
   type RulesContext,
@@ -46,6 +55,7 @@ import {
   resetTool,
   ui,
   valueKey,
+  type BlockedNotice,
   type Pick,
   type TargetField,
 } from "../stores/ui.svelte.js";
@@ -63,8 +73,6 @@ export interface Highlights {
   locations: Set<string>;
   /** Short instruction for the current step. */
   hint: string | null;
-  /** Parameters for `hint`. */
-  hintParams: Record<string, string | number>;
 }
 
 const empty = (): Highlights => ({
@@ -75,7 +83,6 @@ const empty = (): Highlights => ({
   menaces: new Set(),
   locations: new Set(),
   hint: null,
-  hintParams: {},
 });
 
 export function legalFor(session: GameSession): LegalActionSummary | null {
@@ -153,18 +160,134 @@ export function tradeToAfford(action: PlayerAction): void {
   ui.dialog = "market";
 }
 
+// ------------------------------------------------------------------ refused taps
+// A tap that would act, where the rules refuse, opens a dialog saying why
+// (the `blocked` dialog) instead of doing nothing: a Banner with nowhere to
+// go, a card that can't be played, a build where none may stand.
+
+/** Explains a refused tap in the `blocked` dialog. */
+export function showBlocked(notice: BlockedNotice): void {
+  ui.blocked = notice;
+  ui.dialog = "blocked";
+}
+
 /**
- * Says why a Banner has no Region to go to. Only a Banner at home can get
- * here: a placed Banner may always stay where it is.
+ * Why a Banner has no Region to go to, or null when it has one. Only a
+ * Banner at home can be stuck: a placed Banner may always stay where it is.
  */
-function explainNoRoom(session: GameSession, options: readonly BannerRegionOption[], h: Highlights): void {
+export function whyBannerStuck(session: GameSession, bannerId: BannerId): string | null {
+  const options = getBannerRegionOptions(session.ctx, session.draft, bannerId, ui.bannerDraft);
+  // No options at all means an unknown Banner, not a full neighbourhood.
+  if (options.length === 0 || options.some((o) => o.blockedBy === null)) return null;
   const ownFull = options.filter((o) => o.blockedBy === "full_own").map((o) => regionName(session.map, o.regionId));
-  if (ownFull.length > 0) {
-    h.hint = "hint.banner_blocked_own";
-    h.hintParams = { regions: listText(ownFull) };
-    return;
+  if (ownFull.length > 0) return t("hint.banner_blocked_own", { regions: listText(ownFull) });
+  return t(options.some((o) => o.blockedBy === "stronghold_pair") ? "hint.banner_blocked_pair" : "hint.banner_blocked_full");
+}
+
+/** Why the Banner can't go to the Region, or null when it can. */
+function whyNotRegion(session: GameSession, bannerId: BannerId, regionId: RegionId): string | null {
+  const option = getBannerRegionOptions(session.ctx, session.draft, bannerId, ui.bannerDraft).find((o) => o.regionId === regionId);
+  if (!option) return t("error.BANNER_NOT_ADJACENT");
+  if (option.blockedBy === null) return null;
+  if (option.blockedBy === "stronghold_pair") return t("error.STRONGHOLD_BANNERS_SAME_REGION");
+  return t(option.blockedBy === "full_own" ? "blocked.region_full_own" : "error.REGION_FULL");
+}
+
+/** Why the player can't play a card from their hand now, or null when they can. */
+export function cardBlockedNotice(session: GameSession, playerId: PlayerId, cardId: CardId): BlockedNotice | null {
+  const playability = getCardPlayability(session.ctx, session.draft, playerId, cardId);
+  if (playability.ok) return null;
+  const card = t(`card.${cardDefIdOf(cardId)}.name`);
+  const specific = `why.card.no_target.${session.ctx.cardOf(cardId).effectId}`;
+  const key = playability.reason === "NO_TARGET" && hasKey(specific) ? specific : `why.card.${playability.reason}`;
+  const params = { card, dragon: BALANCE.dragonsLanding.minHoldings, gap: BALANCE.underdogGap, raid: BALANCE.raid.minHoldings };
+  return { title: t("blocked.title.card", { card }), text: t(key, params) };
+}
+
+/** The engine's reason, in words for the step where its plain error would mislead. */
+function reasonText(step: string, code: string): string {
+  const specific = `blocked.${step}.${code}`;
+  return t(hasKey(specific) ? specific : `error.${code}`);
+}
+
+/** Why a build can't go where the player tapped: the rules forbid it, or its price there is out of reach. */
+function buildRefusal(tool: "route" | "manor" | "upgrade", check: BuildCheck): BlockedNotice {
+  const title = t(`blocked.title.${tool}`);
+  if (!check.legal) return { title, text: reasonText(tool, check.reason) };
+  const any = (check.needsToll ? BALANCE.costs.toll : 0) + (check.needsSurcharge ? BALANCE.costs.goblinSurcharge : 0);
+  return { title, text: t("blocked.cannot_afford", { cost: costText(check.cost, any) }) };
+}
+
+/**
+ * Why a tap on the kind of piece the current step asks for (a Site while
+ * building a Manor, a Region for the selected Banner) does nothing, or null
+ * when it would act or is a tap on anything else, which the inspector shows.
+ */
+export function refusedPick(session: GameSession, legal: LegalActionSummary, pick: Pick): BlockedNotice | null {
+  const { ctx, draft: state } = session;
+  const me = legal.playerId;
+  switch (legal.mode) {
+    case "setup_manor": {
+      const reason = pick.kind === "site" ? initialManorClosedReason(ctx, state, pick.id) : null;
+      return reason ? { title: t("blocked.title.setup_manor"), text: reasonText("setup_manor", reason) } : null;
+    }
+    case "setup_route": {
+      const reason = pick.kind === "route" ? initialRouteClosedReason(ctx, state, pick.id) : null;
+      return reason ? { title: t("blocked.title.setup_route"), text: reasonText("setup_route", reason) } : null;
+    }
+    case "setup_banners":
+    case "banner_assignment": {
+      if (pick.kind !== "region" || !ui.selectedBannerId) return null;
+      const why = whyNotRegion(session, ui.selectedBannerId, pick.id);
+      return why === null ? null : { title: t("blocked.title.banner_region", { region: regionName(session.map, pick.id) }), text: why };
+    }
+    case "main":
+      break;
+    default:
+      return null;
   }
-  h.hint = options.some((o) => o.blockedBy === "stronghold_pair") ? "hint.banner_blocked_pair" : "hint.banner_blocked_full";
+  switch (ui.tool) {
+    case "route":
+      return pick.kind === "route" && !legal.routes.includes(pick.id) ? buildRefusal("route", checkBuildRoute(ctx, state, me, pick.id)) : null;
+    case "manor":
+      return pick.kind === "site" && !legal.manorSites.includes(pick.id) ? buildRefusal("manor", checkBuildManor(ctx, state, me, pick.id)) : null;
+    case "upgrade":
+      return pick.kind === "site" && !legal.upgradeSites.includes(pick.id) ? buildRefusal("upgrade", checkUpgrade(state, me, pick.id)) : null;
+    case "writ": {
+      if (pick.kind !== "banner" || legal.writTargets.includes(pick.id)) return null;
+      const title = t("blocked.title.writ");
+      if (state.banners[pick.id]?.ownerId === me) return { title, text: t("blocked.writ.own") };
+      const check = checkWritTarget(ctx, state, me, pick.id);
+      return check.ok ? null : { title, text: reasonText("writ", check.error.code) };
+    }
+    case "warden": {
+      // Only another player's Warden guarding it keeps a Menace off the list.
+      if (!ui.selectedMenaceId) return pick.kind === "menace" && !legal.wardenMenaces.includes(pick.id) ? { title: t("blocked.title.warden"), text: t("error.MENACE_GUARDED") } : null;
+      const menace = state.menaces[ui.selectedMenaceId];
+      const dest = pickToLocation(pick);
+      if (!menace || dest?.kind !== menaceLocationKind(menace.type)) return null;
+      if (getLegalMenaceDestinations(ctx, state, menace.id).some((d) => locationKey(d) === locationKey(dest))) return null;
+      return { title: t("blocked.title.warden_destination"), text: t("blocked.warden_destination") };
+    }
+    case "card": {
+      const step = currentCardStep(session);
+      if (!step || isCardDialog(step.pick) || !ui.cardId) return null;
+      const value = pickValue(step.pick, pick);
+      if (value === undefined || step.options.some((o) => valueKey(o) === valueKey(value))) return null;
+      // A destination is refused only on the kind of place the card moves its Menace to.
+      if (step.pick === "location" && !step.options.some((o) => (o as MenaceLocation).kind === (value as MenaceLocation).kind)) return null;
+      return { title: t("blocked.title.card_target", { card: t(`card.${cardDefIdOf(ui.cardId)}.name`) }), text: t("blocked.card_target") };
+    }
+    case "none":
+      return null;
+  }
+}
+
+/** A refused tap is explained; any other opens the inspector. */
+function refuseOrInspect(session: GameSession, legal: LegalActionSummary, pick: Pick): void {
+  const notice = refusedPick(session, legal, pick);
+  if (notice) showBlocked(notice);
+  else ui.inspect = pick;
 }
 
 export function computeHighlights(session: GameSession, legal: LegalActionSummary | null): Highlights {
@@ -188,11 +311,9 @@ export function computeHighlights(session: GameSession, legal: LegalActionSummar
         h.hint = "hint.banner_select";
         return h;
       }
-      const options = getBannerRegionOptions(ctx, state, ui.selectedBannerId, ui.bannerDraft);
-      for (const o of options) if (o.blockedBy === null) h.regions.add(o.regionId);
-      // No options at all means a stale selection, not a full neighbourhood.
-      if (h.regions.size > 0 || options.length === 0) h.hint = "hint.banner_region";
-      else explainNoRoom(session, options, h);
+      // A Banner with nowhere to go is never selected: tapping it says why (onPick).
+      getLegalBannerRegions(ctx, state, ui.selectedBannerId, ui.bannerDraft).forEach((r) => h.regions.add(r));
+      h.hint = "hint.banner_region";
       return h;
     }
     case "main":
@@ -410,16 +531,22 @@ export async function onPick(session: GameSession, legal: LegalActionSummary | n
   switch (legal.mode) {
     case "setup_manor":
       if (pick.kind === "site" && legal.initialManorSites.includes(pick.id)) await session.perform({ type: "place_initial_manor", siteId: pick.id });
-      else ui.inspect = pick;
+      else refuseOrInspect(session, legal, pick);
       return;
     case "setup_route":
       if (pick.kind === "route" && legal.initialRoutes.includes(pick.id)) await session.perform({ type: "place_initial_route", routeId: pick.id });
-      else ui.inspect = pick;
+      else refuseOrInspect(session, legal, pick);
       return;
     case "setup_banners":
     case "banner_assignment": {
       if (pick.kind === "banner" && state.banners[pick.id]?.ownerId === legal.playerId) {
-        ui.selectedBannerId = ui.selectedBannerId === pick.id ? null : pick.id;
+        if (ui.selectedBannerId === pick.id) {
+          ui.selectedBannerId = null;
+          return;
+        }
+        const stuck = whyBannerStuck(session, pick.id);
+        if (stuck) showBlocked({ title: t("blocked.title.banner"), text: stuck });
+        else ui.selectedBannerId = pick.id;
         return;
       }
       if (pick.kind === "region" && ui.selectedBannerId) {
@@ -430,7 +557,7 @@ export async function onPick(session: GameSession, legal: LegalActionSummary | n
           return;
         }
       }
-      ui.inspect = pick;
+      refuseOrInspect(session, legal, pick);
       return;
     }
     case "main":
@@ -503,7 +630,7 @@ export async function onPick(session: GameSession, legal: LegalActionSummary | n
     if (ok && (tool === "warden" || tool === "upgrade")) resetTool();
     else if (ok) ui.selectedMenaceId = null;
   } else {
-    ui.inspect = pick;
+    refuseOrInspect(session, legal, pick);
   }
 }
 

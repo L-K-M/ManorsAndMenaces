@@ -2,7 +2,7 @@
   import { untrack } from "svelte";
   import { BALANCE, cardDefIdOf, HIDDEN_CARD, type LegalActionSummary } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
-  import { startCard } from "../game/interaction.js";
+  import { cardBlockedNotice, showBlocked, startCard } from "../game/interaction.js";
   import type { FeedbackController } from "../game/feedback.svelte.js";
   import { currentActor, type GameSession } from "../game/session.svelte.js";
   import { ui, resetTool } from "../stores/ui.svelte.js";
@@ -52,7 +52,10 @@
       return;
     }
     if (ui.cardId === cardId) return resetTool();
-    if (playable.has(cardId)) await startCard(session, cardId);
+    if (playable.has(cardId)) return startCard(session, cardId);
+    // A card that can't be played says why instead of ignoring the tap.
+    const notice = viewer ? cardBlockedNotice(session, viewer, cardId) : null;
+    if (notice) showBlocked(notice);
   }
   async function discard() {
     if (await session.perform({ type: "discard_cards", cardIds: discardSel })) discardSel = [];

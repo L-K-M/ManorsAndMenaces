@@ -28,9 +28,16 @@ export function isCardDialog(pick: string | null): pick is CardDialog {
  * CONFIRMED_CARDS); `banner_warning` stops a turn from ending while the
  * Banners could harvest more (BannerWarningDialog); `round_endings`, opened
  * from the round chip, tells how the game ends; `crowns_voice`, opened from
- * the Crown's Voice chip, tells how the Voice scores.
+ * the Crown's Voice chip, tells how the Voice scores; `blocked` explains why a
+ * tap was refused (`UiState.blocked`).
  */
-export type Dialog = null | "market" | "settings" | "writ" | CardDialog | "card_confirm" | "rules" | "save" | "menu" | "banner_warning" | "round_endings" | "crowns_voice";
+export type Dialog = null | "market" | "settings" | "writ" | CardDialog | "card_confirm" | "rules" | "save" | "menu" | "banner_warning" | "round_endings" | "crowns_voice" | "blocked";
+
+/** A tap the rules refuse: what the player tried, and why it can't be done. */
+export interface BlockedNotice {
+  title: string;
+  text: string;
+}
 
 export interface UiState {
   tool: Tool;
@@ -50,6 +57,8 @@ export interface UiState {
   dialog: Dialog;
   /** The action a "Trade to afford" opened the Market for, if any. */
   marketGoal: PlayerAction | null;
+  /** What the `blocked` dialog explains. */
+  blocked: BlockedNotice | null;
   panel: "players" | "quests" | "log";
   /** Player whose Renown sources are shown. */
   renownOf: PlayerId | null;
@@ -68,6 +77,7 @@ export const ui: UiState = $state({
   inspect: null,
   dialog: null,
   marketGoal: null,
+  blocked: null,
   panel: "players",
   renownOf: null,
   showDebug: false,

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { clickRoute, pick } from "./pick";
+import { clickRoute, pick, selectBanner } from "./pick";
 import { acknowledgePlays, untilVisible } from "./plays";
 
 // Chronicle auto-scroll stickiness: the log follows new entries only while it
@@ -28,7 +28,7 @@ async function status(page: Page): Promise<string> {
 async function assignAllBanners(page: Page) {
   const n = await page.locator(".banner.hl").count();
   for (let i = 0; i < n; i++) {
-    await page.locator(".banner.hl").nth(i).click();
+    if (!(await selectBanner(page, page.locator(".banner.hl").nth(i)))) continue;
     const regions = page.locator(".region.hl");
     if (await regions.count()) await pick(regions.first());
   }
