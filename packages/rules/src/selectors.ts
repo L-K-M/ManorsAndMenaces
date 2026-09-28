@@ -13,6 +13,7 @@ import {
   type Banner,
   type BannerId,
   type CardId,
+  type ChargeId,
   type GameState,
   type Holding,
   type MenaceId,
@@ -108,6 +109,7 @@ export function getRenown(ctx: RulesContext, state: GameState, playerId: PlayerI
   let renown = p.bonusRenown + (p.levyRenown ?? 0) - (p.lostRenown ?? 0);
   for (const h of getPlayerHoldings(state, playerId)) renown += h.type === "manor" ? BALANCE.renown.manor : BALANCE.renown.stronghold;
   for (const q of p.claimedQuestIds) renown += ctx.quest(q).renown;
+  renown += (p.revealedChargeIds?.length ?? 0) * BALANCE.sealedCharges.renown;
   return renown;
 }
 
@@ -120,6 +122,8 @@ export interface RenownSources {
   quests: { questId: QuestId; renown: number }[];
   /** Renown from answering the Crown's Levy (§27.3). */
   levy: number;
+  /** Sealed Charges met and revealed (§27A), in the order they were revealed. */
+  charges: { chargeId: ChargeId; renown: number }[];
   /** Renown granted outright, such as by the Unreliable Bard. */
   bonus: number;
   /** Renown lost for the rest of the game (Disgrace, Stolen Glory), subtracted from the total. */
@@ -139,6 +143,7 @@ export function getRenownSources(ctx: RulesContext, state: GameState, playerId: 
     strongholds: { count: strongholds, renown: strongholds * BALANCE.renown.stronghold },
     quests,
     levy: p?.levyRenown ?? 0,
+    charges: (p?.revealedChargeIds ?? []).map((chargeId) => ({ chargeId, renown: BALANCE.sealedCharges.renown })),
     bonus: p?.bonusRenown ?? 0,
     lost: p?.lostRenown ?? 0,
   };

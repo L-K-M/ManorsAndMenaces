@@ -1,9 +1,10 @@
 <script lang="ts">
   // Where a player's Renown comes from (§7): Holdings, claimed Royal Quests,
-  // the Crown's Levy (§27.3) and bonus Renown. All of it is public, so any
-  // player can be inspected.
+  // the Crown's Levy (§27.3), revealed Sealed Charges (§27A) and bonus
+  // Renown. All of it is public, so any player can be inspected.
   import { getRenownSources, type PlayerId } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
+  import { chargeName } from "../game/charges.js";
   import type { GameSession } from "../game/session.svelte.js";
   import Modal from "./Modal.svelte";
   import ToolIcon from "./ToolIcon.svelte";
@@ -14,7 +15,7 @@
   const sources = $derived(getRenownSources(session.ctx, gs, playerId));
 
   interface Row {
-    icon: "manor" | "stronghold" | "writ" | "crown" | "sparkle" | "minus";
+    icon: "manor" | "stronghold" | "writ" | "crown" | "seal" | "sparkle" | "minus";
     label: string;
     count?: number;
     renown: number;
@@ -25,6 +26,7 @@
       { icon: "stronghold", label: t("stat.renown_strongholds"), count: sources.strongholds.count, renown: sources.strongholds.renown },
       ...sources.quests.map((q): Row => ({ icon: "writ", label: t(`quest.${q.questId}.name`), renown: q.renown })),
       { icon: "crown", label: t("ui.levy_renown"), renown: sources.levy },
+      ...sources.charges.map((c): Row => ({ icon: "seal", label: chargeName(c.chargeId), renown: c.renown })),
       { icon: "sparkle", label: t("ui.bonus_renown"), renown: sources.bonus },
       { icon: "minus", label: t("ui.lost_renown"), renown: -sources.lost },
     ];

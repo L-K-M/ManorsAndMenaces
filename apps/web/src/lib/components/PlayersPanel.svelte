@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    BALANCE,
     RESOURCE_TYPES,
     cardDefIdOf,
     getHarvestPreview,
@@ -10,6 +11,7 @@
     type HarvestNote,
   } from "@manors-menaces/rules";
   import { t } from "../i18n.js";
+  import { chargeDescription, chargeName } from "../game/charges.js";
   import { gainsText } from "../game/feed.js";
   import type { GameSession } from "../game/session.svelte.js";
   import { currentActor } from "../game/session.svelte.js";
@@ -128,6 +130,19 @@
           <span>{t("ui.routes_count", { count: p.routeIds.length })}</span>
           {#if gs.ruleset.enableCards}<span>{t("ui.cards_count", { count: p.hand.length })}</span>{/if}
         </div>
+        {#if p.sealedCharge || p.revealedChargeIds?.length}
+          <!-- Sealed Charges (§27A): that a Charge is held is public, not which; revealed ones are public. -->
+          <div class="charges">
+            {#if p.sealedCharge}
+              {@const title = t("players.sealed_title", { name: p.displayName, renown: BALANCE.sealedCharges.renown })}
+              <span class="sealed" {title} aria-label={title}><ToolIcon name="seal" size={13} />{t("players.sealed")} +{BALANCE.sealedCharges.renown}</span>
+            {/if}
+            {#each p.revealedChargeIds ?? [] as id (id)}
+              {@const text = t("players.charge", { name: p.displayName, charge: chargeName(id), description: chargeDescription(id) })}
+              <span class="revealed" title={text} aria-label={text}><ToolIcon name="seal" size={13} />{chargeName(id)}</span>
+            {/each}
+          </div>
+        {/if}
         {#if p.charters?.length}
           <!-- Charters lie face up in front of their player (§18.1). -->
           <div class="charters">
@@ -340,5 +355,32 @@
     font-size: 0.78rem;
     opacity: 0.75;
     margin-top: 0.2rem;
+  }
+  .charges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+  }
+  .sealed,
+  .revealed {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.05rem 0.5rem;
+    border: 1px solid #7a3b2e;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #6a2e22;
+  }
+  .sealed {
+    background: color-mix(in srgb, #7a3b2e 14%, var(--paper));
+    cursor: help;
+  }
+  .revealed {
+    border-style: dashed;
+    background: var(--paper);
+    cursor: help;
   }
 </style>

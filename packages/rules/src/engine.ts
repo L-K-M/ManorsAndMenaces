@@ -6,6 +6,7 @@ import { clone, own } from "./clone.js";
 import { BALANCE } from "./balance.js";
 import { createBanner, createHolding, payForBuild, putOutEmbers } from "./build.js";
 import { isCardUsableInRuleset, resolveCardEffect, validateCardTarget } from "./cards.js";
+import { chargeDeckFor, drawCharges, drawsAnotherCharge, keepCharge, recommissionCharge, revealMetCharge, takeCharges } from "./charges.js";
 import type { DebugCommand, GameCommand } from "./commands.js";
 import { createContext, type RulesContext } from "./context.js";
 import { check, OK, RuleViolation, type RuleError, type RuleValidation } from "./errors.js";
@@ -175,6 +176,11 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
     questDeck = rng.shuffle(ctx.content.quests.map((q) => q.id));
     revealedQuestIds = questDeck.splice(0, ruleset.revealedQuestCount);
   }
+  // Sealed Charges (§27A), shuffled after the other decks so that games
+  // without them draw exactly as before. Before the first placement each
+  // seat in turn order draws and keeps one; the first draws now.
+  const chargeDeck = ruleset.sealedCharges ? rng.shuffle(chargeDeckFor(ctx, ruleset)) : undefined;
+  const firstCharges = chargeDeck ? takeCharges(ctx, chargeDeck, "setup") : [];
 
   const playerStates: Record<PlayerId, PlayerState> = {};
   players.forEach((p, seat) => {
@@ -232,7 +238,9 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
     revealedQuestIds,
     // The opening Quests are on show from round 1, when play begins.
     ...(ruleset.enableQuests && ruleset.questExpiryRounds ? { revealedQuestRounds: Object.fromEntries(revealedQuestIds.map((q) => [q, 1])) } : {}),
+    ...(chargeDeck ? { chargeDeck } : {}),
     activeEffects: [],
+    ...(firstCharges.length ? { pending: { kind: "charge" as const, playerId: turnOrder[0] as PlayerId, chargeIds: firstCharges } } : {}),
     nextIds: { holding: 1, banner: 1 },
   };
 }
@@ -255,6 +263,8 @@ function execute(tx: Tx, cmd: GameCommand): void {
         return passReaction(tx, cmd.playerId);
       case "resolve_prophecy":
         return resolveProphecy(tx, cmd.playerId, cmd.order);
+      case "choose_charge":
+        return chooseCharge(tx, cmd.playerId, cmd.chargeId);
       default:
         throw new RuleViolation("PENDING_DECISION");
     }
@@ -307,6 +317,9 @@ function execute(tx: Tx, cmd: GameCommand): void {
     case "answer_levy":
       inPhase("main");
       return answerLevy(tx, cmd.playerId, cmd.resource);
+    case "recommission_charge":
+      inPhase("main");
+      return recommissionCharge(tx, cmd.playerId);
     case "end_main_phase":
       inPhase("main");
       s.phase = "banner_assignment";
@@ -328,6 +341,8 @@ function execute(tx: Tx, cmd: GameCommand): void {
     case "pass_reaction":
     case "resolve_prophecy":
       throw new RuleViolation("NO_PENDING_REACTION");
+    case "choose_charge":
+      throw new RuleViolation("NO_CHARGE_CHOICE");
     case "place_initial_manor":
     case "place_initial_route":
     case "assign_initial_banners":
@@ -519,6 +534,8 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   p.nonReactionCardsPlayedThisTurn = 0;
   p.writsIssuedThisTurn = 0;
   p.wardensHiredThisTurn = 0;
+  // Sealed Charges (§27A): a met Charge is revealed and scored before the victory check.
+  const revealed = revealMetCharge(tx, playerId);
   tx.emit({ type: "turn_ended", playerId });
 
   // These checks are shared with hasNextHarvest (selectors.ts), which says
@@ -544,6 +561,15 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   // wins, target reached or not (§7). Absent or 0 in older games, which play on.
   if (endsRound && isLastRound(s)) return finishGame(tx, checkVictory(tx, true) as PlayerId, "last_round");
   foretellEndgame(tx);
+  // At the higher goals a reveal is followed by a new draw; the turn passes
+  // once the player has kept one (chooseCharge).
+  if (revealed && drawsAnotherCharge(s, playerId) && drawCharges(tx, playerId, "later")) return;
+  handOver(tx, playerId);
+}
+
+/** The turn passes from `playerId` to the next seat, starting a new round after the last. */
+function handOver(tx: Tx, playerId: PlayerId): void {
+  const s = tx.s;
   const idx = s.turnOrder.indexOf(playerId);
   const nextIdx = (idx + 1) % s.turnOrder.length;
   if (nextIdx === 0) {
@@ -825,6 +851,22 @@ function resolveProphecy(tx: Tx, playerId: PlayerId, order: unknown): void {
   s.cardDeck.splice(0, pending.cardIds.length, ...(order as string[]));
   delete s.pending;
   tx.emit({ type: "prophecy_resolved", playerId });
+}
+
+// ------------------------------------------------------------------ Sealed Charges (§27A)
+
+/** Keeps a Charge, then carries on with what drew it: the setup deal, or the End Turn after a reveal. */
+function chooseCharge(tx: Tx, playerId: PlayerId, chargeId: unknown): void {
+  keepCharge(tx, playerId, chargeId);
+  const s = tx.s;
+  if (s.status === "setup") {
+    // Each seat in turn order draws before the first placement.
+    const next = s.turnOrder[s.turnOrder.indexOf(playerId) + 1];
+    if (next) drawCharges(tx, next, "setup");
+    return;
+  }
+  // A Recommission draws in the Main phase, and play simply goes on.
+  if (s.phase === "end") handOver(tx, playerId);
 }
 
 function discardCards(tx: Tx, playerId: PlayerId, cardIds: unknown): void {

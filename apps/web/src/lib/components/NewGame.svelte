@@ -27,6 +27,8 @@
   // every Quest on offer until claimed.
   let questExpiry = $state(true);
   let cardIncome = $state(true);
+  // Sealed Charges (§27A): a secret goal for each player, off unless chosen.
+  let sealedCharges = $state(false);
   // The Renown to win (§7) follows the rules and player count until you pick
   // one; the goal you last picked comes back.
   let pickedGoal: number | null = $state(rememberedRenownGoal());
@@ -86,7 +88,7 @@
       ...(s.kind === "ai" ? { aiLevel: s.level, ...(s.rivalId ? { rivalId: s.rivalId } : {}) } : {}),
       color: i,
     }));
-    const options = { targetRenown: goal.value };
+    const options = { targetRenown: goal.value, sealedCharges };
     const ruleset: RulesetConfig =
       mode === "mvp" ? mvpRuleset(options) : { ...standardRuleset(count, options), questExpiryRounds: questExpiry ? BALANCE.questExpiryRounds : 0, initialCards: cardIncome ? BALANCE.initialCards : 0, cardDrawEveryRounds: cardIncome ? BALANCE.cardDrawEveryRounds : 0 };
     const board: BoardChoice = island ? { kind: "drawn", islandId: island } : { kind: "drawn" };
@@ -170,6 +172,8 @@
         <p>{t("ui.card_income_hint", { count: BALANCE.initialCards, rounds: BALANCE.cardDrawEveryRounds })}</p>
         <label class="check"><input type="checkbox" bind:checked={questExpiry} /> {t("ui.quest_expiry_option", { rounds: BALANCE.questExpiryRounds })}</label>
       {/if}
+      <label class="check"><input type="checkbox" bind:checked={sealedCharges} /> {t("ui.sealed_charges_option")}</label>
+      <p>{t("ui.sealed_charges_hint", { renown: BALANCE.sealedCharges.renown })}</p>
     </details>
     <div class="row">
       <button type="button" onclick={onback}>{t("ui.back")}</button>

@@ -1,7 +1,7 @@
 // What "Play again" does at the end of a game.
 
 import type { SeatConfig } from "@manors-menaces/protocol";
-import { BALANCE, clone, type GameState, type RulesetConfig } from "@manors-menaces/rules";
+import { BALANCE, clone, crownLevyRules, type GameState, type RulesetConfig } from "@manors-menaces/rules";
 import { parseMapId } from "@manors-menaces/content";
 import { TUTORIAL_SEED } from "./saves.js";
 import type { BoardChoice, NewGameOptions } from "./session.svelte.js";
@@ -44,9 +44,12 @@ export function planRematch(game: FinishedGame): RematchPlan {
 /**
  * A rematch is a new game, so it gets the rules added since an older save
  * was made, which that game played on without: the full-board end (ruleset
- * 0.7.0, on in every ruleset) and the last round (0.8.0). The goal and the
- * other options the players chose stay as they were.
+ * 0.7.0, on in every ruleset), the last round (0.8.0) and, in the Standard
+ * and async rules, the Crown's Levy (0.9.0). The goal and the other options
+ * the players chose stay as they were.
  */
 function withRulesAddedSince(ruleset: RulesetConfig): RulesetConfig {
-  return { ...clone(ruleset), endOnFullBoard: ruleset.endOnFullBoard ?? true, lastRound: ruleset.lastRound ?? BALANCE.lastRound };
+  const added = { ...clone(ruleset), endOnFullBoard: ruleset.endOnFullBoard ?? true, lastRound: ruleset.lastRound ?? BALANCE.lastRound };
+  if (ruleset.name === "mvp" || ruleset.crownLevy) return added;
+  return { ...added, crownLevy: crownLevyRules(ruleset.targetRenown) };
 }
