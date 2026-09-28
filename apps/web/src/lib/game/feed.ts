@@ -6,7 +6,7 @@ import type { MapDefinition } from "@manors-menaces/content";
 import { RESOURCE_TYPES, type GameEvent, type GameState, type MenaceLocation, type PlayerId, type ResourceType } from "@manors-menaces/rules";
 import { t } from "../i18n.js";
 import { regionPoint, type Point } from "./harvestFlights.js";
-import { cardName, nameOf, regionName, routeEnds, routeName, siteName } from "./log.js";
+import { cardName, nameOf, regionName, routeEnds, routeName, sharedRegionId, siteName, virtueName } from "./log.js";
 
 // Place names now live with the Chronicle's; kept importable from here.
 export { routeName, siteName };
@@ -42,6 +42,14 @@ const ATTACK_FEED = {
   siege_fireball: "feed.fireballed",
   siege_engines: "feed.besieged",
 } as const;
+
+/** The feed line for a Favour the Crown's Voice moved, told from the viewer's side (§129.10). */
+function favourFeedKey(e: Extract<GameEvent, { type: "favour_won" }>, viewerId: PlayerId | null): string {
+  const purse = e.source === "purse";
+  if (e.playerId === viewerId) return purse ? "feed.favour_you_won_purse" : "feed.favour_you_won";
+  if (e.rivalId === viewerId && !purse) return "feed.favour_you_lost";
+  return purse ? "feed.favour_won_purse" : "feed.favour_won";
+}
 
 /** Fewer than this many unseen actions are left to the live toasts alone. */
 export const DIGEST_MIN_ITEMS = 4;
@@ -305,6 +313,14 @@ export function feedItemsFor(events: readonly GameEvent[], state: GameState, map
       case "levy_answered":
         add(e.playerId, t("feed.levy_answered", { name: name(e.playerId), renown: e.renown }));
         break;
+      case "favour_won": {
+        // The Crown's Voice moves Favour as the round ends (§129.10): news for every player.
+        const regionId = sharedRegionId(map, e.siteId, e.rivalSiteId);
+        const params = { name: name(e.playerId), rival: name(e.rivalId), virtue: virtueName(e.virtue), region: regionName(map, regionId) };
+        const lost = e.rivalId === viewerId && e.source === "rival";
+        tell(e.playerId, t(favourFeedKey(e, viewerId), params), regionId ? regionPoint(map, regionId) : null, lost);
+        break;
+      }
       case "harvest_completed": {
         if (e.playerId === viewerId) {
           const harvested = events.some((x) => x.type === "banner_harvested" && x.playerId === e.playerId);

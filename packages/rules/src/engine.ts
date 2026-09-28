@@ -36,6 +36,7 @@ import {
 } from "./selectors.js";
 import { Tx } from "./tx.js";
 import { finishGame, rankPlayers } from "./victory.js";
+import { checkCrownsVoiceRules, createCrownsVoice, crownSpeaks, turnVoice } from "./voice.js";
 import {
   RESOURCE_TYPES,
   type BannerId,
@@ -148,6 +149,7 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
   const { players, ruleset } = config;
   if (players.length < 2 || players.length > 4) throw new Error("Manors & Menaces supports 2–4 players");
   if (new Set(players.map((p) => p.id)).size !== players.length) throw new Error("Player ids must be unique");
+  if (ruleset.crownsVoice !== undefined) checkCrownsVoiceRules(ruleset.crownsVoice);
   const rng = createRng(seedRng(config.seed));
 
   const first = rng.nextInt(players.length);
@@ -181,6 +183,8 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
   // seat in turn order draws and keeps one; the first draws now.
   const chargeDeck = ruleset.sealedCharges ? rng.shuffle(chargeDeckFor(ctx, ruleset)) : undefined;
   const firstCharges = chargeDeck ? takeCharges(ctx, chargeDeck, "setup") : [];
+  // Drawn after every older RNG use, so games without the Voice deal as before.
+  const crownsVoice = ruleset.crownsVoice ? createCrownsVoice(rng, ruleset.crownsVoice, questDeck) : undefined;
 
   const playerStates: Record<PlayerId, PlayerState> = {};
   players.forEach((p, seat) => {
@@ -242,6 +246,7 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
     activeEffects: [],
     ...(firstCharges.length ? { pending: { kind: "charge" as const, playerId: turnOrder[0] as PlayerId, chargeIds: firstCharges } } : {}),
     nextIds: { holding: 1, banner: 1 },
+    ...(crownsVoice ? { crownsVoice } : {}),
   };
 }
 
@@ -493,6 +498,8 @@ function resolveHarvest(tx: Tx, playerId: PlayerId): void {
     const banner = s.banners[b.id];
     if (banner) banner.settled = true;
   }
+  // The Crown's Voice scores Plenty from the Banners that produced this round (§129.10).
+  if (s.crownsVoice) for (const o of outcomes) if (o.amount > 0) s.crownsVoice.harvested.push(o.bannerId);
   // The Plague lasts for exactly one Harvest of each sick Banner's owner.
   const cured = new Set(getPlayerBanners(s, playerId).map((b) => b.id));
   if (s.activeEffects.some((e) => e.kind === "sick" && cured.has(e.bannerId))) {
@@ -538,9 +545,12 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   const revealed = revealMetCharge(tx, playerId);
   tx.emit({ type: "turn_ended", playerId });
 
-  // These checks are shared with hasNextHarvest (selectors.ts), which says
+  // These checks are shared with hasNextHarvest (nextHarvest.ts), which says
   // whether a player harvests again before the game ends.
   const endsRound = isLastSeat(s, playerId);
+  // The Crown's Voice speaks as the round ends, so its Favour counts in the
+  // checks below (§129.10).
+  if (endsRound) crownSpeaks(tx);
   let winner = checkVictory(tx);
   if (winner && s.ruleset.equalTurns) {
     s.endTriggered = true;
@@ -562,8 +572,10 @@ function endTurn(tx: Tx, playerId: PlayerId): void {
   if (endsRound && isLastRound(s)) return finishGame(tx, checkVictory(tx, true) as PlayerId, "last_round");
   foretellEndgame(tx);
   // At the higher goals a reveal is followed by a new draw; the turn passes
-  // once the player has kept one (chooseCharge).
-  if (revealed && drawsAnotherCharge(s, playerId) && drawCharges(tx, playerId, "later")) return;
+  // once the player has kept one (chooseCharge). Not when the game ends with
+  // this round: no End Turn of theirs is left to reveal it.
+  const turnsLeft = !isLastRound(s) && !s.endTriggered;
+  if (revealed && turnsLeft && drawsAnotherCharge(s, playerId) && drawCharges(tx, playerId, "later")) return;
   handOver(tx, playerId);
 }
 
@@ -580,6 +592,7 @@ function handOver(tx: Tx, playerId: PlayerId): void {
     if (lastRound > 0 && s.round >= lastRound - 1 && s.round <= lastRound) tx.emit({ type: "reign_ending", round: s.round, lastRound });
     expireQuests(tx);
     proclaimLevy(tx);
+    turnVoice(tx);
     const interval = s.ruleset.cardDrawEveryRounds ?? 0;
     if (interval > 0 && s.round % interval === 0) dealCardsToAll(tx, 1, "round");
   }

@@ -298,6 +298,26 @@ describe("further Charges at the higher goals", () => {
     expect(handover).toContainEqual(expect.objectContaining({ type: "turn_started", playerId: p2 }));
   });
 
+  // Regression: a reveal in the last round, or once equal turns end the game
+  // with the round, had the player keep a Charge no End Turn could reveal,
+  // and the next seat wait for that choice.
+  it("draws nothing once no End Turn is left to reveal a Charge", () => {
+    const { state, p1, p2 } = sealedGame(atGoal(25));
+    const lastRound = { ...state, ruleset: { ...state.ruleset, lastRound: state.round } };
+    const endsWithRound = { ...state, endTriggered: true, ruleset: { ...state.ruleset, equalTurns: true } };
+    for (const [name, s0] of [
+      ["last round", lastRound],
+      ["equal turns", endsWithRound],
+    ] as const) {
+      const { state: s, events } = endTurn(seal(s0, p1, "castle"));
+      const types = events.map((e) => e.type);
+      expect(types, name).toContain("charge_revealed");
+      expect(types, name).not.toContain("charges_drawn");
+      expect(s.pending, name).toBeUndefined();
+      expect(s.activePlayerId, name).toBe(p2);
+    }
+  });
+
   it("stops at two Charges with goal 25 and three with goal 30", () => {
     for (const [goal, charges] of [
       [15, 1],

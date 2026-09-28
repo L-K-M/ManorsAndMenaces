@@ -465,11 +465,11 @@ function loseRenown(tx: Tx, playerId: PlayerId, amount: number): number {
 }
 
 /**
- * Renown never drops below 0 (§8). When a lost Holding would take the owner
- * below it, Renown they lost for good is forgiven by the difference, so no
- * hidden debt eats into what they build next.
+ * Renown never drops below 0 (§8). When a lost Holding (or Favour, §129.10)
+ * would take the owner below it, Renown they lost for good is forgiven by the
+ * difference, so no hidden debt eats into what they build next.
  */
-function keepRenownFloor(tx: Tx, playerId: PlayerId): void {
+export function keepRenownFloor(tx: Tx, playerId: PlayerId): void {
   const deficit = -getRenown(tx.ctx, tx.s, playerId);
   if (deficit <= 0) return;
   const p = tx.player(playerId);

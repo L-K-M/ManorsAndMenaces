@@ -61,7 +61,11 @@
       <h4>{t("ui.charges_revealed")}</h4>
       <ul class="done">
         {#each revealed as r (r.chargeId)}
-          <li title={chargeDescription(r.chargeId)}>{t("ui.revealed_charge", { charge: chargeName(r.chargeId), name: gs.players[r.playerId]?.displayName ?? "?" })}</li>
+          <!-- What it asked, in the open: a tooltip is out of a touch screen's reach. -->
+          <li>
+            {t("ui.revealed_charge", { charge: chargeName(r.chargeId), name: gs.players[r.playerId]?.displayName ?? "?" })}
+            <span class="asked">{chargeDescription(r.chargeId)}</span>
+          </li>
         {/each}
       </ul>
     {/if}
@@ -169,5 +173,10 @@
     background: var(--paper-sheet);
     border: 1px solid var(--edge);
     border-radius: 8px;
+  }
+  .done .asked {
+    display: block;
+    color: var(--ink-soft);
+    font-size: 0.75rem;
   }
 </style>

@@ -287,7 +287,7 @@ describe("pickAwards", () => {
   const player = (playerId: string, renown: number, s: Partial<MatchStats>): PlayerResult => ({
     playerId,
     name: playerId,
-    renown: { total: renown, manors: renown, strongholds: 0, quests: 0, levy: 0, charges: 0, other: 0, lost: 0 },
+    renown: { total: renown, manors: renown, strongholds: 0, quests: 0, levy: 0, charges: 0, favour: 0, other: 0, lost: 0 },
     stats: stats(s),
   });
 
@@ -320,14 +320,14 @@ describe("pickAwards", () => {
 
 describe("renownBar", () => {
   it("takes Renown lost for good off the last sources, so the bar ends at the total", () => {
-    expect(renownBar({ total: 7, manors: 2, strongholds: 4, quests: 3, levy: 0, charges: 0, other: 1, lost: 3 })).toEqual({ manors: 2, strongholds: 4, quests: 1, levy: 0, charges: 0, other: 0 });
-    expect(renownBar({ total: 0, manors: 1, strongholds: 0, quests: 0, levy: 0, charges: 0, other: 0, lost: 1 })).toEqual({ manors: 0, strongholds: 0, quests: 0, levy: 0, charges: 0, other: 0 });
+    expect(renownBar({ total: 7, manors: 2, strongholds: 4, quests: 3, levy: 0, charges: 0, favour: 0, other: 1, lost: 3 })).toEqual({ manors: 2, strongholds: 4, quests: 1, levy: 0, charges: 0, favour: 0, other: 0 });
+    expect(renownBar({ total: 0, manors: 1, strongholds: 0, quests: 0, levy: 0, charges: 0, favour: 0, other: 0, lost: 1 })).toEqual({ manors: 0, strongholds: 0, quests: 0, levy: 0, charges: 0, favour: 0, other: 0 });
     // Sealed Charges (§27A) come off before the Quests.
-    expect(renownBar({ total: 8, manors: 2, strongholds: 2, quests: 2, levy: 0, charges: 4, other: 0, lost: 2 })).toEqual({ manors: 2, strongholds: 2, quests: 2, levy: 0, charges: 2, other: 0 });
+    expect(renownBar({ total: 8, manors: 2, strongholds: 2, quests: 2, levy: 0, charges: 4, favour: 0, other: 0, lost: 2 })).toEqual({ manors: 2, strongholds: 2, quests: 2, levy: 0, charges: 2, favour: 0, other: 0 });
   });
 
   it("shows the Crown's Levy as its own part, after the Quests (§27.3)", () => {
-    expect(renownBar({ total: 9, manors: 2, strongholds: 4, quests: 1, levy: 3, charges: 0, other: 0, lost: 1 })).toEqual({ manors: 2, strongholds: 4, quests: 1, levy: 2, charges: 0, other: 0 });
+    expect(renownBar({ total: 9, manors: 2, strongholds: 4, quests: 1, levy: 3, charges: 0, favour: 0, other: 0, lost: 1 })).toEqual({ manors: 2, strongholds: 4, quests: 1, levy: 2, charges: 0, favour: 0, other: 0 });
     const s = clone(game.final);
     const id = s.turnOrder.find((p) => p !== s.winnerId) ?? "";
     s.players[id]!.levyRenown = 2;
@@ -342,19 +342,20 @@ describe("renownBar", () => {
     s.players[id]!.revealedChargeIds = ["merchant_venturer"];
     const b = renownBreakdown(engine, s, id);
     expect(b.charges).toBe(2);
-    expect(b.manors + b.strongholds + b.quests + b.levy + b.charges + b.other - b.lost).toBe(b.total);
+    expect(b.manors + b.strongholds + b.quests + b.levy + b.charges + b.favour + b.other - b.lost).toBe(b.total);
   });
 
-  it("keys the Crown's Levy and Sealed Charges in the legend once a bar shows them", () => {
-    const result = (levy: number, lost = 0, charges = 0): PlayerResult => ({
+  it("keys the Crown's Levy, Sealed Charges and Favour in the legend once a bar shows them", () => {
+    const result = (levy: number, lost = 0, charges = 0, favour = 0): PlayerResult => ({
       playerId: "A",
       name: "A",
-      renown: { total: 3 + levy + charges - lost, manors: 3, strongholds: 0, quests: 0, levy, charges, other: 0, lost },
+      renown: { total: 3 + levy + charges + favour - lost, manors: 3, strongholds: 0, quests: 0, levy, charges, favour, other: 0, lost },
       stats: { harvested: 0, harvestedByType: null, bestHarvest: 0, routes: 0, manors: 3, strongholds: 0, writsIssued: 0, wardensHired: null, cardsPlayed: 0, menacesMoved: 0, marketTrades: 0, lostToMenaces: null },
     });
     expect(legendParts([result(0)])).toEqual(["manors", "strongholds", "quests"]);
     expect(legendParts([result(0), result(2)])).toEqual(["manors", "strongholds", "quests", "levy"]);
     expect(legendParts([result(0, 0, 2), result(2)])).toEqual(["manors", "strongholds", "quests", "levy", "charges"]);
+    expect(legendParts([result(0, 0, 0, 1)])).toEqual(["manors", "strongholds", "quests", "favour"]);
     // Renown lost for good took it off the bar.
     expect(legendParts([result(1, 1)])).toEqual(["manors", "strongholds", "quests"]);
   });
@@ -366,8 +367,21 @@ describe("renownBar", () => {
     const b = renownBreakdown(engine, s, id);
     expect(b.lost).toBe(2);
     const bar = renownBar(b);
-    expect(bar.manors + bar.strongholds + bar.quests + bar.levy + bar.charges + bar.other).toBe(b.total);
+    expect(bar.manors + bar.strongholds + bar.quests + bar.levy + bar.charges + bar.favour + bar.other).toBe(b.total);
     expect(b.total).toBeLessThan(s.ruleset.targetRenown);
+  });
+});
+
+describe("renownBreakdown", () => {
+  it("counts Favour of the Crown (§129.10) as its own part, so the parts make the total", () => {
+    const s = clone(game.final);
+    const id = s.turnOrder[0] ?? "";
+    s.players[id]!.favour = 3;
+    const b = renownBreakdown(engine, s, id);
+    expect(b.favour).toBe(3);
+    expect(b.other).toBe(s.players[id]?.bonusRenown ?? 0);
+    expect(b.total).toBe(getRenown(engine.ctx, s, id));
+    expect(b.manors + b.strongholds + b.quests + b.levy + b.charges + b.favour + b.other - b.lost).toBe(b.total);
   });
 });
 

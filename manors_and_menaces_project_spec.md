@@ -260,7 +260,7 @@ The target is `RulesetConfig.targetRenown`. It is chosen when a game is created:
 
 The winning condition is checked during the End Turn phase of the active player's turn, after all other end-of-turn effects.
 
-In the base game only the active player can gain Renown, because building, Quest claims and answers to the Crown's Levy (§27.3) happen only in their own Main Action phase. The check therefore looks at the active player first. If any player is at or above the target when the check runs, the game ends. If more than one player is at or above the target (possible only through future effects), use the following tie-break order:
+In the base game only the active player can gain Renown, because building, Quest claims and answers to the Crown's Levy (§27.3) happen only in their own Main Action phase. The check therefore looks at the active player first. If any player is at or above the target when the check runs, the game ends. If more than one player is at or above the target (possible through future effects, or through the experimental Crown's Voice, §129.10, whose Favour moves between any players in the End Turn of the last player in turn order, before this check), use the following tie-break order:
 
 1. highest Renown;
 2. most completed Royal Quests;
@@ -303,6 +303,7 @@ Default Renown values:
 | Answering the Crown's Levy (§27.3), each time | 1 (2 at goals of 25 and more) |
 | Major landmark objective | 2 (Sealed Charges, §27A) |
 | Sealed Charge, a lobby option (§27A), revealed when met | 2 |
+| Favour of the Crown (experimental Crown's Voice, §129.10) | 1 each |
 
 The major landmark objectives are the five landmark Charges of Sealed Charges (§27A), worth 2 each; without the option there are none. A revealed Charge is its own Renown source, beside Holdings, Quests, the Crown's Levy and bonus Renown, and stays scored like a claimed Quest.
 
@@ -310,7 +311,7 @@ A Manor upgraded to a Stronghold increases the player's Renown by **+1**, becaus
 
 Renown can also fall. Dragon's Landing (§19.15), Siege Engines (§19.23), Raiders (§19.24) and Siege Fireball (§19.26) burn a Manor or reduce a Stronghold to a Manor, which costs its owner 1 Renown either way. Disgrace (§19.22) and Stolen Glory (§19.25) take Renown for the rest of the game; it is recorded as `lostRenown` (§33.1) and subtracted from the total. Claimed Quests stay claimed.
 
-A player's Renown never drops below 0. A card may take Renown only from a player who has some, and when a lost Holding would take a player below 0, their `lostRenown` is reduced by the difference, so no hidden debt eats into what they build next.
+A player's Renown never drops below 0. A card may take Renown only from a player who has some, and when a lost Holding (or Favour, §129.10) would take a player below 0, their `lostRenown` is reduced by the difference, so no hidden debt eats into what they build next.
 
 ---
 
@@ -794,13 +795,13 @@ The UI must preview next Harvest.
 
 The player explicitly confirms assignments.
 
-Before the turn ends, the UI warns when another legal placement of the player's own Banners would harvest more at their next Harvest (`getBannerAdvice`). Rival Banners stay where they are, and among equal totals the placement with the fewest moves wins, so a Bog Witch (same amount) or a sick Banner (nothing anywhere) never warns by itself, and neither does a Banner at home with no Region to go to. The warning names each move and its reason (at home, the Toll Troll, the Young Dragon, a Druid's Blessing outside Grain and Timber, or room for another Banner) and offers:
+Before the turn ends, the UI warns when another legal placement of the player's own Banners would harvest more at their next Harvest (`getBannerWarning`, over `getBannerAdvice`). Rival Banners stay where they are, and among equal totals the placement with the fewest moves wins, so a Bog Witch (same amount) or a sick Banner (nothing anywhere) never warns by itself, and neither does a Banner at home with no Region to go to. The warning names each move and its reason (at home, the Toll Troll, the Young Dragon, a Druid's Blessing outside Grain and Timber, or room for another Banner) and offers:
 
 - **Place Banners** (the default): back to the board, the first Banner to move picked up;
 - **Place them for me**: the suggestion goes into the draft, and the turn does not end;
 - **End turn anyway**.
 
-There is no warning when the player will not harvest again, because the game ends first (`hasNextHarvest`, which shares its checks with the End Turn): someone has the target Renown, equal turns already end the game with the round, the round is the last (§7), or the player ends the round on a full board. When two Banners swap full Regions, the moves start by sending one of them home, so each can be made in turn.
+There is no warning when the player will not harvest again, because the game ends first (`hasNextHarvest`, which shares its checks with the End Turn): someone has the target Renown once the End Turn has scored, equal turns already end the game with the round, the round is the last (§7), or the player ends the round on a full board, counting it full once their own razed marks (§19.24) end with that End Turn. The End Turn scores the player's own Sealed Charge if the Banners as placed meet it (§27A) and, at the round's last seat, the Crown's Voice's Favour (§129.10). The player knows both: their own Charge is on their view, and Favour is public and settled by then. Favour at a later seat's End Turn is not foreseen, as rivals can still change the scores. When two Banners swap full Regions, the moves start by sending one of them home, so each can be made in turn. When the Banners as placed meet the player's Sealed Charge (§27A), the warning only suggests placements that still meet it: the Charge's 2 Renown, scored at this End Turn, outweigh a Harvest, as they do for the AI (§27A.7).
 
 A setting, also offered as "Don't warn me again", turns the warning off. It is advice only: no command, protocol or server change, and AI seats never see it.
 
@@ -814,13 +815,15 @@ Resolve, in order:
 4. expiration of temporary effects;
 5. reset per-turn counters (Market trades, cards played, Writs, Warden hires);
 6. with Sealed Charges, reveal the player's Charge if it is met (§27A);
-7. victory check (§7);
-8. if the game did not end, the endgame omen (§19.13);
-9. with Sealed Charges at goals 25 and 30, after a reveal, the player keeps one of two new Charges (§27A.4).
+7. at the round's last seat, with the Crown's Voice, Favour moves between rival neighbours (§129.10);
+8. victory check (§7);
+9. at the round's last seat, a full board or the last round ends the game (§7);
+10. if the game did not end, the endgame omen (§19.13);
+11. with Sealed Charges at goals 25 and 30, after a reveal, the player keeps one of two new Charges, unless the game ends with this round (§27A.4).
 
 All Quest claims in the base game are manual (§116). None resolve automatically here.
 
-Then advance to the next player.
+Then advance to the next player. When that begins a new round, before cards are dealt (§18.2) and the next player's Harvest: the last two rounds are announced (§7), unclaimed Quests expire (§27.2), the Crown's Levy is proclaimed (§27.3), and the Crown's Voice turns its next card (§129.10).
 
 ---
 
@@ -1488,7 +1491,7 @@ The first round that begins with the Quest deck empty, or round 15 (`proclaimByR
 - **Levy Renown** is kept for the rest of the game, like a claimed Quest's, but it is not a Quest: it counts for neither the Quest tie-break (§7) nor any Quest condition. It is its own Renown source (`PlayerState.levyRenown`, the `levy` part of `getRenownSources`), shown as such in the Renown dialog and on the results.
 - The Levy runs until the game ends; the victory check, a full board (§7) and Ragnarök end the game as before.
 - Events: `levy_proclaimed` (public: the Levy now in force, null for the first, and the next one) and `levy_answered`.
-- The Quest panel shows the Levy above the Quests: its resource, the price and Renown, the next Levy, who has answered, and a button that says why it is unavailable (the shortfall, with the Market trades that cover it). A chip beside the round number names this round's Levy.
+- The Quest panel shows the Levy above the Quests: its resource, the price and Renown, the next Levy, who has answered, and a button that says why it is unavailable (the shortfall, with the Market trades that cover it). A chip beside the round number names this round's Levy; on a phone it shows only the resource, and the top bar leaves Save to the game menu, so its buttons keep to one row.
 
 **Rationale.** With 3 or 4 players the board usually fills before anyone reaches a goal of 20 or more (§129.6). The Levy is a Renown source that needs no Site and spends the late surplus. It starts when the Quest deck runs out, around round 15 in simulations (§129.8), when building has slowed. 5 resources for 1 Renown is about the price of a Manor with its Routes; the Renown doubles at 25 and 30, which building alone rarely reaches. The AI saves for this round's Levy and, before the last round, the next, trades toward it, and never answers while an affordable upgrade waits.
 
@@ -1525,7 +1528,7 @@ At each player's End Turn (§16.4), before the victory check (§7), their Charge
 
 ## 27A.4 Further Charges at goals 25 and 30
 
-At the Renown goals 25 and 30, a reveal is followed by a new draw of 2, keep 1, until the player has revealed 2 Charges (goal 25) or 3 (goal 30) (`BALANCE.sealedCharges.perGame`); below 25 every player has one Charge in the game. The new draw comes after the victory check and the full-board check of that End Turn, and the turn passes to the next player once the player has kept one. These later draws, and Recommission's, skip landmark Charges, which a full board can put out of reach, and take Banner, deed and Menace Charges only.
+At the Renown goals 25 and 30, a reveal is followed by a new draw of 2, keep 1, until the player has revealed 2 Charges (goal 25) or 3 (goal 30) (`BALANCE.sealedCharges.perGame`); below 25 every player has one Charge in the game. The new draw comes after the victory check and the full-board check of that End Turn, and the turn passes to the next player once the player has kept one. There is no draw when the game ends with the round, in the last round (§7) or once equal turns have been triggered, since no End Turn is left to reveal it. These later draws, and Recommission's, skip landmark Charges, which a full board can put out of reach, and take Banner, deed and Menace Charges only.
 
 ## 27A.5 Recommission
 
@@ -1533,7 +1536,7 @@ Once per game, in their Main phase, a player may pay 1 Essence (`BALANCE.sealedC
 
 ## 27A.6 What players see
 
-- Everyone sees that a player holds a sealed Charge (a seal on the scoreboard and in the Players panel), how many Charges are left in the deck (in the Quests tab), every revealed Charge and all Renown.
+- Everyone sees that a player holds a sealed Charge (a seal on the scoreboard and in the Players panel), how many Charges are left in the deck (in the Quests tab), every revealed Charge (with what it asked, in the Quests tab) and all Renown.
 - Only the holder sees their Charge, with its progress, in the Quests tab, and only the player choosing sees the Charges they drew. Online, the server replaces rivals' Charges, a rival's draw and the deck with `hidden` (§105); `charges_drawn` and `charge_kept` reach other players without the Charge. In hot-seat play the choice waits behind the privacy curtain (§56.1), and the Chronicle says only that a Charge was drawn or kept.
 - The first seat draws when the game is created, which reports no events, so a local game's Chronicle tells that draw from the initial state. An online match's Chronicle comes from the server's history of commands (§62) and does not tell it.
 
@@ -1744,10 +1747,12 @@ export interface GameState {
 
   questDeck: QuestId[];
   publicQuests: PublicQuestState[];
+  chargeDeck?: ChargeId[]; // Sealed Charges (§27A), face down, top first; absent when the option is off
 
   delayedEffects: DelayedEffect[];
   ruinedSiteIds?: SiteId[]; // Siege Fireball (§19.26): nobody may build there again
   crownLevy?: { current: ResourceType | null; next: ResourceType; called: ResourceType[]; answeredBy: PlayerId[] }; // §27.3, public
+  crownsVoice?: CrownsVoiceState; // §129.10, public: the virtues, the Voice deck, the purse, this round's Harvests
   historyMeta: HistoryMeta;
   winnerId?: PlayerId;
   endCause?: "ragnarok" | "full_board" | "last_round"; // §19.13, §7; absent when the target was reached
@@ -1767,10 +1772,13 @@ export interface PlayerState {
 
   // Renown from explicit rewards (rare cards, story rewards). Total Renown is
   // derived by getRenown() from Holdings + claimed Quests + levyRenown +
-  // bonusRenown - lostRenown; it is never stored.
+  // revealed Sealed Charges + favour + bonusRenown - lostRenown; it is never
+  // stored.
   bonusRenown: number;
   // Renown from answering the Crown's Levy (§27.3); absent until the first answer.
   levyRenown?: number;
+  // Favour won through the Crown's Voice (§129.10), counted as Renown; absent until first won or lost.
+  favour?: number;
   // Renown lost for the rest of the game (Disgrace, Stolen Glory, §8). Never
   // more than keeps the total at 0 or above; absent in older saves.
   lostRenown?: number;
@@ -1780,6 +1788,12 @@ export interface PlayerState {
 
   claimedQuestIds: QuestId[];
   charters?: CardId[]; // face up in front of the player (§18.1); absent in older saves
+
+  // Sealed Charges (§27A): the Charge held face down, those revealed (2 Renown
+  // each), and whether the one Recommission is used. Rivals see only a seal.
+  sealedCharge?: { id: ChargeId; since?: number };
+  revealedChargeIds?: ChargeId[];
+  recommissioned?: boolean;
 
   stats: PlayerStats;
 
@@ -1839,6 +1853,7 @@ export type GameCommand =
   | IssueRoyalWritCommand
   | HireWardenCommand
   | ClaimQuestCommand
+  | AnswerLevyCommand           // the Crown's Levy (§27.3)
   | RecommissionChargeCommand   // Sealed Charges (§27A.5)
   | EndMainPhaseCommand
   // banner assignment
@@ -4081,6 +4096,8 @@ interface RulesetConfig {
   };
   warden: { enabled: boolean; maxPerTurn: number };
   sealedCharges?: boolean;         // §27A: a lobby option, absent (off) unless chosen
+  crownLevy?: { price: number; renown: number; proclaimByRound: number }; // §27.3: Standard and async, from 0.9.0
+  crownsVoice?: { purse: number; from: "first_round" | "quest_deck_empty" }; // §129.10: local games only, absent (off) unless chosen
 }
 ```
 
@@ -4768,3 +4785,129 @@ Findings and open questions:
 3. **At the default goals, games get shorter**: 14.4 to 13.9 rounds with 3 players and 16.5 to 14.2 with 4, since each met Charge is worth about one and a half rounds of building.
 4. **Menace Charges are the easiest for the AI** (76 to 94 % met) and Banner Charges the hardest (23 to 52 %). Three moves of the named Menace, or 2 Grain Regions instead of 3, would even them out; both need a human playtest first, since the AI's play is not a person's.
 5. **Seat win rates move within the noise** of 30 games (about ±9 points). The second seat's 40 % with 4 players is above the 30 % target, as the third seat's 43 % is without Charges; a larger run should come before any seat tuning (§129.4).
+
+## 129.10 Experimental: the Crown's Voice (ruleset 0.9.0)
+
+A prototype of La Città's Voice of the People, built to be simulated beside the Crown's Levy. With 3 players the board fills around round 20 with the leader near 18 Renown (§129.6), so goals of 20 and more mostly end on a full board short of the goal. The Voice adds Renown that renews itself through competition between neighbours, and gives a full board something to fight over.
+
+It is off unless a game is created with `RulesetConfig.crownsVoice`: New Game > Advanced > "Crown's Voice (experimental)", in local games only. The server never offers it. Games created without it, every game before ruleset 0.9.0 among them, play and replay unchanged.
+
+**Rival neighbours.** Two Holdings of different players whose Sites touch the same Region. Each pair counts once, however many Regions its Holdings share, and a player's own Holdings never pair. The shared Region is on the board, so anyone can see who neighbours whom.
+
+**The Voice deck.** Three virtues, 8 cards each. When a game is created, two cards are turned: the current Voice and the next, both on show (La Città shows 1 of 4). Each card is drawn at random from the cards left, with the match RNG (§30). That gives the odds of a shuffled deck without keeping a hidden order in the state, so nothing about the Voice is hidden or redacted (§105). When the deck runs out, a fresh deck of 24 is used.
+
+**Virtues.** Each scores a Holding from 0 to 3, from the board:
+
+| Virtue | Score |
+|---|---|
+| Might | Manor 1, Stronghold 2 |
+| Roads | the owner's Routes that touch the Holding's Site, at most 3 |
+| Plenty | the Holding's Banners that produced resources at their owner's Harvest this round, at most 2. A Banner the Toll Troll blocks, the Plague sickens or the Dragon robs does not count |
+
+**When the round ends.** In the End Turn of the last player in turn order, before the victory check and the full-board check (§7), each pair of rival neighbours compares its scores in the current virtue. Favour won there can therefore win the game or decide a full board. The higher score wins its owner 1 Favour, taken from the other owner's Favour if they have any, otherwise from the Crown's purse.
+
+- A tie moves nothing. Nor does a win when the loser has no Favour and the purse is empty.
+- A player gains at most 2 Favour a round (`BALANCE.crownsVoice.maxGainPerRound`). Their later wins that round move nothing.
+- Pairs resolve in the order their Holdings were built: by the older Holding of each pair, then by the younger. Each pair is settled against the Favour and purse the pairs before it left.
+
+As the next round begins, the next Voice becomes the current one and a new next card is turned.
+
+**Favour** is public and counts as Renown: `getRenown`, the `favour` part of `getRenownSources`, the Renown dialog and its own part of the results bar. Losing Favour never takes Renown below 0 (§8). Nothing is demolished and nobody loses a Holding: La Città's cascade from lost citizens to lost buildings is left out.
+
+**Settings.** `crownsVoice: { purse, from }`. `purse` is the Favour the Crown starts with. With `from: "first_round"` the Voice speaks at the end of every round. With `"quest_deck_empty"` it speaks at the end of every round from the first that begins with the Royal Quest deck empty; Core games have no Quests, so there it speaks from round 1. The deck runs out in an End Turn, as a claimed Quest is replaced, and the Voice then waits for the next round instead of speaking as that round ends. So every seat knows a full round ahead, and the player whose End Turn empties the deck cannot make the Voice speak before the others can act. The state records it as a round begins (`crownsVoice.speaking`), and it never falls silent again. A waiting Voice does not turn, and its first speaking round favours the virtue it showed while it waited. New games get `crownsVoiceRules()`: a purse of 15, speaking once the Quest deck is empty.
+
+**Events and interface.** A `favour_won` event (winner, rival, source, virtue, both Sites and both scores) for each Favour, and `crowns_voice_turned` as a round begins. The Chronicle tells both; the action feed tells each Favour, from the viewer's side. The top bar shows the two virtues ("Might › Plenty"); its accessible name and tooltip are the whole sentence, "The Crown favours Might (next: Plenty)", or "From next round, …" and "Once the Quest deck is empty, …" while it waits, which the chip shows with a dashed outline and an hourglass. On a phone it shows only this round's virtue, without the hourglass, and the round beside it its short form ("n/30"), so the top bar keeps its two rows (buttons, then the scoreboard) beside the Levy's chip (§27.3) to the last round; there Save is left to the game menu. A tap opens a dialog with the rule, the purse and how each virtue scores (`getVoiceStatus` tells which).
+
+**The AI ignores the virtues.** It sees Favour only as Renown, so the runs below measure the rule with players who never build for it.
+
+### Simulation
+
+`pnpm simulate --map drawn --games 30` (normal AI, a drawn island and layout per game, the same 30 seeds in every row, the full-board rule on), without and with `--override '{"crownsVoice":{"purse":P,"from":F}}'`. "Margin" is the winner's Renown less the runner-up's. "Lead changes" count how often, in the last 5 rounds, the lead passed to a player with strictly more Renown than the leader.
+
+The rows that start the Voice once the Quest deck is empty were measured with it waiting for the round after the deck runs out (see Settings above). Speaking in the round the deck ran out, as first built, the chosen setting gave 18.7 rounds, 21 full-board endings, a winner of 21.8 Renown and a margin of 3.9 with 3 players at goal 25.
+
+Choosing when the Voice starts and the size of the purse, 3 players unless shown:
+
+| Voice | Goal | Rounds | Full-board endings | Winner Renown (of it Favour) | Margin | Favour per game from the purse / from rivals |
+|---|---:|---:|---:|---:|---:|---|
+| off | 25 | 20.2 | 29/30 | 18.5 | 3.1 | |
+| round 1, purse 10 | 25 | 17.4 | 15/30 | 23.3 (6.4) | 6.6 | 9.9 / 22.3 |
+| round 1, purse 15 | 25 | 17.0 | 12/30 | 24.0 (7.9) | 6.4 | 13.4 / 22.5 |
+| round 1, purse 20 | 25 | 16.5 | 11/30 | 24.2 (8.5) | 5.8 | 14.9 / 20.1 |
+| Quest deck empty, purse 10 | 25 | 19.3 | 23/30 | 21.1 (3.2) | 3.9 | 6.9 / 10.5 |
+| Quest deck empty, purse 15 | 25 | 19.0 | 23/30 | 21.3 (3.6) | 3.5 | 7.8 / 9.1 |
+| Quest deck empty, purse 20 | 25 | 19.0 | 23/30 | 21.3 (3.6) | 3.4 | 8.1 / 9.0 |
+| off | 15 | 14.4 | 1/30 | 14.9 | 3.0 | |
+| round 1, purse 15 | 15 | 10.8 | 0/30 | 15.6 (5.9) | 4.1 | 9.0 / 7.5 |
+| Quest deck empty, purse 15 | 15 | 14.1 | 1/30 | 15.2 (0.5) | 3.1 | 0.8 / 0.4 |
+| Quest deck empty, purse 15 | 30 | 20.0 | 26/30 | 21.8 (3.5) | 3.6 | 8.2 / 12.5 |
+| Quest deck empty, purse 20 | 30 | 19.7 | 25/30 | 22.2 (3.8) | 3.9 | 8.8 / 12.0 |
+| off, 4 players | 25 | 23.0 | 30/30 | 14.7 | 3.0 | |
+| Quest deck empty, purse 15, 4 players | 25 | 22.3 | 29/30 | 18.1 (4.4) | 3.8 | 10.7 / 18.3 |
+| Quest deck empty, purse 20, 4 players | 25 | 21.9 | 26/30 | 19.1 (5.2) | 4.6 | 12.4 / 18.0 |
+
+At goals 15 and 20 with 3 players, and at 13 with 4, purses of 15 and 20 play identically: games draw less than 6 Favour from the purse on average.
+
+Without and with the chosen setting (purse 15, from the round the Quest deck empties). Favour is what each seat holds at the end, in turn order; seat win rates are in turn order.
+
+| Players, goal | Voice | Finished | Full-board endings (avg round) | Rounds (range) | Winner Renown | Margin | Favour by seat | Lead changes in the last 5 rounds | Seat win rates |
+|---|---|---:|---|---|---:|---:|---|---|---|
+| 3, 15 | off | 30/30 | 1 (15.0) | 14.4 (12–20) | 14.9 | 3.0 | | 0.77, in 63 % of games | 40 / 33 / 27 % |
+| 3, 15 | on | 30/30 | 1 (15.0) | 14.1 (12–16) | 15.2 | 3.1 | 0.2 / 0.3 / 0.3 | 0.67, in 53 % | 47 / 30 / 23 % |
+| 3, 20 | off | 30/30 | 20 (19.3) | 18.8 (14–28) | 18.0 | 2.9 | | 0.43, in 30 % | 33 / 43 / 23 % |
+| 3, 20 | on | 30/30 | 6 (17.5) | 17.3 (14–23) | 19.4 | 3.1 | 2.0 / 1.7 / 1.8 | 0.70, in 57 % | 37 / 40 / 23 % |
+| 3, 25 | off | 30/30 | 29 (20.3) | 20.2 (14–37) | 18.5 | 3.1 | | 0.43, in 30 % | 40 / 37 / 23 % |
+| 3, 25 | on | 30/30 | 23 (19.0) | 19.0 (14–26) | 21.3 | 3.5 | 2.0 / 2.9 / 2.9 | 0.73, in 47 % | 33 / 43 / 23 % |
+| 3, 30 | off | 30/30 | 30 (20.1) | 20.1 (14–28) | 18.4 | 2.9 | | 0.33, in 30 % | 50 / 37 / 13 % |
+| 3, 30 | on | 30/30 | 26 (19.5) | 20.0 (14–28) | 21.8 | 3.6 | 1.8 / 2.9 / 3.4 | 0.50, in 37 % | 37 / 43 / 20 % |
+| 4, 13 | off | 30/30 | 4 (20.3) | 16.5 (13–35) | 13.3 | 3.2 | | 0.73, in 47 % | 17 / 23 / 43 / 17 % |
+| 4, 13 | on | 30/30 | 1 (20.0) | 15.2 (13–24) | 13.4 | 2.9 | 0.4 / 0.4 / 0.4 / 0.8 | 0.80, in 50 % | 23 / 27 / 27 / 23 % |
+| 4, 25 | off | 30/30 | 30 (23.0) | 23.0 (15–36) | 14.7 | 3.0 | | 0.30, in 23 % | 30 / 27 / 27 / 17 % |
+| 4, 25 | on | 30/30 | 29 (22.3) | 22.3 (15–36) | 18.1 | 3.8 | 2.2 / 2.1 / 2.3 / 4.2 | 0.60, in 47 % | 27 / 13 / 20 / 40 % |
+
+**Rival pairs on a full board.** Counted at the end of every game that ended on a full board: about 11 pairs with 3 players (6 to 18 across islands and games) and about 15 with 4 players at goal 25 (10 to 19). With the cap of 2 Favour per player and round, those pairs move at most 6 Favour a round with 3 players and 8 with 4.
+
+Findings:
+
+1. **Speaking from round 1 feeds the leader.** The virtues reward being ahead (more Strongholds, Routes and Banners). An early Voice roughly doubles the winner's margin at goal 25 (3.1 to 5.8–6.6 Renown with every purse tried) and ends goal-15 games 3.6 rounds sooner.
+2. **Speaking once the Quest deck is empty**, which happens late in the game, lifts the 3-player winner at goals 25 and 30 from about 18.5 to 21.3 and 21.8 Renown, inside the 20–25 band. Full-board endings fall from 20 to 6 of 30 games at goal 20, from 29 to 23 at 25 and from 30 to 26 at 30. Goal-15 games are 0.3 rounds shorter, as the Quest deck seldom empties before someone reaches 15. The margin still rises, by 0.2 to 0.7 Renown with 3 players at goals 20 to 30 and by 0.8 with 4 at goal 25. The lead changes hands in the last 5 rounds somewhat more often (in 37–57 % of games at goals 20 to 30, against 30 %).
+3. **The purse matters little once the Voice starts late.** A game draws about 8 Favour from it at goals 25 and 30. A purse of 10 runs dry, so more Favour is taken from rivals and the margin grows (3.9 against 3.5 at goal 25). Purses of 15 and 20 play alike with 3 players (within 0.4 Renown), but with 4 players at goal 25 a purse of 20 raised the margin to 4.6 against 3.8. Hence 15: those 4-player games draw about 11 Favour from it, and once it is spent Favour only changes hands.
+4. **Four players at goal 13** end 1.3 rounds sooner on average: the Voice finishes the longest games (35 rounds without it, 24 with it), and the margin does not rise.
+5. **Seats.** No seat stands out beyond the noise of 30 games (about ±9 points). The last seat's 40 % with 4 players at goal 25 (37 % with the first timing), and its larger Favour there (4.2 against 2.1 to 2.3), are worth rechecking: the Voice speaks at the end of the last seat's turn, although every seat's builds of the round count alike.
+6. **To watch with people.** Players who build for the virtue, as the AI does not, will move more Favour. As the rule rewards the leader, a cap of 1 Favour a round, or Favour taken only from players ahead, are the next levers if margins grow. With 3 players a trailing player can choose which rival to contest, and so which of them gains (kingmaking). A board overlay of the pairs and their projected winners, like the §54 Harvest preview, is not built.
+
+## 129.11 The late-game rules together (ruleset 0.9.0)
+
+§129.8 to §129.10 measure each rule on its own. These runs combine them on one build, with the last round (§129.7) and The Dowager in the deck throughout: `pnpm simulate --map drawn --rules standard --level normal --games 30`, with `--override` turning the Levy off (`{"crownLevy":null}`), the Voice on (`{"crownsVoice":true}`) or Sealed Charges on (`{"sealedCharges":true}`). Every cell uses the same 30 seeds, and every game finished.
+
+Games out of 30 that reached the goal:
+
+| Rules | 3p, goal 20 | 3p, goal 25 | 3p, goal 30 | 4p, goal 25 |
+|---|---:|---:|---:|---:|
+| none of the three | 11 | 2 | 0 | 0 |
+| Levy (the Standard default) | 13 | 7 | 2 | 3 |
+| Levy and Voice | 27 | 15 | 7 | 13 |
+| Levy and Charges | 22 | 16 | 8 | 6 |
+| Levy, Voice and Charges | 30 | 25 | 18 | 19 |
+
+Rounds, winner's Renown and margin (the winner's Renown less the runner-up's):
+
+| Players, goal | Rules | Rounds (range) | Full-board endings | Winner Renown | Margin |
+|---|---|---|---:|---:|---:|
+| 3, 15 | Levy | 13.7 (11–17) | 0 | 15.5 | 4.4 |
+| 3, 15 | Levy, Voice, Charges | 12.8 (10–16) | 0 | 15.4 | 4.5 |
+| 3, 25 | none | 20.1 (16–30) | 26 | 19.3 | 3.5 |
+| 3, 25 | Levy | 20.4 (15–30) | 22 | 21.1 | 4.4 |
+| 3, 25 | Levy, Voice, Charges | 18.5 (14–25) | 5 | 25.3 | 5.8 |
+| 4, 13 | Levy | 14.6 (8–23) | 0 | 13.4 | 3.3 |
+| 4, 13 | Levy, Voice, Charges | 13.6 (10–17) | 0 | 13.6 | 2.8 |
+| 4, 25 | none | 23.7 (15–30) | 26 | 15.4 | 2.9 |
+| 4, 25 | Levy | 22.5 (15–30) | 24 | 17.4 | 3.5 |
+| 4, 25 | Levy, Voice, Charges | 19.1 (15–24) | 11 | 23.6 | 6.1 |
+
+**Findings.**
+
+1. Only the three together bring goals 25 and 30 within reach at both player counts. The Levy alone barely moves reach: the AI answers it on 4 to 13 % of its chances (§129.8).
+2. At the default goals the Levy and the Voice change nothing measurable: the Levy seldom comes into force before the game ends, and the Voice waits for the Quest deck. Sealed Charges shorten 3-player goal-15 games by about half a round (13.98 to 13.48 rounds on 180 further seeds) and 4-player goal-13 games by about 0.8 round, still inside the 12 to 16 target.
+3. Margins widen, mostly because more games end at the goal: games that end at the goal have margins of 5 to 10, full-board endings 1 to 5. Close games (a margin of 1 or less) fall from 8 to 13 of 30 to 2 to 7. The Voice widens the margin most with 4 players: at goal 25 the winner holds about 5.7 Favour against the runner-up's 3.
+4. **The first seat with 3 players at goal 15.** Under the default rules (the Levy and The Dowager), 360 further seeds gave seat win rates of 48.1 / 28.6 / 23.3 %, above the 45 % target (§68). Without The Dowager the same seeds gave 41.7 / 31.9 / 26.4 %, so The Dowager adds about 6 ± 4 points to the first seat; the rest is the cards-and-tempo edge of §129.4. Sealed Charges do not change it. At goal 25 the edge is smaller (39 / 37 / 24 %), and 4-player games show none (20 / 28 / 23 / 29 % at goal 13 on 120 seeds). A fix, such as a single copy of The Dowager or a later first play, is open.
