@@ -2,7 +2,7 @@
 # Builds every Manors & Menaces target and stages the results in dist/.
 #
 # Usage: scripts/build.sh [target...] [--debug|--release] [--clean] [--check] [--install]
-#   targets: web server desktop android   (default: all that this machine can build)
+#   targets: web server desktop android flatpak   (default: all that this machine can build)
 #   A missing toolchain skips a target on a default run, but fails when the
 #   target was named explicitly.
 #
@@ -347,6 +347,32 @@ for target in "${TARGETS[@]}"; do
         OK+=("desktop → $DIST/desktop$DMG_NOTE")
       else
         FAILED+=("desktop")
+      fi
+      ;;
+    flatpak)
+      echo "==> flatpak (repack the Linux .deb)"
+      if [[ "$(uname)" != "Linux" ]]; then
+        skip_or_fail flatpak "Flatpak builds run on Linux"
+        continue
+      fi
+      # Reuse the desktop target's .deb when it ran; otherwise build just it.
+      deb="$(ls -t "$DIST"/desktop/*.deb 2>/dev/null | head -1 || true)"
+      if [[ -z "$deb" ]]; then
+        if ! command -v cargo >/dev/null 2>&1; then
+          skip_or_fail flatpak "Rust toolchain not found (https://rustup.rs)"
+          continue
+        fi
+        if ! pkg-config --exists webkit2gtk-4.1 2>/dev/null; then
+          skip_or_fail flatpak "webkit2gtk-4.1 development files not installed"
+          continue
+        fi
+        $PNPM tauri build --bundles deb || { FAILED+=("flatpak"); continue; }
+        deb="$(find src-tauri/target -path "*/release/bundle/deb/*.deb" -print -quit)"
+      fi
+      if ./scripts/build-flatpak.sh "$deb"; then
+        OK+=("flatpak → $DIST/")
+      else
+        FAILED+=("flatpak")
       fi
       ;;
     android)

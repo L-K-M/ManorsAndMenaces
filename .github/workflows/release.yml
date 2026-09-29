@@ -117,6 +117,45 @@ jobs:
             src-tauri/target/**/release/bundle/**/*.msi
             src-tauri/target/**/release/bundle/**/*.exe
 
+  flatpak:
+    name: Linux Flatpak
+    needs: test
+    timeout-minutes: 60
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Linux system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+            flatpak flatpak-builder
+          # Ubuntu 24.04 denies the unprivileged user namespaces bubblewrap
+          # (flatpak's sandbox helper) builds in.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: pnpm install --frozen-lockfile
+      - name: Build Linux .deb
+        uses: tauri-apps/tauri-action@action-v1.0.0
+        with:
+          args: --bundles deb
+      - name: Repack, checksum and attach to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./scripts/build-flatpak.sh src-tauri/target/release/bundle/deb/*.deb
+          for f in dist/*.flatpak; do
+            (cd dist && sha256sum "$(basename "$f")" > "$(basename "$f").sha256")
+          done
+          gh release upload "${{ github.ref_name }}" dist/*.flatpak dist/*.flatpak.sha256 --clobber
+
   android:
     name: Android (unsigned APK)
     needs: test
