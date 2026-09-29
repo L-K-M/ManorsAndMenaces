@@ -10,6 +10,8 @@ finish-args:
   - --share=ipc
   - --socket=wayland
   - --socket=fallback-x11
+  # WebKitGTK HTML5/WebAudio (apps/web/src/lib/audio: sfx + soundscape).
+  - --socket=pulseaudio
   # WebKit's GPU rendering.
   - --device=dri
 modules:
@@ -19,4 +21,4 @@ modules:
       - type: dir
         path: ../dist/flatpak/stage
     build-commands:
-      - cp -R . /app/
+      - "if [ -d usr ]; then cp -a usr/. /app/; else cp -a . /app/; fi"
