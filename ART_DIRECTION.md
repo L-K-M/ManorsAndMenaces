@@ -1,6 +1,6 @@
 # Storybook visual refresh
 
-Last updated: 2026-09-27. Third-wave card paintings and site-remains design complete; checks pass locally.
+Last updated: 2026-09-29. The Dowager illustration and asset audit complete; local checks pass.
 
 ## User request and scope
 
@@ -1182,10 +1182,10 @@ The PR is ready and the configured review has been requested. Next: inspect
 completed feedback and the latest checks, address applicable important
 findings, and merge under the repository's review stopping rules.
 
-## The Dowager: painting still to make
+## The Dowager: historical checkpoint before September 29
 
 The Dowager (spec §19.28, a Hero: build a Manor beside your own Stronghold)
-brings the deck to 28 distinct cards. **It has no painting yet.** Its prompt
+brings the deck to 28 distinct cards. At this checkpoint it had no painting. Its prompt
 is recorded in `media-sources/storybook/cards/prompts.json` in the second and
 third waves' style (`knight_errant.png` as the style reference, a 1536x1024
 original): an elderly dowager taking tea on the doorstep of her new cottage
@@ -1209,3 +1209,65 @@ without covering the board in rings. It hides on a highlighted Site, whose
 target ring takes its place, and dims with other non-targets while a tool is
 armed. High contrast draws it in black. Checked at 1400x900 (whole island
 and three zoom steps) and at 390x844.
+
+
+## September 29: The Dowager and illustration coverage
+
+Branch `codex/dowager-art-audit`, based on fresh main `07267fa`. The Dowager
+was the only current card without a painting. Generated her existing exact
+prompt with the built-in image tool and `knight_errant.png` as the style
+reference. Saved the 1536 × 1024 original as
+`media-sources/storybook/cards/the_dowager.png`; the existing generator derives
+its 600 × 400 WebP. Enabled it through the shared card-art metadata so hands,
+reading views and play flourishes all receive it. Existing high-contrast and
+failed-load emblems remain in place. No rules or save changes.
+
+Inventory audit: all 28 cards and 12 quests have source and runtime paintings;
+all six rival portrait mappings, five Menaces and five landmark types have
+runtime art. Board holdings, banners, terrain and site remains intentionally
+use their existing vector designs. The newer Sealed Charges were a separate
+gap: their choices and held-goal panels had only a generic seal and text.
+All 17 now show matching existing art through `chargePaintings.ts` and
+`ChargeArt.svelte`: landmark and Menace miniatures, resource Quest scenes,
+and paperwork/trade/prophecy card scenes for deeds. These are reused goal
+illustrations, not 17 new paintings. Images only mount where the viewer may
+see the goal, retain the seal for high contrast or failed loads, and use
+BASE_URL for subpath hosting. Compact framed thumbnails preserve room for
+the goal description and Keep/Recommission buttons.
+
+The deck completeness regression failed specifically for The Dowager before
+the fix. Added content-driven asset checks for quests, Menaces and landmarks
+across published maps. Desktop/phone portrait and reading-view tests now include
+The Dowager. All six asset tests and 11 card-art browser tests pass, along
+with lint and full typecheck (zero errors/warnings). Visually inspected the
+rendered reading card: painting and all rules/flavor text fit cleanly. The
+user's existing game tab and saves were untouched. Four Sealed Charge browser
+checks pass, including normal, high contrast and failed images, privacy
+curtains, and phone-width dialogs; the first art assertion failed before the
+implementation. Inspected desktop/phone choices and the held-goal panel.
+
+PR #74: https://github.com/L-K-M/ManorsAndMenaces/pull/74. First review found
+no confirmed important defect. Kept the explicit card-completeness checkpoint
+because the user asked to close all art gaps; runtime pending-art handling
+remains useful when a future feature explicitly defers art. Added inexpensive
+non-empty inventory guards suggested by review. Both generated binaries are
+tracked and their browser decode is verified. Next: CI and review on the
+Sealed Charge additions, then merge.
+
+
+Final CI caught one stale assertion in the existing Dowager gameplay test:
+it explicitly required no image while her painting was pending. Updated it
+to require the decoded 600px painting, retaining the entire play/build
+scenario. The other 214 browser cases passed. Two review rounds completed
+without confirmed important defects; the remaining seal-duplication suggestion
+is cosmetic. Strict TypeScript already rejects an unhandled future ChargeGoal
+variant (verified with a temporary compiler probe), so the suggested default
+branch was unnecessary. Next: verify the updated gameplay test and await CI
+on the final test correction before merge.
+
+The local gameplay rerun also exposed a pre-existing, layout-dependent test
+expectation: clicking a ruined Site with the Manor tool armed now opens the
+refusal dialog (PR #72), while an unarmed click opens the inspector. The test
+expected inspector wording in both cases. It now checks the matching message
+for the tool state, preserving the prohibition and unchanged Holding counts.
+No production gameplay change was needed.

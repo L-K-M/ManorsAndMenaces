@@ -160,12 +160,16 @@ test("a Siege Fireball leaves a ruin that nobody may build on", async ({ page })
   await debug(page, async (panel) => {
     await panel.getByRole("button", { name: "Grant 5 of each resource" }).click();
   });
-  if (await manorTool.isEnabled()) {
+  const building = await manorTool.isEnabled();
+  if (building) {
     await manorTool.click();
     await expect(ruin).not.toHaveClass(/\bhl\b/);
   }
   await pick(ruin);
-  await expect(page.getByText("In ruins: nobody may build here again").first()).toBeVisible();
+  // An armed build tool opens the refusal dialog; otherwise this is an inspection.
+  await expect(page.getByText(building
+    ? "That Site lies in ruins. Nobody may build there again."
+    : "In ruins: nobody may build here again").first()).toBeVisible();
   await expect(ruin.locator(".holding")).toHaveCount(0);
   await expect(page.locator(".site .holding")).toHaveCount(4);
   expect(errors).toEqual([]);
@@ -188,8 +192,8 @@ test("The Dowager builds a Manor beside her player's Stronghold", async ({ page 
 
   await showHand(page);
   const card = handCard(page, "the_dowager");
-  // Her painting is still to be made: the Hero emblem stands in, and no image is requested.
-  await expect(card.locator(".card-art img")).toHaveCount(0);
+  // Her painting loads before the card is played to build the Manor.
+  await expect.poll(() => card.locator(".card-art img").evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBe(600);
   await card.click();
   await expect(page.getByText("Choose a Site at the far end of your Route from one of your Strongholds.").first()).toBeVisible();
   await expect(page.locator(".site.hl")).toHaveCount(1);
