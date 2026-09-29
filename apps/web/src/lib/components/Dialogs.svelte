@@ -31,6 +31,7 @@
     startAction,
   } from "../game/interaction.js";
   import { chargeChoices, chargeDescription, chargeName } from "../game/charges.js";
+  import ChargeArt from "./ChargeArt.svelte";
   import { gainsText, listText, siteName } from "../game/feed.js";
   import { regionName } from "../game/log.js";
   import type { GameSession } from "../game/session.svelte.js";
@@ -487,6 +488,7 @@
     <ul class="charge-choices">
       {#each chargeChoices(gs, legal.playerId) as id (id)}
         <li>
+          <div class="charge-picture"><ChargeArt {id} /></div>
           <strong><ToolIcon name="seal" size={16} />{chargeName(id)}</strong>
           <p>{chargeDescription(id)}</p>
           <button class="primary" onclick={() => session.perform({ type: "choose_charge", chargeId: id })}>{t("action.keep_charge", { charge: chargeName(id) })}</button>
@@ -572,12 +574,22 @@
   }
   .charge-choices li {
     display: grid;
+    grid-template-columns: clamp(3.5rem, 15vw, 5rem) minmax(0, 1fr);
     gap: 0.35rem;
     justify-items: start;
     padding: 0.6rem 0.7rem;
     border: 1px solid #7a3b2e66;
     border-radius: 10px;
     background: var(--paper-sheet);
+  }
+  .charge-picture {
+    grid-row: 1 / 4;
+    width: 100%;
+  }
+  .charge-choices li > :not(.charge-picture) {
+    grid-column: 2;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .charge-choices strong {
     display: flex;

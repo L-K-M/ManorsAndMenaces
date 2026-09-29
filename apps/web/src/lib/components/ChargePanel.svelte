@@ -8,6 +8,7 @@
   import { gainsText } from "../game/feed.js";
   import type { GameSession } from "../game/session.svelte.js";
   import ToolIcon from "./ToolIcon.svelte";
+  import ChargeArt from "./ChargeArt.svelte";
 
   let { session, legal }: { session: GameSession; legal: LegalActionSummary | null } = $props();
   const gs = $derived(session.draft);
@@ -24,11 +25,16 @@
     {#if held}
       {@const percent = Math.round((100 * held.progress.current) / held.progress.target)}
       <article class="charge" class:ready={held.progress.complete}>
-        <div class="head">
-          <strong>{chargeName(held.id)}</strong>
-          <span class="renown">+{renown} <ToolIcon name="crown" size={14} label={t("ui.renown")} /></span>
+        <div class="summary">
+          <ChargeArt id={held.id} />
+          <div>
+            <div class="head">
+              <strong>{chargeName(held.id)}</strong>
+              <span class="renown">+{renown} <ToolIcon name="crown" size={14} label={t("ui.renown")} /></span>
+            </div>
+            <p class="description">{chargeDescription(held.id)}</p>
+          </div>
         </div>
-        <p class="description">{chargeDescription(held.id)}</p>
         <div class="progress">
           <div
             class="bar"
@@ -107,6 +113,15 @@
     align-items: baseline;
     justify-content: space-between;
     gap: 0.6rem;
+  }
+  .summary {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+    align-items: start;
+    gap: 0.6rem;
+  }
+  .description {
+    margin-top: 0.3rem;
   }
   .head strong {
     font: 700 1.1rem/1.1 var(--font-display);
