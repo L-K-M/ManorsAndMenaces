@@ -154,6 +154,7 @@ jobs:
           for f in dist/*.flatpak; do
             (cd dist && sha256sum "$(basename "$f")" > "$(basename "$f").sha256")
           done
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes
           gh release upload "$GITHUB_REF_NAME" dist/*.flatpak dist/*.flatpak.sha256 --clobber
 
   android:
