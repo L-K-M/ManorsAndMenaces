@@ -1,8 +1,6 @@
 # Card paintings
 
-27 of the 28 distinct cards in the expanded deck have individual
-illustrations. The Dowager (spec §19.28) waits for hers: its prompt is in
-`prompts.json`, and until its PNG lands the card shows its Hero emblem.
+All 28 distinct cards in the expanded deck have individual illustrations.
 These full-size PNG originals were generated with the built-in
 image tool, using `../../manors-and-menaces-icon-concept.png` as a style
 reference. The second and third waves use `knight_errant.png` to match the finished
@@ -38,11 +36,17 @@ fallback was used.
 | Stolen Glory | [View](stolen_glory.png) |
 | Siege Fireball | [View](siege_fireball.png) |
 | Sabotage | [View](sabotage.png) |
+| The Dowager | [View](the_dowager.png) |
 
 The third wave uses comic, bloodless scenes to explain its effects: a town
 crier embarrassing a lord, goblin siege engineers, pony-mounted raiders,
 a sculptor stealing a statue's glory, a battle-wizard and a suspicious dwarf
 roasting chestnuts. All six originals are 1536 × 1024 PNGs.
+
+The Dowager uses the same knight reference and her recorded prompt: an elderly
+Black noblewoman taking tea outside her cottage, across the lane from her
+family's stronghold. Her 1536 × 1024 original was generated with the built-in
+image tool on September 29, 2026.
 
 The knight is Dame Alda, matching her revised flavor text. The cast also
 includes a woman wizard, goblin woman druid, goblin alchemist, male dragon

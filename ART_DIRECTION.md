@@ -1,6 +1,6 @@
 # Storybook visual refresh
 
-Last updated: 2026-09-27. Third-wave card paintings and site-remains design complete; checks pass locally.
+Last updated: 2026-09-29. The Dowager illustration and asset audit complete; local checks pass.
 
 ## User request and scope
 
@@ -1209,3 +1209,29 @@ without covering the board in rings. It hides on a highlighted Site, whose
 target ring takes its place, and dims with other non-targets while a tool is
 armed. High contrast draws it in black. Checked at 1400x900 (whole island
 and three zoom steps) and at 390x844.
+
+
+## September 29: The Dowager and illustration coverage
+
+Branch `codex/dowager-art-audit`, based on fresh main `07267fa`. The Dowager
+was the only current card without a painting. Generated her existing exact
+prompt with the built-in image tool and `knight_errant.png` as the style
+reference. Saved the 1536 × 1024 original as
+`media-sources/storybook/cards/the_dowager.png`; the existing generator derives
+its 600 × 400 WebP. Enabled it through the shared card-art metadata so hands,
+reading views and play flourishes all receive it. Existing high-contrast and
+failed-load emblems remain in place. No rules or save changes.
+
+Inventory audit: all 28 cards and 12 quests have source and runtime paintings;
+all six rival portrait mappings, five Menaces and five landmark types have
+runtime art. Board holdings, banners, terrain and site remains intentionally
+use their existing vector designs. No other missing painting found.
+
+The deck completeness regression failed specifically for The Dowager before
+the fix. Added content-driven asset checks for quests, Menaces and landmarks
+across published maps. Desktop/phone portrait and reading-view tests now include
+The Dowager. All five asset tests and 11 card-art browser tests pass, along
+with lint and full typecheck (zero errors/warnings). Visually inspected the
+rendered reading card: painting and all rules/flavor text fit cleanly. The
+user's existing game tab and saves were untouched. Next: PR, CI, review and
+merge under the repository workflow.

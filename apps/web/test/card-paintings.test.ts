@@ -14,7 +14,7 @@ describe("card paintings", () => {
     for (const c of CARDS) expect(hasCardPainting(c.effectId), c.id).toBe(existsSync(join(PAINTINGS, `${c.effectId}.webp`)));
   });
 
-  it("cover every card in the current deck but The Dowager, whose painting is still to be made", () => {
-    for (const card of CARDS) expect(hasCardPainting(card.effectId), card.id).toBe(card.effectId !== "the_dowager");
+  it("cover every card in the current deck", () => {
+    for (const card of CARDS) expect(hasCardPainting(card.effectId), card.id).toBe(true);
   });
 });

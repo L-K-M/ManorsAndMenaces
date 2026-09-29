@@ -158,7 +158,7 @@ test("empty-hand art keeps a vector fallback", async ({ page }) => {
 });
 
 test("hands use portrait cards with prominent artwork on desktop and phone @mobile", async ({ page }) => {
-  await dealPaintedCards(page, ["festival_at_the_inn", "knight_errant", "wizard_interference"]);
+  await dealPaintedCards(page, ["festival_at_the_inn", "knight_errant", "the_dowager"]);
   for (const size of [{ width: 1400, height: 900 }, { width: 1280, height: 720 }, { width: 412, height: 915 }]) {
     await page.setViewportSize(size);
     await expect(page.locator(".game")).toHaveAttribute("data-layout", size.width === 412 ? "sheet" : "wide");
@@ -178,7 +178,7 @@ test("hands use portrait cards with prominent artwork on desktop and phone @mobi
 
 test("card text stays readable in the hand and preview, with a hold hint on touch screens @mobile", async ({ page }) => {
   const touch = !!test.info().project.use.hasTouch;
-  await dealPaintedCards(page, ["royal_insurance_policy", "druids_blessing", "fire_bolt"]);
+  await dealPaintedCards(page, ["the_dowager", "druids_blessing", "fire_bolt"]);
   await expect(page.getByText("Touch and hold a card to read it.")).toBeVisible({ visible: touch });
   const px = (el: Element) => parseFloat(getComputedStyle(el).fontSize);
   for (const card of await page.locator(".hand button.card").all()) {
@@ -203,7 +203,7 @@ test("card text stays readable in the hand and preview, with a hold hint on touc
     const box = (await first.boundingBox())!;
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] });
-    reading = page.getByRole("dialog", { name: "Royal Insurance Policy" });
+    reading = page.getByRole("dialog", { name: "The Dowager" });
     await expect(reading.locator(".face")).toBeVisible();
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   } else {
