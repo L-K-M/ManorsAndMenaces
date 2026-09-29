@@ -154,6 +154,10 @@ test("setup, first turn, build, harvest, warden, save and reload, victory", asyn
   await dialog.getByRole("button", { name: "Set bonus Renown" }).click();
   await dialog.getByRole("button", { name: "Close" }).click();
   await endTurn(page);
+  // Equal turns: reaching the target ends the game when the round ends, so
+  // the second player still gets their turn first.
+  await passCurtain(page);
+  await endTurn(page);
   const victory = page.getByRole("dialog", { name: "Victory!" });
   await expect(victory).toBeVisible();
   await expect(victory.getByRole("heading", { name: "Final standings" })).toBeVisible();
@@ -207,7 +211,7 @@ test("a game that ends on a full board says so on the results", async ({ page })
   await page.reload();
   await page.getByRole("button", { name: "Load game" }).click();
   // A seed whose board fills before the round's last turn, so the Chronicle also announces it.
-  const save = finishedSave("e2e-full-2", undefined, standardRuleset(3, { targetRenown: 30 }));
+  const save = finishedSave("e2e-full-0", undefined, standardRuleset(3, { targetRenown: 30 }));
   await page.getByLabel(/Import a save file/).setInputFiles({ name: "full-board.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(save)) });
 
   const victory = page.getByRole("dialog", { name: "Victory!" });
@@ -541,6 +545,10 @@ test("New Game plays to the Renown you pick, shows it in the game and remembers 
   await passCurtain(page);
   await expect(victory).toHaveCount(0);
   await setBonusRenown(23);
+  await endTurn(page);
+  // Equal turns again: the target is reached on this turn, the game ends
+  // once the round completes.
+  await passCurtain(page);
   await endTurn(page);
   await expect(victory).toBeVisible();
   await expect(victory.getByText("Target 25").first()).toBeVisible();
