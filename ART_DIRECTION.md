@@ -1253,3 +1253,21 @@ remains useful when a future feature explicitly defers art. Added inexpensive
 non-empty inventory guards suggested by review. Both generated binaries are
 tracked and their browser decode is verified. Next: CI and review on the
 Sealed Charge additions, then merge.
+
+
+Final CI caught one stale assertion in the existing Dowager gameplay test:
+it explicitly required no image while her painting was pending. Updated it
+to require the decoded 600px painting, retaining the entire play/build
+scenario. The other 214 browser cases passed. Two review rounds completed
+without confirmed important defects; the remaining seal-duplication suggestion
+is cosmetic. Strict TypeScript already rejects an unhandled future ChargeGoal
+variant (verified with a temporary compiler probe), so the suggested default
+branch was unnecessary. Next: verify the updated gameplay test and await CI
+on the final test correction before merge.
+
+The local gameplay rerun also exposed a pre-existing, layout-dependent test
+expectation: clicking a ruined Site with the Manor tool armed now opens the
+refusal dialog (PR #72), while an unarmed click opens the inspector. The test
+expected inspector wording in both cases. It now checks the matching message
+for the tool state, preserving the prohibition and unchanged Holding counts.
+No production gameplay change was needed.
