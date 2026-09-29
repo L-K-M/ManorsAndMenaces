@@ -355,9 +355,11 @@ for target in "${TARGETS[@]}"; do
         skip_or_fail flatpak "Flatpak builds run on Linux"
         continue
       fi
-      # Reuse the desktop target's .deb when it ran; otherwise build just it.
+      # Reuse the desktop target's .deb when it ran this invocation; rebuild
+      # when absent or stale. (SECONDS is this script's runtime.)
+      local_start=$(( $(date +%s) - SECONDS ))
       deb="$(ls -t "$DIST"/desktop/*.deb 2>/dev/null | head -1 || true)"
-      if [[ -z "$deb" ]]; then
+      if [[ -z "$deb" || "$(stat -c %Y "$deb" 2>/dev/null || echo 0)" -lt "$local_start" ]]; then
         if ! command -v cargo >/dev/null 2>&1; then
           skip_or_fail flatpak "Rust toolchain not found (https://rustup.rs)"
           continue
@@ -367,7 +369,7 @@ for target in "${TARGETS[@]}"; do
           continue
         fi
         $PNPM tauri build --bundles deb || { FAILED+=("flatpak"); continue; }
-        deb="$(find src-tauri/target -path "*/release/bundle/deb/*.deb" -print -quit)"
+        deb="$(find src-tauri/target -path "*/release/bundle/deb/*.deb" -printf '%T@\t%p\n' | sort -rn | head -n1 | cut -f2-)"
       fi
       if ./scripts/build-flatpak.sh "$deb"; then
         OK+=("flatpak → $DIST/")
