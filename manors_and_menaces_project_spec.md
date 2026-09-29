@@ -270,6 +270,8 @@ In the base game only the active player can gain Renown, because building, Quest
 
 Simultaneous wins should be rare.
 
+**Two players: equal turns.** In a two-player Standard or async game (ruleset 0.10.0) reaching the target does not end the game at once: the rest of the round still plays out, so both players take the same number of turns, and the game then ends with the best Renown — the tie-break order applied to both. This compensates the second seat for acting after the first every round (§129.12). The rule is `RulesetConfig.equalTurns`; games created before it end at the end of the turn that reached the target, as above.
+
 **Exception: Ragnarök.** The game can also end before anyone reaches the target. When Ragnarök resolves (§19.13), the game ends at once, in the middle of the turn, without the End Turn phase. The winner is decided by the same tie-break order, applied to all players, and may have less than the target Renown.
 
 **Exception: a full board.** The board can fill up before anyone reaches the target, most often with 3 or 4 players and the higher goals (§129.6). The board is full when no Site could take a new Manor, whoever builds, because each is built on, in ruins (§19.26) or too close to a Holding (§10.3), and every Holding is a Stronghold. A Site burned down by Raiders (§19.24) counts as open, since its owner may rebuild there. On a full board nobody can build for Renown any more; only Quests, cards and the Crown's Levy (§27.3) remain. So when the round ends on a full board (the End Turn phase of the last player in turn order, after the victory check above), the game ends. The winner is decided by the same tie-break order, applied to all players, and may have less than the target Renown. Until then, each End Turn on a full board announces that the game ends with the round if the board is still full then (`board_full`); a card that opens it again, such as Raiders or Siege Engines, or adds a Manor, such as The Dowager (§19.28), lets the game go on. A card that could add one but is still in a hand does not: hands are hidden, and the check also runs on the redacted views that clients and the AI plan with. The game records how it ended (`endCause: "full_board"`). The rule is `RulesetConfig.endOnFullBoard`, on in every ruleset from 0.7.0; games created before it play on.
@@ -1588,6 +1590,8 @@ After a player's **second** initial Manor is placed:
 Gain 1 resource from each Region adjacent to that Manor.
 
 Ignore Region capacity and Menaces during this initial grant.
+
+In a three-player game the later seats also begin with extra supplies when play begins (ruleset 0.10.0, §129.12): the second seat 1 Timber, the third 1 Timber and 1 Stone — 1 Timber each under the Core rules. The rule is `RulesetConfig.seatBonus`; games created before it start every seat empty-handed.
 
 ## 28.4 Initial Banners
 
@@ -4916,4 +4920,27 @@ Rounds, winner's Renown and margin (the winner's Renown less the runner-up's):
 1. Only the three together bring goals 25 and 30 within reach at both player counts. The Levy alone barely moves reach: the AI answers it on 4 to 13 % of its chances (§129.8).
 2. At the default goals the Levy and the Voice change nothing measurable: the Levy seldom comes into force before the game ends, and the Voice waits for the Quest deck. Sealed Charges shorten 3-player goal-15 games by about half a round (13.98 to 13.48 rounds on 180 further seeds) and 4-player goal-13 games by about 0.8 round, still inside the 12 to 16 target.
 3. Margins widen, mostly because more games end at the goal: games that end at the goal have margins of 5 to 10, full-board endings 1 to 5. Close games (a margin of 1 or less) fall from 8 to 13 of 30 to 2 to 7. The Voice widens the margin most with 4 players: at goal 25 the winner holds about 5.7 Favour against the runner-up's 3.
-4. **The first seat with 3 players at goal 15.** Under the default rules (the Levy and The Dowager), 360 further seeds gave seat win rates of 48.1 / 28.6 / 23.3 %, above the 45 % target (§68). Without The Dowager the same seeds gave 41.7 / 31.9 / 26.4 %, so The Dowager adds about 6 ± 4 points to the first seat; the rest is the cards-and-tempo edge of §129.4. Sealed Charges do not change it. At goal 25 the edge is smaller (39 / 37 / 24 %), and 4-player games show none (20 / 28 / 23 / 29 % at goal 13 on 120 seeds). A fix, such as a single copy of The Dowager or a later first play, is open.
+4. **The first seat with 3 players at goal 15.** Under the default rules (the Levy and The Dowager), 360 further seeds gave seat win rates of 48.1 / 28.6 / 23.3 %, above the 45 % target (§68). Without The Dowager the same seeds gave 41.7 / 31.9 / 26.4 %, so The Dowager adds about 6 ± 4 points to the first seat; the rest is the cards-and-tempo edge of §129.4. Sealed Charges do not change it. At goal 25 the edge is smaller (39 / 37 / 24 %), and 4-player games show none (20 / 28 / 23 / 29 % at goal 13 on 120 seeds). Fixed by the seat compensation of §129.12.
+
+## 129.12 First-player compensation (ruleset 0.10.0)
+
+Two hypotheses for the first seat's edge were tested on drawn islands (normal AI, paired seeds). Map topology was ruled out first: flattening every Site to at most three adjacent Regions — identical setups for every seat — left the first seat winning 58 % of 3-player games, and conditioning on who claimed a 4-Region Site moved no seat's rate. The edge is turn-order tempo: acting first every round.
+
+The `seatBonus` and `equalTurns` sweep under the current rules (120 games a row unless noted; §129.4's "seat bonuses do not help" predates the Levy, the last round and free card income):
+
+| Rules, players | Baseline | Lever | Result |
+|---|---|---|---|
+| Standard, 3 | 43 / 33 / 24 % | seatBonus {}, {timber 1}, {timber 1, stone 1} | 33 / 35 / 33 % |
+| Standard, 2 | 54 / 46 % | equalTurns | 50 / 50 % |
+| Standard, 4 | 24 / 27 / 29 / 20 % | none | on target |
+| Core, 3 | 46 / 29 / 25 % (100 games) | seatBonus {}, {timber 1}, {timber 1} | 35 / 32 / 33 % |
+| Core, 2 | 49 / 51 % | none | already even |
+| Core, 4 | 23 / 32 / 28 / 19 % (200 games) | none | seat 2 grazes the §68 limit |
+
+Adopted: the tables above in `BALANCE.seatBonus` (three-seat games only) and `equalTurns` in two-seat Standard and async games. Four seats get nothing — every bonus tried overshot toward the last seat (up to 40 %). In 3-player Standard the bonus must also reach the middle seat: granting the third seat alone left it at 34 % while the second fell to 24 %. Equal turns need no resources: adding them flipped 2-player games to 43 / 57 % the other way.
+
+What did not work in 3-player Standard (80 games a row unless noted): equal turns alone left the first seat at 39 %, a lighter timber-only table [{}, {timber 1}, {timber 1}] at 40 %, and grain/iron [{}, {grain 1}, {grain 1, iron 1}] at 39 % — Route-priced resources are what counters the tempo edge, and anything weaker leaves most of it.
+
+Caveat — the bonus amplifies a map's own seat skew: on The Greenvale, whose published layout already favours the third seat (46 % without the bonus, 80 games), it rose to 64 %. Equal turns do not amplify (50 % there) but also do not fix it, and the Core table leaves it at 55 %. Per-island skew is the islands' own defect (§129, the drawn islands), which the aggregate fix above cannot reach; it stays open for map-side tuning.
+
+Still open: the second seat wins ~32 % of 4-player Core games (200 games, ±3 %), grazing the §68 limit. Neither equal turns nor a trailing-seat bonus moved it, so it stands as an observation for a larger run, not a confirmed defect.

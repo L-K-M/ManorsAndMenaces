@@ -405,12 +405,14 @@ describe("the Crown's Voice: off, public and checked", () => {
     expect(events.some((e) => e.type === "favour_won" || e.type === "crowns_voice_turned")).toBe(false);
     expect(Object.values(s.players).every((p) => p.favour === undefined)).toBe(true);
     // 24 turns from setup under the ruleset 0.7.0 rules (no last round, no
-    // Crown's Levy), recorded on engines without the Crown's Voice. The deck
-    // gained The Dowager since, which deals differently from setup on, so the
-    // hash is the one recorded once she joined it.
+    // Crown's Levy, no equal-turn rule), recorded on engines without the
+    // Crown's Voice. The deck gained The Dowager since, which deals
+    // differently from setup on, so the hash is the one recorded once she
+    // joined it.
     const before = standardRuleset(2);
     delete before.lastRound;
     delete before.crownLevy;
+    delete before.equalTurns;
     let plain = setupGame(before).state;
     for (let i = 0; i < 24; i++) plain = passTurn(plain);
     expect(hashState({ ...plain, rulesetVersion: "pinned" })).toBe("09c946bfb82f81");

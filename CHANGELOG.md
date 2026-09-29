@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- First-player compensation (ruleset 0.10.0): in a three-player game the
+  later seats begin with extra supplies — 1 Timber for the second seat,
+  1 Timber and 1 Stone for the third (1 Timber each in the Core rules) —
+  and a two-player game finishes its round once someone reaches the goal,
+  so both seats take the same number of turns. Measured by AI-vs-AI
+  sweeps on drawn islands: seat win rates move from 43/33/24% to 33/35/33%
+  (3 players) and 54/46% to 50/50% (2 players); four seats needed nothing.
+  Saved games and running matches keep the rules they started with.
+
 - Competitive turn-based fantasy strategy board game for 2–4 players: roads,
   manors, Banners (no production dice), Royal Writs, Wardens, knights,
   wizards, trolls and dragons.

@@ -54,7 +54,7 @@ describe("choosing a Renown goal (§7)", () => {
         expect(asyncRuleset(players, { targetRenown }).targetRenown).toBe(targetRenown);
       }
     }
-    for (const targetRenown of targetRenownChoices("mvp", 2)) expect(mvpRuleset({ targetRenown }).targetRenown).toBe(targetRenown);
+    for (const targetRenown of targetRenownChoices("mvp", 2)) expect(mvpRuleset(2, { targetRenown }).targetRenown).toBe(targetRenown);
   });
 
   it("changes nothing else about the rules but what the Crown's Levy pays", () => {
@@ -77,14 +77,15 @@ describe("choosing a Renown goal (§7)", () => {
   });
 
   it("refuses goals the Core rules do not offer", () => {
-    for (const targetRenown of [12, 18, 40]) expect(() => mvpRuleset({ targetRenown })).toThrow(RangeError);
+    for (const targetRenown of [12, 18, 40]) expect(() => mvpRuleset(2, { targetRenown })).toThrow(RangeError);
   });
 
   it.each([15, 25, 30])("ends the game when someone reaches a chosen goal of %i", (targetRenown) => {
     const { state, p1 } = setupGame(standardRuleset(2, { targetRenown }));
     const short = passTurn(withRenown(state, p1, targetRenown - 1));
     expect(short.status).toBe("playing");
-    const won = passTurn(withRenown(state, p1, targetRenown));
+    // equalTurns: the round plays out once the target is reached (§129.4).
+    const won = passTurn(passTurn(withRenown(state, p1, targetRenown)));
     expect(won.status).toBe("finished");
     expect(won.winnerId).toBe(p1);
   });
@@ -113,7 +114,10 @@ describe("games created before the goal changed (§7)", () => {
   // For a while the Standard goal was 20, or 18 with 4 players. A saved game
   // or running online match stores its goal, so it keeps it.
   it.each([20, 18])("still end at their saved goal of %i", (targetRenown) => {
-    const { state, p1 } = setupGame({ ...standardRuleset(2), targetRenown });
+    // Saved games keep their old rules: rulesets before 0.10.0 had no equalTurns.
+    const legacy: RulesetConfig = { ...standardRuleset(2), targetRenown };
+    delete legacy.equalTurns;
+    const { state, p1 } = setupGame(legacy);
     const restored = JSON.parse(JSON.stringify(state)) as GameState;
     expect(restored.ruleset.targetRenown).toBe(targetRenown);
     const ended = passTurn(withRenown(restored, p1, targetRenown));

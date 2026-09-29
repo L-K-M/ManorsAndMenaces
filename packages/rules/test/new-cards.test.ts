@@ -247,7 +247,7 @@ describe("Changeling (§19.12)", () => {
 describe("Ragnarök (§19.13)", () => {
   /** The first turn, with Ragnarök still set aside. */
   function omen() {
-    const g = setupGame(standardRuleset(2));
+    const g = setupGame({ ...standardRuleset(2), equalTurns: false });
     return { ...g, threshold: g.state.ruleset.targetRenown - BALANCE.ragnarok.omenGap };
   }
   /** p1 holds Ragnarök (dealt from the set-aside pile). */

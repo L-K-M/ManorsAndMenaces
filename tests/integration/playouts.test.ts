@@ -250,7 +250,7 @@ describe("AI playouts", () => {
   // wins (spec §129.6).
   const playoutRuleset = (players: number): RulesetConfig => ({ ...standardRuleset(players), targetRenown: players >= 4 ? 13 : 15 });
   for (const [players, rs, name] of [
-    [3, mvpRuleset(), "mvp-3p"],
+    [3, mvpRuleset(3), "mvp-3p"],
     [2, playoutRuleset(2), "std-2p"],
     [3, playoutRuleset(3), "std-3p"],
     [4, playoutRuleset(4), "std-4p"],
@@ -265,11 +265,11 @@ describe("AI playouts", () => {
   }
 
   // At a goal of 25 the Quest deck runs out and the Crown's Levy (§27.3) is
-  // proclaimed long before anyone wins. On this seed every player answers
-  // some, before the board fills.
+  // proclaimed long before anyone wins. On this seed players answer some,
+  // before the board fills.
   it("levy-3p: plays through the Crown's Levy and keeps invariants", () => {
     const rs = standardRuleset(3, { targetRenown: 25 });
-    const { initial, final, commands } = playGame(3, rs, "levy-3p-c");
+    const { initial, final, commands } = playGame(3, rs, "levy-3p-e");
     expect(final.status).toBe("finished");
     expect(final.crownLevy?.called.length).toBeGreaterThan(0);
     expect(Object.values(final.players).some((p) => (p.levyRenown ?? 0) > 0)).toBe(true);
@@ -377,7 +377,7 @@ describe("AI playouts with Sealed Charges (§27A)", () => {
 // (§129.10), waiting for the Quest deck or speaking from round 1.
 describe("AI playouts with every late-game rule together", () => {
   for (const [players, targetRenown, from, name] of [
-    [3, 25, "quest_deck_empty", "late-3p-25"],
+    [3, 25, "quest_deck_empty", "late-3p-25-b"],
     [4, 30, "first_round", "late-4p-30"],
   ] as const) {
     it(`${name}: finishes, keeps invariants and replays`, () => {

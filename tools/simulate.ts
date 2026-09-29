@@ -73,7 +73,11 @@ function mapIdFor(seed: string): string {
 // Every map deals the same cards.
 const ctx = engineFor(GREENVALE_MAP.id).ctx;
 const TARGET_OPTIONS = args.includes("--target") ? { targetRenown: Number(arg("target", "")) } : {};
-const RULESET = { ...(RULES === "mvp" ? mvpRuleset(TARGET_OPTIONS) : standardRuleset(PLAYERS, TARGET_OPTIONS)), equalTurns: EQUAL_TURNS, ...OVERRIDE };
+const RULESET = {
+  ...(RULES === "mvp" ? mvpRuleset(PLAYERS, TARGET_OPTIONS) : standardRuleset(PLAYERS, TARGET_OPTIONS)),
+  ...(EQUAL_TURNS ? { equalTurns: true } : {}),
+  ...OVERRIDE,
+};
 // The card definitions this ruleset deals (Treasure Hunter and others need their Menace).
 const DECK = RULESET.enableCards ? ctx.content.cards.filter((c) => isCardUsableInRuleset(c, RULESET)) : [];
 

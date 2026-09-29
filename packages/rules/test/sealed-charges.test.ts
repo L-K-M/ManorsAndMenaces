@@ -63,11 +63,11 @@ const setBonus = (s: GameState, playerId: PlayerId, value: number): GameState =>
 
 describe("the Sealed Charges option", () => {
   it("is off unless chosen, and a game without it holds no Charge", () => {
-    expect(RULESET_VERSION).toBe("0.9.0");
+    expect(RULESET_VERSION).toBe("0.10.0");
     expect(standardRuleset(3).sealedCharges).toBeUndefined();
     expect(mvpRuleset().sealedCharges).toBeUndefined();
     expect(standardRuleset(3, { sealedCharges: true }).sealedCharges).toBe(true);
-    expect(mvpRuleset({ sealedCharges: false }).sealedCharges).toBeUndefined();
+    expect(mvpRuleset(2, { sealedCharges: false }).sealedCharges).toBeUndefined();
 
     const { state, p1 } = setupGame(cardTestRuleset(2));
     expect(state.chargeDeck).toBeUndefined();

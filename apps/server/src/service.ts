@@ -158,7 +158,7 @@ export class MatchService {
     // Sealed Charges (§27A) are a lobby option, off unless asked for.
     if (!isSealedChargesChoice(req.sealedCharges)) throw new HttpError(400, "sealedCharges must be true or false");
     const options = { targetRenown, sealedCharges: req.sealedCharges === true };
-    const ruleset = rules === "mvp" ? mvpRuleset(options) : rules === "async" ? asyncRuleset(seatCount, options) : standardRuleset(seatCount, options);
+    const ruleset = rules === "mvp" ? mvpRuleset(seatCount, options) : rules === "async" ? asyncRuleset(seatCount, options) : standardRuleset(seatCount, options);
     const matchId = `m_${randomUUID()}`;
     const inviteCode = randomBytes(5).toString("base64url").toUpperCase().replace(/[^A-Z0-9]/g, "X").slice(0, 6);
     // Each match is played on an island and a layout drawn from its seed.
