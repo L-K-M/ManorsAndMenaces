@@ -372,7 +372,7 @@ for target in "${TARGETS[@]}"; do
         $PNPM tauri build $DEBUG_FLAG --bundles deb || { FAILED+=("flatpak"); continue; }
         deb="$(find src-tauri/target -path "*/$BUNDLE_PROFILE/bundle/deb/*.deb" -printf '%T@\t%p\n' | sort -rn | head -n1 | cut -f2-)"
         [ -n "$deb" ] || { FAILED+=("flatpak: tauri deb build produced no .deb"); continue; }
-        mkdir -p "$DIST/desktop" && cp "$deb" "$DIST/desktop/"
+        mkdir -p "$DIST/desktop" && cp "$deb" "$DIST/desktop/" || { FAILED+=("flatpak: could not stage .deb into dist"); continue; }
       fi
       if ./scripts/build-flatpak.sh "$deb"; then
         OK+=("flatpak → $DIST/")
