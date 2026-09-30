@@ -1056,6 +1056,7 @@ export const EN: Record<string, string> = {
   "ui.renown_goal_last_round": "Every game ends after round {last} at the latest.",
   "ui.seat_bonus_hint": "The later seats begin with extra supplies, offsetting the first mover's edge.",
   "ui.equal_turns_hint": "Once someone reaches the goal the round plays out, so both players take the same number of turns.",
+  "ui.draft_rotation_hint": "The seat placing the first Manor is drawn at random, so a map's best opening spots are not always the first player's.",
   "ui.advanced": "Advanced",
   "ui.seed_for_reproducible_games": "Seed (for reproducible games)",
   "ui.quest_expiry_option": "Unclaimed Royal Quests leave after {rounds} rounds",

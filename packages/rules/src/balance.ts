@@ -107,7 +107,7 @@ export const BALANCE = {
   },
 } as const;
 
-export const RULESET_VERSION = "0.10.0";
+export const RULESET_VERSION = "0.11.0";
 
 /** The Crown's Voice as a new game gets it (§129.10). */
 export function crownsVoiceRules(): CrownsVoiceRules {
@@ -200,6 +200,11 @@ function seatBonusOption(rules: "standard" | "mvp", playerCount: number): Pick<R
   return { seatBonus: BALANCE.seatBonus[rules].map((b) => ({ ...b })) };
 }
 
+/** Three-seat rulesets draw which seat opens the placement draft (§129.13). */
+function setupDraftRotationOption(playerCount: number): Pick<RulesetConfig, "setupDraftRotation"> {
+  return playerCount === 3 ? { setupDraftRotation: true } : {};
+}
+
 /** §91 — MVP: no cards, no Quests, Toll Troll only, 10 Renown unless another goal is chosen. */
 export function mvpRuleset(playerCount = 2, options: RulesetOptions = {}): RulesetConfig {
   return {
@@ -212,6 +217,7 @@ export function mvpRuleset(playerCount = 2, options: RulesetOptions = {}): Rules
     enableQuests: false,
     ...sealedChargesOption(options),
     ...seatBonusOption("mvp", playerCount),
+    ...setupDraftRotationOption(playerCount),
   };
 }
 
@@ -240,6 +246,7 @@ export function standardRuleset(playerCount: number, options: RulesetOptions = {
     // out, so both seats see the same number of turns (§129.12).
     ...(playerCount === 2 ? { equalTurns: true } : {}),
     ...seatBonusOption("standard", playerCount),
+    ...setupDraftRotationOption(playerCount),
     ...sealedChargesOption(options),
   };
 }

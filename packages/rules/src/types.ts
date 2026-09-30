@@ -230,6 +230,14 @@ export interface RulesetConfig {
    */
   seatBonus?: ResourceCost[];
   /**
+   * Draw which seat opens the setup placement draft with the match RNG
+   * instead of always starting with the first player (spec §129.13), so a
+   * layout's strong draft slots do not always land on the same seats. Set by
+   * the three-player rulesets: with two or four seats a fixed snake measured
+   * better.
+   */
+  setupDraftRotation?: boolean;
+  /**
    * Quest expiry (§27.2, on in the Standard rules): a revealed Quest nobody
    * claims for this many rounds is swapped with the top of the Quest deck at
    * the start of a round. Absent or 0: Quests stay until claimed.

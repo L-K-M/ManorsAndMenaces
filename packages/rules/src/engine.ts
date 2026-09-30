@@ -208,7 +208,13 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
     };
   });
 
-  const placementOrder = [...turnOrder, ...[...turnOrder].reverse()];
+  // With setupDraftRotation the draft starts at a seat drawn with the match
+  // RNG and snakes from there, so a layout's strong draft slots do not
+  // always land on the same turn-order seats (§28.2, §129.13). Without it
+  // the draft opens with the first player, as before, and no draw is spent.
+  const draftStart = ruleset.setupDraftRotation ? rng.nextInt(players.length) : 0;
+  const draftOrder = turnOrder.map((_, i) => turnOrder[(draftStart + i) % players.length] as PlayerId);
+  const placementOrder = [...draftOrder, ...[...draftOrder].reverse()];
   return {
     revision: 0,
     matchId: config.matchId,
@@ -222,7 +228,7 @@ function createGame(ctx: RulesContext, config: GameConfig): GameState {
       placementIndex: 0,
       step: "place_manor",
       lastPlacedSiteId: null,
-      bannerAssignmentOrder: [...turnOrder].reverse(),
+      bannerAssignmentOrder: [...draftOrder].reverse(),
       bannerAssignmentIndex: 0,
     },
     round: 0,

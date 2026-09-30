@@ -149,7 +149,7 @@ describe("the last round (§7)", () => {
 
   it("is round 30 in every ruleset", () => {
     expect(BALANCE.lastRound).toBe(30);
-    expect(RULESET_VERSION).toBe("0.10.0");
+    expect(RULESET_VERSION).toBe("0.11.0");
     for (const ruleset of [standardRuleset(2), standardRuleset(4, { targetRenown: 30 }), asyncRuleset(3), mvpRuleset()]) expect(ruleset.lastRound).toBe(30);
   });
 });

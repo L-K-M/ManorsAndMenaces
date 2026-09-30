@@ -1560,8 +1560,8 @@ The AI keeps the Charge it is further along. It counts Banners where its next Ba
 6. Shuffle Quest deck using match RNG.
 7. Reveal 3 Quests.
 8. With Sealed Charges (§27A), shuffle the Charge deck using match RNG; each player in turn order draws 2 Charges and keeps 1 (§27A.2).
-9. Players place initial Holdings in snake order. Each Manor is followed immediately by one free Route and, for a player's second Manor, their starting resources (§28.2–28.3).
-10. Players assign initial Banners in **reverse** turn order (§28.4).
+9. Players place initial Holdings in snake order. In a three-player game the match RNG draws which seat opens the draft (ruleset 0.11.0, §129.13); with two or four seats the first player opens it, as before, spending no draw. The draw is the last setup RNG use — after every deck shuffle and the Crown's Voice creation (§129.10) — so the seeded stream position is pinned. Each Manor is followed immediately by one free Route and, for a player's second Manor, their starting resources (§28.2–28.3).
+10. Players assign initial Banners in **reverse** draft order (§28.4).
 11. Begin turn 1.
 
 ## 28.2 Initial Holdings
@@ -1570,13 +1570,14 @@ Each player starts with 2 Manors.
 
 Placement order:
 
-- first round: player order forward;
-- second round: player order reverse.
+- in a three-player game (ruleset 0.11.0, §129.13) the match RNG draws which seat opens the draft; the drawn seat and those after it in turn order place in the first pass, in that order;
+- with two or four seats — and in games created before ruleset 0.11.0 — the first player opens the draft;
+- the second pass runs in reverse, so the seat placing last in the first pass places twice in a row.
 
-Example for 3 players:
+Example for 3 players where the draw picks B to open:
 
 ```text
-A → B → C → C → B → A
+B → C → A → A → C → B
 ```
 
 After placing each Manor, the player immediately places one free Route that has that Manor's Site as an endpoint.
@@ -1601,11 +1602,11 @@ Each player assigns one Banner from each starting Manor.
 
 Normal capacity restrictions apply.
 
-Resolve players in **reverse** turn order: the last seat assigns first, and the first player assigns last.
+Resolve players in **reverse** draft order: the seat placing last in the first pass assigns first, and the seat that opened the draft assigns last.
 
 If a desired Region fills before later players assign, those later players must choose another legal Region, or leave the Banner unassigned.
 
-Rationale: the first player already acts first in round 1. If they also chose Banners first, that would add a lasting advantage in exclusive Regions. Reverse order balances this in the same way that Catan's snake setup gives the last seat two placements in a row.
+Rationale: the seat that opened the draft already had first choice of Sites. If they also chose Banners first, that would add a lasting advantage in exclusive Regions. Reverse order balances this in the same way that Catan's snake setup gives the last seat two placements in a row.
 
 Initial Banners start **unsettled**. They become Settled after their owner's first real Harvest (in round 2, because round 1's Harvest is skipped, §29). So no initial Banner can be targeted by a Writ before it has produced once, and the first player gets no chance to Writ in round 1.
 
@@ -1641,6 +1642,7 @@ Randomness should be deterministic and seeded.
 Random elements may include:
 
 - initial first player;
+- which seat opens the placement draft in a three-player game (§28.2);
 - Quest order;
 - card deck order;
 - Sealed Charge deck order (§27A.1);
@@ -1815,7 +1817,7 @@ export interface SetupProgress {
   placementOrder: PlayerId[];
   placementIndex: number;
   step: "place_manor" | "place_route" | "assign_banners";
-  bannerAssignmentOrder: PlayerId[]; // reverse turn order (§28.4)
+  bannerAssignmentOrder: PlayerId[]; // reverse draft order (§28.4)
   bannerAssignmentIndex: number;
 }
 ```
@@ -4574,7 +4576,7 @@ The first milestone is a complete, testable, local game loop that proves the Ban
 | Trading could not ease a bottleneck; the only option was a flat 3:1 Market | 2:1 Trading Posts on Stone and Iron (§17.3) | Catan's harbors |
 | A 24-Site map fits about 10–11 Holdings, too few to reach the Renown target from buildings | 36 Sites, about 52 Routes, 24 Regions, and a sizing check (§11.1, §102) | Catan's board-to-player ratio (54 intersections for 3–4 players) |
 | The MVP target of 12 Renown could not be reached without Quests | MVP target 10 (§7.1) | Catan and Kolonists both target 10, with 2–4 points in Catan coming from sources other than buildings |
-| The first player also chose initial Banners first | Initial Banners assigned in reverse turn order (§28.4) | Catan's snake setup |
+| The first player also chose initial Banners first | Initial Banners assigned in reverse draft order (§28.4) | Catan's snake setup |
 | Players kept moving Menaces back and forth with Wardens (simulation) | A Warden guards its Menace until the hirer's next turn (§26.1) | Catan's robber stays put until the next 7 or knight |
 
 ## 129.2 Open design question: displacement protection
@@ -4941,6 +4943,24 @@ Adopted: the tables above in `BALANCE.seatBonus` (three-seat games only) and `eq
 
 What did not work in 3-player Standard (80 games a row unless noted): equal turns alone left the first seat at 39 %, a lighter timber-only table [{}, {timber 1}, {timber 1}] at 40 %, and grain/iron [{}, {grain 1}, {grain 1, iron 1}] at 39 % — Route-priced resources are what counters the tempo edge, and anything weaker leaves most of it.
 
-Caveat — the bonus amplifies a map's own seat skew: on The Greenvale, whose published layout already favours the third seat (46 % without the bonus, 80 games), it rose to 64 %. Equal turns do not amplify (50 % there) but also do not fix it, and the Core table leaves it at 55 %. Per-island skew is the islands' own defect (§129, the drawn islands), which the aggregate fix above cannot reach; it stays open for map-side tuning.
+Caveat — the bonus amplifies a map's own seat skew: on The Greenvale, whose published layout already favours the third seat (46 % without the bonus, 80 games), it rose to 64 %. Equal turns do not amplify (50 % there) but also do not fix it, and the Core table leaves it at 55 %. This per-island skew turned out to live in the setup draft's fixed ordering and is addressed by §129.13.
 
 Still open: the second seat wins ~32 % of 4-player Core games (200 games, ±3 %), grazing the §68 limit. Neither equal turns nor a trailing-seat bonus moved it, so it stands as an observation for a larger run, not a confirmed defect.
+
+## 129.13 Setup draft rotation, three seats only (ruleset 0.11.0)
+
+The Greenvale caveat of §129.12 pointed at the real defect: a fixed snake draft binds each island's strong draft slots to the same turn-order seats. On The Greenvale the last seat's consecutive picks (slots 3 and 4 of 6) land on that island's strongest Site pair: the third seat won 61 % of 200 games once the order change was measured in isolation (same seeds, same match-RNG stream, only the draft order patched back). A linear, non-snake draft flips the skew to the first seat rather than removing it, so it is draft position, not tempo.
+
+Drawing which seat opens the draft spreads each layout's slot advantage across all seats — but at two and four seats the snake's consecutive picks are the last seat's own compensation for acting last, and rotating them moves the skew instead of removing it. The rows below are paired: the fixed-snake column replays the same seeds on the 0.11.0 stream with only the draft order patched back, so each delta isolates the ordering, not the seed draw (absolute rates differ from §129.12's table, whose stream predates the draw):
+
+| Rules, players, map | Fixed snake | Drawn draft start |
+|---|---|---|
+| Standard, 3, The Greenvale | 19 / 21 / 61 % (200 games) | 35 / 25 / 41 % |
+| Standard, 2, The Greenvale | 50 / 51 % (200) | 61 / 40 % |
+| Standard, 2, drawn islands | 59 / 41 % (200) | 59 / 42 % |
+| Standard, 4, The Greenvale | 29 / 35 / 20 / 16 % (150) | 33 / 28 / 17 / 22 % |
+| Standard, 4, drawn islands | 28 / 25 / 23 / 24 % (200) | 32 / 28 / 24 / 17 % |
+
+At three seats rotation is pure gain — the Greenvale skew dissolves and the drawn-island aggregate stays flat (35 / 38 / 28 % over 120 games; Core rules: 28 / 37 / 35 % on Greenvale over 150). At two seats it is a real regression: on Greenvale, seat 1 wins 71 % of games when it holds the middle draft slots that the fixed snake guarantees seat 2, against 51 % when it does not. At four seats it trades The Greenvale's seat-2 skew (35 %) for seat-1 drift (33 %) and costs the last seat ~7 points on drawn islands.
+
+Adopted: `RulesetConfig.setupDraftRotation`, set by the three-seat rulesets (§129.12's rows). Two- and four-seat games keep the first player opening the draft — and, spending no draw, they deal exactly as before. Banner assignment keeps following reverse draft order (§28.4), the drawn order is stored in `setup.placementOrder`, and games created before ruleset 0.11.0 are unchanged.
