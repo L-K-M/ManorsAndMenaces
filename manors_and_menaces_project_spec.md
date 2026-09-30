@@ -1602,7 +1602,7 @@ Each player assigns one Banner from each starting Manor.
 
 Normal capacity restrictions apply.
 
-Resolve players in **reverse** draft order: whoever placed last assigns first, and the seat that opened the draft assigns last.
+Resolve players in **reverse** draft order: the seat placing last in the first pass assigns first, and the seat that opened the draft assigns last.
 
 If a desired Region fills before later players assign, those later players must choose another legal Region, or leave the Banner unassigned.
 

@@ -72,10 +72,11 @@ describe("setup (§28)", () => {
     expect(s.setup?.bannerAssignmentOrder).toEqual([d3, d2, d1]);
     expect(new Set([d1, d2, d3])).toEqual(new Set(s.turnOrder));
     expect(s.activePlayerId).toBe(d1);
-    // Over seeds the opening seat varies; two and four seats keep the first
-    // player opening.
-    const starts = new Set([0, 1, 2, 3, 4, 5, 6, 7].map((i) => game3(`draft-${i}`).setup?.placementOrder[0]));
-    expect(starts.size).toBeGreaterThan(1);
+    // Over seeds every seat opens the draft, and the drawn opener always
+    // acts first in setup.
+    const games = Array.from({ length: 12 }, (_, i) => game3(`draft-${i}`));
+    expect(new Set(games.map((g) => g.setup?.placementOrder[0])).size).toBe(3);
+    for (const g of games) expect(g.activePlayerId).toBe(g.setup?.placementOrder[0]);
     for (const p of [2, 4]) {
       const g = engine.createGame({
         matchId: "m",
@@ -541,6 +542,14 @@ describe("rulesets", () => {
     expect(asyncRuleset(2).equalTurns).toBe(true);
     for (const players of [3, 4]) expect(standardRuleset(players).equalTurns).toBeUndefined();
     for (const players of [2, 3, 4]) expect(mvpRuleset(players).equalTurns).toBeUndefined();
+  });
+  it("draws the setup draft's opener only in three-player games (§129.13)", () => {
+    for (const ruleset of [standardRuleset(3), asyncRuleset(3), mvpRuleset(3)]) expect(ruleset.setupDraftRotation).toBe(true);
+    for (const players of [2, 4]) {
+      expect(standardRuleset(players).setupDraftRotation).toBeUndefined();
+      expect(asyncRuleset(players).setupDraftRotation).toBeUndefined();
+      expect(mvpRuleset(players).setupDraftRotation).toBeUndefined();
+    }
   });
 });
 

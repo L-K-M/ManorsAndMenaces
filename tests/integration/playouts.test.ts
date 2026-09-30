@@ -5,6 +5,7 @@ import {
   createRng,
   createRulesEngine,
   crownsVoiceRules,
+  getLegalActions,
   getRenown,
   getRenownSources,
   hashState,
@@ -263,6 +264,40 @@ describe("AI playouts", () => {
       console.log(name, "rounds", final.round, "commands", commands.length, describeWin(final, won));
     }, 120_000);
   }
+
+  // The draft opens at a seat drawn with the match RNG (§129.13), but round 1
+  // still opens with the first player: the draft opener's compensation is the
+  // reverse Banner order, not acting first.
+  it("draft-3p: round 1 opens with the first turn-order seat, not the draft opener", () => {
+    const initial = engine.createGame({
+      matchId: "m-draft",
+      seed: "draft-0",
+      rulesetVersion: RULESET_VERSION,
+      ruleset: standardRuleset(3),
+      players: ["A", "B", "C"].map((id) => ({ id, displayName: id })),
+    });
+    expect(initial.setup?.placementOrder[0]).not.toBe(initial.turnOrder[0]);
+    let s = initial;
+    for (let i = 0; i < 40 && s.status === "setup"; i++) {
+      const legal = getLegalActions(ctx, s, s.activePlayerId);
+      const r = engine.applyCommand(s, {
+        ...(legal.mode === "setup_manor"
+          ? { type: "place_initial_manor", siteId: legal.initialManorSites[0] }
+          : legal.mode === "setup_route"
+            ? { type: "place_initial_route", routeId: legal.initialRoutes[0] }
+            : { type: "assign_initial_banners", assignments: {} }),
+        commandId: `c${i}`,
+        matchId: s.matchId,
+        playerId: s.activePlayerId,
+      } as GameCommand);
+      if (!r.newState) throw new Error(`setup rejected: ${r.error?.code}`);
+      s = r.newState;
+    }
+    expect(s.status).toBe("playing");
+    expect(s.round).toBe(1);
+    expect(s.activePlayerId).toBe(s.turnOrder[0]);
+    expect(s.activePlayerId).not.toBe(initial.setup?.placementOrder[0]);
+  });
 
   // At a goal of 25 the Quest deck runs out and the Crown's Levy (§27.3) is
   // proclaimed long before anyone wins. On this seed players answer some,
