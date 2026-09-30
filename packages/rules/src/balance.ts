@@ -78,6 +78,19 @@ export const BALANCE = {
       { fromGoal: 30, charges: 3 },
     ],
   },
+  /**
+   * Starting supplies for the later seats, in turn order (§129.12): the
+   * first seat's card-and-tempo edge showed in AI-vs-AI sweeps on drawn
+   * islands (tools/simulate.ts) and these tables bring every seat under
+   * the §68 limits. Only three-seat games get one: two-player Standard
+   * games finish the round once the target is reached instead
+   * (`equalTurns`, below), and four seats crowd the board enough that
+   * none needs help.
+   */
+  seatBonus: {
+    standard: [{}, { timber: 1 }, { timber: 1, stone: 1 }],
+    mvp: [{}, { timber: 1 }, { timber: 1 }],
+  },
   /** The Crown's Voice (experimental, §129.10). */
   crownsVoice: {
     /** Voice cards of each virtue in a deck. */
@@ -94,7 +107,7 @@ export const BALANCE = {
   },
 } as const;
 
-export const RULESET_VERSION = "0.9.0";
+export const RULESET_VERSION = "0.10.0";
 
 /** The Crown's Voice as a new game gets it (§129.10). */
 export function crownsVoiceRules(): CrownsVoiceRules {
@@ -181,8 +194,14 @@ function sealedChargesOption(options: RulesetOptions): Pick<RulesetConfig, "seal
   return options.sealedCharges ? { sealedCharges: true } : {};
 }
 
+/** The ruleset field, fresh copies: a ruleset must not share the constant's objects. */
+function seatBonusOption(rules: "standard" | "mvp", playerCount: number): Pick<RulesetConfig, "seatBonus"> {
+  if (playerCount !== 3) return {};
+  return { seatBonus: BALANCE.seatBonus[rules].map((b) => ({ ...b })) };
+}
+
 /** §91 — MVP: no cards, no Quests, Toll Troll only, 10 Renown unless another goal is chosen. */
-export function mvpRuleset(options: RulesetOptions = {}): RulesetConfig {
+export function mvpRuleset(playerCount = 2, options: RulesetOptions = {}): RulesetConfig {
   return {
     ...common,
     name: "mvp",
@@ -192,6 +211,7 @@ export function mvpRuleset(options: RulesetOptions = {}): RulesetConfig {
     enableReactionCards: false,
     enableQuests: false,
     ...sealedChargesOption(options),
+    ...seatBonusOption("mvp", playerCount),
   };
 }
 
@@ -216,6 +236,10 @@ export function standardRuleset(playerCount: number, options: RulesetOptions = {
     initialCards: BALANCE.initialCards,
     cardDrawEveryRounds: BALANCE.cardDrawEveryRounds,
     crownLevy: crownLevyRules(targetRenown),
+    // Two seats: once someone reaches the target the round still plays
+    // out, so both seats see the same number of turns (§129.12).
+    ...(playerCount === 2 ? { equalTurns: true } : {}),
+    ...seatBonusOption("standard", playerCount),
     ...sealedChargesOption(options),
   };
 }

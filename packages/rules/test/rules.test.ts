@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createRng,
   asyncRuleset,
+  BALANCE,
   enumerateCardTargets,
   getBannerRegionOptions,
   getHarvestPreview,
@@ -15,6 +16,7 @@ import {
   HIDDEN_CARD,
   type GameState,
   type PlayerId,
+  type RulesetConfig,
 } from "../src/index.js";
 import { act, engine, grant, mvpRuleset, newGame, passTurn, reject, routeId, setupGame, cardTestRuleset as standardRuleset } from "./helpers.js";
 
@@ -481,11 +483,34 @@ describe("rulesets", () => {
     expect(state.players[p2]?.resources.essence).toBe(2);
     expect(state.players[p1]?.resources.essence).toBe(0);
   });
+  it("compensates the later seats in a three-player game (§129.4)", () => {
+    expect(standardRuleset(3).seatBonus).toEqual([{}, { timber: 1 }, { timber: 1, stone: 1 }]);
+    expect(asyncRuleset(3).seatBonus).toEqual(standardRuleset(3).seatBonus);
+    expect(mvpRuleset(3).seatBonus).toEqual([{}, { timber: 1 }, { timber: 1 }]);
+    for (const players of [2, 4]) {
+      expect(standardRuleset(players).seatBonus).toBeUndefined();
+      expect(asyncRuleset(players).seatBonus).toBeUndefined();
+      expect(mvpRuleset(players).seatBonus).toBeUndefined();
+    }
+    // Rulesets get fresh copies, so a game cannot mutate BALANCE's tables.
+    const seatBonus = standardRuleset(3).seatBonus;
+    expect(seatBonus).toHaveLength(BALANCE.seatBonus.standard.length);
+    seatBonus?.forEach((bonus, i) => expect(bonus).not.toBe(BALANCE.seatBonus.standard[i]));
+    const mvpSeatBonus = mvpRuleset(3).seatBonus;
+    expect(mvpSeatBonus).toHaveLength(BALANCE.seatBonus.mvp.length);
+    mvpSeatBonus?.forEach((bonus, i) => expect(bonus).not.toBe(BALANCE.seatBonus.mvp[i]));
+  });
+  it("plays two-player Standard games with equal turns (§129.4)", () => {
+    expect(standardRuleset(2).equalTurns).toBe(true);
+    expect(asyncRuleset(2).equalTurns).toBe(true);
+    for (const players of [3, 4]) expect(standardRuleset(players).equalTurns).toBeUndefined();
+    for (const players of [2, 3, 4]) expect(mvpRuleset(players).equalTurns).toBeUndefined();
+  });
 });
 
 describe("victory (§7)", () => {
   it.each([13, 14, 15])("checks the Standard target at %i Renown", (renown) => {
-    const { state, p1 } = setupGame(standardRuleset(2));
+    const { state, p1 } = setupGame({ ...standardRuleset(2), equalTurns: false });
     const result = engine.applyDebugCommand(state, { type: "debug_set_bonus_renown", commandId: "target", matchId: "m1", playerId: p1, targetPlayerId: p1, value: renown - getRenown(ctx, state, p1) });
     expect(result.accepted).toBe(true);
     const ended = passTurn(result.newState as GameState);
@@ -493,7 +518,10 @@ describe("victory (§7)", () => {
     if (renown >= 15) expect(ended.winnerId).toBe(p1);
   });
   it.each([10, 12])("honors a saved Standard target of %i Renown", (targetRenown) => {
-    const { state, p1 } = setupGame({ ...standardRuleset(2), targetRenown });
+    // A ruleset saved before 0.10.0 has no equalTurns.
+    const legacy: RulesetConfig = { ...standardRuleset(2), targetRenown };
+    delete legacy.equalTurns;
+    const { state, p1 } = setupGame(legacy);
     const restored = JSON.parse(JSON.stringify(state)) as GameState;
     const result = engine.applyDebugCommand(restored, { type: "debug_set_bonus_renown", commandId: "legacy-target", matchId: "m1", playerId: p1, targetPlayerId: p1, value: targetRenown - getRenown(ctx, restored, p1) });
     expect(result.accepted).toBe(true);

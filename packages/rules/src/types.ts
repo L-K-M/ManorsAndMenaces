@@ -218,13 +218,15 @@ export interface RulesetConfig {
   revealedQuestCount: number;
   /**
    * When someone reaches the target, finish the round so every player has had
-   * the same number of turns (a first-player-advantage lever, spec §129.4).
-   * Off by default: §7 ends the game at the end of that player's turn.
+   * the same number of turns (a first-player-advantage lever, spec §129.4,
+   * §129.12). Off by default: §7 ends the game at the end of that player's
+   * turn; the two-player Standard and async rules set it.
    */
   equalTurns?: boolean;
   /**
    * Extra resources granted when play begins, by position in turn order
-   * (index 0 = first player). A first-player-advantage lever (spec §129.4).
+   * (index 0 = first player). A first-player-advantage lever (spec §129.4);
+   * the three-player rulesets set it (§129.12).
    */
   seatBonus?: ResourceCost[];
   /**

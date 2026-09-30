@@ -110,7 +110,7 @@ describe("hasNextHarvest against played games", () => {
     const told = [
       playOut("next-harvest-1", { ...standardRuleset(3), lastRound: 6 }, 3),
       playOut("next-harvest-eq-6", { ...standardRuleset(3), equalTurns: true }, 3),
-      playOut("next-harvest-full-6", mvpRuleset({ targetRenown: 25 }), 3),
+      playOut("next-harvest-full-6", mvpRuleset(3, { targetRenown: 25 }), 3),
     ];
     for (const players of told) expect(players).toBeGreaterThan(0);
   }, 120_000);

@@ -48,6 +48,9 @@
   const goal = $derived(renownGoal(mode, count, pickedGoal));
   // The Crown's Levy (§27.3) comes with the Standard rules; its Renown follows the goal.
   const levy = $derived(mode === "standard" ? standardRuleset(count, { targetRenown: goal.value }).crownLevy : undefined);
+  // First-player compensation (§129.12): later seats get supplies with three
+  // players, and a two-player Standard game plays its last round out.
+  const seatRules = $derived.by(() => (mode === "mvp" ? mvpRuleset(count) : standardRuleset(count)));
   const KINDS = NAMES.map((_, i) => (i === 0 ? "human" : "ai") as "human" | "ai");
   // Start the line-up at a random rival so new games meet different faces.
   const initialRivals = assignRivals(KINDS, Math.floor(Math.random() * RIVALS.length));
@@ -103,7 +106,7 @@
     }));
     const options = { targetRenown: goal.value, sealedCharges };
     const rules: RulesetConfig =
-      mode === "mvp" ? mvpRuleset(options) : { ...standardRuleset(count, options), questExpiryRounds: questExpiry ? BALANCE.questExpiryRounds : 0, initialCards: cardIncome ? BALANCE.initialCards : 0, cardDrawEveryRounds: cardIncome ? BALANCE.cardDrawEveryRounds : 0 };
+      mode === "mvp" ? mvpRuleset(count, options) : { ...standardRuleset(count, options), questExpiryRounds: questExpiry ? BALANCE.questExpiryRounds : 0, initialCards: cardIncome ? BALANCE.initialCards : 0, cardDrawEveryRounds: cardIncome ? BALANCE.cardDrawEveryRounds : 0 };
     const ruleset: RulesetConfig = crownsVoice ? { ...rules, crownsVoice: crownsVoiceRules() } : rules;
     const board: BoardChoice = island ? { kind: "drawn", islandId: island } : { kind: "drawn" };
     onstart({ seats: chosen, ruleset, board, ...(seed.trim() ? { seed: seed.trim() } : {}) });
@@ -177,6 +180,8 @@
       </label>
       <p class="hint" id="goal-hint">{renownGoalHint(mode, count, goal.value)}</p>
       {#if levy}<p class="hint">{t("ui.levy_hint", { round: levy.proclaimByRound + 1, renown: levy.renown, price: levy.price })}</p>{/if}
+      {#if seatRules.seatBonus}<p class="hint">{t("ui.seat_bonus_hint")}</p>{/if}
+      {#if seatRules.equalTurns}<p class="hint">{t("ui.equal_turns_hint")}</p>{/if}
     </fieldset>
     <details>
       <summary>{t("ui.advanced")}</summary>

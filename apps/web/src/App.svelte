@@ -76,7 +76,7 @@
           { playerId: "P1", displayName: "You", kind: "human", color: 0 },
           { playerId: "P2", displayName: t("rival.lord_mumble.name"), rivalId: "lord_mumble", kind: "ai", aiLevel: "easy", color: 1 },
         ],
-        ruleset: mvpRuleset(),
+        ruleset: mvpRuleset(2),
         seed: TUTORIAL_SEED,
       },
       true,

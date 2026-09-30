@@ -253,7 +253,10 @@ describe("the Levy and the end of the game (§7, §27.3)", () => {
     const s = grant(setBonus(state, p1, 0), p1, { [levy]: 5 });
     const short = setBonus(s, p1, s.ruleset.targetRenown - getRenown(ctx, s, p1) - 1);
     expect(passTurn(short).status).toBe("playing");
-    const ended = passTurn(act(short, p1, { type: "answer_levy", resource: levy }).state);
+    // equalTurns: reaching the goal marks the game but the round plays out.
+    const marked = passTurn(act(short, p1, { type: "answer_levy", resource: levy }).state);
+    expect(marked.endTriggered).toBe(true);
+    const ended = passTurn(marked);
     expect(ended.status).toBe("finished");
     expect(ended.winnerId).toBe(p1);
     expect(ended.endCause).toBeUndefined();
