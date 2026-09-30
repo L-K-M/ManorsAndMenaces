@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Setup draft rotation (ruleset 0.11.0): in a three-player game the seat
+  that opens the initial placement draft is drawn at random instead of
+  always being the first player, so an island's strong draft slots no
+  longer land on the same seat every game. On The Greenvale — whose
+  layout favours the third seat — its win rate in AI-vs-AI sweeps falls
+  from ~60% to ~40%; the drawn-island aggregate stays flat. Banner
+  assignment still runs in reverse draft order. Two- and four-seat games
+  are unchanged: there a fixed snake measured better. Saved games and
+  running matches keep the order they started with.
+
 - First-player compensation (ruleset 0.10.0): in a three-player game the
   later seats begin with extra supplies — 1 Timber for the second seat,
   1 Timber and 1 Stone for the third (1 Timber each in the Core rules) —

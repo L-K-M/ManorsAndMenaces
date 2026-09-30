@@ -107,7 +107,7 @@ export const BALANCE = {
   },
 } as const;
 
-export const RULESET_VERSION = "0.10.0";
+export const RULESET_VERSION = "0.11.0";
 
 /** The Crown's Voice as a new game gets it (§129.10). */
 export function crownsVoiceRules(): CrownsVoiceRules {
@@ -212,6 +212,8 @@ export function mvpRuleset(playerCount = 2, options: RulesetOptions = {}): Rules
     enableQuests: false,
     ...sealedChargesOption(options),
     ...seatBonusOption("mvp", playerCount),
+    // Three seats draw which seat opens the placement draft (§129.13).
+    ...(playerCount === 3 ? { setupDraftRotation: true } : {}),
   };
 }
 
@@ -240,6 +242,8 @@ export function standardRuleset(playerCount: number, options: RulesetOptions = {
     // out, so both seats see the same number of turns (§129.12).
     ...(playerCount === 2 ? { equalTurns: true } : {}),
     ...seatBonusOption("standard", playerCount),
+    // Three seats draw which seat opens the placement draft (§129.13).
+    ...(playerCount === 3 ? { setupDraftRotation: true } : {}),
     ...sealedChargesOption(options),
   };
 }

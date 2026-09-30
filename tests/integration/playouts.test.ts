@@ -377,7 +377,7 @@ describe("AI playouts with Sealed Charges (§27A)", () => {
 // (§129.10), waiting for the Quest deck or speaking from round 1.
 describe("AI playouts with every late-game rule together", () => {
   for (const [players, targetRenown, from, name] of [
-    [3, 25, "quest_deck_empty", "late-3p-25-b"],
+    [3, 25, "quest_deck_empty", "late-3p-25-s"],
     [4, 30, "first_round", "late-4p-30"],
   ] as const) {
     it(`${name}: finishes, keeps invariants and replays`, () => {

@@ -14,6 +14,7 @@ import {
   redactState,
   seedRng,
   HIDDEN_CARD,
+  RULESET_VERSION,
   type GameState,
   type PlayerId,
   type RulesetConfig,
@@ -50,6 +51,41 @@ describe("setup (§28)", () => {
     expect(s.setup?.placementOrder).toEqual([p1, p2, p2, p1]);
     expect(s.setup?.bannerAssignmentOrder).toEqual([p2, p1]);
     expect(s.activePlayerId).toBe(p1);
+  });
+  it("in three seats draws which seat opens the draft (§129.13)", () => {
+    const game3 = (seed: string) =>
+      engine.createGame({
+        matchId: "m",
+        seed,
+        rulesetVersion: RULESET_VERSION,
+        ruleset: standardRuleset(3),
+        players: [
+          { id: "A", displayName: "Alice" },
+          { id: "B", displayName: "Bob" },
+          { id: "C", displayName: "Carol" },
+        ],
+      });
+    // The snake shape and reverse Banner order hold whatever seat starts.
+    const s = game3("draft-shape");
+    const [d1, d2, d3] = s.setup?.placementOrder ?? [];
+    expect(s.setup?.placementOrder).toEqual([d1, d2, d3, d3, d2, d1]);
+    expect(s.setup?.bannerAssignmentOrder).toEqual([d3, d2, d1]);
+    expect(new Set([d1, d2, d3])).toEqual(new Set(s.turnOrder));
+    expect(s.activePlayerId).toBe(d1);
+    // Over seeds the opening seat varies; two and four seats keep the first
+    // player opening.
+    const starts = new Set([0, 1, 2, 3, 4, 5, 6, 7].map((i) => game3(`draft-${i}`).setup?.placementOrder[0]));
+    expect(starts.size).toBeGreaterThan(1);
+    for (const p of [2, 4]) {
+      const g = engine.createGame({
+        matchId: "m",
+        seed: "draft-fixed",
+        rulesetVersion: RULESET_VERSION,
+        ruleset: standardRuleset(p),
+        players: Array.from({ length: p }, (_, i) => ({ id: `P${i}`, displayName: `P${i}` })),
+      });
+      expect(g.setup?.placementOrder[0]).toBe(g.turnOrder[0]);
+    }
   });
   it("enforces spacing and route adjacency", () => {
     let s = newGame();

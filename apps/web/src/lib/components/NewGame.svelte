@@ -182,6 +182,7 @@
       {#if levy}<p class="hint">{t("ui.levy_hint", { round: levy.proclaimByRound + 1, renown: levy.renown, price: levy.price })}</p>{/if}
       {#if seatRules.seatBonus}<p class="hint">{t("ui.seat_bonus_hint")}</p>{/if}
       {#if seatRules.equalTurns}<p class="hint">{t("ui.equal_turns_hint")}</p>{/if}
+      {#if seatRules.setupDraftRotation}<p class="hint">{t("ui.draft_rotation_hint")}</p>{/if}
     </fieldset>
     <details>
       <summary>{t("ui.advanced")}</summary>
