@@ -1560,7 +1560,7 @@ The AI keeps the Charge it is further along. It counts Banners where its next Ba
 6. Shuffle Quest deck using match RNG.
 7. Reveal 3 Quests.
 8. With Sealed Charges (§27A), shuffle the Charge deck using match RNG; each player in turn order draws 2 Charges and keeps 1 (§27A.2).
-9. Players place initial Holdings in snake order. In a three-player game the match RNG draws which seat opens the draft (ruleset 0.11.0, §129.13); with two or four seats the first player opens it, as before. Each Manor is followed immediately by one free Route and, for a player's second Manor, their starting resources (§28.2–28.3).
+9. Players place initial Holdings in snake order. In a three-player game the match RNG draws which seat opens the draft (ruleset 0.11.0, §129.13); with two or four seats the first player opens it, as before, spending no draw. The draw is the last setup RNG use — after every deck shuffle and the Crown's Voice creation (§129.10) — so the seeded stream position is pinned. Each Manor is followed immediately by one free Route and, for a player's second Manor, their starting resources (§28.2–28.3).
 10. Players assign initial Banners in **reverse** draft order (§28.4).
 11. Begin turn 1.
 
