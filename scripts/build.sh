@@ -2,7 +2,7 @@
 # Builds every Manors & Menaces target and stages the results in dist/.
 #
 # Usage: scripts/build.sh [target...] [--debug|--release] [--clean] [--check] [--install]
-#   targets: web server desktop android   (default: all that this machine can build)
+#   targets: web server desktop android flatpak   (default: all that this machine can build)
 #   A missing toolchain skips a target on a default run, but fails when the
 #   target was named explicitly.
 #
@@ -347,6 +347,37 @@ for target in "${TARGETS[@]}"; do
         OK+=("desktop → $DIST/desktop$DMG_NOTE")
       else
         FAILED+=("desktop")
+      fi
+      ;;
+    flatpak)
+      echo "==> flatpak (repack the Linux .deb)"
+      if [[ "$(uname)" != "Linux" ]]; then
+        skip_or_fail flatpak "Flatpak builds run on Linux"
+        continue
+      fi
+      # Reuse the desktop target's .deb when it ran this invocation; rebuild
+      # when absent or stale. (SECONDS is this script's runtime.)
+      local_start=$(( $(date +%s) - SECONDS ))
+      deb="$(find "$DIST/desktop" -type f -name '*.deb' -printf '%T@\t%p\n' 2>/dev/null | sort -rn | head -n1 | cut -f2- || true)"
+      if [[ -z "$deb" || "$(stat -c %Y "$deb" 2>/dev/null || echo 0)" -lt "$local_start" ]]; then
+        if ! command -v cargo >/dev/null 2>&1; then
+          skip_or_fail flatpak "Rust toolchain not found (https://rustup.rs)"
+          continue
+        fi
+        if ! pkg-config --exists webkit2gtk-4.1 2>/dev/null; then
+          skip_or_fail flatpak "webkit2gtk-4.1 development files not installed"
+          continue
+        fi
+        DEBUG_FLAG=""; [[ $VARIANT == "debug" ]] && DEBUG_FLAG="--debug"
+        $PNPM tauri build $DEBUG_FLAG --bundles deb || { FAILED+=("flatpak"); continue; }
+        deb="$(find src-tauri/target -path "*/$BUNDLE_PROFILE/bundle/deb/*.deb" -printf '%T@\t%p\n' | sort -rn | head -n1 | cut -f2-)"
+        [ -n "$deb" ] || { FAILED+=("flatpak: tauri deb build produced no .deb"); continue; }
+        mkdir -p "$DIST/desktop" && cp "$deb" "$DIST/desktop/" || { FAILED+=("flatpak: could not stage .deb into dist"); continue; }
+      fi
+      if ./scripts/build-flatpak.sh "$deb"; then
+        OK+=("flatpak → $DIST/")
+      else
+        FAILED+=("flatpak")
       fi
       ;;
     android)
