@@ -247,6 +247,8 @@ describe("Changeling (§19.12)", () => {
 describe("Ragnarök (§19.13)", () => {
   /** The first turn, with Ragnarök still set aside. */
   function omen() {
+    // equalTurns off so a normal win still ends the game at once; Ragnarök
+    // ends mid-turn either way (§19.13).
     const g = setupGame({ ...standardRuleset(2), equalTurns: false });
     return { ...g, threshold: g.state.ruleset.targetRenown - BALANCE.ragnarok.omenGap };
   }

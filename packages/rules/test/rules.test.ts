@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createRng,
   asyncRuleset,
+  BALANCE,
   enumerateCardTargets,
   getBannerRegionOptions,
   getHarvestPreview,
@@ -491,6 +492,8 @@ describe("rulesets", () => {
       expect(asyncRuleset(players).seatBonus).toBeUndefined();
       expect(mvpRuleset(players).seatBonus).toBeUndefined();
     }
+    // Rulesets get fresh copies, so a game cannot mutate BALANCE's tables.
+    expect(standardRuleset(3).seatBonus?.[1]).not.toBe(BALANCE.seatBonus.standard[1]);
   });
   it("plays two-player Standard games with equal turns (§129.4)", () => {
     expect(standardRuleset(2).equalTurns).toBe(true);

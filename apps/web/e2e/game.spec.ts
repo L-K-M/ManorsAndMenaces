@@ -154,8 +154,8 @@ test("setup, first turn, build, harvest, warden, save and reload, victory", asyn
   await dialog.getByRole("button", { name: "Set bonus Renown" }).click();
   await dialog.getByRole("button", { name: "Close" }).click();
   await endTurn(page);
-  // Equal turns: reaching the target ends the game when the round ends, so
-  // the second player still gets their turn first.
+  // Equal turns: the target-reaching turn only triggers the end — the game
+  // finishes when the last seat of the round ends their turn.
   await passCurtain(page);
   await endTurn(page);
   const victory = page.getByRole("dialog", { name: "Victory!" });
@@ -546,8 +546,7 @@ test("New Game plays to the Renown you pick, shows it in the game and remembers 
   await expect(victory).toHaveCount(0);
   await setBonusRenown(23);
   await endTurn(page);
-  // Equal turns again: the target is reached on this turn, the game ends
-  // once the round completes.
+  // Equal turns again: the win lands once the round's last seat ends.
   await passCurtain(page);
   await endTurn(page);
   await expect(victory).toBeVisible();
