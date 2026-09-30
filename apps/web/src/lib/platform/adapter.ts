@@ -32,7 +32,7 @@ export interface PlatformAdapter {
 /**
  * A native service in the Android app that keeps one connection to the game
  * server while the app is closed and shows turn notices itself
- * (src-tauri/gen/android/app/src/main/java/ch/lkm/manorsmenaces/turnwatch).
+ * (src-tauri/gen/android/app/src/main/java/ch/lkmc/manorsmenaces/turnwatch).
  */
 export interface TurnWatch {
   status(): Promise<TurnWatchStatus>;

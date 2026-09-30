@@ -1,6 +1,6 @@
 fn main() {
     // The turn-watch plugin is inlined in src/lib.rs, its Android side in
-    // gen/android/app/src/main/java/ch/lkm/manorsmenaces/turnwatch.
+    // gen/android/app/src/main/java/ch/lkmc/manorsmenaces/turnwatch.
     tauri_build::try_build(
         tauri_build::Attributes::new().plugin(
             "turn-watch",

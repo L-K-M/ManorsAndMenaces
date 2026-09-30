@@ -199,7 +199,7 @@ Any provider with SMTP works: your own mail server, Fastmail, Mailgun, Amazon SE
 
 ### About the Android app
 
-The Android app's watcher is a foreground service in `src-tauri/gen/android/app/src/main/java/ch/lkm/manorsmenaces/turnwatch`, registered as the `turn-watch` plugin in `src-tauri/src/lib.rs`:
+The Android app's watcher is a foreground service in `src-tauri/gen/android/app/src/main/java/ch/lkmc/manorsmenaces/turnwatch`, registered as the `turn-watch` plugin in `src-tauri/src/lib.rs`:
 
 - It uses Android's `specialUse` foreground service type, which has no daily time limit (Android 15 limits `dataSync` to 6 hours a day) and may restart after a reboot. Google Play reviews that type and the battery exemption request; the app is not distributed there.
 - It opens `/api/ws?mode=background` with the guest's session. The server pings that connection every `BACKGROUND_PING_SECONDS` and sends a `keepalive` message with each ping, since Android's WebSocket library answers pings without telling the app. On connecting it sends the turns waiting for the guest, so notices lost in a connection that a mobile network dropped silently are not lost for good.
