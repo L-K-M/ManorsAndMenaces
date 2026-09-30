@@ -496,7 +496,9 @@ describe("rulesets", () => {
     const seatBonus = standardRuleset(3).seatBonus;
     expect(seatBonus).toHaveLength(BALANCE.seatBonus.standard.length);
     seatBonus?.forEach((bonus, i) => expect(bonus).not.toBe(BALANCE.seatBonus.standard[i]));
-    mvpRuleset(3).seatBonus?.forEach((bonus, i) => expect(bonus).not.toBe(BALANCE.seatBonus.mvp[i]));
+    const mvpSeatBonus = mvpRuleset(3).seatBonus;
+    expect(mvpSeatBonus).toHaveLength(BALANCE.seatBonus.mvp.length);
+    mvpSeatBonus?.forEach((bonus, i) => expect(bonus).not.toBe(BALANCE.seatBonus.mvp[i]));
   });
   it("plays two-player Standard games with equal turns (§129.4)", () => {
     expect(standardRuleset(2).equalTurns).toBe(true);
