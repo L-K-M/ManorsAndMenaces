@@ -22,7 +22,7 @@ fn turn_watch<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("turn-watch")
         .setup(|_app, _api| {
             #[cfg(target_os = "android")]
-            _api.register_android_plugin("ch.lkm.manorsmenaces.turnwatch", "TurnWatchPlugin")?;
+            _api.register_android_plugin("ch.lkmc.manorsmenaces.turnwatch", "TurnWatchPlugin")?;
             Ok(())
         })
         .build()

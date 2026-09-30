@@ -1,4 +1,4 @@
-package ch.lkm.manorsmenaces.turnwatch
+package ch.lkmc.manorsmenaces.turnwatch
 
 import android.app.AlarmManager
 import android.app.PendingIntent
@@ -248,7 +248,7 @@ class TurnWatchService : Service() {
 
   companion object {
     private const val TAG = "TurnWatch"
-    private const val ACTION_CHECK = "ch.lkm.manorsmenaces.turnwatch.CHECK"
+    private const val ACTION_CHECK = "ch.lkmc.manorsmenaces.turnwatch.CHECK"
     private const val WAKE_LOCK_MS = 30_000L
 
     fun start(context: Context) {

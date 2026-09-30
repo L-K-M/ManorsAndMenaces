@@ -1,4 +1,4 @@
-package ch.lkm.manorsmenaces
+package ch.lkmc.manorsmenaces
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
