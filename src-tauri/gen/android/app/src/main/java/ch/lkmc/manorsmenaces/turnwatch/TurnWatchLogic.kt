@@ -1,7 +1,7 @@
 // The parts of turn watching that are plain logic, kept apart from Android
 // so they run as JVM unit tests (src/test).
 
-package ch.lkm.manorsmenaces.turnwatch
+package ch.lkmc.manorsmenaces.turnwatch
 
 import java.net.URI
 import java.net.URLEncoder

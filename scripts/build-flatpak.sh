@@ -11,7 +11,7 @@ set -euo pipefail
 # from Flathub (user installation) on the first build.
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-readonly APP_ID=ch.lkm.manorsmenaces
+readonly APP_ID=ch.lkmc.manorsmenaces
 readonly MANIFEST="$ROOT/flatpak/$APP_ID.yml"
 readonly FLATHUB_REPO=https://dl.flathub.org/repo/flathub.flatpakrepo
 readonly WORK="$ROOT/dist/flatpak"

@@ -1,4 +1,4 @@
-package ch.lkm.manorsmenaces.turnwatch
+package ch.lkmc.manorsmenaces.turnwatch
 
 import android.Manifest
 import android.app.Notification
@@ -11,7 +11,7 @@ import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import ch.lkm.manorsmenaces.R
+import ch.lkmc.manorsmenaces.R
 
 /** The two notification channels, so players can hide the connection one and keep turn notices. */
 object TurnNotifications {
@@ -20,7 +20,7 @@ object TurnNotifications {
   const val CONNECTION_ID = 1
   private const val NOTICE_ID = 2
   /** Intent extra that a tapped notice carries: the match to open. */
-  const val EXTRA_MATCH_ID = "ch.lkm.manorsmenaces.turnwatch.MATCH_ID"
+  const val EXTRA_MATCH_ID = "ch.lkmc.manorsmenaces.turnwatch.MATCH_ID"
 
   fun createChannels(context: Context) {
     val manager = NotificationManagerCompat.from(context)

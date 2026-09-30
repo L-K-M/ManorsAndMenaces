@@ -1,4 +1,4 @@
-package ch.lkm.manorsmenaces.turnwatch
+package ch.lkmc.manorsmenaces.turnwatch
 
 import android.annotation.SuppressLint
 import android.app.Activity

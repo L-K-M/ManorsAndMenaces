@@ -1,4 +1,4 @@
-package ch.lkm.manorsmenaces.turnwatch
+package ch.lkmc.manorsmenaces.turnwatch
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

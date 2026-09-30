@@ -1,4 +1,4 @@
-package ch.lkm.manorsmenaces.turnwatch
+package ch.lkmc.manorsmenaces.turnwatch
 
 import android.content.Context
 import androidx.core.content.edit
