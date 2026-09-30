@@ -29,7 +29,7 @@ test("computer seats are distinct named rivals who quip when they build", async 
   await expect(page.getByLabel("Player 2 rival").locator(`option[value="${rival3}"]`)).toBeDisabled();
 
   await page.getByText("Advanced").click();
-  // A seed whose draft opens on the first turn-order seat (§28.3 draws it at
+  // A seed whose draft opens on the first turn-order seat (§28.2 draws it at
   // random for three seats), so the rivals' quips land in the tested order.
   await page.getByLabel(/Seed/).fill("rivals-e2e-3");
   await page.getByRole("button", { name: "Begin" }).click();
@@ -96,7 +96,7 @@ test("a quip said just before the privacy curtain waits for the reveal", async (
   await page.getByRole("radio", { name: "3", exact: true }).check({ force: true });
   await page.getByLabel("Player 3 type").selectOption("human");
   await page.getByText("Advanced").click();
-  // A seed whose draft opens on the first turn-order seat (§28.3 draws it at
+  // A seed whose draft opens on the first turn-order seat (§28.2 draws it at
   // random for three seats): player 1 places, the rival quips, the curtain
   // rises for player 3.
   await page.getByLabel(/Seed/).fill("rivals-mask");
