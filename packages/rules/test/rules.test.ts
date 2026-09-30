@@ -493,7 +493,10 @@ describe("rulesets", () => {
       expect(mvpRuleset(players).seatBonus).toBeUndefined();
     }
     // Rulesets get fresh copies, so a game cannot mutate BALANCE's tables.
-    expect(standardRuleset(3).seatBonus?.[1]).not.toBe(BALANCE.seatBonus.standard[1]);
+    const seatBonus = standardRuleset(3).seatBonus;
+    expect(seatBonus).toHaveLength(BALANCE.seatBonus.standard.length);
+    seatBonus?.forEach((bonus, i) => expect(bonus).not.toBe(BALANCE.seatBonus.standard[i]));
+    mvpRuleset(3).seatBonus?.forEach((bonus, i) => expect(bonus).not.toBe(BALANCE.seatBonus.mvp[i]));
   });
   it("plays two-player Standard games with equal turns (§129.4)", () => {
     expect(standardRuleset(2).equalTurns).toBe(true);

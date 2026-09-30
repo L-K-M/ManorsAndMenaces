@@ -85,7 +85,9 @@ describe("choosing a Renown goal (§7)", () => {
     const short = passTurn(withRenown(state, p1, targetRenown - 1));
     expect(short.status).toBe("playing");
     // equalTurns: the round plays out once the target is reached (§129.4).
-    const won = passTurn(passTurn(withRenown(state, p1, targetRenown)));
+    const marked = passTurn(withRenown(state, p1, targetRenown));
+    expect(marked.status).toBe("playing");
+    const won = passTurn(marked);
     expect(won.status).toBe("finished");
     expect(won.winnerId).toBe(p1);
   });
