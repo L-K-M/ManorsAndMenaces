@@ -1,4 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
+import { runAiUntilHuman } from "@manors-menaces/ai";
+import { rulesContentFor } from "@manors-menaces/content";
+import { SAVE_SCHEMA_VERSION, type SaveFile, type SeatConfig } from "@manors-menaces/protocol";
+import { RULESET_VERSION, createRng, createRulesEngine, seedRng, standardRuleset } from "@manors-menaces/rules";
 import { CUES, MUSIC_URL, cueUrl } from "../src/lib/audio/cues.js";
 
 type PlayedSound = { loop: boolean; stopped: boolean; duration: number; peak: number };
@@ -29,6 +33,63 @@ async function observeAudio(page: Page, music = false) {
       }
     };
   }, music);
+}
+
+/** Stop at the round's last End Turn, so one real UI action settles the match. */
+function matchEndSave(winner: "you" | "computer" | "other-human"): SaveFile {
+  const engine = createRulesEngine(rulesContentFor("greenvale"));
+  const initialState = engine.createGame({
+    matchId: "audio-match-end", seed: "audio-match-end", rulesetVersion: RULESET_VERSION,
+    ruleset: standardRuleset(2), players: [{ id: "p1", displayName: "Alice" }, { id: "p2", displayName: "Bob" }],
+  });
+  const rng = createRng(seedRng("audio-match-end-ai"));
+  let state = initialState;
+  const commandHistory = [];
+  while (state.phase !== "end" || state.activePlayerId !== state.turnOrder.at(-1)) {
+    const step = runAiUntilHuman(engine, state, () => true, () => ({ level: "normal", rng }), 1);
+    expect(step.commands, "the AI must reach the last seat's End Turn").toHaveLength(1);
+    commandHistory.push(...step.commands);
+    state = step.state;
+  }
+  const humanId = state.activePlayerId;
+  const winnerId = winner === "you" ? humanId : state.turnOrder.find((id) => id !== humanId)!;
+  const renown = engine.applyDebugCommand(state, {
+    type: "debug_set_bonus_renown", commandId: "audio-renown", matchId: state.matchId,
+    playerId: winnerId, targetPlayerId: winnerId, value: state.ruleset.targetRenown,
+  });
+  expect(renown.accepted).toBe(true);
+  const seats: SeatConfig[] = state.turnOrder.map((playerId, color) => ({
+    playerId, displayName: state.players[playerId]!.displayName, color,
+    kind: playerId === humanId || winner === "other-human" ? "human" : "ai",
+    aiLevel: "normal",
+  }));
+  return {
+    schemaVersion: SAVE_SCHEMA_VERSION, rulesetVersion: RULESET_VERSION, savedAt: new Date(0).toISOString(),
+    mapId: "greenvale", seats, initialState, state: renown.newState!, commandHistory,
+  };
+}
+
+for (const winner of ["you", "computer", "other-human"] as const) {
+  test(`match-end audio: ${winner} gets ${winner === "computer" ? "defeat" : "victory"}`, async ({ page }) => {
+    await observeAudio(page);
+    await page.goto("/");
+    await page.evaluate(() => localStorage.setItem("mm.settings.v1", JSON.stringify({ sound: true, animationSpeed: "off", privacyCurtain: false })));
+    await page.reload();
+    await page.getByRole("button", { name: "Load game", exact: true }).click();
+    await page.getByLabel(/Import a save file/).setInputFiles({
+      name: "match-end.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(matchEndSave(winner))),
+    });
+    const expectedUrl = cueUrl(winner === "computer" ? "lose" : "win");
+    const duration = await page.evaluate(async (url) => {
+      const context = new AudioContext();
+      try { return (await context.decodeAudioData(await (await fetch(url)).arrayBuffer())).duration; }
+      finally { await context.close(); }
+    }, expectedUrl);
+    await page.getByRole("button", { name: /^End Turn/ }).click();
+    await expect(page.getByRole("dialog", { name: "Victory!" })).toBeVisible();
+    await expect.poll(() => played(page)).toMatchObject([{ loop: false, duration }]);
+    expect(await played(page)).toHaveLength(1);
+  });
 }
 
 test("recorded effects decode, play and retain volume preferences @mobile", async ({ page }) => {
@@ -90,7 +151,8 @@ test("every bundled cue and the music loop decode to a non-silent signal", async
         let peak = 0;
         let sum = 0;
         for (const value of buffer.getChannelData(0)) { peak = Math.max(peak, Math.abs(value)); sum += value * value; }
-        return { url, duration: buffer.duration, peak, rms: Math.sqrt(sum / buffer.length) };
+        const sampleHash = await crypto.subtle.digest("SHA-256", new Float32Array(buffer.getChannelData(0)).buffer);
+        return { url, duration: buffer.duration, peak, rms: Math.sqrt(sum / buffer.length), sampleHash: Array.from(new Uint8Array(sampleHash)) };
       }));
     } finally { await context.close(); }
   }, files);
@@ -101,6 +163,8 @@ test("every bundled cue and the music loop decode to a non-silent signal", async
     expect(signal.duration, signal.url).toBeGreaterThan(0.1);
     expect(signal.duration, signal.url).toBeLessThan(signal.url === MUSIC_URL ? 51 : 3);
   }
+  expect(signals.find((s) => s.url === cueUrl("win"))!.sampleHash)
+    .not.toEqual(signals.find((s) => s.url === cueUrl("lose"))!.sampleHash);
 });
 
 test("audio download failures leave the game usable", async ({ page }) => {

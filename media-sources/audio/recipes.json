@@ -132,6 +132,11 @@
   ],
   "win": [
     {
+      "source": "victory"
+    }
+  ],
+  "lose": [
+    {
       "source": "pizzicato"
     }
   ],

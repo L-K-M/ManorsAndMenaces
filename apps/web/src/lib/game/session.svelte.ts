@@ -131,6 +131,7 @@ export class GameSession {
   autosaveFailed = $state(false);
 
   private commandHistory: GameCommand[] = [];
+  private readonly audioPlayerIds: readonly PlayerId[];
   private undoStack: { state: GameState; logIds: number[] }[] = [];
   private aiTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly ai = new AiClient();
@@ -186,6 +187,11 @@ export class GameSession {
     this.onlinePlayerId = opts.onlinePlayerId ?? null;
     this.missedPlays = opts.missedPlays ?? [];
     this.transport = opts.transport ?? this.localTransport();
+    // A shared-device victory belongs to any human seat; online, only to this client's seat.
+    const audioSeats = this.transport.kind === "online"
+      ? this.seats.filter((s) => s.playerId === this.onlinePlayerId)
+      : this.seats.filter((s) => s.kind === "human");
+    this.audioPlayerIds = audioSeats.map((s) => s.playerId);
     this.autosaveEnabled = this.transport.kind === "local" && opts.autosave !== false;
     this.autosaveSlot = opts.autosaveSlot ?? newAutosaveId(opts.state.matchId);
     this.authoritative = opts.state;
@@ -318,7 +324,7 @@ export class GameSession {
     if (UNDO_SAFE_COMMANDS.has(command.type) && !actorChanged) {
       // Buffered locally (§32.1): show it now, provisionally, so it can be undone.
       const logIds = this.appendLog(r.events, r.newState, true);
-      playForEvents(r.events);
+      playForEvents(r.events, this.audioPlayerIds);
       this.undoStack.push({ state: this.draft, logIds });
       this.buffered = [...this.buffered, command];
       this.draft = r.newState;
@@ -375,7 +381,7 @@ export class GameSession {
       }
       if (this.transport.kind === "local") this.commandHistory.push(...batch);
       this.appendLog(res.events, res.state);
-      playForEvents(res.events);
+      playForEvents(res.events, this.audioPlayerIds);
       // A WebSocket push may already have delivered a newer state (e.g. an AI
       // seat acted right after our batch); never go backwards.
       if (res.state.revision >= this.authoritative.revision) this.authoritative = res.state;
@@ -407,7 +413,7 @@ export class GameSession {
     }
     if (!ownEcho) {
       this.appendLog(events, state);
-      playForEvents(events);
+      playForEvents(events, this.audioPlayerIds);
       this.events.emit({ events, state, provisional: false, own: false });
     }
     this.afterStateChange(events);

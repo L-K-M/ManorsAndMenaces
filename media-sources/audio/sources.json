@@ -101,6 +101,16 @@
       "license": "CC0-1.0",
       "sha256": "91870588924e0e498c6eb8d4f4ccf8595c9e7dc51fb553797b551062e642ce7c"
     },
+    "victory": {
+      "retrieved": "2026-10-02",
+      "file": "originals/victory.ogg",
+      "originalFile": "Audio/Pizzicato jingles/jingles_PIZZI10.ogg",
+      "creator": "Kenney",
+      "page": "https://kenney.nl/assets/music-jingles",
+      "download": "https://kenney.nl/media/pages/assets/music-jingles/f37e530b9e-1677590399/kenney_music-jingles.zip",
+      "license": "CC0-1.0",
+      "sha256": "baf50beffc4cc2dbb92c9d596a22732a8b5249c7648b681c0df6d0af6c561478"
+    },
     "music": {
       "file": "originals/old-tower-inn.wav",
       "originalFile": "Loop_The_Old_Tower_Inn.wav",
