@@ -1,6 +1,7 @@
 # Storybook soundscape
 
-Selected September 26, 2026. All source recordings are released under
+Selected September 26, 2026; match-end jingles updated October 2.
+All source recordings are released under
 [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 The original files are retained in `originals/`; `sources.json` records each
 creator, source page, direct download, original filename and SHA-256.
@@ -16,7 +17,8 @@ Kenney's original license notices are retained in `licenses/`.
 - [Kenney: Interface Sounds](https://kenney.nl/assets/interface-sounds):
   pitched glass accents for spells and quest rewards.
 - [Kenney: Music Jingles](https://kenney.nl/assets/music-jingles):
-  `jingles_PIZZI07.ogg`, a short pizzicato flourish for victory.
+  `jingles_PIZZI10.ogg`, a rising pizzicato flourish for victory, and
+  `jingles_PIZZI07.ogg`, the descending flourish for defeat.
 - [RandomMind: Medieval: The Old Tower Inn](https://opengameart.org/content/medieval-the-old-tower-inn):
   the author's 49.95-second WAV loop for optional background music. The
   source page identifies RandomMind as author, explicitly labels it CC0,
@@ -50,7 +52,9 @@ or unsupported audio must never prevent gameplay.
 
 Effects currently cover resource gains/trades, Banners, Routes, Manors,
 Stronghold upgrades, spells, Menaces, cards, quests, turns, rejected actions,
-victory and Royal Writs/insurance. The Chronicle remains the text equivalent.
+victory/defeat and Royal Writs/insurance. Online results use your seat; shared
+devices celebrate any local human winner. The Chronicle remains the text
+equivalent.
 
 Technical QA checks decode, duration, signal levels, cue selection, lifecycle,
 volume persistence and offline inclusion. This agent session cannot hear audio

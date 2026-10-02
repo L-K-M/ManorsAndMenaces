@@ -65,14 +65,14 @@ describe("sampled soundscape", () => {
     expect(f.sources).toHaveLength(4);
   });
 
-  it("drops rapid routine cues but allows a victory cue", async () => {
+  it.each(["win", "lose"] as const)("drops rapid routine cues but allows the %s cue", async (cue) => {
     const f = fixture();
     f.player.unlock();
     await settle();
     await f.player.play("card");
     await f.player.play("resource");
     expect(f.sources).toHaveLength(1);
-    await f.player.play("win");
+    await f.player.play(cue);
     expect(f.sources).toHaveLength(2);
   });
 
@@ -156,18 +156,36 @@ describe("sampled soundscape", () => {
 });
 
 describe("event cue priority", () => {
-  const events = (...types: GameEvent["type"][]) => types.map((type) => ({ type })) as GameEvent[];
+  const events = (...types: GameEvent["type"][]) => types.map((type) => ({ type, playerId: "p1" })) as GameEvent[];
+  const cue = (...types: GameEvent["type"][]) => cueForEvents(events(...types), ["p1"]);
+
+  it.each([
+    { winner: "p1", localPlayers: ["p1"], expected: "win" },
+    { winner: "p2", localPlayers: ["p1"], expected: "lose" },
+    { winner: "p1", localPlayers: ["p2"], expected: "lose" },
+    { winner: "p2", localPlayers: ["p2"], expected: "win" },
+    { winner: "p2", localPlayers: ["p1", "p2"], expected: "win" },
+    { winner: "ai", localPlayers: ["p1", "p2"], expected: "lose" },
+    { winner: "ai", localPlayers: [], expected: null },
+  ])("selects $expected when $winner wins for local seats $localPlayers", ({ winner, localPlayers, expected }) => {
+    const batch: GameEvent[] = [
+      { type: "renown_gained", playerId: winner, amount: 1, cause: "unreliable_bard" },
+      { type: "game_won", playerId: winner, renown: 15 },
+    ];
+    expect(cueForEvents(batch, localPlayers)).toBe(expected);
+  });
+
   it("selects one cue for a batch and distinguishes a Stronghold upgrade", () => {
-    expect(cueForEvents(events("resource_gained", "holding_built"))).toBe("manor");
-    expect(cueForEvents(events("resource_gained", "holding_upgraded"))).toBe("upgrade");
-    expect(cueForEvents(events("card_played", "dragon_landed"))).toBe("menace");
-    expect(cueForEvents(events("quest_claimed", "game_won"))).toBe("win");
+    expect(cue("resource_gained", "holding_built")).toBe("manor");
+    expect(cue("resource_gained", "holding_upgraded")).toBe("upgrade");
+    expect(cue("card_played", "dragon_landed")).toBe("menace");
+    expect(cue("quest_claimed", "game_won")).toBe("win");
     // The Crown's Levy (§27.3): an answer is Renown, a proclamation royal paperwork.
-    expect(cueForEvents(events("resource_spent", "levy_answered"))).toBe("quest");
-    expect(cueForEvents(events("turn_ended", "levy_proclaimed", "turn_started", "resource_gained"))).toBe("writ");
+    expect(cue("resource_spent", "levy_answered")).toBe("quest");
+    expect(cue("turn_ended", "levy_proclaimed", "turn_started", "resource_gained")).toBe("writ");
     // Renown won at an End Turn: a Sealed Charge revealed (§27A) and Favour (§129.10).
-    expect(cueForEvents(events("charge_revealed", "turn_ended", "turn_started", "resource_gained"))).toBe("quest");
-    expect(cueForEvents(events("turn_ended", "favour_won", "turn_started", "resource_gained"))).toBe("quest");
-    expect(cueForEvents([])).toBeNull();
+    expect(cue("charge_revealed", "turn_ended", "turn_started", "resource_gained")).toBe("quest");
+    expect(cue("turn_ended", "favour_won", "turn_started", "resource_gained")).toBe("quest");
+    expect(cue()).toBeNull();
   });
 });

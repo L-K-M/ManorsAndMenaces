@@ -1271,3 +1271,16 @@ refusal dialog (PR #72), while an unarmed click opens the inspector. The test
 expected inspector wording in both cases. It now checks the matching message
 for the tool state, preserving the prohibition and unchanged Holding counts.
 No production gameplay change was needed.
+
+## October 2 checkpoint: distinct victory and defeat audio
+
+Every `game_won` previously played the descending PIZZI07 jingle. Victory now
+uses Kenney's rising PIZZI10; defeat retains PIZZI07. Both sources are CC0,
+with provenance and recipes in `media-sources/audio/`. Online results use this
+client's seat; shared devices celebrate any human winner. All-computer games
+have no personal outcome cue. Both end cues bypass routine sound throttling.
+
+Five regression assertions failed before the fix. All 20 soundscape tests,
+1,712 unit/integration tests, 13 audio/offline browser checks, source-hash
+validation, the FFmpeg dynamics regression, typecheck, lint and production
+build/server smoke checks passed. Subjective listening remains unverified.

@@ -1,5 +1,5 @@
 // Recorded cues keep their text equivalents in the Chronicle. Audio is optional.
-import type { GameEvent } from "@manors-menaces/rules";
+import type { GameEvent, PlayerId } from "@manors-menaces/rules";
 import { settings } from "../stores/settings.svelte.js";
 import { cueForEvents, type Cue } from "./cues.js";
 import { Soundscape, type AudioPreferences } from "./soundscape.js";
@@ -34,7 +34,7 @@ export function play(cue: Cue): void {
   void soundscape?.play(cue).catch(() => {});
 }
 
-export function playForEvents(events: GameEvent[]): void {
-  const cue = cueForEvents(events);
+export function playForEvents(events: GameEvent[], localPlayerIds: readonly PlayerId[]): void {
+  const cue = cueForEvents(events, localPlayerIds);
   if (cue) play(cue);
 }

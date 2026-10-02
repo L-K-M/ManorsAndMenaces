@@ -123,7 +123,7 @@ export class Soundscape {
     const buffer = await this.load(cueUrl(cue), a);
     // Never replay stale feedback after a slow load, mute, or backgrounding.
     if (!buffer || this.disposed || request !== this.effectRequest || !this.visible || !this.preferences.sound || this.preferences.soundVolume === 0 || this.now() - requestedAt > 800) return;
-    if (this.now() - this.lastPlayedAt < 90 && cue !== "win") return;
+    if (this.now() - this.lastPlayedAt < 90 && cue !== "win" && cue !== "lose") return;
     this.lastPlayedAt = this.now();
     while (this.voices.size >= 3) this.stopVoice(this.voices.values().next().value!);
     const voice = this.voice(buffer, this.effectsBus!, CUES[cue]);

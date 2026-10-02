@@ -1,9 +1,9 @@
-import type { GameEvent } from "@manors-menaces/rules";
+import type { GameEvent, PlayerId } from "@manors-menaces/rules";
 
 export const CUES = {
   resource: 0.75, banner: 0.7, route: 0.75, manor: 0.85, upgrade: 0.85,
   spell: 0.65, menace: 0.75, card: 0.65, quest: 0.75, turn: 0.4,
-  error: 0.55, win: 0.85, writ: 0.7,
+  error: 0.55, win: 0.85, lose: 0.85, writ: 0.7,
 } as const;
 export type Cue = keyof typeof CUES;
 export const cueUrl = (cue: Cue): string => `./audio/${cue}.wav`;
@@ -19,9 +19,14 @@ const ATTACKS: readonly GameEvent["type"][] = ["holding_destroyed", "holding_red
 const RENOWN_WON: readonly GameEvent["type"][] = ["quest_claimed", "renown_gained", "levy_answered", "charge_revealed", "favour_won"];
 
 /** Pick at most one cue per event batch so sounds do not pile up. */
-export function cueForEvents(events: readonly GameEvent[]): Cue | null {
+export function cueForEvents(events: readonly GameEvent[], localPlayerIds: readonly PlayerId[]): Cue | null {
+  const gameWon = events.find((e) => e.type === "game_won");
+  if (gameWon) {
+    if (localPlayerIds.length === 0) return null;
+    return localPlayerIds.includes(gameWon.playerId) ? "win" : "lose";
+  }
+
   const types = new Set(events.map((e) => e.type));
-  if (types.has("game_won")) return "win";
   // Calamities and the omen outrank the card that caused them.
   if (types.has("card_foretold") || types.has("dragon_landed") || types.has("route_burned")) return "menace";
   if (ATTACKS.some((type) => types.has(type))) return "menace";
