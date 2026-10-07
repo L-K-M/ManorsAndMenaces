@@ -44,6 +44,11 @@ services:
       # `docker compose exec manors node server.mjs invites create NAME`; see
       # docs/invites.md.
       INVITE_ONLY: ${INVITE_ONLY:-false}
+      # Give invites to the winners of a game on your website: the sponsor
+      # invite's id and the one website allowed to call. Needs INVITE_ONLY and
+      # PUBLIC_URL; see docs/invites.md.
+      GIVEAWAY_INVITE: ${GIVEAWAY_INVITE:-}
+      GIVEAWAY_ORIGIN: ${GIVEAWAY_ORIGIN:-} # https://apps.example.org
     volumes:
       - manors-data:/data # SQLite database
 volumes:

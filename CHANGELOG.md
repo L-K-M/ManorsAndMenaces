@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Invite giveaways for the operator's website (GIVEAWAY_INVITE and
+  GIVEAWAY_ORIGIN on an invite-only server): a page on your site can call
+  `POST /api/giveaway` to mint a personal invite for each winner. The
+  sponsor invite's own quota caps the giveaway in total, each client
+  address gets one invite a day, and browsers may call it only from the
+  configured website's origin. See docs/invites.md.
+
 - Setup draft rotation (ruleset 0.11.0): in a three-player game the seat
   that opens the initial placement draft is drawn at random instead of
   always being the first player, so an island's strong draft slots no

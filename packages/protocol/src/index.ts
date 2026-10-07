@@ -172,8 +172,25 @@ export interface MatchHistoryResponse {
  *   accepted an invite (or its invite was revoked); ask for an invite code.
  * - INVITE_INVALID (403): the invite code is unknown, revoked, expired or
  *   already used on as many devices as it allows.
+ * - GIVEAWAY_OFF (404): the server gives no invites away (GIVEAWAY_INVITE is
+ *   unset, or the server is open to everyone).
+ * - GIVEAWAY_ORIGIN (403): the giveaway may only be called from its own
+ *   website (the configured GIVEAWAY_ORIGIN).
+ * - GIVEAWAY_EMPTY (410): the giveaway's sponsor invite is unknown, revoked
+ *   or has made all the invites it may.
+ * - GIVEAWAY_LIMIT (429): this address already received a giveaway invite in
+ *   the last 24 hours.
  */
-export type ApiErrorCode = "INVALID_SESSION" | "COMMAND_ID_CONFLICT" | "DUPLICATE_COMMAND_ID" | "INVITE_REQUIRED" | "INVITE_INVALID";
+export type ApiErrorCode =
+  | "INVALID_SESSION"
+  | "COMMAND_ID_CONFLICT"
+  | "DUPLICATE_COMMAND_ID"
+  | "INVITE_REQUIRED"
+  | "INVITE_INVALID"
+  | "GIVEAWAY_OFF"
+  | "GIVEAWAY_ORIGIN"
+  | "GIVEAWAY_EMPTY"
+  | "GIVEAWAY_LIMIT";
 
 /**
  * Body of every non-2xx HTTP response this server sends. A proxy in front of
@@ -263,6 +280,19 @@ export interface InviteSettings {
   quota: number;
   /** Oldest first. */
   invites: FriendInvite[];
+}
+
+/**
+ * POST /api/giveaway { name? }: on an invite-only server with a giveaway
+ * (GIVEAWAY_INVITE), mints a personal invite for a prize winner of the
+ * operator's website game. `url` is the whole invite link to hand the winner,
+ * `code` its invite code, and `name` the name on the invite (the caller's,
+ * cleaned, or "Prize winner" when it gave none).
+ */
+export interface GiveawayResponse {
+  url: string;
+  code: string;
+  name: string;
 }
 
 /** Server → client push messages over WebSocket. */
