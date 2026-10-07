@@ -6,6 +6,7 @@ You can put the game online without opening it to everyone. On an invite-only se
 - [Inviting people](#inviting-people)
 - [What invited players can do](#what-invited-players-can-do)
 - [Revoking an invite](#revoking-an-invite)
+- [Giving invites away from a website](#giving-invites-away-from-a-website)
 - [What people without an invite see](#what-people-without-an-invite-see)
 - [How access works](#how-access-works)
 
@@ -80,6 +81,49 @@ Two things revoking cannot take back:
 
 - A browser keeps the copy of the game it cached. While it is offline it can still open that copy and play against the computer; once it is online again, it gets the invite-only page.
 - The Android app's background connection keeps retrying, with growing pauses, until the player turns off **Notify me when it's my turn**.
+
+## Giving invites away from a website
+
+A website of yours, say a games page with a hidden carnival game, can hand a personal invite to each winner. A static site holds no secrets, so the server mints the invite: the site calls `POST /api/giveaway` and shows the link that comes back.
+
+First make the *sponsor* invite the giveaway mints with, on the server's database like any other invite:
+
+```sh
+docker compose exec manors node server.mjs invites create Carnival --uses 1 --invites 50
+```
+
+```
+Invite for Carnival (id k3m9x2): one device, no expiry, 50 invites of their own.
+```
+
+Keep the sponsor's own link to yourself: it is a real invite. Take the id from that output and set, next to `INVITE_ONLY=true`, the sponsor's id and the one website allowed to call the giveaway:
+
+```sh
+GIVEAWAY_INVITE=k3m9x2
+GIVEAWAY_ORIGIN=https://apps.example.org
+```
+
+`PUBLIC_URL` must be set too, to build the invite links. Restart the server; the log says `Giveaway: on, invites from Carnival for https://apps.example.org (0 of 50 given)`.
+
+The site then calls the endpoint for a winner (an optional `name` goes on the invite):
+
+```sh
+curl -X POST https://play.example.org/api/giveaway -H 'content-type: application/json' -d '{"name":"Wanda"}'
+```
+
+```json
+{ "url": "https://play.example.org/invite/pnbuxsq7srgq", "code": "pnbuxsq7srgq", "name": "Wanda" }
+```
+
+`url` is the whole invite link to show the winner. Minted invites are ordinary friend invites made by the sponsor: three devices each, ten onward invites, and `invites list` shows them invited by the sponsor.
+
+Three limits keep the giveaway bounded, because anyone can call the endpoint:
+
+- The sponsor's quota (`--invites`) caps it in total; once that is gone the endpoint answers `410` with `GIVEAWAY_EMPTY`, as it does when the sponsor id is unknown or the sponsor invite is revoked.
+- Each client address gets one invite per 24 hours; a second ask answers `429` with `GIVEAWAY_LIMIT`.
+- Browsers may call it only from `GIVEAWAY_ORIGIN` (`403` `GIVEAWAY_ORIGIN`), so other sites cannot embed the giveaway. Requests without an `Origin` header, like curl and scripts, are allowed: a script could forge the header anyway.
+
+So keep the quota modest and watch `invites list`. Revoking the sponsor stops new giveaways at once; it does not take back invites already given. Revoke those individually.
 
 ## What people without an invite see
 

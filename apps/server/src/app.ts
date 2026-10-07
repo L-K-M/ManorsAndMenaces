@@ -14,6 +14,7 @@
 //   GET|POST /api/email/unsubscribe?u=…&t=…  the link in every turn email (HTML; RFC 8058 one-click POST)
 //   GET  /api/invites                  → InviteSettings; POST /api/invites { name }, POST /api/invites/withdraw { id }
 //   POST /api/invites/accept           { code }: admits this device and guest session (invite-only servers)
+//   POST /api/giveaway                 { name? }: mints a prize invite (invite-only servers with GIVEAWAY_INVITE)
 //   GET|POST /invite/:code              an invite link (HTML; invite-only servers)
 //   GET  /api/health
 //   WS   /api/ws?token=…               subscribe → match_update pushes
@@ -31,6 +32,7 @@ import {
   type ApiErrorBody,
   type ClientMessage,
   type EmailSettings,
+  type GiveawayResponse,
   type InviteAcceptResponse,
   type InviteSettings,
   type ServerMessage,
@@ -38,6 +40,7 @@ import {
 } from "@manors-menaces/protocol";
 import { redactEvent, type GameEvent } from "@manors-menaces/rules";
 import { EmailNotices, emailPage, type MailConfig } from "./mail.js";
+import { GIVEAWAY_DEFAULT_NAME, Giveaway, type GiveawayConfig } from "./giveaway.js";
 import { Invites, inviteName } from "./invites.js";
 import { text } from "./notices.js";
 import { htmlPage } from "./page.js";
@@ -75,6 +78,12 @@ export interface AppOptions {
    * invites.ts). Invites are made with the `invites` command.
    */
   inviteOnly?: boolean;
+  /**
+   * POST /api/giveaway mints a prize invite for a website's winners
+   * (GIVEAWAY_INVITE and GIVEAWAY_ORIGIN; giveaway.ts). Only on an invite-only
+   * server: an open one has nothing to give away.
+   */
+  giveaway?: GiveawayConfig;
 }
 
 const NO_EMAIL: EmailSettings = { available: false, address: null, confirmed: false };
@@ -220,6 +229,8 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   // The secret signs unsubscribe links, so like the VAPID key it is kept.
   const email = opts.email ? new EmailNotices(store, opts.email, store.settingOr("email_secret", () => randomBytes(32).toString("base64url"))) : null;
   const invites = opts.inviteOnly ? new Invites(store) : null;
+  // The giveaway mints only on an invite-only server; elsewhere the endpoint answers GIVEAWAY_OFF.
+  const giveaway = opts.giveaway && invites ? new Giveaway(store, invites, opts.giveaway) : null;
   const cors = opts.corsOrigin ?? "*";
   const webDist = opts.webDist && existsSync(opts.webDist) ? resolve(opts.webDist) : null;
 
@@ -234,6 +245,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     const cutoff = Date.now() - 60_000;
     for (const [k, b] of buckets) if (b.lastUsed < cutoff) buckets.delete(k);
     email?.sweep();
+    giveaway?.sweep();
   }, 30_000);
   sweep.unref();
   const allow = (req: IncomingMessage): boolean => {
@@ -249,6 +261,18 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     "access-control-allow-methods": "GET, POST, OPTIONS",
   };
 
+  // The giveaway's website calls from its own origin: /api/giveaway's
+  // responses and its preflight carry just that origin and its narrower
+  // method/header list instead of the general CORS headers above.
+  const giveawayCors: Record<string, string> | null = opts.giveaway
+    ? {
+        "access-control-allow-origin": opts.giveaway.origin,
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-headers": "content-type",
+        vary: "origin",
+      }
+    : null;
+
   const send = (res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void => {
     res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store", ...corsHeaders, ...headers });
     res.end(JSON.stringify(body));
@@ -256,8 +280,8 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
 
   // 204 responses must have no body (RFC 9110 §6.5.1). Node's HTTP layer
   // discards one silently, but keep the wire and headers explicit.
-  const sendNoContent = (res: ServerResponse): void => {
-    res.writeHead(204, corsHeaders);
+  const sendNoContent = (res: ServerResponse, headers: Record<string, string> = corsHeaders): void => {
+    res.writeHead(204, headers);
     res.end();
   };
 
@@ -385,6 +409,32 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     return h?.startsWith("Bearer ") ? h.slice(7) : null;
   };
 
+  /**
+   * POST /api/giveaway: hands a minted invite to whoever calls. It is how
+   * strangers get their first invite, so it runs before the session and
+   * invite gates, behind only the general rate limit. Every answer carries
+   * the giveaway's own CORS headers.
+   */
+  const serveGiveaway = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    const answer = (status: number, body: unknown) => send(res, status, body, giveawayCors ?? {});
+    try {
+      if (!giveaway) throw new HttpError(404, "this server gives no invites away", "GIVEAWAY_OFF");
+      // A request without an Origin (a script, curl) passes: such a client
+      // could forge the header anyway. The check stops other websites from
+      // embedding the giveaway, since a browser cannot lie about its origin.
+      const origin = req.headers.origin;
+      if (origin !== undefined && origin !== giveaway.origin) {
+        throw new HttpError(403, "the giveaway may only be called from its own website", "GIVEAWAY_ORIGIN");
+      }
+      const body = await readObject(req);
+      const prize = giveaway.claim(clientAddress(req, trustProxy), inviteName(body.name) ?? GIVEAWAY_DEFAULT_NAME);
+      return answer(200, prize satisfies GiveawayResponse);
+    } catch (e) {
+      if (e instanceof HttpError) return answer(e.status, { error: e.message, ...(e.code ? { code: e.code } : {}) } satisfies ApiErrorBody);
+      throw e;
+    }
+  };
+
   /** Serves a file of the web client; `cookie` renews a pass when the game's page (not an asset) loads. */
   const serveStatic = (req: IncomingMessage, res: ServerResponse, cookie?: string): void => {
     if (!webDist) return send(res, 404, { error: "not found" });
@@ -415,7 +465,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
     } catch {
       return send(res, 400, { error: "bad url" });
     }
-    if (req.method === "OPTIONS") return sendNoContent(res);
+    if (req.method === "OPTIONS") return sendNoContent(res, url.pathname === "/api/giveaway" && giveawayCors ? giveawayCors : corsHeaders);
     if (!url.pathname.startsWith("/api/")) {
       try {
         if (!invites) return serveStatic(req, res);
@@ -465,6 +515,10 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         if (!email) throw new HttpError(404, "not found");
         return emailLink(req, res, url, email);
       }
+      // The giveaway is how strangers get their first invite, so it runs
+      // before the session and invite gates below. `await` so a failure here
+      // still lands in this try's catch.
+      if (req.method === "POST" && url.pathname === "/api/giveaway") return await serveGiveaway(req, res);
       const user = service.authenticate(bearer(req));
       const invite = invites ? admitted(req, user, invites) : null;
       if (req.method === "GET" && url.pathname === "/api/me") return send(res, 200, { userId: user.id, displayName: user.display_name });

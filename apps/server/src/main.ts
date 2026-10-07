@@ -41,6 +41,14 @@
 //                 (default false). Make invites with the invites command below;
 //                 everyone invited may invite ten more from the online lobby.
 //                 See docs/invites.md.
+//   GIVEAWAY_INVITE  hand invites to winners of a game on your website: the id
+//                 of the sponsor invite to mint with, made with the invites
+//                 command below (e.g. --invites 50; that quota caps the whole
+//                 giveaway). Needs INVITE_ONLY, GIVEAWAY_ORIGIN and PUBLIC_URL.
+//                 Each client address gets one invite a day. Unset: off.
+//   GIVEAWAY_ORIGIN  the one website origin a browser may call
+//                 POST /api/giveaway from, like https://apps.example.org.
+//                 See docs/invites.md.
 //
 // `node server.mjs invites create|list|revoke …` (`pnpm invites …` in a
 // checkout) manages invites instead of starting the server; see
@@ -53,6 +61,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp } from "./app.js";
+import { giveawayConfigFromEnv } from "./giveaway.js";
 import { invitesCommand } from "./inviteCommand.js";
 import { mailConfigFromEnv } from "./mail.js";
 import { pushContactFromEnv } from "./push.js";
@@ -95,6 +104,9 @@ function setting<T>(read: (env: NodeJS.ProcessEnv) => T): T {
 }
 const pushContact = setting(pushContactFromEnv);
 const email = setting(mailConfigFromEnv);
+const giveaway = setting(giveawayConfigFromEnv);
+// An open server has nothing to give away: invites are worth nothing there.
+if (giveaway && !inviteOnly) fail("GIVEAWAY_INVITE is set but INVITE_ONLY is not; an open server has nothing to give away");
 
 if (dbPath !== ":memory:") mkdirSync(dirname(dbPath), { recursive: true });
 
@@ -108,8 +120,17 @@ const app = createApp({
   ...(pushContact ? { push: { subject: pushContact } } : {}),
   ...(email ? { email } : {}),
   inviteOnly,
+  ...(giveaway ? { giveaway } : {}),
 });
 console.log(inviteOnly ? "Invite-only: on (make invites with: node server.mjs invites create NAME)" : "Invite-only: off, the game is open to everyone");
+if (!giveaway) console.log("Giveaway: off");
+else {
+  // The sponsor may not exist yet: the invites command can add it later, and
+  // the giveaway picks it up at once (its lookup runs per request).
+  const sponsor = app.store.invite(giveaway.sponsor);
+  if (!sponsor) console.log(`Giveaway: GIVEAWAY_INVITE ${giveaway.sponsor} is not an invite on this server; nothing will be given`);
+  else console.log(`Giveaway: on, invites from ${sponsor.name} for ${giveaway.origin} (${app.store.invitesMadeBy(sponsor.id).length} of ${sponsor.quota} given)`);
+}
 if (!email) console.log("Turn emails: off (set SMTP_HOST, MAIL_FROM and PUBLIC_URL to turn them on)");
 else if (!email.verify) console.log(`Turn emails: written to ${process.env.MAIL_OUTBOX_DIR}, not sent`);
 else {
