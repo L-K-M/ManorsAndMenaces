@@ -264,9 +264,9 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
   // The giveaway's website calls from its own origin: /api/giveaway's
   // responses and its preflight carry just that origin and its narrower
   // method/header list instead of the general CORS headers above.
-  const giveawayCors: Record<string, string> | null = opts.giveaway
+  const giveawayCors: Record<string, string> | null = giveaway
     ? {
-        "access-control-allow-origin": opts.giveaway.origin,
+        "access-control-allow-origin": giveaway.origin,
         "access-control-allow-methods": "POST, OPTIONS",
         "access-control-allow-headers": "content-type",
         vary: "origin",

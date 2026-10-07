@@ -103,7 +103,7 @@ GIVEAWAY_INVITE=k3m9x2
 GIVEAWAY_ORIGIN=https://apps.example.org
 ```
 
-`PUBLIC_URL` must be set too, to build the invite links. Restart the server; the log says `Giveaway: on, invites from Carnival for https://apps.example.org (0 of 50 given)`.
+`GIVEAWAY_ORIGIN` is an origin: scheme, host and, if not the default, port, with no path or trailing slash; anything else stops the server with a message. `PUBLIC_URL` must be set too, to build the invite links. Restart the server; the log says `Giveaway: on, invites from Carnival for https://apps.example.org (0 of 50 given)`.
 
 The site then calls the endpoint for a winner (an optional `name` goes on the invite):
 

@@ -149,7 +149,7 @@ describe("the giveaway endpoint", () => {
   });
 
   it("names the invite after the winner, cleaned, or the default", async () => {
-    await start({ trustProxy: 1 });
+    await start({ trustProxy: 1, sponsorQuota: 10 });
     // Each address mints once a day, so every ask comes from somewhere else.
     const named = await post({ name: "  Ada <i>Lovelace</i>  " }, forwarded("203.0.113.1"));
     expect(named.data.name).toBe("Ada iLovelace/i");
@@ -237,15 +237,18 @@ describe("the Giveaway class", () => {
   it("lets an address mint again once the day has passed", () => {
     let now = 1_000_000_000;
     const store = new Store();
-    const invites = new Invites(store);
-    const sponsor = invites.create({ name: "Carnival", quota: 5 });
-    const giveaway = new Giveaway(store, invites, { sponsor: sponsor.id, origin: ORIGIN, publicUrl: PUBLIC_URL }, () => now);
-    const first = giveaway.claim("198.51.100.7", "Winner");
-    expect(() => giveaway.claim("198.51.100.7", "Winner")).toThrowError(/already received/);
-    now += 24 * 3600_000 + 1_000;
-    expect(giveaway.claim("198.51.100.7", "Winner").code).not.toBe(first.code);
-    giveaway.sweep();
-    store.db.close();
+    try {
+      const invites = new Invites(store);
+      const sponsor = invites.create({ name: "Carnival", quota: 5 });
+      const giveaway = new Giveaway(store, invites, { sponsor: sponsor.id, origin: ORIGIN, publicUrl: PUBLIC_URL }, () => now);
+      const first = giveaway.claim("198.51.100.7", "Winner");
+      expect(() => giveaway.claim("198.51.100.7", "Winner")).toThrowError(/already received/);
+      now += 24 * 3600_000 + 1_000;
+      expect(giveaway.claim("198.51.100.7", "Winner").code).not.toBe(first.code);
+      giveaway.sweep();
+    } finally {
+      store.db.close();
+    }
   });
 });
 
