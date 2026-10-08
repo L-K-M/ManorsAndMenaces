@@ -14,7 +14,7 @@
 //   GET|POST /api/email/unsubscribe?u=…&t=…  the link in every turn email (HTML; RFC 8058 one-click POST)
 //   GET  /api/invites                  → InviteSettings; POST /api/invites { name }, POST /api/invites/withdraw { id }
 //   POST /api/invites/accept           { code }: admits this device and guest session (invite-only servers)
-//   POST /api/giveaway                 { name? }: mints a prize invite (invite-only servers with GIVEAWAY_INVITE)
+//   POST /api/giveaway                 { name?, key? }: mints a prize invite (invite-only servers with GIVEAWAY_INVITE)
 //   GET|POST /invite/:code              an invite link (HTML; invite-only servers)
 //   GET  /api/health
 //   WS   /api/ws?token=…               subscribe → match_update pushes
@@ -427,7 +427,7 @@ export function createApp(opts: AppOptions = {}): { server: Server; service: Mat
         throw new HttpError(403, "the giveaway may only be called from its own website", "GIVEAWAY_ORIGIN");
       }
       const body = await readObject(req);
-      const prize = giveaway.claim(clientAddress(req, trustProxy), inviteName(body.name) ?? GIVEAWAY_DEFAULT_NAME);
+      const prize = giveaway.claim(clientAddress(req, trustProxy), inviteName(body.name) ?? GIVEAWAY_DEFAULT_NAME, body.key);
       return answer(200, prize satisfies GiveawayResponse);
     } catch (e) {
       if (e instanceof HttpError) return answer(e.status, { error: e.message, ...(e.code ? { code: e.code } : {}) } satisfies ApiErrorBody);

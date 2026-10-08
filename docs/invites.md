@@ -117,11 +117,29 @@ curl -X POST https://play.example.org/api/giveaway -H 'content-type: application
 
 `url` is the whole invite link to show the winner. Minted invites are ordinary friend invites made by the sponsor: three devices each, ten onward invites, and `invites list` shows them invited by the sponsor.
 
-Three limits keep the giveaway bounded, because anyone can call the endpoint:
+### Requiring a puzzle key
+
+When the website game is a puzzle, say the player has to scare the monsters in the right order, the right answer must never ship with the site: anyone could read its code and claim without playing. Instead the site computes a short *key* from what the player did and sends it as `key` with the claim, and only the key of the right answer lives on the server:
+
+```sh
+GIVEAWAY_KEY=scare-crow-first-3
+```
+
+The website's own tool computes the key for an answer (for the L-K-M app directory carnival: `node bin/apps-site.mjs carnival-key <five monsters>`). Set only that key here, 4 to 64 of letters, digits, `-` and `_`, and restart. A claim with a missing or wrong key answers `403` with `GIVEAWAY_KEY`. A missing key guesses nothing, so it costs no try: a player who wins before solving the puzzle loses nothing.
+
+Wrong keys are capped, because the site's code is public and anyone can compute the key of any answer they guess:
+
+- Five per network in 24 hours, counted from the first of them; then that network gets `429` with `GIVEAWAY_TRIES`. An IPv6 network is a /64, since one household or server picks addresses in its /64 at will.
+- 200 from everyone together in 24 hours; then every claim gets `GIVEAWAY_TRIES` until the window ends. Networks are cheap to come by, so this ceiling is what bounds guessing: choosing five of nine monsters in order allows 15,120 answers, weeks of guessing at 200 a day. If your riddle gives away which five, only their 120 orders remain, so make it hint at the order as much as the cast. The price of the ceiling: whoever spends it shuts everyone out for the rest of the window, and players' own wrong answers count toward it too, so a puzzle that draws 200 wrong answers a day closes claiming for everyone until the window ends.
+
+With `GIVEAWAY_KEY` unset, claims need no key, as before.
+
+Four limits keep the giveaway bounded, because anyone can call the endpoint:
 
 - The sponsor's quota (`--invites`) caps it in total; once that is gone the endpoint answers `410` with `GIVEAWAY_EMPTY`, as it does when the sponsor id is unknown or the sponsor invite is revoked.
-- Each client address gets one invite per 24 hours; a second ask answers `429` with `GIVEAWAY_LIMIT`.
+- Each client network (an IPv6 /64, or one IPv4 address) gets one invite per 24 hours; a second ask answers `429` with `GIVEAWAY_LIMIT`.
 - Browsers may call it only from `GIVEAWAY_ORIGIN` (`403` `GIVEAWAY_ORIGIN`), so other sites cannot embed the giveaway. Requests without an `Origin` header, like curl and scripts, are allowed: a script could forge the header anyway.
+- With `GIVEAWAY_KEY` set, each claim must carry the key; a missing or wrong one answers `403` with `GIVEAWAY_KEY`, and five wrong keys from a network, or 200 from everyone, inside 24 hours answer `429` with `GIVEAWAY_TRIES`.
 
 So keep the quota modest and watch `invites list`. Revoking the sponsor stops new giveaways at once; it does not take back invites already given. Revoke those individually.
 

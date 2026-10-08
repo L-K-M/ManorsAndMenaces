@@ -178,8 +178,12 @@ export interface MatchHistoryResponse {
  *   website (the configured GIVEAWAY_ORIGIN).
  * - GIVEAWAY_EMPTY (410): the giveaway's sponsor invite is unknown, revoked
  *   or has made all the invites it may.
- * - GIVEAWAY_LIMIT (429): this address already received a giveaway invite in
- *   the last 24 hours.
+ * - GIVEAWAY_LIMIT (429): this address's network (an IPv6 /64) already
+ *   received a giveaway invite in the last 24 hours.
+ * - GIVEAWAY_KEY (403): the giveaway asks for a puzzle key (the GIVEAWAY_KEY
+ *   setting) and this claim's key is missing or wrong.
+ * - GIVEAWAY_TRIES (429): this address's network, or everyone together, sent
+ *   too many wrong giveaway keys in the last 24 hours; try again tomorrow.
  */
 export type ApiErrorCode =
   | "INVALID_SESSION"
@@ -190,7 +194,9 @@ export type ApiErrorCode =
   | "GIVEAWAY_OFF"
   | "GIVEAWAY_ORIGIN"
   | "GIVEAWAY_EMPTY"
-  | "GIVEAWAY_LIMIT";
+  | "GIVEAWAY_LIMIT"
+  | "GIVEAWAY_KEY"
+  | "GIVEAWAY_TRIES";
 
 /**
  * Body of every non-2xx HTTP response this server sends. A proxy in front of
@@ -283,11 +289,27 @@ export interface InviteSettings {
 }
 
 /**
- * POST /api/giveaway { name? }: on an invite-only server with a giveaway
- * (GIVEAWAY_INVITE), mints a personal invite for a prize winner of the
- * operator's website game. `url` is the whole invite link to hand the winner,
- * `code` its invite code, and `name` the name on the invite (the caller's,
- * cleaned, or "Prize winner" when it gave none).
+ * POST /api/giveaway's body. `name` goes on the minted invite (the server
+ * cleans it; nothing usable becomes "Prize winner"). `key` answers the
+ * website's puzzle when the giveaway asks for one (GIVEAWAY_KEY): the site
+ * computes the key of what the player did, and only the key of the right
+ * answer lives on the server. A missing or wrong key fails 403 GIVEAWAY_KEY;
+ * five wrong keys in 24 hours from a network (200 from everyone) fail 429
+ * GIVEAWAY_TRIES.
+ */
+export interface GiveawayRequest {
+  name?: string;
+  /** 4 to 64 of letters, digits, - and _; checked only when the server sets GIVEAWAY_KEY. */
+  key?: string;
+}
+
+/**
+ * POST /api/giveaway (GiveawayRequest): on an invite-only server with a
+ * giveaway (GIVEAWAY_INVITE), mints a personal invite for a prize winner of
+ * the operator's website game. `url` is the whole invite link to hand the
+ * winner, `code` its invite code, and `name` the name on the invite (the
+ * caller's, cleaned, or "Prize winner" when it gave none). When the giveaway
+ * is configured with a puzzle key the claim must carry it as `key`.
  */
 export interface GiveawayResponse {
   url: string;

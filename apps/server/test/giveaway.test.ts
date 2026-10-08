@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ApiErrorBody, GiveawayResponse, GuestSessionResponse } from "@manors-menaces/protocol";
 import { createApp } from "../src/app.js";
-import { GIVEAWAY_DEFAULT_NAME, Giveaway, giveawayConfigFromEnv } from "../src/giveaway.js";
+import { GIVEAWAY_DEFAULT_NAME, GIVEAWAY_KEY_TRIES, GIVEAWAY_WRONG_KEYS_PER_DAY, Giveaway, giveawayConfigFromEnv } from "../src/giveaway.js";
 import { FRIEND_INVITE_DEVICES, INVITES_PER_PERSON, Invites } from "../src/invites.js";
 import { Store } from "../src/store.js";
 
@@ -17,6 +17,7 @@ import { Store } from "../src/store.js";
 const ORIGIN = "https://apps.example.org";
 const PUBLIC_URL = "https://play.example.org";
 const SPONSOR_ID = "sp0ns0r";
+const KEY = "scare-crow-first-3";
 
 function webDist(): string {
   const root = mkdtempSync(join(tmpdir(), "mm-giveaway-web-"));
@@ -25,10 +26,10 @@ function webDist(): string {
 }
 
 /** The sponsor GIVEAWAY_INVITE names, as `invites create Carnival --uses 1 --invites N` makes it. */
-function makeSponsor(store: Store, quota: number): void {
+function makeSponsor(store: Store, quota: number, id = SPONSOR_ID): void {
   store.createInvite({
-    id: SPONSOR_ID,
-    code: "sponsorcode1",
+    id,
+    code: `code-${id}`,
     name: "Carnival",
     invited_by: null,
     max_devices: 1,
@@ -48,6 +49,8 @@ describe("the giveaway endpoint", () => {
     inviteOnly?: boolean;
     /** false: no giveaway option; a string: a sponsor id to name instead of the created one. */
     giveaway?: false | string;
+    /** GIVEAWAY_KEY: the puzzle key every claim must carry. */
+    giveawayKey?: string;
     sponsorQuota?: number;
     trustProxy?: number;
   }
@@ -59,7 +62,9 @@ describe("the giveaway endpoint", () => {
       rateLimitPerSecond: 10_000,
       inviteOnly: opts.inviteOnly ?? true,
       trustProxy: opts.trustProxy ?? 0,
-      ...(opts.giveaway === false ? {} : { giveaway: { sponsor: opts.giveaway ?? SPONSOR_ID, origin: ORIGIN, publicUrl: PUBLIC_URL } }),
+      ...(opts.giveaway === false
+        ? {}
+        : { giveaway: { sponsor: opts.giveaway ?? SPONSOR_ID, origin: ORIGIN, publicUrl: PUBLIC_URL, ...(opts.giveawayKey ? { key: opts.giveawayKey } : {}) } }),
     });
     await new Promise<void>((r) => app?.server.listen(0, "127.0.0.1", r));
     base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
@@ -201,6 +206,83 @@ describe("the giveaway endpoint", () => {
     expect(res.data.code).toBe("GIVEAWAY_EMPTY");
   });
 
+  it("ignores a key in the body when the giveaway asks for none", async () => {
+    await start();
+    const res = await post({ name: "Winner Wanda", key: "anything" });
+    expect(res.status).toBe(200);
+    expect(res.data.name).toBe("Winner Wanda");
+  });
+
+  it("asks each claim for the puzzle key when one is configured", async () => {
+    await start({ giveawayKey: KEY, trustProxy: 1 });
+    // Missing, non-string, wrong and different-length keys are all refused
+    // the same way; each but the missing one counts as a wrong try.
+    for (const [i, body] of [{ name: "A" }, { name: "A", key: "nope" }, { name: "A", key: `${KEY}-extra` }, { name: "A", key: 42 }].entries()) {
+      const res = await post(body, forwarded(`203.0.113.${i + 1}`));
+      expect(res.status, JSON.stringify(body)).toBe(403);
+      expect(res.data.code).toBe("GIVEAWAY_KEY");
+    }
+    // An overlong key is wrong too.
+    expect((await post({ key: "x".repeat(65) }, forwarded("203.0.113.9"))).data.code).toBe("GIVEAWAY_KEY");
+    // The right key mints.
+    const right = await post({ name: "Winner Wanda", key: KEY }, forwarded("203.0.113.1"));
+    expect(right.status).toBe(200);
+    expect(right.data.url).toBe(`${PUBLIC_URL}/invite/${right.data.code}`);
+    expect(invites.list().filter((i) => i.invitedBy === "Carnival")).toHaveLength(1);
+  });
+
+  it("refuses a claim without a key but counts no try, since it guesses nothing", async () => {
+    await start({ giveawayKey: KEY, trustProxy: 1 });
+    // A player who wins before solving the puzzle sends no key.
+    for (let i = 0; i < GIVEAWAY_KEY_TRIES + 1; i++) {
+      const res = await post({ name: "Early" }, forwarded("203.0.113.7"));
+      expect(res.status).toBe(403);
+      expect(res.data.code).toBe("GIVEAWAY_KEY");
+    }
+    expect((await post({ name: "Early", key: KEY }, forwarded("203.0.113.7"))).status).toBe(200);
+  });
+
+  it("locks an address out after five wrong keys, but not another", async () => {
+    await start({ giveawayKey: KEY, trustProxy: 1 });
+    for (let i = 0; i < GIVEAWAY_KEY_TRIES; i++) {
+      const res = await post({ key: `wrong-${i}` }, forwarded("203.0.113.5"));
+      expect(res.status).toBe(403);
+      expect(res.data.code).toBe("GIVEAWAY_KEY");
+    }
+    // Even the right key is refused now: the tries check runs before the
+    // comparison, so a locked-out address learns nothing about further keys.
+    const shut = await post({ key: KEY }, forwarded("203.0.113.5"));
+    expect(shut.status).toBe(429);
+    expect(shut.data.code).toBe("GIVEAWAY_TRIES");
+    // Nothing was minted for it, and another address still claims.
+    const other = await post({ name: "Other", key: KEY }, forwarded("203.0.113.6"));
+    expect(other.status).toBe(200);
+    expect(invites.list().filter((i) => i.invitedBy === "Carnival")).toHaveLength(1);
+  });
+
+  it("answers GIVEAWAY_LIMIT before the key check when the address minted today", async () => {
+    await start({ giveawayKey: KEY, trustProxy: 1 });
+    expect((await post({ key: KEY }, forwarded("203.0.113.1"))).status).toBe(200);
+    // Even a claim with no key at all gets the limit, not a key error.
+    const again = await post({}, forwarded("203.0.113.1"));
+    expect(again.status).toBe(429);
+    expect(again.data.code).toBe("GIVEAWAY_LIMIT");
+  });
+
+  it("answers GIVEAWAY_EMPTY before any key check, recording no try", async () => {
+    // The configured sponsor does not exist: the giveaway is empty.
+    await start({ giveaway: "nosuchid", giveawayKey: KEY, trustProxy: 1 });
+    for (let i = 0; i < GIVEAWAY_KEY_TRIES; i++) {
+      const res = await post({ key: `wrong-${i}` }, forwarded("203.0.113.9"));
+      expect(res.status).toBe(410);
+      expect(res.data.code).toBe("GIVEAWAY_EMPTY");
+    }
+    // Once the sponsor exists the same address claims at once: none of those
+    // wrong keys counted, or it would be locked out already.
+    makeSponsor(app!.store, 5, "nosuchid");
+    expect((await post({ key: KEY }, forwarded("203.0.113.9"))).status).toBe(200);
+  });
+
   it("takes calls only from the giveaway's own website", async () => {
     await start({ trustProxy: 1 });
     // No Origin header: scripts and curl are allowed, they could forge it anyway.
@@ -241,11 +323,83 @@ describe("the Giveaway class", () => {
       const invites = new Invites(store);
       const sponsor = invites.create({ name: "Carnival", quota: 5 });
       const giveaway = new Giveaway(store, invites, { sponsor: sponsor.id, origin: ORIGIN, publicUrl: PUBLIC_URL }, () => now);
-      const first = giveaway.claim("198.51.100.7", "Winner");
-      expect(() => giveaway.claim("198.51.100.7", "Winner")).toThrowError(/already received/);
+      const first = giveaway.claim("198.51.100.7", "Winner", undefined);
+      expect(() => giveaway.claim("198.51.100.7", "Winner", undefined)).toThrowError(/already received/);
       now += 24 * 3600_000 + 1_000;
-      expect(giveaway.claim("198.51.100.7", "Winner").code).not.toBe(first.code);
+      expect(giveaway.claim("198.51.100.7", "Winner", undefined).code).not.toBe(first.code);
       giveaway.sweep();
+    } finally {
+      store.db.close();
+    }
+  });
+
+  it("counts an IPv6 network's addresses together, and IPv4 in IPv6 as IPv4", () => {
+    const store = new Store();
+    try {
+      const invites = new Invites(store);
+      const sponsor = invites.create({ name: "Carnival", quota: 20 });
+      const giveaway = new Giveaway(store, invites, { sponsor: sponsor.id, origin: ORIGIN, publicUrl: PUBLIC_URL, key: "open-sesame" });
+      // One end site picks addresses at will inside its /64, so its wrong
+      // keys add up across them, written however they are.
+      const site = ["2001:db8:1:2::a", "2001:db8:1:2:0:0:0:b", "2001:DB8:1:2::c", "2001:db8:1:2::d%eth0", "2001:0db8:0001:0002::e"];
+      for (const address of site) expect(() => giveaway.claim(address, "W", "wrong")).toThrowError(/does not open/);
+      expect(() => giveaway.claim("2001:db8:1:2::f", "W", "open-sesame")).toThrowError(/too many wrong keys/);
+      // The next network over has its own tries, and so does each IPv4 address.
+      expect(giveaway.claim("2001:db8:1:3::a", "W", "open-sesame").name).toBe("W");
+      // One invite a day per network too.
+      expect(() => giveaway.claim("2001:db8:1:3::b", "W", "open-sesame")).toThrowError(/already received/);
+      expect(giveaway.claim("198.51.100.7", "W", "open-sesame").name).toBe("W");
+      expect(() => giveaway.claim("::ffff:198.51.100.7", "W", "open-sesame")).toThrowError(/already received/);
+      expect(giveaway.claim("198.51.100.8", "W", "open-sesame").name).toBe("W");
+    } finally {
+      store.db.close();
+    }
+  });
+
+  it("stops checking keys for everyone after a day's worth of wrong ones", () => {
+    let now = 1_000_000_000;
+    const store = new Store();
+    try {
+      const invites = new Invites(store);
+      const sponsor = invites.create({ name: "Carnival", quota: 5 });
+      const giveaway = new Giveaway(store, invites, { sponsor: sponsor.id, origin: ORIGIN, publicUrl: PUBLIC_URL, key: "open-sesame" }, () => now);
+      // Many networks guessing once each still run into the ceiling, which
+      // also bounds the memory wrong tries take.
+      for (let i = 0; i < GIVEAWAY_WRONG_KEYS_PER_DAY; i++) {
+        expect(() => giveaway.claim(`2001:db8:${i.toString(16)}::1`, "W", "wrong")).toThrowError(/does not open/);
+      }
+      expect(() => giveaway.claim("198.51.100.9", "W", "open-sesame")).toThrowError(/too many wrong keys/);
+      const wrongKeys = (g: Giveaway) => (g as unknown as { wrongKeys: Map<string, unknown> }).wrongKeys;
+      expect(wrongKeys(giveaway).size).toBe(GIVEAWAY_WRONG_KEYS_PER_DAY);
+      // A day after the first of them, keys are checked again.
+      now += 24 * 3600_000 + 1_000;
+      expect(giveaway.claim("198.51.100.9", "W", "open-sesame").name).toBe("W");
+    } finally {
+      store.db.close();
+    }
+  });
+
+  it("lets an address try keys again once its wrong-key window has passed", () => {
+    let now = 1_000_000_000;
+    const store = new Store();
+    try {
+      const invites = new Invites(store);
+      const sponsor = invites.create({ name: "Carnival", quota: 5 });
+      const giveaway = new Giveaway(store, invites, { sponsor: sponsor.id, origin: ORIGIN, publicUrl: PUBLIC_URL, key: "open-sesame" }, () => now);
+      for (let i = 0; i < GIVEAWAY_KEY_TRIES; i++) {
+        expect(() => giveaway.claim("198.51.100.7", "Winner", `wrong-${i}`)).toThrowError(/does not open/);
+      }
+      expect(() => giveaway.claim("198.51.100.7", "Winner", "open-sesame")).toThrowError(/too many wrong keys/);
+      // The window runs a day from the first wrong try; then the count starts
+      // over, so a wrong key is refused singly and the right key mints.
+      now += 24 * 3600_000 + 1_000;
+      expect(() => giveaway.claim("198.51.100.7", "Winner", "still-wrong")).toThrowError(/does not open/);
+      expect(giveaway.claim("198.51.100.7", "Winner", "open-sesame").name).toBe("Winner");
+      // And sweep forgets windows once they lapse.
+      const wrongKeys = (g: Giveaway) => (g as unknown as { wrongKeys: Map<string, unknown> }).wrongKeys;
+      now += 24 * 3600_000 + 1_000;
+      giveaway.sweep();
+      expect(wrongKeys(giveaway).size).toBe(0);
     } finally {
       store.db.close();
     }
@@ -277,5 +431,17 @@ describe("giveawayConfigFromEnv", () => {
 
   it("needs PUBLIC_URL to build the invite links", () => {
     expect(() => giveawayConfigFromEnv({ GIVEAWAY_INVITE: "x", GIVEAWAY_ORIGIN: ORIGIN })).toThrow(/PUBLIC_URL/);
+  });
+
+  it("reads an optional GIVEAWAY_KEY, trimmed; blank means none", () => {
+    expect(giveawayConfigFromEnv({ ...env, GIVEAWAY_KEY: "  m8k2-q7X_4  " })).toEqual({ sponsor: "k3m9x2", origin: ORIGIN, publicUrl: PUBLIC_URL, key: "m8k2-q7X_4" });
+    expect(giveawayConfigFromEnv(env)).toEqual({ sponsor: "k3m9x2", origin: ORIGIN, publicUrl: PUBLIC_URL });
+    expect(giveawayConfigFromEnv({ ...env, GIVEAWAY_KEY: "   " })).toEqual({ sponsor: "k3m9x2", origin: ORIGIN, publicUrl: PUBLIC_URL });
+  });
+
+  it("rejects a malformed GIVEAWAY_KEY", () => {
+    for (const key of ["abc", "k".repeat(65), "has space", "dots.here", "ünïcode"]) {
+      expect(() => giveawayConfigFromEnv({ ...env, GIVEAWAY_KEY: key }), key).toThrow(/GIVEAWAY_KEY/);
+    }
   });
 });
