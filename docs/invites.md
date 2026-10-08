@@ -130,7 +130,7 @@ The website's own tool computes the key for an answer (for the L-K-M app directo
 Wrong keys are capped, because the site's code is public and anyone can compute the key of any answer they guess:
 
 - Five per network in 24 hours, counted from the first of them; then that network gets `429` with `GIVEAWAY_TRIES`. An IPv6 network is a /64, since one household or server picks addresses in its /64 at will.
-- 200 from everyone together in 24 hours; then every claim gets `GIVEAWAY_TRIES` until the window ends. Networks are cheap to come by, so this ceiling is what bounds guessing: choosing five of nine monsters in order allows 15,120 answers, weeks of guessing at 200 a day. If your riddle gives away which five, only their 120 orders remain, so make it hint at the order as much as the cast. The price of the ceiling: whoever spends it shuts everyone out for the rest of the window.
+- 200 from everyone together in 24 hours; then every claim gets `GIVEAWAY_TRIES` until the window ends. Networks are cheap to come by, so this ceiling is what bounds guessing: choosing five of nine monsters in order allows 15,120 answers, weeks of guessing at 200 a day. If your riddle gives away which five, only their 120 orders remain, so make it hint at the order as much as the cast. The price of the ceiling: whoever spends it shuts everyone out for the rest of the window, and players' own wrong answers count toward it too, so a puzzle that draws 200 wrong answers a day closes claiming for everyone until the window ends.
 
 With `GIVEAWAY_KEY` unset, claims need no key, as before.
 

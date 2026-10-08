@@ -138,7 +138,7 @@ export class Giveaway {
     const network = networkOf(address);
     const last = this.mintedAt.get(network);
     if (last !== undefined && last > this.now() - GIVEAWAY_INTERVAL_MS) {
-      throw new HttpError(429, "this address already received an invite; try again tomorrow", "GIVEAWAY_LIMIT");
+      throw new HttpError(429, "this network already received an invite; try again tomorrow", "GIVEAWAY_LIMIT");
     }
     this.checkKey(network, key);
     const invite = this.invites.invite(sponsor, name);
@@ -166,7 +166,7 @@ export class Giveaway {
     const cutoff = now - GIVEAWAY_INTERVAL_MS;
     const tries = this.wrongKeys.get(network);
     if (tries && tries.since > cutoff && tries.count >= GIVEAWAY_KEY_TRIES) {
-      throw new HttpError(429, "too many wrong keys from this address; try again tomorrow", "GIVEAWAY_TRIES");
+      throw new HttpError(429, "too many wrong keys from this network; try again tomorrow", "GIVEAWAY_TRIES");
     }
     if (this.allWrong.since > cutoff && this.allWrong.count >= GIVEAWAY_WRONG_KEYS_PER_DAY) {
       throw new HttpError(429, "too many wrong keys today; try again tomorrow", "GIVEAWAY_TRIES");
