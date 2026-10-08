@@ -216,7 +216,7 @@ describe("the giveaway endpoint", () => {
   it("asks each claim for the puzzle key when one is configured", async () => {
     await start({ giveawayKey: KEY, trustProxy: 1 });
     // Missing, non-string, wrong and different-length keys are all refused
-    // the same way; each counts as a wrong try for the address.
+    // the same way; each but the missing one counts as a wrong try.
     for (const [i, body] of [{ name: "A" }, { name: "A", key: "nope" }, { name: "A", key: `${KEY}-extra` }, { name: "A", key: 42 }].entries()) {
       const res = await post(body, forwarded(`203.0.113.${i + 1}`));
       expect(res.status, JSON.stringify(body)).toBe(403);
@@ -229,6 +229,17 @@ describe("the giveaway endpoint", () => {
     expect(right.status).toBe(200);
     expect(right.data.url).toBe(`${PUBLIC_URL}/invite/${right.data.code}`);
     expect(invites.list().filter((i) => i.invitedBy === "Carnival")).toHaveLength(1);
+  });
+
+  it("refuses a claim without a key but counts no try, since it guesses nothing", async () => {
+    await start({ giveawayKey: KEY, trustProxy: 1 });
+    // A player who wins before solving the puzzle sends no key.
+    for (let i = 0; i < GIVEAWAY_KEY_TRIES + 1; i++) {
+      const res = await post({ name: "Early" }, forwarded("203.0.113.7"));
+      expect(res.status).toBe(403);
+      expect(res.data.code).toBe("GIVEAWAY_KEY");
+    }
+    expect((await post({ name: "Early", key: KEY }, forwarded("203.0.113.7"))).status).toBe(200);
   });
 
   it("locks an address out after five wrong keys, but not another", async () => {

@@ -125,7 +125,7 @@ When the website game is a puzzle, say the player has to scare the monsters in t
 GIVEAWAY_KEY=scare-crow-first-3
 ```
 
-The website's own tool computes the key for an answer (for the L-K-M app directory carnival: `node bin/apps-site.mjs carnival-key <five monsters>`). Set only that key here, 4 to 64 of letters, digits, `-` and `_`, and restart. A claim with a missing or wrong key answers `403` with `GIVEAWAY_KEY`; an address that sends five wrong keys in a day answers `429` with `GIVEAWAY_TRIES` until the day is out. That cap is what protects the puzzle: the site's code is public, so anyone can compute the key of any answer they guess, and five guesses a day cannot run through even a small answer space (five monsters have about fifteen thousand orders). With `GIVEAWAY_KEY` unset, claims need no key, as before.
+The website's own tool computes the key for an answer (for the L-K-M app directory carnival: `node bin/apps-site.mjs carnival-key <five monsters>`). Set only that key here, 4 to 64 of letters, digits, `-` and `_`, and restart. A claim with a missing or wrong key answers `403` with `GIVEAWAY_KEY`; an address that sends five wrong keys in a day answers `429` with `GIVEAWAY_TRIES` until the day is out. A missing key guesses nothing, so it costs no try: a player who wins before solving the puzzle loses nothing. That cap is what protects the puzzle: the site's code is public, so anyone can compute the key of any answer they guess, and five guesses a day cannot run through even a small answer space (five monsters have about fifteen thousand orders). With `GIVEAWAY_KEY` unset, claims need no key, as before.
 
 Four limits keep the giveaway bounded, because anyone can call the endpoint:
 

@@ -109,9 +109,10 @@ export class Giveaway {
    * GIVEAWAY_EMPTY when the sponsor is unknown, revoked or has made all its
    * invites, and GIVEAWAY_LIMIT when the address minted one in the last day.
    * With a key configured the claim's `key` must open the giveaway: an
-   * address out of wrong tries gets GIVEAWAY_TRIES and any other bad key
-   * (missing, not a string, wrong) is recorded and gets GIVEAWAY_KEY. Only a
-   * mint and a wrong key are recorded, so a refused caller may try again.
+   * address out of wrong tries gets GIVEAWAY_TRIES, a missing key gets
+   * GIVEAWAY_KEY, and any other bad key (not a string, wrong) is recorded and
+   * gets GIVEAWAY_KEY. Only a mint and a wrong key are recorded, so a refused
+   * caller may try again.
    */
   claim(address: string, name: string, key: unknown): GiveawayResponse {
     const sponsor = this.sponsor();
@@ -149,6 +150,9 @@ export class Giveaway {
       throw new HttpError(429, "too many wrong keys from this address; try again tomorrow", "GIVEAWAY_TRIES");
     }
     if (this.keyOpens(key, expected)) return;
+    // No key guesses nothing (a player who won before solving the puzzle),
+    // so it costs no try.
+    if (key === undefined || key === null) throw new HttpError(403, "this giveaway needs the puzzle's key", "GIVEAWAY_KEY");
     if (tries && tries.since > cutoff) tries.count += 1;
     else this.wrongKeys.set(address, { count: 1, since: now });
     throw new HttpError(403, "this key does not open the giveaway", "GIVEAWAY_KEY");
