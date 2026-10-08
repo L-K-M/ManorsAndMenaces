@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Giveaway puzzle keys (GIVEAWAY_KEY): a website game can now gate its
+  invite prizes on a puzzle answer that never ships with the site. The
+  site sends the key it computes for what the player did, the server
+  compares it against the configured key in constant time, and an
+  address gets five wrong keys per day (403 GIVEAWAY_KEY, then 429
+  GIVEAWAY_TRIES), so the answer cannot be guessed quickly. See
+  docs/invites.md.
+
 - Invite giveaways for the operator's website (GIVEAWAY_INVITE and
   GIVEAWAY_ORIGIN on an invite-only server): a page on your site can call
   `POST /api/giveaway` to mint a personal invite for each winner. The

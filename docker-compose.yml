@@ -49,6 +49,7 @@ services:
       # PUBLIC_URL; see docs/invites.md.
       GIVEAWAY_INVITE: ${GIVEAWAY_INVITE:-}
       GIVEAWAY_ORIGIN: ${GIVEAWAY_ORIGIN:-} # https://apps.example.org
+      GIVEAWAY_KEY: ${GIVEAWAY_KEY:-} # a puzzle key every claim must carry; empty: none
     volumes:
       - manors-data:/data # SQLite database
 volumes:

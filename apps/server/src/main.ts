@@ -49,6 +49,11 @@
 //   GIVEAWAY_ORIGIN  the one website origin a browser may call
 //                 POST /api/giveaway from, like https://apps.example.org.
 //                 See docs/invites.md.
+//   GIVEAWAY_KEY   a puzzle key every claim must carry (default: none): the
+//                 website computes the key of what the player did, and only
+//                 the key of the right answer is set here, never the answer.
+//                 4 to 64 of letters, digits, - and _. An address gets five
+//                 wrong keys a day, so the answer cannot be guessed quickly.
 //
 // `node server.mjs invites create|list|revoke …` (`pnpm invites …` in a
 // checkout) manages invites instead of starting the server; see
@@ -129,7 +134,7 @@ else {
   // the giveaway picks it up at once (its lookup runs per request).
   const sponsor = app.store.invite(giveaway.sponsor);
   if (!sponsor) console.log(`Giveaway: GIVEAWAY_INVITE ${giveaway.sponsor} is not an invite on this server; nothing will be given`);
-  else console.log(`Giveaway: on, invites from ${sponsor.name} for ${giveaway.origin} (${app.store.invitesMadeBy(sponsor.id).length} of ${sponsor.quota} given)`);
+  else console.log(`Giveaway: on, invites from ${sponsor.name} for ${giveaway.origin} (${app.store.invitesMadeBy(sponsor.id).length} of ${sponsor.quota} given${giveaway.key ? "; key required" : ""})`);
 }
 if (!email) console.log("Turn emails: off (set SMTP_HOST, MAIL_FROM and PUBLIC_URL to turn them on)");
 else if (!email.verify) console.log(`Turn emails: written to ${process.env.MAIL_OUTBOX_DIR}, not sent`);
