@@ -45,15 +45,16 @@
 //                 of the sponsor invite to mint with, made with the invites
 //                 command below (e.g. --invites 50; that quota caps the whole
 //                 giveaway). Needs INVITE_ONLY, GIVEAWAY_ORIGIN and PUBLIC_URL.
-//                 Each client address gets one invite a day. Unset: off.
+//                 Each client network gets one invite a day. Unset: off.
 //   GIVEAWAY_ORIGIN  the one website origin a browser may call
 //                 POST /api/giveaway from, like https://apps.example.org.
 //                 See docs/invites.md.
 //   GIVEAWAY_KEY   a puzzle key every claim must carry (default: none): the
 //                 website computes the key of what the player did, and only
 //                 the key of the right answer is set here, never the answer.
-//                 4 to 64 of letters, digits, - and _. An address gets five
-//                 wrong keys a day, so the answer cannot be guessed quickly.
+//                 4 to 64 of letters, digits, - and _. A network gets five
+//                 wrong keys a day and everyone 200, so the answer cannot be
+//                 guessed quickly.
 //
 // `node server.mjs invites create|list|revoke …` (`pnpm invites …` in a
 // checkout) manages invites instead of starting the server; see

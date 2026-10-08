@@ -178,12 +178,12 @@ export interface MatchHistoryResponse {
  *   website (the configured GIVEAWAY_ORIGIN).
  * - GIVEAWAY_EMPTY (410): the giveaway's sponsor invite is unknown, revoked
  *   or has made all the invites it may.
- * - GIVEAWAY_LIMIT (429): this address already received a giveaway invite in
- *   the last 24 hours.
- * - GIVEAWAY_KEY (403): the giveaway asks for a puzzle key (GIVEAWAY_KEY) and
- *   this claim's key is missing or wrong.
- * - GIVEAWAY_TRIES (429): this address sent too many wrong giveaway keys in
- *   the last 24 hours; try again tomorrow.
+ * - GIVEAWAY_LIMIT (429): this address's network (an IPv6 /64) already
+ *   received a giveaway invite in the last 24 hours.
+ * - GIVEAWAY_KEY (403): the giveaway asks for a puzzle key (the GIVEAWAY_KEY
+ *   setting) and this claim's key is missing or wrong.
+ * - GIVEAWAY_TRIES (429): this address's network, or everyone together, sent
+ *   too many wrong giveaway keys in the last 24 hours; try again tomorrow.
  */
 export type ApiErrorCode =
   | "INVALID_SESSION"
@@ -294,10 +294,12 @@ export interface InviteSettings {
  * website's puzzle when the giveaway asks for one (GIVEAWAY_KEY): the site
  * computes the key of what the player did, and only the key of the right
  * answer lives on the server. A missing or wrong key fails 403 GIVEAWAY_KEY;
- * five wrong keys a day per address fail 429 GIVEAWAY_TRIES.
+ * five wrong keys in 24 hours from a network (200 from everyone) fail 429
+ * GIVEAWAY_TRIES.
  */
 export interface GiveawayRequest {
   name?: string;
+  /** 4 to 64 of letters, digits, - and _; checked only when the server sets GIVEAWAY_KEY. */
   key?: string;
 }
 

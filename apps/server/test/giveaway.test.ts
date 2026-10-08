@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ApiErrorBody, GiveawayResponse, GuestSessionResponse } from "@manors-menaces/protocol";
 import { createApp } from "../src/app.js";
-import { GIVEAWAY_DEFAULT_NAME, GIVEAWAY_KEY_TRIES, Giveaway, giveawayConfigFromEnv } from "../src/giveaway.js";
+import { GIVEAWAY_DEFAULT_NAME, GIVEAWAY_KEY_TRIES, GIVEAWAY_WRONG_KEYS_PER_DAY, Giveaway, giveawayConfigFromEnv } from "../src/giveaway.js";
 import { FRIEND_INVITE_DEVICES, INVITES_PER_PERSON, Invites } from "../src/invites.js";
 import { Store } from "../src/store.js";
 
@@ -328,6 +328,52 @@ describe("the Giveaway class", () => {
       now += 24 * 3600_000 + 1_000;
       expect(giveaway.claim("198.51.100.7", "Winner", undefined).code).not.toBe(first.code);
       giveaway.sweep();
+    } finally {
+      store.db.close();
+    }
+  });
+
+  it("counts an IPv6 network's addresses together, and IPv4 in IPv6 as IPv4", () => {
+    const store = new Store();
+    try {
+      const invites = new Invites(store);
+      const sponsor = invites.create({ name: "Carnival", quota: 20 });
+      const giveaway = new Giveaway(store, invites, { sponsor: sponsor.id, origin: ORIGIN, publicUrl: PUBLIC_URL, key: "open-sesame" });
+      // One end site picks addresses at will inside its /64, so its wrong
+      // keys add up across them, written however they are.
+      const site = ["2001:db8:1:2::a", "2001:db8:1:2:0:0:0:b", "2001:DB8:1:2::c", "2001:db8:1:2::d%eth0", "2001:0db8:0001:0002::e"];
+      for (const address of site) expect(() => giveaway.claim(address, "W", "wrong")).toThrowError(/does not open/);
+      expect(() => giveaway.claim("2001:db8:1:2::f", "W", "open-sesame")).toThrowError(/too many wrong keys/);
+      // The next network over has its own tries, and so does each IPv4 address.
+      expect(giveaway.claim("2001:db8:1:3::a", "W", "open-sesame").name).toBe("W");
+      // One invite a day per network too.
+      expect(() => giveaway.claim("2001:db8:1:3::b", "W", "open-sesame")).toThrowError(/already received/);
+      expect(giveaway.claim("198.51.100.7", "W", "open-sesame").name).toBe("W");
+      expect(() => giveaway.claim("::ffff:198.51.100.7", "W", "open-sesame")).toThrowError(/already received/);
+      expect(giveaway.claim("198.51.100.8", "W", "open-sesame").name).toBe("W");
+    } finally {
+      store.db.close();
+    }
+  });
+
+  it("stops checking keys for everyone after a day's worth of wrong ones", () => {
+    let now = 1_000_000_000;
+    const store = new Store();
+    try {
+      const invites = new Invites(store);
+      const sponsor = invites.create({ name: "Carnival", quota: 5 });
+      const giveaway = new Giveaway(store, invites, { sponsor: sponsor.id, origin: ORIGIN, publicUrl: PUBLIC_URL, key: "open-sesame" }, () => now);
+      // Many networks guessing once each still run into the ceiling, which
+      // also bounds the memory wrong tries take.
+      for (let i = 0; i < GIVEAWAY_WRONG_KEYS_PER_DAY; i++) {
+        expect(() => giveaway.claim(`2001:db8:${i.toString(16)}::1`, "W", "wrong")).toThrowError(/does not open/);
+      }
+      expect(() => giveaway.claim("198.51.100.9", "W", "open-sesame")).toThrowError(/too many wrong keys/);
+      const wrongKeys = (g: Giveaway) => (g as unknown as { wrongKeys: Map<string, unknown> }).wrongKeys;
+      expect(wrongKeys(giveaway).size).toBe(GIVEAWAY_WRONG_KEYS_PER_DAY);
+      // A day after the first of them, keys are checked again.
+      now += 24 * 3600_000 + 1_000;
+      expect(giveaway.claim("198.51.100.9", "W", "open-sesame").name).toBe("W");
     } finally {
       store.db.close();
     }
