@@ -5,6 +5,13 @@
 
 **Latest release:** v<!-- version -->0.3.0<!-- /version --> · [Download](https://github.com/L-K-M/ManorsAndMenaces/releases/latest)
 
+The macOS desktop build is unsigned and not notarized. After moving
+**Manors & Menaces** to Applications, run:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Manors & Menaces.app"
+```
+
 *Build wisely. Trouble wanders.*
 
 A competitive turn-based fantasy strategy board game for 2–4 players. Build roads and manors across a cheerful fantasy realm, plant **Banners** to choose exactly what you will harvest next turn — no production dice — and use Royal Writs, Wardens, knights, wizards, trolls and dragons to make everyone else's plans slightly worse.
