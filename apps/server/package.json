@@ -15,10 +15,10 @@
     "@manors-menaces/protocol": "workspace:*",
     "@manors-menaces/rules": "workspace:*",
     "nodemailer": "^10.0.11",
-    "ws": "^8.21.3"
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",
-    "@types/ws": "^8.18.1"
+    "@types/ws": "^8.18.2"
   }
 }
