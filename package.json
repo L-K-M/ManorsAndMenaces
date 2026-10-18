@@ -33,7 +33,7 @@
     "@manors-menaces/protocol": "workspace:*",
     "@manors-menaces/rules": "workspace:*",
     "@tauri-apps/cli": "^2",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "esbuild": "^0.28.2",
     "eslint": "^10.11.0",
     "eslint-plugin-svelte": "^3.23.0",
