@@ -3,9 +3,10 @@
 Selected September 26, 2026; match-end jingles updated October 2.
 All source recordings are released under
 [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
-The original files are retained in `originals/`; `sources.json` records each
-creator, source page, direct download, original filename and SHA-256.
-Kenney's original license notices are retained in `licenses/`.
+The original files, `sources.json` (each creator, source page, direct
+download, original filename and SHA-256) and Kenney's original license
+notices are kept in the source repository under
+[`media-sources/audio/`](https://github.com/L-K-M/ManorsAndMenaces/tree/main/media-sources/audio).
 
 ## Sources and choices
 
@@ -36,7 +37,7 @@ sub-bass/very high frequencies, peak-matches them to -6 dBFS, and exports
 44.1 kHz mono PCM WAV clips. Music is loudness-normalized to -18 LUFS with
 -3 dBTP headroom and encoded as a stereo MP3. Runtime files are under
 `apps/web/public/audio/` and work offline through the existing PWA precache.
-Only the game-ready files ship; the source recordings stay in this directory.
+Only the game-ready files ship; the source recordings stay in `media-sources/audio/`.
 
 Mixing and peak measurement use floating-point samples so layered transients
 above full scale are preserved until attenuation. Run

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig, type Plugin } from "vite";
+import bundledModules from "../../scripts/bundled-modules.mjs";
 import { serviceWorkerPlugin } from "./pwa/serviceWorkerPlugin.js";
 
 // The root package.json is the single version source (scripts/release.sh).
@@ -37,9 +38,25 @@ const failOnBuildWarnings: Plugin = {
   },
 };
 
+// Bundled third-party code keeps its own licenses. bundledModules() records
+// what each chunk contains, and the build script turns that into
+// Third-Party-Notices.txt (scripts/third-party-notices.mjs); every chunk names
+// the file in this banner, which Rolldown adds after minification.
+const NOTICES_BANNER = "/*! Bundled third-party code keeps its own licenses: see Third-Party-Notices.txt at the site or app root. */";
+// Fonts stay files, never data: URIs, so the notices check can attribute them.
+const keepFontFiles = (file: string) => (/\.(?:woff2?|ttf|otf|eot)$/i.test(file) ? false : undefined);
+// The project's own license travels with every copy of the build.
+const shipLicense: Plugin = {
+  name: "ship-license",
+  apply: "build",
+  generateBundle() {
+    this.emitFile({ type: "asset", fileName: "LICENSE.txt", source: readFileSync(new URL("../../LICENSE", import.meta.url), "utf8") });
+  },
+};
+
 // One Vite build serves the web deployment and the Tauri shell (spec §43.3).
 export default defineConfig({
-  plugins: [svelte(), failOnBuildWarnings, serviceWorkerPlugin({ version: rootVersion })],
+  plugins: [svelte(), failOnBuildWarnings, serviceWorkerPlugin({ version: rootVersion }), bundledModules(), shipLicense],
   // Relative asset paths so the build works from any static host path and
   // from Tauri's custom protocol.
   base: "./",
@@ -48,8 +65,10 @@ export default defineConfig({
     target: "es2022",
     // No source maps: they would ship in every web, server and desktop artifact.
     sourcemap: false,
+    assetsInlineLimit: keepFontFiles,
     rolldownOptions: {
       output: {
+        postBanner: NOTICES_BANNER,
         // The content package (map, card and UI text, rival quips) grows with
         // every card. Its own chunk keeps the app chunk under Rolldown's 500 kB
         // warning, which the build treats as an error (see above).
@@ -62,8 +81,9 @@ export default defineConfig({
       },
     },
   },
-  // The AI runs in a module worker (lib/game/ai.worker.ts).
-  worker: { format: "es" },
+  // The AI runs in a module worker (lib/game/ai.worker.ts), built separately,
+  // so it needs its own module records and banner.
+  worker: { format: "es", plugins: () => [bundledModules()], rolldownOptions: { output: { postBanner: NOTICES_BANNER } } },
   define: {
     __APP_VERSION__: JSON.stringify(rootVersion),
   },

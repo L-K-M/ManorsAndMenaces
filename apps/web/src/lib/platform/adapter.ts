@@ -27,6 +27,8 @@ export interface PlatformAdapter {
   notify(title: string, body: string): Promise<void>;
   /** The Android app's turn watcher; absent in browsers. Its calls reject where the app has none (desktop). */
   readonly turnWatch?: TurnWatch;
+  /** Android app only: opens the native screen with the licenses of the Android libraries in the APK. */
+  readonly openAndroidLicenses?: (() => Promise<void>) | undefined;
 }
 
 /**
@@ -193,6 +195,15 @@ export class TauriPlatformAdapter extends BrowserPlatformAdapter {
     requestBatteryExemption: () => this.turnWatchCall("request_battery_exemption"),
     takeOpenedMatch: async () => (await this.turnWatchCall<{ matchId: string | null }>("take_opened_match")).matchId,
   };
+
+  // LicensesPlugin.kt (gen/android) opens LicensesActivity; the desktop apps have no such screen.
+  readonly openAndroidLicenses = navigator.userAgent.includes("Android")
+    ? async () => {
+        const invoke = this.tauri?.core?.invoke;
+        if (!invoke) throw new Error("no Tauri bridge");
+        await invoke("plugin:licenses|open");
+      }
+    : undefined;
 
   private turnWatchCall<T = TurnWatchStatus>(command: string, args?: Record<string, unknown>): Promise<T> {
     const invoke = this.tauri?.core?.invoke;

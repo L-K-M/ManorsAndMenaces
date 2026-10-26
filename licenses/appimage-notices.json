@@ -1,0 +1,119 @@
+{
+  "_comment": [
+    "Overrides for scripts/appimage-notices.py, which the release and build",
+    "workflows run on the Tauri AppImage right after building it. Every file in",
+    "the AppDir that no Ubuntu package on the build host owns must be listed",
+    "here, as own (this project's, or generated at build time) or under 'files'",
+    "(mapped to an 'extra' component with its license texts). Paths are",
+    "AppDir-relative fnmatch patterns; license_files are relative to this file.",
+    "Texts in appimage/: the type2-runtime set from the shared licfix linux",
+    "recipe (pinned upstream refs and SHA-256 in its licenses/README.md),",
+    "linuxdeploy-plugin-gtk's LICENSE.txt (tauri-apps fork, unchanged since",
+    "commit 35058592f5) and the license header of AppImageKit's src/AppRun.c",
+    "(commit 2b8f5b39c4; the file last changed in 142d826bd7). common_licenses",
+    "names the text to ship where a copyright file cites a common-licenses name",
+    "the build host lacks."
+  ],
+  "own": [
+    {
+      "path": "usr/bin/manors-menaces",
+      "reason": "The app's own executable, built from this repository (its crates and web frontend are in Third-Party-Notices.txt)"
+    },
+    {
+      "path": "usr/share/applications/Manors & Menaces.desktop",
+      "reason": "The app's desktop entry, written by the Tauri bundler"
+    },
+    {
+      "path": "usr/share/icons/hicolor/*/apps/manors-menaces.png",
+      "reason": "The app's icons (src-tauri/icons, drawn for this project)"
+    },
+    {
+      "path": "Manors & Menaces.png",
+      "reason": "Copy of the app's icon at the AppDir root, for the AppImage desktop integration"
+    },
+    {
+      "path": "AppRun",
+      "reason": "Four-line launcher script that linuxdeploy writes at build time to source the GTK hook and run AppRun.wrapped"
+    },
+    {
+      "path": "usr/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache",
+      "reason": "Generated at build time by linuxdeploy-plugin-gtk (gdk-pixbuf-query-loaders): paths of the bundled loaders"
+    },
+    {
+      "path": "usr/lib/gtk-3.0/3.0.0/immodules.cache",
+      "reason": "Generated at build time by linuxdeploy-plugin-gtk (gtk-query-immodules-3.0): paths of the bundled input methods"
+    },
+    {
+      "path": "usr/share/glib-2.0/schemas/gschemas.compiled",
+      "reason": "Generated at build time by linuxdeploy-plugin-gtk (glib-compile-schemas) from the bundled schema files, which the host packages own"
+    },
+    {
+      "path": "usr/lib/gio/modules/giomodule.cache",
+      "reason": "Generated at build time by linuxdeploy-plugin-gtk (gio-querymodules): names the bundled GIO modules and their extension points"
+    }
+  ],
+  "files": [
+    {
+      "path": "AppRun.wrapped",
+      "extra": "AppImageKit AppRun",
+      "reason": "Tauri's bundler downloads AppRun-x86_64 from tauri-apps/binary-releases (release apprun-old, a mirror of AppImageKit's continuous build); linuxdeploy renames it when it adds the GTK hook. The v0.3.0 AppImage's copy is byte-identical to that asset"
+    },
+    {
+      "path": "apprun-hooks/linuxdeploy-plugin-gtk.sh",
+      "extra": "linuxdeploy-plugin-gtk",
+      "reason": "Hook script written by linuxdeploy-plugin-gtk. Tauri's bundler (tauri-cli 2.12) runs its own copy of the tauri-apps fork, crates/tauri-bundler/src/bundle/linux/appimage/linuxdeploy-plugin-gtk.sh in tauri-apps/tauri"
+    }
+  ],
+  "packages": [],
+  "common_licenses": [
+    {
+      "reference": "GPL-2.0",
+      "use": "GPL-2",
+      "reason": "Ubuntu 22.04's pango copyright files (libpango-1.0-0, libpangocairo-1.0-0, libpangoft2-1.0-0, gir1.2-pango-1.0) cite /usr/share/common-licenses/GPL-2.0 for the GNU GPL version 2; base-files names that text GPL-2"
+    },
+    {
+      "reference": "GPL-3.0",
+      "use": "GPL-3",
+      "reason": "The same pango copyright files cite /usr/share/common-licenses/GPL-3.0 for the GNU GPL version 3; base-files names that text GPL-3"
+    }
+  ],
+  "extra": [
+    {
+      "name": "AppImageKit AppRun",
+      "version": "continuous (tauri-apps/binary-releases apprun-old)",
+      "license": "MIT",
+      "source_url": "https://github.com/AppImage/AppImageKit/blob/master/src/AppRun.c",
+      "license_files": ["appimage/AppImageKit-AppRun.c-LICENSE.txt"],
+      "reason": "AppRun.wrapped is AppImageKit's AppRun.c, compiled by its CI; the text is that file's license header"
+    },
+    {
+      "name": "linuxdeploy-plugin-gtk",
+      "version": "tauri-apps fork",
+      "license": "MIT",
+      "source_url": "https://github.com/tauri-apps/linuxdeploy-plugin-gtk",
+      "license_files": ["appimage/linuxdeploy-plugin-gtk-LICENSE.txt"],
+      "reason": "Its hook script ships in apprun-hooks/"
+    },
+    {
+      "name": "AppImage type2-runtime",
+      "version": "{runtime_commit}",
+      "appimage_runtime": true,
+      "license": "MIT AND LGPL-2.1-only AND BSD-2-Clause AND BSD-3-Clause AND Zlib",
+      "source_url": "https://github.com/AppImage/type2-runtime/commit/{runtime_commit}",
+      "sources": [
+        "Statically links libfuse {libfuse_version} (LGPL-2.1, patched by patches/libfuse in the runtime source): https://github.com/libfuse/libfuse/releases/tag/fuse-{libfuse_version}",
+        "Statically links squashfuse {squashfuse_version} (BSD-2-Clause): https://github.com/vasi/squashfuse/releases/tag/{squashfuse_version}",
+        "Statically links musl (MIT), zstd {zstd_version} (BSD-3-Clause) and zlib {zlib_version} (Zlib) from the Alpine Linux release named in the runtime source's scripts/chroot/chroot_build.sh"
+      ],
+      "license_files": [
+        "appimage/type2-runtime-LICENSE.txt",
+        "appimage/musl-COPYRIGHT.txt",
+        "appimage/libfuse-LGPL2.txt",
+        "appimage/squashfuse-LICENSE.txt",
+        "appimage/zstd-LICENSE.txt",
+        "appimage/zlib-LICENSE.txt"
+      ],
+      "reason": "The runtime is the AppImage's ELF header, outside the squashfs, so no host package owns it. Its texts are vendored from upstream; the runtime commit pins the exact sources (v0.3.0 used 8f39b89 with libfuse 3.15.0, squashfuse 0.5.2, zstd 1.5.6 and zlib 1.3.2)"
+    }
+  ]
+}

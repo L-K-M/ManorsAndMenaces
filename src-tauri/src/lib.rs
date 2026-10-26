@@ -10,6 +10,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(turn_watch())
+        .plugin(licenses())
         .run(tauri::generate_context!())
         .expect("error while running Manors & Menaces");
 }
@@ -23,6 +24,19 @@ fn turn_watch<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
         .setup(|_app, _api| {
             #[cfg(target_os = "android")]
             _api.register_android_plugin("ch.lkmc.manorsmenaces.turnwatch", "TurnWatchPlugin")?;
+            Ok(())
+        })
+        .build()
+}
+
+/// The Android app's licenses screen for the Android libraries in the APK
+/// (LicensesActivity.kt), opened from Settings > Licenses. Its one command
+/// goes straight to LicensesPlugin.kt; the desktop apps do not offer it.
+fn licenses<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("licenses")
+        .setup(|_app, _api| {
+            #[cfg(target_os = "android")]
+            _api.register_android_plugin("ch.lkmc.manorsmenaces", "LicensesPlugin")?;
             Ok(())
         })
         .build()

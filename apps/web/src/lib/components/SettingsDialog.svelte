@@ -2,6 +2,7 @@
   import { t } from "../i18n.js";
   import { play } from "../audio/sfx.js";
   import { saveSettings, settings } from "../stores/settings.svelte.js";
+  import LicenseNotices from "./LicenseNotices.svelte";
   import Modal from "./Modal.svelte";
 
   let { onclose }: { onclose: () => void } = $props();
@@ -54,6 +55,7 @@
       </ul>
       <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noreferrer">CC0 1.0</a>
     </details>
+    <LicenseNotices />
     <label><input type="checkbox" bind:checked={settings.privacyCurtain} /> {t("ui.privacy_curtain_between_hot_seat")}</label>
     <div class="with-hint">
       <label><input type="checkbox" bind:checked={settings.pauseOnCardPlay} aria-describedby="pause-on-card-play-hint" /> {t("ui.pause_on_card_play")}</label>

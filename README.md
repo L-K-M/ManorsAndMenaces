@@ -193,7 +193,41 @@ The in-game tutorial teaches all of this interactively.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Manors & Menaces' own code is released under the [Unlicense](LICENSE). The
+builds bundle third-party code and fonts that keep their own licenses: the web
+build bundles Svelte and other npm packages and the Alegreya, Alegreya Sans and
+Alegreya SC fonts (SIL Open Font License 1.1); the server bundle adds ws and
+nodemailer; the desktop and Android apps add Tauri and its Rust crates, the Rust
+standard library and, on Windows, Microsoft's WebView2 loader; the Android app
+also bundles AndroidX, Material Components, OkHttp, Jackson and Kotlin
+libraries. MPL-2.0 crates and data are used unmodified, and the notices give the
+location of their source. The notices ship inside each artifact:
+
+- Web build (the static zip, and `/app/web` in the Docker image):
+  `Third-Party-Notices.txt` and `LICENSE.txt` at the site root, named in the
+  banner of every script.
+- Server bundle: `manors-menaces-server-<version>-Third-Party-Notices.txt`,
+  published next to the `.mjs` release asset.
+- Docker image: `/usr/share/doc/manors-menaces/` (`Third-Party-Notices.txt` for
+  the server and web code, and `LICENSE`). System packages from the base image
+  keep their notices in `/usr/share/doc/*/copyright`.
+- macOS: `Manors & Menaces.app/Contents/Resources/` (`Third-Party-Notices.txt`,
+  `Rust-Licenses.html`, `LICENSE.txt`); Windows: the same files in the
+  installation directory.
+- Linux packages: `/usr/share/doc/manors-menaces/` (Flatpak:
+  `/app/share/doc/manors-menaces/`), with the Debian `copyright` file. The
+  AppImage also bundles GTK, WebKitGTK and other system libraries, many under
+  the LGPL: their copyright files are in `/usr/share/doc/<package>/` inside it,
+  and `SOURCES.txt` names their exact source packages.
+- Android: `assets/licenses/` in the APK.
+- In the game: Settings > Licenses, which on Android also opens the list of
+  Android libraries.
+
+The Unlicense covers Manors & Menaces' own code only. The Gradle wrapper in
+`src-tauri/gen/android` (`gradlew`, `gradlew.bat`,
+`gradle/wrapper/gradle-wrapper.jar`) is Gradle's, under the Apache License 2.0.
+`licenses/` and `src-tauri/gen/android/app/config/licenses/` hold upstream
+license texts for the notices, not this project's license.
 
 The bundled sound effects by Kenney and music by RandomMind are CC0 releases.
 See [sound sources and preparation notes](media-sources/audio/README.md) for

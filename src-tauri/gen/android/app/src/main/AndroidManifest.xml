@@ -32,6 +32,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Settings > Licenses in the web app opens it through LicensesPlugin.kt. -->
+        <activity
+            android:name=".LicensesActivity"
+            android:exported="false" />
+
         <!-- specialUse: no daily time limit (dataSync has 6 hours on Android 15), and it may restart after a reboot. -->
         <service
             android:name=".turnwatch.TurnWatchService"

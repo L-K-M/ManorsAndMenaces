@@ -35,6 +35,22 @@ jobs:
         run: |
           pinned=$(node -p "require('./package.json').packageManager.split('@')[1].split('+')[0]")
           test "$(corepack pnpm --version)" = "$pinned"
+      # LICENSE is the Unlicense. Manifests, package metadata and the README
+      # must not claim another license for the project's own code.
+      - name: License statements agree with LICENSE
+        run: |
+          grep -q 'unlicense.org' LICENSE
+          grep -qx 'license = "Unlicense"' src-tauri/Cargo.toml
+          node -e '
+            for (const file of process.argv.slice(1)) {
+              const json = JSON.parse(require("fs").readFileSync(file, "utf8"));
+              const license = file.endsWith("tauri.conf.json") ? json.bundle?.license : json.license;
+              if (license !== "Unlicense") {
+                console.error(`${file}: license is ${license}, but LICENSE is the Unlicense`);
+                process.exitCode = 1;
+              }
+            }' package.json apps/web/package.json apps/server/package.json src-tauri/tauri.conf.json
+          sed -n '/^## License/,/^## /p' README.md | grep -q '\[Unlicense\](LICENSE)'
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
@@ -82,3 +98,68 @@ jobs:
       - name: Placeholder frontend for tauri::generate_context!
         run: mkdir -p apps/web/dist && echo '<!doctype html>' > apps/web/dist/index.html
       - run: cargo check --manifest-path src-tauri/Cargo.toml --locked
+
+  tauri-notices:
+    name: Third-party notices of the Tauri apps
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install --frozen-lockfile
+      # Every crate linked into a shipped target needs its license text
+      # (licenses/rust-overrides.json fills the gaps), and the app's own
+      # crate must declare the Unlicense. Reads metadata only; builds nothing.
+      - name: Rust crate notices for every shipped target
+        run: |
+          for target in x86_64-unknown-linux-gnu aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc \
+              aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android; do
+            python3 scripts/rust-notices.py --manifest-path src-tauri/Cargo.toml --target "$target" \
+              --overrides licenses/rust-overrides.json --own-license Unlicense --check
+          done
+      # What tauri.conf.json's beforeBuildCommand writes for a Linux build:
+      # the files the packages install and the binary embeds.
+      - name: Notices of a Linux build
+        run: |
+          pnpm --filter @manors-menaces/web build
+          TAURI_ENV_PLATFORM=linux TAURI_ENV_TARGET_TRIPLE=x86_64-unknown-linux-gnu node scripts/tauri-notices.mjs
+          for f in Third-Party-Notices.txt Rust-Licenses.html copyright; do test -s "src-tauri/licenses/$f"; done
+          for f in Third-Party-Notices.txt Rust-Licenses.html; do cmp "src-tauri/licenses/$f" "apps/web/dist/$f"; done
+          grep -q '^tauri ' src-tauri/licenses/Third-Party-Notices.txt
+          grep -q '^svelte ' src-tauri/licenses/Third-Party-Notices.txt
+          grep -q 'SIL Open Font License' src-tauri/licenses/Third-Party-Notices.txt
+          grep -q 'Copyright notices for The Rust Standard Library' src-tauri/licenses/Rust-Licenses.html
+          python3 scripts/deb-copyright.py check src-tauri/licenses/copyright --no-common-licenses
+
+  image:
+    name: Server container image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: manors-menaces:check
+          cache-from: type=gha
+      # The image must carry the notices of the bundled server and web code,
+      # and its license label must name every license they list.
+      - name: Check third-party notices in the image
+        run: |
+          image=manors-menaces:check
+          doc=/usr/share/doc/manors-menaces
+          docker run --rm --entrypoint sh "$image" -c \
+            "test -s $doc/Third-Party-Notices.txt && test -s $doc/LICENSE && test -s /app/web/Third-Party-Notices.txt && test -s /app/web/LICENSE.txt"
+          notices=$(docker run --rm --entrypoint cat "$image" "$doc/Third-Party-Notices.txt")
+          for entry in ws nodemailer svelte @fontsource/alegreya; do grep -q "^$entry " <<<"$notices"; done
+          label=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.licenses" }}' "$image")
+          for term in Unlicense $(sed -n 's/^License: //p' <<<"$notices" | tr -s ' ()' '\n' | grep -vx 'AND\|OR\|WITH' | sort -u); do
+            tr ' ' '\n' <<<"$label" | grep -qx -- "$term" || { echo "image label '$label' does not name $term"; exit 1; }
+          done

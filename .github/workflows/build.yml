@@ -58,9 +58,49 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          # squashfs-tools: AppImage notices below.
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf squashfs-tools
       - run: pnpm install --frozen-lockfile
       - run: pnpm tauri build ${{ matrix.args }} --ci
+      # The AppImage bundles this runner's GTK/WebKitGTK libraries: add their
+      # copyright files, license texts and exact source packages, and the
+      # AppImage runtime's (as release.yml does).
+      - name: AppImage system library notices
+        if: runner.os == 'Linux'
+        run: |
+          for appimage in src-tauri/target/release/bundle/appimage/*.AppImage; do
+            python3 scripts/appimage-notices.py appimage "$appimage" --package manors-menaces \
+              --overrides licenses/appimage-notices.json --report "$RUNNER_TEMP/appimage-notices.json"
+          done
+      # Third-party notices (scripts/tauri-notices.mjs) inside the artifacts.
+      - name: Check third-party notices in the Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          bundle=src-tauri/target/release/bundle
+          doc=usr/share/doc/manors-menaces
+          dpkg-deb -x $bundle/deb/*.deb "$RUNNER_TEMP/deb"
+          appimage=$(realpath $bundle/appimage/*.AppImage)
+          (cd "$RUNNER_TEMP" && "$appimage" --appimage-extract >/dev/null)
+          for root in deb squashfs-root; do
+            test -s "$RUNNER_TEMP/$root/$doc/Rust-Licenses.html"
+            grep -q '^License: Unlicense' "$RUNNER_TEMP/$root/$doc/copyright"
+            grep -q '^tauri ' "$RUNNER_TEMP/$root/$doc/Third-Party-Notices.txt"
+            grep -q '^svelte ' "$RUNNER_TEMP/$root/$doc/Third-Party-Notices.txt"
+          done
+          grep -q 'type2-runtime' "$RUNNER_TEMP/squashfs-root/$doc/Third-Party-Notices.txt"
+          test -s "$RUNNER_TEMP/squashfs-root/$doc/SOURCES.txt"
+          test -s "$RUNNER_TEMP/squashfs-root/usr/share/doc/libglib2.0-0/copyright"
+      - name: Check third-party notices in the macOS app
+        if: runner.os == 'macOS'
+        run: |
+          bundle=src-tauri/target/universal-apple-darwin/release/bundle
+          resources="$bundle/macos/Manors & Menaces.app/Contents/Resources"
+          for f in Third-Party-Notices.txt Rust-Licenses.html LICENSE.txt; do test -s "$resources/$f"; done
+          grep -q '^objc2 ' "$resources/Third-Party-Notices.txt"
+          grep -q '^svelte ' "$resources/Third-Party-Notices.txt"
+          yes | hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dmg" $bundle/dmg/*.dmg >/dev/null
+          test -s "$RUNNER_TEMP/dmg/Manors & Menaces.app/Contents/Resources/Third-Party-Notices.txt"
+          hdiutil detach "$RUNNER_TEMP/dmg"
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
@@ -103,6 +143,17 @@ jobs:
       - name: Unit tests
         working-directory: src-tauri/gen/android
         run: ./gradlew --no-daemon :app:testUniversalDebugUnitTest
+      # Notices of the Android libraries (res/raw/aboutlibraries.json) and of
+      # the Rust library and web frontend (assets/licenses/) in the APK; scan
+      # reads the libraries from this job's Gradle cache and fetches any it
+      # lacks from the repositories the build uses.
+      - name: Check third-party notices in the APK
+        run: |
+          apk=src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
+          python3 -I scripts/android_notices.py check "$apk" --config src-tauri/gen/android/android-notices.toml
+          python3 -I scripts/android_notices.py scan "$apk" --config src-tauri/gen/android/android-notices.toml \
+            --fetch-from https://dl.google.com/dl/android/maven2 --fetch-from https://repo.maven.apache.org/maven2
+          unzip -p "$apk" assets/licenses/Third-Party-Notices.txt | grep -q '^tauri '
       - uses: actions/upload-artifact@v7
         with:
           name: manors-menaces-android

@@ -1,0 +1,18 @@
+# Overrides for scripts/android_notices.py (shared licfix android recipe),
+# which the build and release workflows run on the APK they publish. Every
+# claim and waiver needs a reason; the checker rejects unknown keys.
+
+# Listed whatever else changes: the core runtime and the libraries with
+# NOTICE files or embedded third-party texts.
+require = [
+  "org.jetbrains.kotlin:kotlin-stdlib",
+  "com.fasterxml.jackson.core:jackson-annotations",
+  "com.fasterxml.jackson.core:jackson-core",
+  "com.fasterxml.jackson.core:jackson-databind",
+  "com.squareup.okhttp3:okhttp",
+]
+
+[[claim]]
+paths = ["lib/*/libmanors_menaces_lib.so"]
+requires_entries = ["assets/licenses/Third-Party-Notices.txt", "assets/licenses/Rust-Licenses.html"]
+reason = "The app's Rust library: Tauri and its crates, the Rust standard library and the embedded web frontend (Svelte, Alegreya fonts). scripts/tauri-notices.mjs writes their notices to assets/licenses/"
