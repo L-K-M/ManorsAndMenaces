@@ -4,6 +4,8 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("rust")
+    // Third-party notices. AGP 8.11 needs the base plugin, wired into res below.
+    id("com.mikepenz.aboutlibraries.plugin") version "15.2.0"
 }
 
 val tauriProperties = Properties().apply {
@@ -72,5 +74,32 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.1.4")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.0")
 }
+
+// Third-party notices for the Android libraries in the APK
+// (res/raw/aboutlibraries.json, shown by LicensesActivity): offline and
+// reproducible, from the resolved dependency graph plus config/libraries and
+// config/licenses. Fails on a dependency without a license or with one outside
+// the allow-list. The Rust crates' and web bundle's notices ship as
+// assets/licenses/ (scripts/tauri-notices.mjs).
+aboutLibraries {
+    offlineMode = true
+    collect {
+        configPath = file("config")
+        fetchRemoteLicense = false
+        fetchRemoteFunding = false
+    }
+    library {
+        requireLicense = true
+    }
+    license {
+        strictMode = com.mikepenz.aboutlibraries.plugin.StrictMode.FAIL
+        allowedLicenses.addAll("Apache-2.0", "BSD-2-Clause", "MPL-2.0")
+    }
+    export {
+        outputFile = layout.buildDirectory.file("generated/aboutLibraries/res/raw/aboutlibraries.json")
+    }
+}
+android.sourceSets.getByName("main").res.srcDir(layout.buildDirectory.dir("generated/aboutLibraries/res"))
+tasks.named("preBuild") { dependsOn("exportLibraryDefinitions") }
 
 apply(from = "tauri.build.gradle.kts")

@@ -143,6 +143,15 @@ jobs:
       - name: Unit tests
         working-directory: src-tauri/gen/android
         run: ./gradlew --no-daemon :app:testUniversalDebugUnitTest
+      # Notices of the Android libraries (res/raw/aboutlibraries.json) and of
+      # the Rust library and web frontend (assets/licenses/) in the APK; scan
+      # reads the libraries from this job's Gradle cache.
+      - name: Check third-party notices in the APK
+        run: |
+          apk=src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
+          python3 -I scripts/android_notices.py check "$apk" --config src-tauri/gen/android/android-notices.toml
+          python3 -I scripts/android_notices.py scan "$apk" --config src-tauri/gen/android/android-notices.toml
+          unzip -p "$apk" assets/licenses/Third-Party-Notices.txt | grep -q '^tauri '
       - uses: actions/upload-artifact@v7
         with:
           name: manors-menaces-android

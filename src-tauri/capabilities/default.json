@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the main window: export saves, send turn notifications, and on Android keep watching for turns.",
+  "description": "Permissions for the main window: export saves, send turn notifications, and on Android keep watching for turns and show the licenses screen.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -9,6 +9,7 @@
     "fs:allow-write-text-file",
     { "identifier": "fs:scope", "allow": [{ "path": "$DOCUMENT/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DESKTOP/**" }, { "path": "$HOME/**" }] },
     "notification:default",
-    "turn-watch:default"
+    "turn-watch:default",
+    "licenses:default"
   ]
 }

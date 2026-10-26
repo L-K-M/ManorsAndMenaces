@@ -272,6 +272,15 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk "manors-menaces-$VERSION-android-unsigned.apk"
+      # Notices of the Android libraries (res/raw/aboutlibraries.json) and of
+      # the Rust library and web frontend (assets/licenses/) in the published
+      # APK; scan reads the libraries from this job's Gradle cache.
+      - name: Check third-party notices in the APK
+        run: |
+          apk="manors-menaces-${GITHUB_REF_NAME#v}-android-unsigned.apk"
+          python3 -I scripts/android_notices.py check "$apk" --config src-tauri/gen/android/android-notices.toml
+          python3 -I scripts/android_notices.py scan "$apk" --config src-tauri/gen/android/android-notices.toml
+          unzip -p "$apk" assets/licenses/Third-Party-Notices.txt | grep -q '^tauri '
       - uses: softprops/action-gh-release@v3
         with:
           prerelease: ${{ contains(github.ref_name, '-') }}

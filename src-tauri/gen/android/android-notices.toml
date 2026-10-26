@@ -1,0 +1,40 @@
+# Overrides for scripts/android_notices.py (shared licfix android recipe),
+# which the build and release workflows run on the APK they publish. Every
+# claim and waiver needs a reason; the checker rejects unknown keys.
+
+# Listed whatever else changes: the core runtime and the libraries with
+# NOTICE files or embedded third-party texts.
+require = [
+  "org.jetbrains.kotlin:kotlin-stdlib",
+  "com.fasterxml.jackson.core:jackson-core",
+  "com.squareup.okhttp3:okhttp",
+]
+
+[[claim]]
+paths = ["lib/*/libmanors_menaces_lib.so"]
+requires_entries = ["assets/licenses/Third-Party-Notices.txt", "assets/licenses/Rust-Licenses.html"]
+reason = "The app's Rust library: Tauri and its crates, the Rust standard library and the embedded web frontend (Svelte, Alegreya fonts). scripts/tauri-notices.mjs writes their notices to assets/licenses/"
+
+# Kotlin Multiplatform modules: the scanner finds their Android artifact only
+# through Gradle module metadata, which the Gradle cache may lack. Their
+# Android AARs were checked by hand: each holds only
+# META-INF/androidx/<group>/<artifact>/LICENSE.txt (Apache-2.0), no NOTICE.
+[[waive]]
+id = "androidx.lifecycle:lifecycle-runtime"
+check = "missing-artifact"
+reason = "KMP root module; lifecycle-runtime-android 2.10.0 AAR has only its Apache-2.0 LICENSE.txt"
+
+[[waive]]
+id = "androidx.lifecycle:lifecycle-runtime-ktx"
+check = "missing-artifact"
+reason = "KMP root module; lifecycle-runtime-ktx-android 2.10.0 AAR has only its Apache-2.0 LICENSE.txt"
+
+[[waive]]
+id = "androidx.lifecycle:lifecycle-viewmodel-savedstate"
+check = "missing-artifact"
+reason = "KMP root module; lifecycle-viewmodel-savedstate-android 2.10.0 AAR has only its Apache-2.0 LICENSE.txt"
+
+[[waive]]
+id = "androidx.graphics:graphics-shapes"
+check = "missing-artifact"
+reason = "KMP root module; graphics-shapes-android 1.0.1 AAR has only its Apache-2.0 LICENSE.txt"

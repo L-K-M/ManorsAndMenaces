@@ -1,0 +1,8 @@
+{
+  "_comment": "okhttp3/internal/publicsuffix/NOTICE inside okhttp 4.12.0: its publicsuffixes.gz is compiled from the Public Suffix List (MPL-2.0)",
+  "hash": "Apache-2.0-okhttp-NOTICE",
+  "spdxId": "Apache-2.0",
+  "name": "OkHttp NOTICE",
+  "url": "",
+  "content": "NOTICE file of OkHttp:\n\nNote that publicsuffixes.gz is compiled from The Public Suffix List:\nhttps://publicsuffix.org/list/public_suffix_list.dat\n\nIt is subject to the terms of the Mozilla Public License, v. 2.0:\nhttps://mozilla.org/MPL/2.0/\n"
+}

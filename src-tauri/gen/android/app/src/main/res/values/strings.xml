@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">"Manors &amp; Menaces"</string>
     <string name="main_activity_title">"Manors &amp; Menaces"</string>
+    <string name="open_source_licenses">Open-source licenses</string>
 </resources>
