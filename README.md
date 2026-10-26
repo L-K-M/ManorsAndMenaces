@@ -193,7 +193,7 @@ The in-game tutorial teaches all of this interactively.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Manors & Menaces' own code is released under the [Unlicense](LICENSE).
 
 The bundled sound effects by Kenney and music by RandomMind are CC0 releases.
 See [sound sources and preparation notes](media-sources/audio/README.md) for

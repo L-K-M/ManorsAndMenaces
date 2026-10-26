@@ -3,7 +3,8 @@ name = "manors-menaces"
 version = "0.3.0"
 description = "Manors & Menaces — a competitive fantasy strategy board game"
 authors = ["L-K-M"]
-license = "MIT"
+# Own code only (LICENSE); the crates it links keep their own licenses.
+license = "Unlicense"
 edition = "2021"
 rust-version = "1.77"
 
