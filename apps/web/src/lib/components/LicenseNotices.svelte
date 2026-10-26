@@ -20,11 +20,14 @@
   ];
   const opened: Record<string, boolean> = $state({});
   const texts: Record<string, string> = $state({});
+  const failed: Record<string, boolean> = $state({});
 
   // Fetched on first open: the notices of the desktop and Android apps run to megabytes.
+  // A failed fetch (offline, say) is retried on the next open.
   async function toggle(notice: NoticeFile, open: boolean) {
     opened[notice.file] = open;
-    if (!open || notice.html || texts[notice.file] !== undefined) return;
+    if (!open || notice.html || (texts[notice.file] !== undefined && !failed[notice.file])) return;
+    failed[notice.file] = false;
     texts[notice.file] = t("ui.license_loading");
     try {
       const response = await fetch(`./${notice.file}`);
@@ -33,7 +36,12 @@
       texts[notice.file] = await response.text();
     } catch {
       texts[notice.file] = t("ui.license_unavailable");
+      failed[notice.file] = true;
     }
+  }
+
+  function openAndroidLicenses() {
+    platform.openAndroidLicenses?.().catch((e: unknown) => console.warn("Opening the Android licenses screen failed", e));
   }
 </script>
 
@@ -53,7 +61,7 @@
     </details>
   {/each}
   {#if platform.openAndroidLicenses}
-    <button type="button" onclick={() => platform.openAndroidLicenses?.()}>{t("ui.android_licenses")}</button>
+    <button type="button" onclick={openAndroidLicenses}>{t("ui.android_licenses")}</button>
   {/if}
 </details>
 

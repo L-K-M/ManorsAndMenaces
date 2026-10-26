@@ -305,7 +305,10 @@ jobs:
       # alone; the Dockerfile's label also names the bundled code's licenses.
       - name: Image license label
         id: oci
-        run: echo "licenses=$(sed -n 's/^LABEL org.opencontainers.image.licenses="\(.*\)"$/\1/p' Dockerfile)" >> "$GITHUB_OUTPUT"
+        run: |
+          licenses=$(sed -n 's/^LABEL org.opencontainers.image.licenses="\(.*\)"$/\1/p' Dockerfile)
+          test -n "$licenses" || { echo "no org.opencontainers.image.licenses LABEL line in the Dockerfile"; exit 1; }
+          echo "licenses=$licenses" >> "$GITHUB_OUTPUT"
       - uses: docker/metadata-action@v6
         id: meta
         with:
