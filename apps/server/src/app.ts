@@ -139,6 +139,8 @@ const MIME: Record<string, string> = {
   ".webmanifest": "application/manifest+json",
   ".png": "image/png",
   ".map": "application/json",
+  // Third-Party-Notices.txt: UTF-8, so copyright signs survive.
+  ".txt": "text/plain; charset=utf-8",
 };
 
 /** Allows `rate` actions per second on average, and bursts of up to `burst`. */

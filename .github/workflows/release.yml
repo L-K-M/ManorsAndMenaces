@@ -70,6 +70,17 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           (cd apps/web/dist && zip -qr "$GITHUB_WORKSPACE/manors-menaces-web-$VERSION.zip" .)
           cp apps/server/dist/server.mjs "manors-menaces-server-$VERSION.mjs"
+          cp apps/server/dist/Third-Party-Notices.txt "manors-menaces-server-$VERSION-Third-Party-Notices.txt"
+      # The notices must be in what users download: the zip's root, and the
+      # file published next to the server bundle.
+      - name: Check third-party notices
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          unzip -p "manors-menaces-web-$VERSION.zip" Third-Party-Notices.txt | grep -q '^svelte '
+          unzip -p "manors-menaces-web-$VERSION.zip" Third-Party-Notices.txt | grep -q 'SIL Open Font License'
+          unzip -l "manors-menaces-web-$VERSION.zip" | grep -q ' LICENSE.txt$'
+          grep -q '^ws ' "manors-menaces-server-$VERSION-Third-Party-Notices.txt"
+          grep -q '^nodemailer ' "manors-menaces-server-$VERSION-Third-Party-Notices.txt"
       - uses: softprops/action-gh-release@v3
         with:
           prerelease: ${{ contains(github.ref_name, '-') }}
@@ -77,6 +88,7 @@ jobs:
           files: |
             manors-menaces-web-*.zip
             manors-menaces-server-*.mjs
+            manors-menaces-server-*-Third-Party-Notices.txt
 
   desktop:
     name: Desktop (${{ matrix.name }})

@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "start": "tsx src/main.ts",
-    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/server.mjs --external:bufferutil --external:utf-8-validate --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/server.mjs --metafile=node_modules/.cache/esbuild-meta.json --external:bufferutil --external:utf-8-validate --banner:js=\"/*! Manors & Menaces server. Own code: Unlicense. Bundled third-party code keeps its own licenses: see Third-Party-Notices.txt, released with this file (in the Docker image: /usr/share/doc/manors-menaces/). */ import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" && node ../../scripts/third-party-notices.mjs --esbuild-meta node_modules/.cache/esbuild-meta.json --title \"Manors & Menaces server\" --out dist/Third-Party-Notices.txt",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

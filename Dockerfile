@@ -9,6 +9,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages packages
 COPY apps apps
 RUN pnpm install --frozen-lockfile
+# The web and server builds write their Third-Party-Notices.txt with these.
+COPY scripts/third-party-notices.mjs scripts/bundled-modules.mjs scripts/
 RUN pnpm --filter @manors-menaces/web build && pnpm --filter @manors-menaces/server build
 
 FROM node:26-slim
