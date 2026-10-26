@@ -4,8 +4,10 @@
 
 FROM node:26-slim AS build
 WORKDIR /app
-RUN corepack enable
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+# Node 25 and later no longer include corepack.
+RUN npm install -g corepack && corepack enable
+# LICENSE: the web build ships it as LICENSE.txt.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json LICENSE ./
 COPY packages packages
 COPY apps apps
 RUN pnpm install --frozen-lockfile
