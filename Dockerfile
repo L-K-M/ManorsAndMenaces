@@ -12,6 +12,10 @@ RUN pnpm install --frozen-lockfile
 # The web and server builds write their Third-Party-Notices.txt with these.
 COPY scripts/third-party-notices.mjs scripts/bundled-modules.mjs scripts/
 RUN pnpm --filter @manors-menaces/web build && pnpm --filter @manors-menaces/server build
+# One notices file for the image: the server bundle's packages, then the web
+# build's (which also keeps its own copy at the web root).
+RUN mkdir notices \
+ && cat apps/server/dist/Third-Party-Notices.txt apps/web/dist/Third-Party-Notices.txt > notices/Third-Party-Notices.txt
 
 FROM node:26-slim
 ENV NODE_ENV=production PORT=8787 DB_PATH=/data/manors.sqlite WEB_DIST=/app/web
@@ -21,6 +25,12 @@ ENV NODE_OPTIONS=--disable-warning=ExperimentalWarning
 WORKDIR /app
 COPY --from=build /app/apps/server/dist/server.mjs ./server.mjs
 COPY --from=build /app/apps/web/dist ./web
+COPY --from=build /app/notices/ /usr/share/doc/manors-menaces/
+COPY LICENSE /usr/share/doc/manors-menaces/LICENSE
+# The project's own license and those the notices list; the node base image's
+# own packages keep theirs in /usr/share/doc/*/copyright. CI checks that this
+# names every license in Third-Party-Notices.txt.
+LABEL org.opencontainers.image.licenses="Unlicense AND MIT AND MIT-0 AND OFL-1.1"
 RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME /data

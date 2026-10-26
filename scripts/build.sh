@@ -286,6 +286,7 @@ for target in "${TARGETS[@]}"; do
       echo "==> server"
       if $PNPM --filter @manors-menaces/server build; then
         cp apps/server/dist/server.mjs "$DIST/manors-menaces-server-$VERSION.mjs"
+        cp apps/server/dist/Third-Party-Notices.txt "$DIST/manors-menaces-server-$VERSION-Third-Party-Notices.txt"
         OK+=("server → $DIST/manors-menaces-server-$VERSION.mjs")
       else
         FAILED+=("server")

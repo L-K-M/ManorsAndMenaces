@@ -299,6 +299,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # metadata-action would label the image with the repository's license
+      # alone; the Dockerfile's label also names the bundled code's licenses.
+      - name: Image license label
+        id: oci
+        run: echo "licenses=$(sed -n 's/^LABEL org.opencontainers.image.licenses="\(.*\)"$/\1/p' Dockerfile)" >> "$GITHUB_OUTPUT"
       - uses: docker/metadata-action@v6
         id: meta
         with:
@@ -307,7 +312,31 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+          labels: |
+            org.opencontainers.image.licenses=${{ steps.oci.outputs.licenses }}
       - uses: docker/setup-buildx-action@v4
+      - name: Build the image for checks
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: manors-menaces:check
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+      # The image must carry the notices of the bundled server and web code,
+      # and its license label must name every license they list.
+      - name: Check third-party notices in the image
+        run: |
+          image=manors-menaces:check
+          doc=/usr/share/doc/manors-menaces
+          docker run --rm --entrypoint sh "$image" -c \
+            "test -s $doc/Third-Party-Notices.txt && test -s $doc/LICENSE && test -s /app/web/Third-Party-Notices.txt && test -s /app/web/LICENSE.txt"
+          notices=$(docker run --rm --entrypoint cat "$image" "$doc/Third-Party-Notices.txt")
+          for entry in ws nodemailer svelte @fontsource/alegreya; do grep -q "^$entry " <<<"$notices"; done
+          label=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.licenses" }}' "$image")
+          for term in Unlicense $(sed -n 's/^License: //p' <<<"$notices" | tr -s ' ()' '\n' | grep -vx 'AND\|OR\|WITH' | sort -u); do
+            tr ' ' '\n' <<<"$label" | grep -qx -- "$term" || { echo "image label '$label' does not name $term"; exit 1; }
+          done
       - uses: docker/build-push-action@v7
         with:
           context: .

@@ -135,3 +135,31 @@ jobs:
           grep -q 'SIL Open Font License' src-tauri/licenses/Third-Party-Notices.txt
           grep -q 'Copyright notices for The Rust Standard Library' src-tauri/licenses/Rust-Licenses.html
           python3 scripts/deb-copyright.py check src-tauri/licenses/copyright --no-common-licenses
+
+  image:
+    name: Server container image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: manors-menaces:check
+          cache-from: type=gha
+      # The image must carry the notices of the bundled server and web code,
+      # and its license label must name every license they list.
+      - name: Check third-party notices in the image
+        run: |
+          image=manors-menaces:check
+          doc=/usr/share/doc/manors-menaces
+          docker run --rm --entrypoint sh "$image" -c \
+            "test -s $doc/Third-Party-Notices.txt && test -s $doc/LICENSE && test -s /app/web/Third-Party-Notices.txt && test -s /app/web/LICENSE.txt"
+          notices=$(docker run --rm --entrypoint cat "$image" "$doc/Third-Party-Notices.txt")
+          for entry in ws nodemailer svelte @fontsource/alegreya; do grep -q "^$entry " <<<"$notices"; done
+          label=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.licenses" }}' "$image")
+          for term in Unlicense $(sed -n 's/^License: //p' <<<"$notices" | tr -s ' ()' '\n' | grep -vx 'AND\|OR\|WITH' | sort -u); do
+            tr ' ' '\n' <<<"$label" | grep -qx -- "$term" || { echo "image label '$label' does not name $term"; exit 1; }
+          done
