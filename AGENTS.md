@@ -53,7 +53,7 @@
   - Tauri apps: `scripts/tauri-notices.mjs` (run by `beforeBuildCommand`) adds the Rust crates (`scripts/rust-notices.py`, overrides in `licenses/rust-overrides.json`), `Rust-Licenses.html` and, on Linux, the Debian `copyright` file (`licenses/linux-copyright.json`); `src-tauri/tauri.conf.json` and `tauri.windows.conf.json` install them;
   - AppImage: the workflows run `scripts/appimage-notices.py` (`licenses/appimage-notices.json`) for the bundled system libraries;
   - Android: the AboutLibraries plugin (`src-tauri/gen/android/app/config/`), checked by `scripts/android_notices.py` with `src-tauri/gen/android/android-notices.toml`; Settings > Licenses opens `LicensesActivity`.
-- The generator scripts above (and `bundled-modules.mjs`, `deb-copyright.py`) are vendored unchanged from a shared recipe set; put repo-specific changes in their override files. Keep the CI and release notice checks passing rather than weakening them.
+- The generator scripts above (and `bundled-modules.mjs`, `deb-copyright.py`) are vendored from a shared recipe set, unchanged except for the `common_licenses` override in `appimage-notices.py`; put repo-specific changes in their override files. Keep the CI and release notice checks passing rather than weakening them.
 
 ## Icons
 

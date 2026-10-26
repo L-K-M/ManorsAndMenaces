@@ -10,7 +10,9 @@
     "recipe (pinned upstream refs and SHA-256 in its licenses/README.md),",
     "linuxdeploy-plugin-gtk's LICENSE.txt (tauri-apps fork, unchanged since",
     "commit 35058592f5) and the license header of AppImageKit's src/AppRun.c",
-    "(commit 2b8f5b39c4; the file last changed in 142d826bd7)."
+    "(commit 2b8f5b39c4; the file last changed in 142d826bd7). common_licenses",
+    "names the text to ship where a copyright file cites a common-licenses name",
+    "the build host lacks."
   ],
   "own": [
     {
@@ -44,6 +46,10 @@
     {
       "path": "usr/share/glib-2.0/schemas/gschemas.compiled",
       "reason": "Generated at build time by linuxdeploy-plugin-gtk (glib-compile-schemas) from the bundled schema files, which the host packages own"
+    },
+    {
+      "path": "usr/lib/gio/modules/giomodule.cache",
+      "reason": "Generated at build time by linuxdeploy-plugin-gtk (gio-querymodules): names the bundled GIO modules and their extension points"
     }
   ],
   "files": [
@@ -55,10 +61,22 @@
     {
       "path": "apprun-hooks/linuxdeploy-plugin-gtk.sh",
       "extra": "linuxdeploy-plugin-gtk",
-      "reason": "Hook script written by linuxdeploy-plugin-gtk, which the Tauri bundler downloads from tauri-apps/linuxdeploy-plugin-gtk"
+      "reason": "Hook script written by linuxdeploy-plugin-gtk. Tauri's bundler (tauri-cli 2.12) runs its own copy of the tauri-apps fork, crates/tauri-bundler/src/bundle/linux/appimage/linuxdeploy-plugin-gtk.sh in tauri-apps/tauri"
     }
   ],
   "packages": [],
+  "common_licenses": [
+    {
+      "reference": "GPL-2.0",
+      "use": "GPL-2",
+      "reason": "Ubuntu 22.04's pango copyright files (libpango-1.0-0, libpangocairo-1.0-0, libpangoft2-1.0-0, gir1.2-pango-1.0) cite /usr/share/common-licenses/GPL-2.0 for the GNU GPL version 2; base-files names that text GPL-2"
+    },
+    {
+      "reference": "GPL-3.0",
+      "use": "GPL-3",
+      "reason": "The same pango copyright files cite /usr/share/common-licenses/GPL-3.0 for the GNU GPL version 3; base-files names that text GPL-3"
+    }
+  ],
   "extra": [
     {
       "name": "AppImageKit AppRun",
