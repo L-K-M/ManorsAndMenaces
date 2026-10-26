@@ -4,3 +4,5 @@
 /tauri.build.gradle.kts
 /proguard-tauri.pro
 /tauri.properties
+# Third-party notices that scripts/tauri-notices.mjs writes for each build.
+/src/main/assets/licenses/

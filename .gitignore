@@ -12,3 +12,5 @@ apps/server/data/
 src-tauri/target/
 src-tauri/gen/schemas/
 .env
+# Third-party notices that scripts/tauri-notices.mjs writes for each build.
+src-tauri/licenses/

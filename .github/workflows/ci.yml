@@ -98,3 +98,40 @@ jobs:
       - name: Placeholder frontend for tauri::generate_context!
         run: mkdir -p apps/web/dist && echo '<!doctype html>' > apps/web/dist/index.html
       - run: cargo check --manifest-path src-tauri/Cargo.toml --locked
+
+  tauri-notices:
+    name: Third-party notices of the Tauri apps
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install --frozen-lockfile
+      # Every crate linked into a shipped target needs its license text
+      # (licenses/rust-overrides.json fills the gaps), and the app's own
+      # crate must declare the Unlicense. Reads metadata only; builds nothing.
+      - name: Rust crate notices for every shipped target
+        run: |
+          for target in x86_64-unknown-linux-gnu aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc \
+              aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android; do
+            python3 scripts/rust-notices.py --manifest-path src-tauri/Cargo.toml --target "$target" \
+              --overrides licenses/rust-overrides.json --own-license Unlicense --check
+          done
+      # What tauri.conf.json's beforeBuildCommand writes for a Linux build:
+      # the files the packages install and the binary embeds.
+      - name: Notices of a Linux build
+        run: |
+          pnpm --filter @manors-menaces/web build
+          TAURI_ENV_PLATFORM=linux TAURI_ENV_TARGET_TRIPLE=x86_64-unknown-linux-gnu node scripts/tauri-notices.mjs
+          for f in Third-Party-Notices.txt Rust-Licenses.html copyright; do test -s "src-tauri/licenses/$f"; done
+          for f in Third-Party-Notices.txt Rust-Licenses.html; do cmp "src-tauri/licenses/$f" "apps/web/dist/$f"; done
+          grep -q '^tauri ' src-tauri/licenses/Third-Party-Notices.txt
+          grep -q '^svelte ' src-tauri/licenses/Third-Party-Notices.txt
+          grep -q 'SIL Open Font License' src-tauri/licenses/Third-Party-Notices.txt
+          grep -q 'Copyright notices for The Rust Standard Library' src-tauri/licenses/Rust-Licenses.html
+          python3 scripts/deb-copyright.py check src-tauri/licenses/copyright --no-common-licenses

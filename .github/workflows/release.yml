@@ -128,11 +128,64 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+          # squashfs-tools and libarchive-tools: AppImage notices and the package checks below.
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
+            squashfs-tools libarchive-tools
       - run: pnpm install --frozen-lockfile
       - uses: tauri-apps/tauri-action@action-v1.0.0
         with:
           args: ${{ matrix.args }}
+      # The AppImage bundles this runner's GTK/WebKitGTK libraries. Add their
+      # copyright files, license texts and exact source packages, and the
+      # AppImage runtime's, before anything uploads it.
+      - name: AppImage system library notices
+        if: runner.os == 'Linux'
+        run: |
+          for appimage in src-tauri/target/release/bundle/appimage/*.AppImage; do
+            python3 scripts/appimage-notices.py appimage "$appimage" --package manors-menaces \
+              --overrides licenses/appimage-notices.json --report "$RUNNER_TEMP/appimage-notices.json"
+          done
+      # Third-party notices (scripts/tauri-notices.mjs) inside what users download.
+      - name: Check third-party notices in the Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          bundle=src-tauri/target/release/bundle
+          doc=usr/share/doc/manors-menaces
+          dpkg-deb -x $bundle/deb/*.deb "$RUNNER_TEMP/deb"
+          mkdir "$RUNNER_TEMP/rpm" && bsdtar -xf $bundle/rpm/*.rpm -C "$RUNNER_TEMP/rpm"
+          appimage=$(realpath $bundle/appimage/*.AppImage)
+          (cd "$RUNNER_TEMP" && "$appimage" --appimage-extract >/dev/null)
+          for root in deb rpm squashfs-root; do
+            test -s "$RUNNER_TEMP/$root/$doc/Rust-Licenses.html"
+            grep -q '^tauri ' "$RUNNER_TEMP/$root/$doc/Third-Party-Notices.txt"
+            grep -q '^svelte ' "$RUNNER_TEMP/$root/$doc/Third-Party-Notices.txt"
+          done
+          grep -q '^License: Unlicense' "$RUNNER_TEMP/deb/$doc/copyright"
+          grep -q '^License: Unlicense' "$RUNNER_TEMP/squashfs-root/$doc/copyright"
+          test -s "$RUNNER_TEMP/rpm/$doc/LICENSE"
+          grep -q 'type2-runtime' "$RUNNER_TEMP/squashfs-root/$doc/Third-Party-Notices.txt"
+          test -s "$RUNNER_TEMP/squashfs-root/$doc/SOURCES.txt"
+          test -s "$RUNNER_TEMP/squashfs-root/usr/share/doc/libglib2.0-0/copyright"
+      - name: Check third-party notices in the macOS app
+        if: runner.os == 'macOS'
+        run: |
+          bundle=src-tauri/target/universal-apple-darwin/release/bundle
+          resources="$bundle/macos/Manors & Menaces.app/Contents/Resources"
+          for f in Third-Party-Notices.txt Rust-Licenses.html LICENSE.txt; do test -s "$resources/$f"; done
+          grep -q '^objc2 ' "$resources/Third-Party-Notices.txt"
+          grep -q '^svelte ' "$resources/Third-Party-Notices.txt"
+          # The disk image is what users download.
+          yes | hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dmg" $bundle/dmg/*.dmg >/dev/null
+          test -s "$RUNNER_TEMP/dmg/Manors & Menaces.app/Contents/Resources/Third-Party-Notices.txt"
+          hdiutil detach "$RUNNER_TEMP/dmg"
+      # tauri-build stages bundle.resources (tauri.windows.conf.json) here for the installer.
+      - name: Check third-party notices for the Windows installer
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          for f in Third-Party-Notices.txt Rust-Licenses.html LICENSE.txt; do test -s "src-tauri/target/release/$f"; done
+          grep -q '^webview2-com ' src-tauri/target/release/Third-Party-Notices.txt
+          grep -q '^svelte ' src-tauri/target/release/Third-Party-Notices.txt
       - uses: softprops/action-gh-release@v3
         with:
           prerelease: ${{ contains(github.ref_name, '-') }}

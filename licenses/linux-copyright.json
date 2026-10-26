@@ -1,0 +1,40 @@
+{
+  "_comment": [
+    "Spec for scripts/deb-copyright.py: the DEP-5 copyright file that",
+    "scripts/tauri-notices.mjs writes for the Linux packages (deb, AppImage and",
+    "the Flatpak repacked from the deb). Paths are relative to this file; $VARS",
+    "come from the environment that script sets (toolchain paths and version)."
+  ],
+  "package": "manors-menaces",
+  "upstream_name": "Manors & Menaces",
+  "upstream_contact": "L-K-M <https://github.com/L-K-M/ManorsAndMenaces/issues>",
+  "source": "https://github.com/L-K-M/ManorsAndMenaces",
+  "own": {
+    "copyright": ["2026 L-K-M"],
+    "license": "Unlicense",
+    "license_files": ["../LICENSE"]
+  },
+  "components": [
+    {
+      "name": "Rust crates and web components",
+      "version": "see Third-Party-Notices.txt",
+      "license": "LicenseRef-Bundled-Components",
+      "license_text": "The Rust crates linked into the binary and the npm packages and fonts of its embedded web frontend keep their own licenses (MIT, Apache-2.0, BSD-3-Clause, ISC, Unicode-3.0, Zlib, MPL-2.0, OFL-1.1 and others). Their full license texts, copyright notices and source links are in Third-Party-Notices.txt, next to this file.",
+      "copyright": ["The authors of each component, as listed in Third-Party-Notices.txt"],
+      "embedded_in": ["usr/bin/manors-menaces"]
+    },
+    {
+      "name": "Rust standard library",
+      "version": "$RUSTC_VERSION",
+      "license": "MIT OR Apache-2.0",
+      "copyright": ["The Rust Project Developers"],
+      "source_url": "https://github.com/rust-lang/rust/tree/$RUSTC_VERSION/library",
+      "license_files": {
+        "MIT": ["$RUST_DOC/licenses/MIT.txt"],
+        "Apache-2.0": ["$RUST_DOC/licenses/Apache-2.0.txt"]
+      },
+      "embedded_in": ["usr/bin/manors-menaces"],
+      "comment": "The full notices, including those of the standard library's own dependencies, are in Rust-Licenses.html next to this file."
+    }
+  ]
+}

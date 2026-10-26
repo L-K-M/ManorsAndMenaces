@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "resources": {
+      "licenses/Third-Party-Notices.txt": "Third-Party-Notices.txt",
+      "licenses/Rust-Licenses.html": "Rust-Licenses.html",
+      "../LICENSE": "LICENSE.txt"
+    }
+  }
+}
