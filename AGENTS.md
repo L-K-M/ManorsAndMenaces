@@ -44,6 +44,17 @@
 - `tools/generate-map.mjs` — Voronoi map generator for one island; `tools/islands.mjs` lists the published islands (seed, id, name) and `tools/generate-islands.mjs` generates or checks them all. A published island's id and topology stay fixed (saves name them); add a new island instead. Each game plays a layout drawn on an island (`packages/content/src/layout.ts`), named `<island>@<layout>`.
 - `tools/simulate.ts` — AI-vs-AI telemetry against the §68 targets.
 
+## Licensing
+
+- Manors & Menaces' own code is the Unlicense (`LICENSE`). Keep the license statements in `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` (`bundle.license`), the root and app `package.json` files, the Docker image label and the README consistent with it; CI checks them.
+- Before adding a dependency, vendored file or bundled asset (fonts, images, icons, sounds, data), confirm its license allows redistribution in our builds. Never vendor third-party code without its license file.
+- Every artifact ships `Third-Party-Notices.txt`, generated from what it really bundles; the generators fail on a component without license text, and gaps get explicit overrides with a reason:
+  - web and server builds: `scripts/third-party-notices.mjs`, chained into their `build` scripts;
+  - Tauri apps: `scripts/tauri-notices.mjs` (run by `beforeBuildCommand`) adds the Rust crates (`scripts/rust-notices.py`, overrides in `licenses/rust-overrides.json`), `Rust-Licenses.html` and, on Linux, the Debian `copyright` file (`licenses/linux-copyright.json`); `src-tauri/tauri.conf.json` and `tauri.windows.conf.json` install them;
+  - AppImage: the workflows run `scripts/appimage-notices.py` (`licenses/appimage-notices.json`) for the bundled system libraries;
+  - Android: the AboutLibraries plugin (`src-tauri/gen/android/app/config/`), checked by `scripts/android_notices.py` with `src-tauri/gen/android/android-notices.toml`; Settings > Licenses opens `LicensesActivity`.
+- The generator scripts above (and `bundled-modules.mjs`, `deb-copyright.py`) are vendored unchanged from a shared recipe set; put repo-specific changes in their override files. Keep the CI and release notice checks passing rather than weakening them.
+
 ## Icons
 
 `media-sources/icon.png` is the master; `media-sources/icon.json` adds the background colour for iOS, the Android adaptive icon and the web's full-bleed variants, and the Android foreground scale. Regenerate the desktop, iOS and Android icons with `pnpm tauri icon media-sources/icon.json -o src-tauri/icons` (the Android launcher icons land in `src-tauri/gen/android/app/src/main/res`), and the web favicon and manifest icons (including the maskable and Apple touch variants) with `node tools/generate-pwa-icons.mjs`; the derived icons are committed.
