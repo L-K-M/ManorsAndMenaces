@@ -21,6 +21,8 @@ describe("mail configuration", () => {
   it("names what is missing or wrong", () => {
     expect(() => mailConfigFromEnv(host)).toThrow(/MAIL_FROM.*PUBLIC_URL|PUBLIC_URL.*MAIL_FROM/);
     expect(() => mailConfigFromEnv({ ...complete, ...host, PUBLIC_URL: "play.example.org" })).toThrow(/PUBLIC_URL/);
+    // A login in it would ride along in every link the emails carry.
+    expect(() => mailConfigFromEnv({ ...complete, ...host, PUBLIC_URL: "https://user:token@play.example.org" })).toThrow(/PUBLIC_URL/);
     expect(() => mailConfigFromEnv({ ...complete, ...host, MAIL_OUTBOX_DIR: "/tmp/x" })).toThrow(/not both/);
     // Every email carries it as a header, so a stray line break would corrupt them all.
     expect(() => mailConfigFromEnv({ ...complete, ...host, MAIL_FROM: "Turns <turns@example.org>\nBcc: x@example.org" })).toThrow(/MAIL_FROM/);
