@@ -18,6 +18,7 @@ import { timingSafeEqual } from "node:crypto";
 import { isIPv6 } from "node:net";
 import type { GiveawayResponse } from "@manors-menaces/protocol";
 import type { Invites } from "./invites.js";
+import { publicUrlBase } from "./publicUrl.js";
 import { HttpError } from "./service.js";
 import type { InviteRow, Store } from "./store.js";
 
@@ -78,17 +79,17 @@ export function giveawayConfigFromEnv(env: NodeJS.ProcessEnv): GiveawayConfig | 
   if (!env.PUBLIC_URL?.trim()) {
     throw new Error("GIVEAWAY_INVITE is set, so the giveaway needs PUBLIC_URL: where winners open their invite links, like https://play.example.org");
   }
-  // Invite links are built on it: the same rule as turn emails (mail.ts), or
-  // every invite given away would carry a link that does not open.
-  const publicUrl = parseUrl(env.PUBLIC_URL.trim());
-  if (!publicUrl || !/^https?:$/.test(publicUrl.protocol) || publicUrl.search || publicUrl.hash) {
+  // Invite links are built on it, or every invite given away would carry a
+  // link that does not open.
+  const publicUrl = publicUrlBase(env.PUBLIC_URL);
+  if (!publicUrl) {
     throw new Error(`PUBLIC_URL must be the http(s) address players open the game at, like https://play.example.org, not "${env.PUBLIC_URL}"`);
   }
   const key = env.GIVEAWAY_KEY?.trim() ?? "";
   if (key && !GIVEAWAY_KEY_PATTERN.test(key)) {
     throw new Error(`GIVEAWAY_KEY must be 4 to 64 characters of letters, digits, "-" or "_" (the website's tool computes it from the right answer), not "${env.GIVEAWAY_KEY}"`);
   }
-  return { sponsor, origin, publicUrl: publicUrl.href.replace(/\/+$/, ""), ...(key ? { key } : {}) };
+  return { sponsor, origin, publicUrl, ...(key ? { key } : {}) };
 }
 
 /**

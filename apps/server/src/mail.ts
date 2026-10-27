@@ -13,6 +13,7 @@ import { createTransport, type SMTPTransportOptions } from "nodemailer";
 import type { EmailSettings, MatchNotice } from "@manors-menaces/protocol";
 import { text } from "./notices.js";
 import { htmlPage } from "./page.js";
+import { publicUrlBase } from "./publicUrl.js";
 import { HttpError, hashToken } from "./service.js";
 import type { Store } from "./store.js";
 
@@ -118,14 +119,13 @@ export function mailConfigFromEnv(env: Record<string, string | undefined>): Mail
   const missing = ["MAIL_FROM", "PUBLIC_URL"].filter((name) => !env[name]?.trim());
   if (missing.length > 0) throw new Error(`Email needs ${missing.join(" and ")} as well as ${smtp ? "SMTP_HOST" : "MAIL_OUTBOX_DIR"}`);
 
-  const publicUrl = parseUrl(env.PUBLIC_URL as string);
-  if (!publicUrl || !/^https?:$/.test(publicUrl.protocol) || publicUrl.search || publicUrl.hash) {
+  const base = publicUrlBase(env.PUBLIC_URL as string);
+  if (!base) {
     throw new Error(`PUBLIC_URL must be the http(s) address players open the game at, like https://play.example.org, not "${env.PUBLIC_URL}"`);
   }
   const from = (env.MAIL_FROM as string).trim();
   // Every email carries it as a header, so a stray line break would corrupt them all.
   if (/[\r\n]/.test(from)) throw new Error("MAIL_FROM must be one line, like: Manors & Menaces <turns@example.org>");
-  const base = publicUrl.href.replace(/\/+$/, "");
   if (outbox) return { from, publicUrl: base, transport: outboxTransport(outbox) };
 
   const transporter = createTransport({ ...(smtp as SMTPTransportOptions), ...SMTP_TIMEOUTS });
@@ -135,14 +135,6 @@ export function mailConfigFromEnv(env: Record<string, string | undefined>): Mail
     transport: async (mail) => void (await transporter.sendMail(mail)),
     verify: () => transporter.verify(),
   };
-}
-
-function parseUrl(value: string): URL | null {
-  try {
-    return new URL(value.trim());
-  } catch {
-    return null;
-  }
 }
 
 /** Writes each message to `dir` as an .eml file (development: nothing leaves the machine). */
