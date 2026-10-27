@@ -431,6 +431,12 @@ describe("giveawayConfigFromEnv", () => {
 
   it("needs PUBLIC_URL to build the invite links", () => {
     expect(() => giveawayConfigFromEnv({ GIVEAWAY_INVITE: "x", GIVEAWAY_ORIGIN: ORIGIN })).toThrow(/PUBLIC_URL/);
+    // Invite links are built on it, so it must be a whole http(s) address,
+    // as turn emails want it too; a path prefix is fine.
+    for (const bad of ["play.example.org", "ftp://play.example.org", "https://play.example.org/?x=1", "https://play.example.org/#top"]) {
+      expect(() => giveawayConfigFromEnv({ ...env, PUBLIC_URL: bad }), bad).toThrow(/PUBLIC_URL/);
+    }
+    expect(giveawayConfigFromEnv({ ...env, PUBLIC_URL: " https://example.org/games/ " })?.publicUrl).toBe("https://example.org/games");
   });
 
   it("reads an optional GIVEAWAY_KEY, trimmed; blank means none", () => {
