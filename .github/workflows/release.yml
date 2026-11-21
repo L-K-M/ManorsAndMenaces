@@ -102,7 +102,7 @@ jobs:
             os: ubuntu-22.04
             args: ""
           - name: macOS
-            os: macos-14
+            os: macos-15
             args: "--target universal-apple-darwin"
           - name: Windows
             os: windows-2022
@@ -120,7 +120,7 @@ jobs:
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.os == 'macos-14' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
